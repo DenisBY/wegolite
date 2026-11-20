@@ -17,7 +17,8 @@
  * (the traffic-on session merges the static hulls, plan 18-13); without them
  * nothing changes. Plan 18-05 appended the two buoys (250 energy in
  * `World.staticHealth`, destroyed at 0 for the life of their world, D-04); plan
- * 18-15 adds their subentities. A destroyed buoy (`isBuoyDestroyed`) is no
+ * 18-15 adds their frangible subentities (`BUOY_SUBENTITY_TARGETS`, PD-01). A
+ * destroyed buoy (`isBuoyDestroyed`) is no
  * candidate; ident, blockage, compass, scanner and view read the same
  * predicate (D-05, plans 18-06 to 18-08).
  *
@@ -42,8 +43,10 @@ import type { Quat, Vec3 } from "../math.js";
 import type { StaticHealth } from "./entity.js";
 import {
   MAIN_STATION_ID,
+  NAV_BUOY_SUBENTITY_ID,
   STATION_NAV_BUOY_ID,
   WITCHPOINT_BUOY_ID,
+  WITCHPOINT_BUOY_SUBENTITY_ID,
 } from "./ids.js";
 import type { EntityId } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
@@ -96,6 +99,69 @@ export const STATIC_TARGETS: readonly StaticTarget[] = Object.freeze([
     healthKey: "navBuoy",
   } as const),
 ]);
+
+/**
+ * The share of a laser hit's damage a frangible parent takes when the hit is
+ * routed to its subentity: Oolite's "1% bleed-through damage"
+ * (`ShipEntity.m:10202-10209` for an NPC's shot, `10409-10416` for the
+ * player's). The subentity takes the full damage.
+ */
+export const FRANGIBLE_BLEED_THROUGH = 0.01;
+
+/**
+ * A buoy's frangible subentity as a hit target (Phase 18, PD-01). It is no
+ * body and no candidate of its own: the beam meets it as part `subentityIndex`
+ * of its buoy's hull (`../combat/hit.ts`), and the shot resolution routes the
+ * damage to this id. Its energy and Oolite's sticky routing flag live in
+ * `World.buoys[buoyKey]` (`subentityEnergy`, `subentityTakingDamage`).
+ */
+export interface BuoySubentityTarget {
+  readonly id: EntityId;
+  readonly buoyKey: BuoyKey;
+  /** The subentity's index in the buoy hull's `subentities`. */
+  readonly subentityIndex: number;
+}
+
+const WITCHPOINT_BUOY_SUBENTITY: BuoySubentityTarget = Object.freeze({
+  id: WITCHPOINT_BUOY_SUBENTITY_ID,
+  buoyKey: "witchpoint",
+  subentityIndex: 0,
+});
+
+const NAV_BUOY_SUBENTITY: BuoySubentityTarget = Object.freeze({
+  id: NAV_BUOY_SUBENTITY_ID,
+  buoyKey: "navBuoy",
+  subentityIndex: 0,
+});
+
+/** The two buoy subentities in ascending id (witchpoint 6, nav buoy 7). */
+export const BUOY_SUBENTITY_TARGETS: readonly BuoySubentityTarget[] =
+  Object.freeze([WITCHPOINT_BUOY_SUBENTITY, NAV_BUOY_SUBENTITY]);
+
+/** The buoy subentity target with `id`, or undefined for any other number. */
+export function buoySubentityTargetById(
+  id: EntityId,
+): BuoySubentityTarget | undefined {
+  for (const row of BUOY_SUBENTITY_TARGETS) {
+    if (row.id === id) return row;
+  }
+  return undefined;
+}
+
+/** The subentity row of the buoy `key`. */
+export function buoySubentityTargetOf(key: BuoyKey): BuoySubentityTarget {
+  return key === "witchpoint" ? WITCHPOINT_BUOY_SUBENTITY : NAV_BUOY_SUBENTITY;
+}
+
+/**
+ * True while the buoy `key`'s subentity is attached: its energy is above 0
+ * (PD-01). At 0 it is detached for the life of its world: it is no beam part
+ * (`HitTarget.detachedSubentities`), nothing recharges it, and only a new
+ * world restores it.
+ */
+export function isBuoySubentityAttached(world: World, key: BuoyKey): boolean {
+  return world.buoys[key].subentityEnergy > 0;
+}
 
 /** The static target with `id`, or undefined for any other number. */
 export function staticTargetById(id: EntityId): StaticTarget | undefined {

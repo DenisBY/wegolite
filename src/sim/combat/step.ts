@@ -62,8 +62,11 @@ import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
 import { BUOY_ENERGY_RECHARGE_RATE, BUOY_MAX_ENERGY } from "../world/limits.js";
 import {
+  FRANGIBLE_BLEED_THROUGH,
   STATIC_TARGETS,
+  buoySubentityTargetOf,
   isBuoyDestroyed,
+  isBuoySubentityAttached,
   staticPose,
   staticTargetById,
 } from "../world/statics.js";
@@ -81,7 +84,7 @@ import type { NpcWeapon } from "./aim.js";
 import { LASER_STATS } from "./constants.js";
 import { firstShipHit } from "./hit.js";
 import { stepIdent, updateIdentTarget } from "./ident.js";
-import type { HitTarget, HullTable, LaserRay } from "./hit.js";
+import type { HitPart, HitTarget, HullTable, LaserRay } from "./hit.js";
 import { applyLedger } from "./ledger.js";
 import type { HitRecord } from "./ledger.js";
 import {
@@ -367,8 +370,9 @@ function coolShips(world: World, dt: number): void {
 }
 
 /**
- * Resolve the tick's shots against the world as the world step left it; applies
- * nothing.
+ * Resolve the tick's shots against the world as the world step left it. It
+ * applies no damage; its one world write is a buoy's sticky routing flag
+ * (below).
  *
  * The shots are the player's (queued by `stepPlayerCombat`) and every NPC's that
  * asked `ShipControl.fire` during the world step (`world.fireQueue`, drained
@@ -395,6 +399,23 @@ function coolShips(world: World, dt: number): void {
  * carries the shooter's `specKey` (the app maps it to a shot colour; the
  * player's shot carries none). A non-finite or non-positive damage is never
  * queued (T-13-15).
+ *
+ * A buoy's frangible subentity (PD-01). A buoy whose subentity is detached
+ * (`isBuoySubentityAttached` false) is listed with that subentity in
+ * `detachedSubentities`, so the beam never meets it. A shot whose winning part
+ * is a buoy's subentity sets that buoy's `subentityTakingDamage` as the shot
+ * resolves, as Oolite's hit test does (`Universe.m:5634-5636`), so a later
+ * shot of the same tick reads it. Every hit on a buoy whose flag is set, while
+ * its subentity is attached and its hull is `frangible`, is then routed as
+ * Oolite's firing code routes it, from the flag and not from the current hit
+ * (`ShipEntity.m:10202-10209` for an NPC, `10409-10416` for the player): one
+ * record on the buoy for `FRANGIBLE_BLEED_THROUGH` of the damage, then one on
+ * the subentity's static id (6 or 7) for the full damage. Any other hit on a
+ * buoy, and every hit on the station (not frangible, no flag), is one full
+ * record on the target. The ledger clears the flag when the subentity reaches
+ * 0 (`subEntityDied`, `ShipEntity.m:8187-8188`). A destroyed buoy is never a
+ * candidate again, so a flag it kept is inert; the state resets with the
+ * world.
  *
  * Returns the beam events and the `HitRecord` list; `resolveShots` applies the
  * list through the ledger.
@@ -437,11 +458,22 @@ function resolveShotHits(
         continue;
       }
       const pose = staticPose(row, layout, player, world);
+      // A detached buoy subentity is no beam part (PD-01).
+      const detached =
+        row.layoutKey !== "station" &&
+        !isBuoySubentityAttached(world, row.layoutKey);
       targets.push({
         id: row.id,
         specKey: row.hullKey,
         position: pose.position,
         orientation: pose.orientation,
+        ...(detached
+          ? {
+              detachedSubentities: new Set([
+                buoySubentityTargetOf(row.layoutKey).subentityIndex,
+              ]),
+            }
+          : {}),
       });
     }
   }
@@ -494,19 +526,73 @@ function resolveShotHits(
       laserKind: stats.laserKind,
       ...(shooter === undefined ? {} : { specKey: shooter.specKey }),
     });
+    const routedTo =
+      hit === null || world === undefined
+        ? undefined
+        : routeBuoyHit(world, hulls, hit.id, hit.part);
     if (hit !== null && Number.isFinite(stats.damage) && stats.damage > 0) {
-      records.push({
-        target: hit.id,
-        source: shot.shooter,
-        amount: stats.damage,
-        sourcePosition: {
-          ...(world?.store.get(shot.shooter)?.position ?? shot.ray.origin),
-        },
-      });
+      const sourcePosition =
+        world?.store.get(shot.shooter)?.position ?? shot.ray.origin;
+      if (routedTo === undefined) {
+        records.push({
+          target: hit.id,
+          source: shot.shooter,
+          amount: stats.damage,
+          sourcePosition: { ...sourcePosition },
+        });
+      } else {
+        // `ShipEntity.m:10202-10209`, `10409-10416`: 1 % on the frangible
+        // parent, then the full damage on the subentity.
+        records.push({
+          target: hit.id,
+          source: shot.shooter,
+          amount: FRANGIBLE_BLEED_THROUGH * stats.damage,
+          sourcePosition: { ...sourcePosition },
+        });
+        records.push({
+          target: routedTo,
+          source: shot.shooter,
+          amount: stats.damage,
+          sourcePosition: { ...sourcePosition },
+        });
+      }
     }
   }
 
   return { events, records };
+}
+
+/**
+ * The sticky subentity routing of one laser hit (PD-01). When `targetId` is a
+ * buoy and `part` its subentity, set the buoy's `subentityTakingDamage`
+ * (`Universe.m:5634-5636`). Then, when the flag is set, the subentity is
+ * attached and the buoy's hull is `frangible` (`ShipEntity.m:10202`,
+ * `10409`), return the subentity's static id, to which the full damage goes;
+ * otherwise undefined (one full record on the target). The station and every
+ * other target return undefined and write nothing.
+ */
+function routeBuoyHit(
+  world: World,
+  hulls: HullTable | undefined,
+  targetId: EntityId,
+  part: HitPart,
+): EntityId | undefined {
+  const row = staticTargetById(targetId);
+  if (row === undefined || row.layoutKey === "station") return undefined;
+  const key = row.layoutKey;
+  const buoy = world.buoys[key];
+  const sub = buoySubentityTargetOf(key);
+  if (part.kind === "subentity" && part.index === sub.subentityIndex) {
+    buoy.subentityTakingDamage = true;
+  }
+  if (
+    buoy.subentityTakingDamage &&
+    isBuoySubentityAttached(world, key) &&
+    hulls?.get(row.hullKey)?.frangible === true
+  ) {
+    return sub.id;
+  }
+  return undefined;
 }
 
 /**

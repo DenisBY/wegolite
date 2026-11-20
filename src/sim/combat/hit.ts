@@ -83,6 +83,13 @@ export interface HitTarget {
   readonly specKey: string;
   readonly position: Vec3;
   readonly orientation: Quat;
+  /**
+   * The indices of the hull's subentities that are detached (Phase 18, PD-01:
+   * a buoy's subentity at 0 energy). The beam never meets them, as Oolite's
+   * `subEntityDied` removes a dead subentity from its parent
+   * (`ShipEntity.m:8185-8193`). Absent: every subentity is attached.
+   */
+  readonly detachedSubentities?: ReadonlySet<number>;
 }
 
 /**
@@ -176,9 +183,12 @@ export function firstShipHit(
     // `ShipEntity.m:1337-1354`: each subentity, its segment shifted by minus
     // its authored position (identity orientation, so the parent's axes).
     const subentities = hull.subentities ?? [];
+    const detached = target.detachedSubentities;
     for (let index = 0; index < subentities.length; index += 1) {
       const sub = subentities[index];
       if (sub === undefined) continue;
+      // A detached subentity is no part of the hull any more (PD-01).
+      if (detached?.has(index) === true) continue;
       const offset = sub.position;
       const hitSub = isHitByLine(
         sub.octree,

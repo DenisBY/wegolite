@@ -1749,9 +1749,15 @@ describe("the buoy's frangible subentity (tracer, PD-01, plan 18-15)", () => {
     // wall about 1,249.74 m on (the fixture's 2,749.74 from 3,000).
     const player = flyingPlayer();
     const pose = stationPose(layout, player.stationAngle);
-    const origin = add(pose.position, rotate(pose.orientation, vec(11, 19, -1500)));
+    const origin = add(
+      pose.position,
+      rotate(pose.orientation, vec(11, 19, -1500)),
+    );
     const forward = rotate(pose.orientation, vec(0, 0, 1));
-    const shooter = playerAt(origin, quatFromUnitVectors(vec(0, 0, -1), forward));
+    const shooter = playerAt(
+      origin,
+      quatFromUnitVectors(vec(0, 0, -1), forward),
+    );
     shooter.stationAngle = player.stationAngle;
     const world = createWorld(7);
     const events = shoot(world, shooter);

@@ -40,6 +40,18 @@
  * an earlier record of the same call still shows as a hit, as a doomed ship's
  * does.
  *
+ * A buoy's frangible subentity (PD-01) is a static target id too (6 for the
+ * witchpoint buoy, 7 for the nav buoy). Its record lowers
+ * `World.buoys[key].subentityEnergy` (200, Oolite's default `max_energy`,
+ * `ShipEntity.m:291`) and posts `shipHit`; it is never lethal and collects
+ * nothing, because detachment is the 0 itself: the write that reaches 0 also
+ * clears the sticky `subentityTakingDamage` (`subEntityDied`,
+ * `ShipEntity.m:8187-8188`), and from then on the subentity is no beam part
+ * and nothing recharges it. A record on a detached subentity, or on the
+ * subentity of a buoy that is destroyed (before this call, or by an earlier
+ * record of it), changes nothing. Oolite would explode the detached part and
+ * scatter its debris; Wegolite draws neither (a FIDELITY divergence, PD-01).
+ *
  * Total (D-15): a record with a non-finite or non-positive amount, a target
  * that is missing, dead or not a ship, and a record on a non-player target
  * applied to a world that was not stepped are skipped, never thrown on.
@@ -51,7 +63,11 @@ import { rotate, sub, vec } from "../math.js";
 import type { Vec3 } from "../math.js";
 import { NO_ENTITY, PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
-import { staticTargetById } from "../world/statics.js";
+import {
+  buoySubentityTargetById,
+  isBuoyDestroyed,
+  staticTargetById,
+} from "../world/statics.js";
 import type { World } from "../world/world.js";
 import { routeDamage } from "./shields.js";
 import type { PlayerCombatState } from "./state.js";
@@ -88,6 +104,10 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  *   shooter and the player's forward; `shipHit` with `shield`) and is never
  *   lethal.
  * - Any other target is skipped when the world is missing or was not stepped.
+ * - A buoy subentity (`buoySubentityTargetById`) is skipped when its buoy is
+ *   destroyed or its energy is not above 0. Otherwise it writes
+ *   `Math.max(0, before - amount)`, clears the buoy's routing flag when that
+ *   is 0, and posts `shipHit` with `shield: false`; never lethal.
  * - The station (`staticTargetById`) posts `shipHit` with `shield: false` and
  *   nothing else: no write, never lethal (A6).
  * - A buoy reads its `staticHealth` once. At 0 or below it is skipped, unless
@@ -134,6 +154,26 @@ export function applyLedger(
       continue;
     }
     if (world === undefined || !worldStepped) continue;
+    const subentity = buoySubentityTargetById(record.target);
+    if (subentity !== undefined) {
+      // A buoy's frangible subentity (PD-01): never lethal.
+      if (isBuoyDestroyed(world, subentity.buoyKey)) continue;
+      const buoy = world.buoys[subentity.buoyKey];
+      const before = buoy.subentityEnergy;
+      if (!(before > 0)) continue;
+      const after = Math.max(0, before - record.amount);
+      buoy.subentityEnergy = after;
+      // Detached: Oolite's subEntityDied clears the routing (8187-8188).
+      if (after === 0) buoy.subentityTakingDamage = false;
+      events.push({
+        kind: "shipHit",
+        target: record.target,
+        source: record.source,
+        amount: record.amount,
+        shield: false,
+      });
+      continue;
+    }
     const row = staticTargetById(record.target);
     if (row !== undefined) {
       if (row.layoutKey !== "station") {

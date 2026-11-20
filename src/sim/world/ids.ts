@@ -40,7 +40,15 @@ export const SUN_ID = 2;
 export const MAIN_STATION_ID = 3;
 export const WITCHPOINT_BUOY_ID = 4;
 export const STATION_NAV_BUOY_ID = 5;
-/** Ids 6 to 99 are reserved. */
+/**
+ * The buoys' frangible subentities as static hit targets (Phase 18, PD-01):
+ * a laser hit routed to a buoy's subentity is a hit record on one of these
+ * ids, so `HitRecord` stays an `EntityId` record. They are no bodies: nothing
+ * draws, lists or stores them under these ids (`./statics.ts`).
+ */
+export const WITCHPOINT_BUOY_SUBENTITY_ID = 6;
+export const NAV_BUOY_SUBENTITY_ID = 7;
+/** Ids 8 to 99 are reserved. */
 export const LAST_RESERVED_STATIC_ID = 99;
 /** The player (Oolite's MIN_ENTITY_UID, Universe.m:4841-4846). */
 export const PLAYER_ID = 100;

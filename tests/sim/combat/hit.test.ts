@@ -492,7 +492,10 @@ describe("firstShipHit: the subentity rule (ShipEntity.m:1323-1357)", () => {
     const beside = table(withSub(vec(12, 0, 0)));
     expect(firstShipHit(foreRay(vec(12, 0, 0)), [detached], beside)).toBeNull();
     // Another index in the set leaves subentity 0 in the hit test.
-    const other: HitTarget = { ...composite, detachedSubentities: new Set([1]) };
+    const other: HitTarget = {
+      ...composite,
+      detachedSubentities: new Set([1]),
+    };
     expect(firstShipHit(foreRay(vec(0, 0, 0)), [other], hull)?.part).toEqual(
       SUB_PART(0),
     );
