@@ -25,6 +25,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A witchspace jump that completes within about 264 m of a navigation buoy is
+  now aborted, as in Oolite. A destroyed buoy no longer blocks.
 - A laser shot now stops at the Coriolis station, which absorbs it. The station
   takes no damage, and a shot through the docking slot stops where Oolite's
   stops: on the dock, the faceplate or the hull.

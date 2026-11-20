@@ -54,8 +54,15 @@ test.use({ baseURL: "http://127.0.0.1:4175" });
 
 // The in-flight origin pose. The fixture is assumed to sit far outside the
 // Coriolis blockage radius; the first test asserts that before pressing H.
+// Since Phase 18 both buoys block a completing jump (D-09), so the pose moved
+// from the witchpoint, [0, 0, 0], to [1000, 0, 0] (owner sanction, D-06): at
+// Lave that is 1,000 m from the witchpoint buoy, outside its 59.14 m hull and
+// its 264.3 m blockage radius plus both hull radii (396.1 m), 434,885 m from
+// the station (blockage radius 7,179.7 m) and 436,269 m from the nav buoy.
+// The spec is traffic-off, so no hull table loads and no collision can move a
+// buoy.
 const ORIGIN_POSE = {
-  position: [0, 0, 0] as [number, number, number],
+  position: [1000, 0, 0] as [number, number, number],
   orientation: [1, 0, 0, 0] as [number, number, number, number],
   speed: 0,
 };
