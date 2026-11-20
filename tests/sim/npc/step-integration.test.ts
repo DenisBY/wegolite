@@ -224,6 +224,8 @@ describe("steering events reach the ship's own AI", () => {
       },
     };
     const world = createWorld(3);
+    // PD-06: this scenario is not about the witchpoint beacon (owner decision 2026-11-20)
+    world.staticHealth.witchpoint = 0;
     const player = playerAt(0);
     const ship = spawnOk(world, shipInit("test-ship", aiNever()));
     // 5 m ahead of the ship with a 100 m desired range: already arrived.

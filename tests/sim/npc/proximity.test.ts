@@ -370,6 +370,8 @@ function nearPass(
   facts: typeof FACTS | undefined = FACTS,
 ): { world: World; a: Entity; b: Entity; fa: Frame[]; fb: Frame[] } {
   const world = createWorld(1);
+  // PD-06: this scenario is not about the witchpoint beacon (owner decision 2026-11-20)
+  world.staticHealth.witchpoint = 0;
   const player = playerAt();
   const a = spawnShip(world, {
     specKey: "viper",
@@ -655,6 +657,8 @@ describe("case (c): the main station dead ahead", () => {
 describe("case (d): a light ship never alerts", () => {
   function pass(otherMass: number): number[] {
     const world = createWorld(1);
+    // PD-06: this scenario is not about the witchpoint beacon (owner decision 2026-11-20)
+    world.staticHealth.witchpoint = 0;
     const player = playerAt();
     const a = spawnShip(world, {
       specKey: "viper",

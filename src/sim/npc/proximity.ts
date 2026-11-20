@@ -13,33 +13,62 @@
  * step-level modules (with `escort.ts` and `tracking-curve.ts`) that walk the
  * world's live list; no steering module does.
  *
- * Participants (recorded in plan 14-15):
+ * Participants (recorded in plan 14-15, amended by Phase 18 PD-06):
  *  - candidates are every live dynamic entity (steered or inert), the main
- *    station (its layout radius) and the player (the compiled
- *    `PLAYER_COLLISION_RADIUS_M`, never the lazily loaded hull table, so the
- *    pass does not depend on asset-load timing); planet, sun and buoys are not
- *    candidates;
+ *    station (its layout radius), the live navigation buoys (PD-06: the
+ *    witchpoint beacon and the nav buoy at the pose and radius the world view
+ *    reports, `CollisionRegion.m:308-311`; the 698,691 kg buoy is far above
+ *    `PROXIMITY_MIN_MASS`, `ShipEntity.m:6107`; a destroyed buoy is absent from
+ *    the view and so neither a candidate nor a body an alert resolves to) and
+ *    the player (the compiled `PLAYER_COLLISION_RADIUS_M`, never the lazily
+ *    loaded hull table, so the pass does not depend on asset-load timing); the
+ *    planet and the sun are not candidates;
+ *  - a buoy never holds an alert: it has no pilot (`ShipEntity.m:6116`) and the
+ *    pass writes alerts only on steered ships;
  *  - an alert is written only on a steered ship (`ai` not null): an inert ship
  *    has no behaviour that reads it, and writing it would move every inert hash
  *    (a recorded divergence: in Oolite every ship holds an alert);
  *  - a candidate's mass is `massFor` (flight row, else the hyperspace mass, else
  *    0); the station and the player count as at or above `PROXIMITY_MIN_MASS`.
  *
- * Recorded divergences (plan 14-19): ascending-id pair order instead of
- * Oolite's collision-chain order; no collision-chain prefilter
- * (`Universe.m:6713-6760`, 7045-7073), which never affects a pair of equal radii
- * and is a no-op near the station, where the planet chains every entity; every
- * listed ship is treated as crewed (see `SHIPS_ARE_CREWED`); a station that is
- * launching or docking never occurs, because no NPC docks or launches in v2.2.
+ * The collision-chain prefilter (Phase 18, PD-08, corrected 2026-11-20 by owner
+ * decision after code verification): a pair that includes a buoy is tested
+ * only when Oolite's `filterSortedLists` (`Universe.m:6713-7144`) puts both
+ * bodies in one z collision chain (`./collision-chain.ts`). Its downward walks
+ * never run, so nothing collidable is eliminated and only the z axis gates a
+ * pair: a ship approaching an isolated buoy along z is first tested at a z
+ * separation of 2 x (r_ship + r_buoy) (218.66 m for a Krait at the witchpoint
+ * beacon), off the z axis the unfiltered 236.6 m pair trigger decides, and
+ * inside the planet's or the sun's z slab everything is chained together. The
+ * prefilter covers buoy pairs only: applied to every pair it moves the Phase
+ * 14 station case (c) of `proximity.test.ts`, so PD-08's condition keeps the
+ * Phase 14 rule (no prefilter) for every other pair; the faithful all-pairs
+ * version is the pending todo
+ * `2026-11-20-collision-chain-prefilter-all-pairs.md`, guarded by
+ * `tests/guards/collision-chain-scope.test.ts`. Phase 14's reason for omitting
+ * it ("never affects a pair of equal radii; a no-op near the station, where
+ * the planet chains every entity") holds only inside the planet's slab.
  *
- * The pass is bounded: it walks at most `MAX_ENTITIES` live entities plus two
- * bodies, with inline squared distances (T-14-25).
+ * Recorded divergences (plan 14-19): ascending-id pair order instead of
+ * Oolite's collision-chain order; every listed ship is treated as crewed (see
+ * `SHIPS_ARE_CREWED`); a station that is launching or docking never occurs,
+ * because no NPC docks or launches in v2.2.
+ *
+ * The pass is bounded: it walks at most `MAX_ENTITIES` live entities plus four
+ * bodies, with inline squared distances (T-14-25), and the prefilter sorts and
+ * walks those bodies plus the planet and the sun five times (T-18-54).
  */
 
 import type { FlightState } from "../flight/state.js";
 import { dot, rotate, vec } from "../math.js";
 import type { Vec3 } from "../math.js";
 import type { Entity } from "../world/entity.js";
+import {
+  PLANET_ID,
+  STATION_NAV_BUOY_ID,
+  SUN_ID,
+  WITCHPOINT_BUOY_ID,
+} from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
 import type { WorldView } from "../world/view.js";
 import type { World } from "../world/world.js";
@@ -49,6 +78,8 @@ import {
   PROXIMITY_WARN_DISTANCE2,
   PROXIMITY_ZONE_SELF_FACTOR,
 } from "./constants.js";
+import { chainsPair, collisionChains } from "./collision-chain.js";
+import type { ChainBody, CollisionChains } from "./collision-chain.js";
 import { massFor, PLAYER_COLLISION_RADIUS_M, statsFor } from "./stats.js";
 import type { NpcStepFacts } from "./stats.js";
 
@@ -245,6 +276,17 @@ export function runProximityPass(
     station === undefined
       ? undefined
       : { id: station.id, position: station.position, radius: station.radius };
+  const buoyBodies: ProximityBody[] = [];
+  for (const buoyId of [WITCHPOINT_BUOY_ID, STATION_NAV_BUOY_ID]) {
+    const buoy = view.body(buoyId);
+    if (buoy !== undefined) {
+      buoyBodies.push({
+        id: buoy.id,
+        position: buoy.position,
+        radius: buoy.radius,
+      });
+    }
+  }
   const playerBody: ProximityBody = {
     id: view.playerId,
     position: player.position,
@@ -252,17 +294,29 @@ export function runProximityPass(
   };
   const lookup: AlertLookup = (id) => {
     if (stationBody !== undefined && id === stationBody.id) return stationBody;
+    for (const buoy of buoyBodies) if (id === buoy.id) return buoy;
     if (id === playerBody.id) return playerBody;
     const found = world.store.get(id);
     return found === undefined || found.dead ? undefined : found;
   };
   const pass: PassContext = { facts, lookup };
+  // PD-08: a pair that includes a buoy is tested only when Oolite's
+  // collision chain would test it; every other pair keeps the Phase 14 rule.
+  const chains =
+    buoyBodies.length > 0
+      ? chainsOf(world, view, player, stationBody, buoyBodies, playerBody)
+      : undefined;
 
   for (let i = 0; i < live.length; i += 1) {
     const entity = live[i];
     if (entity === undefined || entity.dead) continue;
     if (stationBody !== undefined) {
       testPair(pass, stationBody, undefined, entity, entity);
+    }
+    for (const buoy of buoyBodies) {
+      if (chains !== undefined && chainsPair(chains, buoy.id, entity.id)) {
+        testPair(pass, buoy, undefined, entity, entity);
+      }
     }
     testPair(pass, playerBody, undefined, entity, entity);
   }
@@ -275,4 +329,41 @@ export function runProximityPass(
       testPair(pass, first, first, second, second);
     }
   }
+}
+
+/**
+ * The bodies of Oolite's sorted lists and their chains: the planet and the sun
+ * (both collide, `Entity.m:825`, `OOSunEntity.m:221`, with their radius as the
+ * collision radius, `OOPlanetEntity.m:120`), the station, the live buoys, the
+ * player while it is out of the station, and every live entity (a wreck is
+ * listed but cannot collide, `ShipEntity.m:1858-1868`).
+ */
+function chainsOf(
+  world: World,
+  view: WorldView,
+  player: FlightState,
+  stationBody: ProximityBody | undefined,
+  buoyBodies: readonly ProximityBody[],
+  playerBody: ProximityBody,
+): CollisionChains {
+  const bodies: ChainBody[] = [];
+  for (const id of [PLANET_ID, SUN_ID]) {
+    const body = view.body(id);
+    if (body !== undefined) bodies.push({ ...body, canCollide: true });
+  }
+  if (stationBody !== undefined)
+    bodies.push({ ...stationBody, canCollide: true });
+  for (const buoy of buoyBodies) bodies.push({ ...buoy, canCollide: true });
+  if (player.mode !== "docked")
+    bodies.push({ ...playerBody, canCollide: true });
+  for (const entity of world.store.live) {
+    if (entity.dead) continue;
+    bodies.push({
+      id: entity.id,
+      position: entity.position,
+      radius: entity.radius,
+      canCollide: entity.kind !== "wreckage",
+    });
+  }
+  return collisionChains(bodies);
 }

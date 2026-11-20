@@ -242,6 +242,8 @@ describe("behaviour_formation_form_up (ShipEntity.m:5002-5047)", () => {
 /** A steered leader flying level at 100 m/s along -Z, radius 50, with `followers` steered followers. */
 function convoy(options: { leaderSteered?: boolean } = {}) {
   const world = createWorld(1);
+  // PD-06: this scenario is not about the witchpoint beacon (owner decision 2026-11-20)
+  world.staticHealth.witchpoint = 0;
   const player = playerAt();
   const leader = spawnShip(world, {
     specKey: "viper",

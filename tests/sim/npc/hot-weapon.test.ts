@@ -126,6 +126,8 @@ interface DuelOptions {
 
 function duelWith(options: DuelOptions): Duel {
   const world = createWorld(options.seed ?? 7);
+  // PD-06: this scenario is not about the witchpoint beacon (owner decision 2026-11-20)
+  world.staticHealth.witchpoint = 0;
   const player = farPlayer();
   const adderResult = spawnEntity(
     world,

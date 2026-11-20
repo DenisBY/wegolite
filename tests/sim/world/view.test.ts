@@ -703,3 +703,57 @@ describe("per-world ids (CONTEXT D-06 as amended 2026-11-12)", () => {
     }
   });
 });
+
+describe("the buoys in the view (Phase 18, PD-06)", () => {
+  it("a pristine nav buoy is the layout body, the same position numbers", () => {
+    const world = createWorld(7);
+    const view = createWorldView(world, inFlight(), layout);
+    expect(view.body(STATION_NAV_BUOY_ID)?.position).toEqual(
+      layout.navBuoy.position,
+    );
+    expect(view.body(STATION_NAV_BUOY_ID)?.radius).toBe(layout.navBuoy.radius);
+  });
+
+  it("an offset nav buoy is reported at the layout position plus its offset", () => {
+    const world = createWorld(7);
+    world.buoys.navBuoy.offset = vec(3, 0, 0);
+    const view = createWorldView(world, inFlight(), layout);
+    const base = layout.navBuoy.position;
+    expect(view.body(STATION_NAV_BUOY_ID)?.position).toEqual(
+      vec(base.x + 3, base.y, base.z),
+    );
+    // the witchpoint beacon and the station are not affected
+    expect(view.body(WITCHPOINT_BUOY_ID)?.position).toEqual(
+      layout.witchpoint.position,
+    );
+    expect(view.body(MAIN_STATION_ID)?.position).toEqual(
+      layout.station.position,
+    );
+  });
+
+  it("a destroyed nav buoy is gone: no body, not valid, not scanned", () => {
+    const world = createWorld(7);
+    const a = spawnOk(world, { position: layout.navBuoy.position });
+    world.staticHealth.navBuoy = 0;
+    const view = createWorldView(world, inFlight(), layout);
+    expect(view.body(STATION_NAV_BUOY_ID)).toBeUndefined();
+    expect(view.isValid(STATION_NAV_BUOY_ID)).toBe(false);
+    expect(view.scan(a.id, 1e13)).not.toContain(STATION_NAV_BUOY_ID);
+    expect(view.scan(STATION_NAV_BUOY_ID, 1e13)).toEqual([]);
+    // the station and the witchpoint beacon stay
+    expect(view.isValid(MAIN_STATION_ID)).toBe(true);
+    expect(view.isValid(WITCHPOINT_BUOY_ID)).toBe(true);
+    expect(view.scan(a.id, 1e13)).toContain(WITCHPOINT_BUOY_ID);
+  });
+
+  it("a destroyed witchpoint beacon is gone and the nav buoy stays", () => {
+    const world = createWorld(7);
+    world.staticHealth.witchpoint = 0;
+    const view = createWorldView(world, inFlight(), layout);
+    expect(view.body(WITCHPOINT_BUOY_ID)).toBeUndefined();
+    expect(view.isValid(WITCHPOINT_BUOY_ID)).toBe(false);
+    expect(view.body(STATION_NAV_BUOY_ID)?.position).toEqual(
+      layout.navBuoy.position,
+    );
+  });
+});

@@ -13,6 +13,14 @@
  * this module is made by `copyVec` and `copyQuat`, so no path hands out a live
  * reference (FOUND-13, Pitfall 19).
  *
+ * A buoy (Phase 18, PD-06) is reported at its live position, `buoyPosition`:
+ * the layout position plus the world's `buoys.<key>.offset` (PD-02), the
+ * layout position itself while that offset is zero, so a world whose buoys
+ * never moved reads the same numbers as before. A destroyed buoy
+ * (`isBuoyDestroyed`) is not located at all: Oolite removes the entity, so it
+ * is neither a valid id, nor a body, nor a scan hit, and an AI or proximity
+ * alert that names it lapses.
+ *
  * Per-world id scope (CONTEXT D-06 as amended 2026-11-12): the view answers for
  * the ids of its own world only.
  */
@@ -24,6 +32,7 @@ import type { Entity } from "./entity.js";
 import { MAIN_STATION_ID, PLANET_ID, PLAYER_ID, SUN_ID } from "./ids.js";
 import type { EntityId } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
+import { buoyPosition, isBuoyDestroyed } from "./statics.js";
 import type { BodyView, ScanFilter, ShipView, WorldView } from "./view.js";
 import { staticEntity } from "./world.js";
 import type { World } from "./world.js";
@@ -94,6 +103,13 @@ export function createWorldView(
     }
     const record = staticEntity(world, id);
     if (record !== undefined) {
+      const key = record.layoutKey;
+      const buoyKey =
+        key === "witchpoint" || key === "navBuoy" ? key : undefined;
+      // A destroyed buoy is gone from the view (Oolite removes the entity).
+      if (buoyKey !== undefined && isBuoyDestroyed(world, buoyKey)) {
+        return undefined;
+      }
       // The station's presentation roll lives in `stationAngle`; compose it
       // exactly as the renderer does (src/render/bodies/station.ts): the base
       // orientation first, then the roll about local +Z.
@@ -101,12 +117,15 @@ export function createWorldView(
         record.kind === "station"
           ? mul(layout.stationBaseQuat, axisAngle(0, 0, 1, player.stationAngle))
           : { w: 1, x: 0, y: 0, z: 0 };
-      const body = layout[record.layoutKey];
+      const body = layout[key];
       return {
         id: record.id,
         kind: record.kind,
         scanClass: record.scanClass,
-        position: body.position,
+        position:
+          buoyKey === undefined
+            ? body.position
+            : buoyPosition(world, layout, buoyKey),
         orientation,
         speed: 0,
         radius: body.radius,

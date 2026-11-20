@@ -33,6 +33,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- NPC ships now notice navigation buoys and turn away from them, as in Oolite.
+  A ship that comes in fast can still hit one.
 - A witchspace jump that completes within about 264 m of a navigation buoy is
   now aborted, as in Oolite. A destroyed buoy no longer blocks.
 - A laser shot now stops at the Coriolis station, which absorbs it. The station
