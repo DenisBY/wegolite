@@ -1312,7 +1312,11 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
   function kraitContent(extra: Record<string, number> = {}): DebrisContent {
     const hulls = new Map<string, DebrisHull>();
     const box = { min: vec(0, 0, 0), max: vec(0, 0, 0) };
-    hulls.set("krait", { mass: KRAIT.mass, fragmentChance: 0, boundingBox: box });
+    hulls.set("krait", {
+      mass: KRAIT.mass,
+      fragmentChance: 0,
+      boundingBox: box,
+    });
     hulls.set("shuttle", {
       mass: SHUTTLE.mass,
       fragmentChance: 0,
@@ -1382,7 +1386,12 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
     const centre = vec(100, 200, 300);
     const victim = ship(world, "krait", centre, KRAIT.radius);
     victim.velocity = vec(1, 2, 3);
-    const shuttle = ship(world, "shuttle", at(centre, 60, 0, 0), SHUTTLE.radius);
+    const shuttle = ship(
+      world,
+      "shuttle",
+      at(centre, 60, 0, 0),
+      SHUTTLE.radius,
+    );
     const unknown = ship(world, "nonesuch", at(centre, 0, 60, 0), 20);
     const far = ship(world, "shuttle", at(centre, 0, 0, 149), SHUTTLE.radius);
     killShip(world, victim.id, PLAYER_ID, [], {
@@ -1451,7 +1460,9 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
       at(layout.station.position, 0, 0, layout.station.radius + 10),
     );
     expect(isPristineBuoyStates(station.buoys)).toBe(true);
-    expect(station.staticHealth.station).toBe(createWorld(1).staticHealth.station);
+    expect(station.staticHealth.station).toBe(
+      createWorld(1).staticHealth.station,
+    );
   });
 
   it("a pod killed with debris content blasts its neighbours by the 18-03 fixtures: 8 m, and 5 m inside the receiver's radius (the floor)", () => {
@@ -1486,7 +1497,11 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
       const got = [v.x, v.y, v.z];
       for (let i = 0; i < 3; i += 1) {
         expect(
-          withinTolerance(got[i] ?? Number.NaN, expected[i] ?? 0, fixture.tolerance),
+          withinTolerance(
+            got[i] ?? Number.NaN,
+            expected[i] ?? 0,
+            fixture.tolerance,
+          ),
           `${id}[${String(i)}] ${String(got[i])} vs ${String(expected[i])}`,
         ).toBe(true);
       }
@@ -1523,13 +1538,22 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
       );
     const run = (
       attached: boolean,
-    ): { readonly pod: Entity; readonly push: BlastPush; readonly world: World } => {
+    ): {
+      readonly pod: Entity;
+      readonly push: BlastPush;
+      readonly world: World;
+    } => {
       const world = createWorld(1);
       world.staticHealth.navBuoy = 0;
       if (!attached) world.buoys.navBuoy.subentityEnergy = 0;
       const base = layout.navBuoy.position;
       const po = offsetOf(podBody.position);
-      const pod = piece(world, "barrel", at(base, po.x, po.y, po.z), podBody.radius);
+      const pod = piece(
+        world,
+        "barrel",
+        at(base, po.x, po.y, po.z),
+        podBody.radius,
+      );
       const pl = offsetOf(playerBody.position);
       const blastPush: BlastPush = { x: 0, y: 0, z: 0 };
       const content: DebrisContent = {
@@ -1559,7 +1583,11 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
       const got = [actual.x, actual.y, actual.z];
       for (let i = 0; i < 3; i += 1) {
         expect(
-          withinTolerance(got[i] ?? Number.NaN, expected[i] ?? 0, fixture.tolerance),
+          withinTolerance(
+            got[i] ?? Number.NaN,
+            expected[i] ?? 0,
+            fixture.tolerance,
+          ),
           `[${String(i)}] ${String(got[i])} vs ${String(expected[i])}`,
         ).toBe(true);
       }
@@ -1592,7 +1620,14 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
       layout,
     });
     // 0.125 x 691,044.375 x 147.84 / 0.1 / 993.37: far beyond 1e4.
-    expect(push({ mass: NAV_BUOY_HULL_MASS, radius: layout.navBuoy.radius }, 1, 5.7986, 993.37)).toBeGreaterThan(1e4);
+    expect(
+      push(
+        { mass: NAV_BUOY_HULL_MASS, radius: layout.navBuoy.radius },
+        1,
+        5.7986,
+        993.37,
+      ),
+    ).toBeGreaterThan(1e4);
     expect(pod.velocity.x).toBe(MAX_ENTITY_VELOCITY);
     expect(pod.velocity.y).toBe(0);
     expect(sanitizeEntity(pod)).toBe(false);
@@ -1610,7 +1645,11 @@ describe("the blast's sources and receivers (D-03, PD-02)", () => {
         ...(withReceivers
           ? {
               layout,
-              player: { position: vec(1e7, 0, 400), radius: 72.7, mass: 214737.6875 },
+              player: {
+                position: vec(1e7, 0, 400),
+                radius: 72.7,
+                mass: 214737.6875,
+              },
               playerPush: blastPush,
             }
           : {}),

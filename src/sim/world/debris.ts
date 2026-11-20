@@ -75,6 +75,11 @@
  */
 
 import { toWegoliteLocal } from "../combat/constants.js";
+import {
+  BUOY_SUBENTITY_MASS,
+  NAV_BUOY_HULL_MASS,
+  NAV_BUOY_MASS,
+} from "../hyperspace/countdown.js";
 import type { HullTable } from "../combat/hit.js";
 import { MAX_OCTREE_DEPTH, randomOctreePoint } from "../combat/octree.js";
 import type { HullOctree } from "../combat/octree.js";
@@ -91,8 +96,15 @@ import { createRngState, rngNext } from "../rng.js";
 import type { RngState } from "../rng.js";
 import type { Entity } from "./entity.js";
 import { MAX_ENTITIES } from "./ids.js";
+import type { SystemLayout } from "./layout.js";
 import { MAX_ENTITY_CARGO, MAX_ENTITY_VELOCITY } from "./limits.js";
 import { randomQuaternion } from "./placement.js";
+import {
+  buoyPosition,
+  isBuoyDestroyed,
+  isBuoySubentityAttached,
+} from "./statics.js";
+import type { BuoyKey } from "./statics.js";
 import { liveEntityCount, spawnEntity } from "./world.js";
 import type { World } from "./world.js";
 
@@ -173,6 +185,11 @@ export interface DebrisContext {
   readonly player?: BlastBody;
   /** The accumulator of the player's push; the player is pushed only with both. */
   readonly playerPush?: BlastPush;
+  /**
+   * The system layout: with it the live buoys are blast receivers (PD-02),
+   * placed by `buoyPosition`; without it no buoy is.
+   */
+  readonly layout?: SystemLayout;
 }
 
 /** The first pod's survival chance in percent (`ShipEntity.m:7823`). */
@@ -687,23 +704,62 @@ function isZeroVec(dv: Vec3): boolean {
 /**
  * The blast of one exploding body (`ShipEntity.m:8123-8126` calling
  * `dealMomentumWithinDesiredRange:`, `7680-7698`, and `addImpactMoment:
- * fraction:`, `11178-11181`; D-03): every receiver in range gets one
+ * fraction:`, `11178-11181`; D-03, PD-02): every receiver in range gets one
  * `blastImpulse`, in ascending id. Receivers:
  *
+ * - the two buoys (ids 4 and 5), when the context carries the layout and the
+ *   buoy is not destroyed: `NAV_BUOY_MASS` while its subentity is attached,
+ *   `NAV_BUOY_HULL_MASS` once it is detached, its layout radius, its live
+ *   position (`buoyPosition`); the push goes to `World.buoys.<key>.velocity`;
  * - the player (id 100), when the context carries its body and the
  *   accumulator: the push is added to `playerPush`, and the caller adds the
  *   sum to its drift after the tick's kills (only in flight: a docked or
  *   launching player is never pushed, the launching case a recorded
  *   divergence because Oolite's `isInSpace` lists `STATUS_LAUNCHING`,
  *   `Entity.m:1038`);
- * - every live pod, plate and wreck, with its `debrisMassOf` mass.
+ * - every live ship whose spec key has a finite positive mass in the
+ *   content's hull table (a ship without one is not pushed), and every live
+ *   pod, plate and wreck with its `debrisMassOf` mass.
  *
- * A dead entity (the victim among them, marked dead before its blast) is
- * never pushed. Each velocity component is clamped at `MAX_ENTITY_VELOCITY`
- * at the write (T-16-13: a piece near the centre takes the 0.1 floor, 6,458
- * m/s for a pod beside a Cobra Mk I), and a zero push writes nothing.
+ * The station is never a receiver. In Oolite it is one (`isInSpace` lists
+ * `STATUS_IN_FLIGHT`, `Entity.m:1033-1046`, and `addImpactMoment` is not
+ * overridden, `StationEntity.m:1159-1163`), but its push of at most a few
+ * hundredths of a m/s is braked to rest by its thrust before it moves in the
+ * same frame (`ShipEntity.m:5808-5823`, then 2633-2637), so the observable
+ * result is the same; Wegolite's station has no velocity state to brake (a
+ * divergence in mechanism, recorded in FIDELITY). A dead entity (the victim
+ * among them, marked dead before its blast) and a destroyed buoy are never
+ * pushed. Each velocity component is clamped at `MAX_ENTITY_VELOCITY` at the
+ * write (T-16-13, T-18-31: a body at the 0.1 floor, such as a pod beside a
+ * dying buoy, would otherwise exceed it), and a zero push writes nothing, so
+ * a kill with nothing movable in range hashes as before.
  */
-function blast(world: World, source: BlastSource, ctx: DebrisContext): void {
+export function blastFrom(
+  world: World,
+  source: BlastSource,
+  ctx: DebrisContext,
+): void {
+  const layout = ctx.layout;
+  if (layout !== undefined) {
+    for (const key of BUOY_KEYS) {
+      if (isBuoyDestroyed(world, key)) continue;
+      const mass = isBuoySubentityAttached(world, key)
+        ? NAV_BUOY_MASS
+        : NAV_BUOY_HULL_MASS;
+      const dv = blastImpulse(
+        source,
+        buoyPosition(world, layout, key),
+        layout[key].radius,
+        mass,
+      );
+      if (dv === undefined || isZeroVec(dv)) continue;
+      const buoy = world.buoys[key];
+      const v = buoy.velocity;
+      buoy.velocity = clampDebrisVelocity(
+        vec(v.x + dv.x, v.y + dv.y, v.z + dv.z),
+      );
+    }
+  }
   const player = ctx.player;
   const push = ctx.playerPush;
   if (player !== undefined && push !== undefined) {
@@ -719,21 +775,118 @@ function blast(world: World, source: BlastSource, ctx: DebrisContext): void {
       push.z += dv.z;
     }
   }
-  for (const piece of world.store.live) {
-    if (piece.dead) continue;
-    if (piece.kind !== "cargo" && piece.kind !== "wreckage") continue;
-    const position: unknown = piece.position;
-    const velocity: unknown = piece.velocity;
-    if (!isObject(position) || !isObject(velocity)) continue;
-    const mass = debrisMassOf(piece, ctx.content);
+  for (const body of world.store.live) {
+    if (body.dead) continue;
+    const mass =
+      body.kind === "ship"
+        ? hullMassOf(hullOf(ctx.content, body.specKey))
+        : body.kind === "cargo" || body.kind === "wreckage"
+          ? debrisMassOf(body, ctx.content)
+          : undefined;
     if (mass === undefined) continue;
-    const dv = blastImpulse(source, piece.position, piece.radius, mass);
+    const position: unknown = body.position;
+    const velocity: unknown = body.velocity;
+    if (!isObject(position) || !isObject(velocity)) continue;
+    const dv = blastImpulse(source, body.position, body.radius, mass);
     if (dv === undefined || isZeroVec(dv)) continue;
-    const v = piece.velocity;
-    piece.velocity = clampDebrisVelocity(
+    const v = body.velocity;
+    body.velocity = clampDebrisVelocity(
       vec(v.x + dv.x, v.y + dv.y, v.z + dv.z),
     );
   }
+}
+
+/** The two buoys in ascending static id (4, then 5). */
+const BUOY_KEYS = ["witchpoint", "navBuoy"] as const;
+
+/**
+ * A buoy subentity's collision radius in metres: OOMesh's rule (`sqrtf` of
+ * the largest vertex `magnitude2`, `OOMesh.m:1800-1822`) over
+ * `oolite_buoy_subents.dat`, as plan 18-03 derived it for its blast fixtures.
+ * The static hull artifact carries no subentity radius, so it is a literal
+ * here; `tests/sim/world/blast.oracle.test.ts` pins it to the fixture and to
+ * the rule over the vendored mesh.
+ */
+export const BUOY_SUBENTITY_RADIUS = 25.822647094726562;
+
+/**
+ * The explosion of the buoy `key`'s frangible subentity (`becomeExplosion`
+ * with a parent, `ShipEntity.m:7895-7904`): one blast from its absolute
+ * position with `BUOY_SUBENTITY_MASS` and `BUOY_SUBENTITY_RADIUS`. Its
+ * authored offset is (0, 0, 0) (the static hull artifact, pinned by a test),
+ * so its absolute position is the buoy's live centre. The buoy itself, while
+ * not destroyed, is a receiver of this blast in Oolite as here, but the push
+ * direction from the subentity to it is the zero vector (`vector_normal` of a
+ * zero vector), so it gets no push. The caller runs it on the tick the
+ * subentity reaches 0 (`../combat/step.ts`), or first when a buoy dies with
+ * its subentity attached (`blastBuoy`).
+ */
+export function blastBuoySubentity(
+  world: World,
+  layout: SystemLayout,
+  key: BuoyKey,
+  ctx: DebrisContext,
+): void {
+  blastFrom(
+    world,
+    {
+      position: buoyPosition(world, layout, key),
+      mass: BUOY_SUBENTITY_MASS,
+      radius: BUOY_SUBENTITY_RADIUS,
+    },
+    ctx,
+  );
+}
+
+/**
+ * The explosion of the destroyed buoy `key` (`becomeExplosion`,
+ * `ShipEntity.m:8115-8126`): the subentity, while attached, explodes first
+ * (`blastBuoySubentity`); `subEntityDied` then lowers the parent's mass
+ * (`ShipEntity.m:8185-8194`), so the hull blasts with `NAV_BUOY_HULL_MASS`
+ * (also its mass when the subentity was already detached) and its layout
+ * radius, from its live centre. A dying buoy releases no debris (a recorded
+ * divergence, `./kill.ts`).
+ */
+export function blastBuoy(
+  world: World,
+  layout: SystemLayout,
+  key: BuoyKey,
+  ctx: DebrisContext,
+): void {
+  if (isBuoySubentityAttached(world, key)) {
+    blastBuoySubentity(world, layout, key, ctx);
+  }
+  blastFrom(
+    world,
+    {
+      position: buoyPosition(world, layout, key),
+      mass: NAV_BUOY_HULL_MASS,
+      radius: layout[key].radius,
+    },
+    ctx,
+  );
+}
+
+/**
+ * The explosion of a destroyed pod or plate (`becomeExplosion`,
+ * `ShipEntity.m:8123-8126`, which deals momentum for every exploding ship):
+ * one blast from its centre with its `debrisMassOf` mass and its radius,
+ * after `killShip` marked it dead. Nothing for an unknown spec key.
+ */
+export function blastDebrisPiece(
+  world: World,
+  piece: Entity,
+  ctx: DebrisContext,
+): void {
+  const mass = debrisMassOf(piece, ctx.content);
+  if (mass === undefined) return;
+  const position: unknown = piece.position;
+  if (!isObject(position)) return;
+  blastFrom(
+    world,
+    { position: piece.position, mass, radius: piece.radius },
+    ctx,
+  );
 }
 
 /**
@@ -871,7 +1024,7 @@ export function releaseDebris(
 
   // The blast, last, over every body now live (ShipEntity.m:8123-8126).
   if (hullMass !== undefined) {
-    blast(
+    blastFrom(
       world,
       { position: origin, mass: hullMass, radius: victim.radius },
       ctx,

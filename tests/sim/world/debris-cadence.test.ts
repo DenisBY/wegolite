@@ -509,7 +509,11 @@ class BlastScenario {
       state.speed = 0;
       const world = createWorld(WORLD_SEED);
       this.world = world;
-      const spawn = (specKey: string, position: Vec3, radius: number): Entity => {
+      const spawn = (
+        specKey: string,
+        position: Vec3,
+        radius: number,
+      ): Entity => {
         const result = spawnEntity(
           world,
           {

@@ -75,7 +75,7 @@ import {
   staticPose,
   staticTargetById,
 } from "../world/statics.js";
-import { clampDebrisVelocity } from "../world/debris.js";
+import { blastBuoySubentity, clampDebrisVelocity } from "../world/debris.js";
 import type {
   BlastPush,
   DebrisContent,
@@ -643,7 +643,8 @@ function routeBuoyHit(
 /**
  * The debris context of this tick's kills, or undefined without debris
  * content. The hull octrees ride along when loaded (plan 16-04 reads them);
- * the key is omitted otherwise (exactOptionalPropertyTypes). While the player
+ * the key is omitted otherwise (exactOptionalPropertyTypes). The layout rides
+ * along, so the live buoys are blast receivers (PD-02). While the player
  * is in flight it carries the player's body (its position,
  * `PLAYER_COLLISION_RADIUS_M`, `PLAYER_MASS_KG`) and `playerPush`, the zeroed
  * accumulator of the blasts' push on it (D-03); a docked or launching player
@@ -653,6 +654,7 @@ function debrisContext(
   options: StepOptions | undefined,
   player: FlightState,
   playerPush: BlastPush,
+  layout: SystemLayout,
 ): DebrisContext | undefined {
   const combat = options?.combat;
   const content = combat?.debris;
@@ -660,6 +662,7 @@ function debrisContext(
   return {
     tick: player.tick,
     content,
+    layout,
     ...(combat?.hulls === undefined ? {} : { octrees: combat.hulls }),
     ...(player.mode === "inFlight"
       ? {
@@ -715,7 +718,10 @@ function applyPlayerPush(player: FlightState, push: BlastPush): void {
  *    victim carries `NO_ENTITY`. With `options.combat.debris`, each kill also
  *    releases the victim's debris from its own stream (Phase 16), spawning
  *    pieces that post no event, and its blast pushes every movable body in
- *    range (`../world/debris.ts`, D-03); the event order below is unchanged.
+ *    range (`../world/debris.ts`, D-03); a destroyed pod or plate and a
+ *    destroyed buoy blast too (its attached subentity first), and a buoy
+ *    subentity that this tick's records brought to 0 blasts once, before the
+ *    kills, from the buoy's centre; the event order below is unchanged.
  *    The player's share of the blasts is accumulated and added to its drift
  *    once, after the kills (`applyPlayerPush`), only while it is in flight.
  * 4. `drainAiEventsNow` (`../world/step.ts`) delivers the AI events the kills
@@ -769,6 +775,14 @@ export function resolveShots(
       ...resolveCollisions(world, player, combat, options, layout).records,
     );
   }
+  // Each buoy subentity's energy before this tick's records (D-03).
+  const subentityBefore =
+    world === undefined
+      ? undefined
+      : {
+          witchpoint: world.buoys.witchpoint.subentityEnergy,
+          navBuoy: world.buoys.navBuoy.subentityEnergy,
+        };
   const lethal = applyLedger(
     world,
     worldStepped,
@@ -779,13 +793,27 @@ export function resolveShots(
   );
   if (world !== undefined && worldStepped) {
     const playerPush: BlastPush = { x: 0, y: 0, z: 0 };
-    const debris = debrisContext(options, player, playerPush);
+    const debris = debrisContext(options, player, playerPush, layout);
+    if (debris !== undefined && subentityBefore !== undefined) {
+      // A subentity that this tick's records (a pulse, PD-01, or a ram,
+      // plan 18-18) brought from above 0 to 0 explodes on this tick
+      // (`ShipEntity.m:7895-7904`), before the kills, so a buoy destroyed on
+      // the same tick blasts its hull alone after it.
+      for (const key of ["witchpoint", "navBuoy"] as const) {
+        if (
+          subentityBefore[key] > 0 &&
+          !(world.buoys[key].subentityEnergy > 0)
+        ) {
+          blastBuoySubentity(world, layout, key, debris);
+        }
+      }
+    }
     for (const hit of lethal) {
       const row = staticTargetById(hit.victim);
       if (row === undefined) {
         killShip(world, hit.victim, hit.killer, events, debris);
       } else {
-        destroyBuoy(world, row, hit.killer, events, layout);
+        destroyBuoy(world, row, hit.killer, events, layout, debris);
       }
     }
     applyPlayerPush(player, playerPush);

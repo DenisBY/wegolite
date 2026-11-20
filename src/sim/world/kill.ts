@@ -74,14 +74,15 @@
  * stays 0 for the life of the world (D-04), and it releases no debris (a
  * recorded divergence: Oolite's buoy releases 3 wrecks and 0 to 3 plates,
  * `ShipEntity.m:7916, 8050-8081`, drawn from a per-entity stream statics do not
- * have).
+ * have). With a debris context it blasts, as Oolite's buoy does (D-03): its
+ * attached subentity first, then its hull (`blastBuoy`).
  *
  * Total (D-15): a missing, static, dead or non-finite id changes nothing and
  * returns false.
  */
 
 import type { SimEvent } from "../events.js";
-import { releaseDebris } from "./debris.js";
+import { blastBuoy, blastDebrisPiece, releaseDebris } from "./debris.js";
 import type { DebrisContext } from "./debris.js";
 import { NO_ENTITY, PLAYER_ID } from "./ids.js";
 import type { EntityId } from "./ids.js";
@@ -128,9 +129,13 @@ function notifyKill(world: World, victim: EntityId, killer: EntityId): void {
  *
  * A ship also gets a `shipDestroyed` event with its position, radius and spec
  * key and the normalised killer, and posts the kill notifications described
- * above, then, with a `debris` context, releases its debris. Any other kind
- * (Phase 16's cargo and wreckage) is only marked dead, posts nothing and
- * releases nothing.
+ * above, then, with a `debris` context, releases its debris, whose blast ends
+ * the release. Any other kind (Phase 16's cargo and wreckage) is only marked
+ * dead, posts nothing and releases nothing; with a `debris` context a pod or
+ * a plate then blasts from its centre with its model mass and radius
+ * (`blastDebrisPiece`, D-03: Oolite's `becomeExplosion` deals momentum for
+ * every exploding ship, `ShipEntity.m:8121-8126`). A wreck that burns out
+ * leaves without a context (`./step.ts`) and so without a blast.
  */
 export function killShip(
   world: World,
@@ -144,7 +149,13 @@ export function killShip(
   // Capture before the kill: `kill` flips `dead`, and a ship's fields stay valid.
   const kind = entity.kind;
   if (!world.store.kill(id)) return false;
-  if (kind !== "ship") return true;
+  if (kind !== "ship") {
+    // A pod or plate explodes too: its blast, after it is marked dead (D-03).
+    if (kind === "cargo" && debris !== undefined) {
+      blastDebrisPiece(world, entity, debris);
+    }
+    return true;
+  }
   const normalised = normaliseKiller(world, id, killer);
   events.push({
     kind: "shipDestroyed",
@@ -172,9 +183,13 @@ export function killShip(
  *
  * Total: it does nothing for the station, or for a buoy whose health is not
  * exactly 0 (the ledger floors a lethal hit at 0 and collects it once, so a
- * buoy is announced once per world). It writes nothing: the buoy never enters
- * or leaves any collection, and posts no AI notification (no NPC targets a
- * static).
+ * buoy is announced once per world). The buoy never enters or leaves any
+ * collection and posts no AI notification (no NPC targets a static). With a
+ * `debris` context it then explodes in the C's order (`blastBuoy`,
+ * `ShipEntity.m:8115-8126`): its subentity, while attached, from the buoy's
+ * centre with its own mass and radius, then the hull with
+ * `NAV_BUOY_HULL_MASS` and the layout radius; the blast writes only the
+ * receivers' velocities (and the context's player accumulator).
  */
 export function destroyBuoy(
   world: World,
@@ -182,6 +197,7 @@ export function destroyBuoy(
   killer: EntityId,
   events: SimEvent[],
   layout: SystemLayout,
+  debris?: DebrisContext,
 ): boolean {
   if (target.layoutKey === "station") return false;
   if (world.staticHealth[target.healthKey] !== 0) return false;
@@ -194,5 +210,6 @@ export function destroyBuoy(
     specKey: target.identKey,
     killer: normaliseKiller(world, target.id, killer),
   });
+  if (debris !== undefined) blastBuoy(world, layout, target.layoutKey, debris);
   return true;
 }

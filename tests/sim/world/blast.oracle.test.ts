@@ -211,8 +211,7 @@ describe(THIS_FILE, () => {
       it("blastImpulse: in range exactly as the C, and each victim's push", () => {
         ran.add(fixture.id);
         fixture.receivers.forEach((receiver, r) => {
-          const expected: Expected | undefined =
-            fixture.expected.receivers[r];
+          const expected: Expected | undefined = fixture.expected.receivers[r];
           if (expected === undefined) throw new Error("fixture shape");
           fixture.victims.forEach((victim, v) => {
             const contribution = expected.contributions[v];
@@ -227,9 +226,10 @@ describe(THIS_FILE, () => {
               receiver.radius,
               receiver.mass,
             );
-            expect(dv !== undefined, `${receiver.name} in range of ${victim.name}`).toBe(
-              contribution.inRange,
-            );
+            expect(
+              dv !== undefined,
+              `${receiver.name} in range of ${victim.name}`,
+            ).toBe(contribution.inRange);
             if (dv !== undefined && contribution.dv !== null) {
               expectVec(
                 dv,
