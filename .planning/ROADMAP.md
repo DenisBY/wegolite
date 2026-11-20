@@ -316,7 +316,7 @@ Plans:
 **Pitfalls to address**: 4 (the acceptance harness), 9 (single contact: no energy gained or lost twice), 11 (statics are not world entities: the hull table and their poses), 12 (the collision rule's wrong half), 17 (pair cost)
 **Decisions to settle**: the Coriolis hull's file (one artifact or a separate file); the destroyed-buoy semantics above; the player's response to impact; supersede the Key Decisions row "Statics are neither laser nor ident targets"
 **Todos**: `2026-11-15-lasers-and-ident-hit-stations-and-buoys.md` (closed by CBT-17); `2026-11-14-make-buoys-block-hyperspace-like-oolite.md` touches the same fixture and is a candidate to fold in by owner decision, not a requirement; `2026-11-10-add-planet-and-sun-collision.md` loses its buoy half to CBT-18 (planet and sun stay unscheduled)
-**Plans**: 21/22 plans executed; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
+**Plans**: 22/22 plans executed; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
 
 Plans:
 **Wave 1**
@@ -365,7 +365,7 @@ Plans:
 - [x] 18-19-PLAN.md — CBT-18: the explosion blast pushes ships, buoys and the player (D-03); every exploding body is a blast source
 
 **Wave 13** *(blocked on Wave 12 completion)*
-- [ ] 18-12-PLAN.md — phase close: todo moves, FIDELITY walk, tripwire evaluation, `verify-full` (PD-04) and QUAL-11 on the remote machine
+- [x] 18-12-PLAN.md — phase close: todo moves, FIDELITY walk, tripwire evaluation, `verify-full` (PD-04) and QUAL-11 on the remote machine
 
 ### Phase 19: Equipment Damage and Repair
 
@@ -461,7 +461,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
-| 18. Stations, Buoys and Collisions | v2.3 | 21/22 | In Progress | - |
+| 18. Stations, Buoys and Collisions | v2.3 | 22/22 | In Progress | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
 

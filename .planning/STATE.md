@@ -5,17 +5,17 @@ milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
 current_plan: 22
-status: executing
-stopped_at: Completed 18-19-PLAN.md
-last_updated: "2026-11-20T16:53:03.711Z"
+status: verifying
+stopped_at: Completed 18-12-PLAN.md
+last_updated: "2026-11-20T17:21:32.467Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: f2aa997434ea9e83767f70348951513a99c139b0
+state_head: 5b3cc96f27f79a4fa1f099623f5db7843cbbcbdf
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 49
+  completed_plans: 50
   percent: 50
 ---
 
@@ -33,7 +33,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
 Current Plan: 22
 Total Plans in Phase: 22
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-19 — Phase 18 execution started
 
 
@@ -234,6 +234,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P18 | 41 min | 3 tasks | 12 files |
 | Phase 18 P21 | 31min | 3 tasks | 16 files |
 | Phase 18 P19 | 40 min | 3 tasks | 12 files |
+| Phase 18 P12 | 25min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -602,6 +603,7 @@ Recent decisions affecting current work:
 - [Phase 18]: Owner decision 2026-11-20 (before 18-19): the collision stage's octree prime is Oolite's e1, the body first in Oolite's z list (compareZOrder, src/sim/world/sorted-lists.ts, shared with the collision-chain prefilter), for every pair; rank order still decides who calls; the 11 real-Oolite buoy sessions hold (tests/sim/combat/collision-prime.oolite.test.ts); todo buoy-contact-onset-mismatch completed
 - [Phase 18]: 18-07 second follow-up (owner decision 2026-11-20): MAX_MESSAGE_CHARS 55 -> 60 (rows span x 830.4-1665.6, no new overlap) so both 'roll 90 degrees' docking bounce lines and the default pitch/roll hint fit whole; the guard has no known exceptions, the word-wrap todo stays open
 - [Phase 18]: 18-19: the explosion blast pushes live NPC ships (hull-table mass), the live buoys (live mass) and the in-flight player (accumulated, added to drift after the kills) as well as debris; pods, plates, a dying buoy (subentity first, then NAV_BUOY_HULL_MASS) and a detaching buoy subentity are sources. The in-range test is the C's float compare, the magnitude stays double (all 11 18-03 fixtures pass, no pin moved). The station is no receiver and a launching player is not pushed (recorded divergences); a burnt-out wreck gets no blast (new recorded divergence).
+- [Phase 18]: Phase 18 close: FIDELITY gained the five rows the walk found missing (E-151 to E-153; static hulls, octree composition, NPC drift pass order, player drift edges, negative scrape); verify-full green at 5b3cc96 (exit=0 elapsed=869s) and QUAL-11 21/21 unchanged
 
 ### Pending Todos
 
@@ -741,8 +743,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-20T16:53:03.237Z
-Stopped at: Completed 18-19-PLAN.md
+Last session: 2026-11-20T17:21:31.997Z
+Stopped at: Completed 18-12-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

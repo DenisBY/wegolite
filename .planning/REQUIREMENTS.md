@@ -15,16 +15,16 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 ### Data
 
 - [x] **DATA-14**: The NPC record carries weapon facings, `likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type`, compiled from Oolite with provenance.
-- [ ] **DATA-15**: Hulls for the Coriolis (with subentities), the buoy, the cargo barrel and the alloy plate are built from Oolite octrees; the Coriolis size is measured in the `assets` container and either fits the hull caps or ships as a separate file.
+- [x] **DATA-15**: Hulls for the Coriolis (with subentities), the buoy, the cargo barrel and the alloy plate are built from Oolite octrees; the Coriolis size is measured in the `assets` container and either fits the hull caps or ships as a separate file.
 - [x] **DATA-16**: Debris models and textures are vendored from the local Oolite checkout through `scripts/vendor-oolite.sh` with `CHECKSUMS.sha256`, `ASSETS.md` and `NOTICE` rows.
 
 ### Combat
 
 - [x] **CBT-15**: NPC ships fire lasers at the player and at each other through Oolite's fire gate (weapon temperature, energy, shot timer, range roll, `onTarget`). The decision to fire comes from the engine and test pilots only; NPCs do not attack in ordinary play (recorded in Key Decisions).
 - [x] **CBT-16**: NPC hits on the player pass through shields and the energy bank by Oolite's rules.
-- [ ] **CBT-17**: Lasers and ident hit the station and the navigation buoys; the station only absorbs hits, buoys (250 energy) hold damage and can be destroyed; subentities are ported as in Oolite.
+- [x] **CBT-17**: Lasers and ident hit the station and the navigation buoys; the station only absorbs hits, buoys (250 energy) hold damage and can be destroyed; subentities are ported as in Oolite.
 - [ ] **CBT-08**: A ship at zero energy explodes into wreckage, alloy plates and cargo pods by Oolite's cargo rule, under an entity cap of 256 with thresholds 243 and 128; internal hits damage the player's equipment.
-- [ ] **CBT-18**: Ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule (octree against octree); contact with the station stays damage-free as in v1.
+- [x] **CBT-18**: Ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule (octree against octree); contact with the station stays damage-free as in v1.
 - [ ] **CBT-12**: Damaged equipment is shown as damaged and can be repaired at F3 at Oolite's repair price.
 
 ### Death
@@ -82,9 +82,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WORLD-17 | Phase 16 | Complete |
 | CBT-15 | Phase 17 | Complete |
 | CBT-16 | Phase 17 | Complete |
-| DATA-15 | Phase 18 | Pending |
-| CBT-17 | Phase 18 | Pending |
-| CBT-18 | Phase 18 | Pending |
+| DATA-15 | Phase 18 | Complete |
+| CBT-17 | Phase 18 | Complete |
+| CBT-18 | Phase 18 | Complete |
 | CBT-08 | Phase 19 | Pending |
 | CBT-12 | Phase 19 | Pending |
 | SAVE-09 | Phase 19 | Pending |
