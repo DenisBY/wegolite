@@ -111,6 +111,16 @@ describe("compass target", () => {
     expect(nextCompassMode("witchpoint")).toBe("auto");
   });
 
+  // Plan 18-08 (D-05, A7): Oolite's cycle walks live beacons only
+  // (PlayerEntity.m:4761-4808), so a destroyed witchpoint is skipped.
+  it("skips a destroyed witchpoint: station -> auto, every other step unchanged", () => {
+    expect(nextCompassMode("station", false)).toBe("auto");
+    expect(nextCompassMode("station", true)).toBe("witchpoint");
+    expect(nextCompassMode("auto", false)).toBe("planet");
+    expect(nextCompassMode("planet", false)).toBe("station");
+    expect(nextCompassMode("witchpoint", false)).toBe("auto");
+  });
+
   it("resolves manual modes literally and auto through the aegis", () => {
     const position = fromStation(10_000);
     expect(resolveCompassTarget(position, "planet", layout)).toBe("planet");
