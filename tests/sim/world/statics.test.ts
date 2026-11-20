@@ -31,6 +31,7 @@ import {
   buoyOrientation,
   buoyPosition,
   isBuoyDestroyed,
+  isBuoySubentityAttached,
   stationPose,
   staticPose,
   staticTargetById,
@@ -39,6 +40,7 @@ import type { StaticTarget } from "../../../src/sim/world/statics.js";
 import {
   createStaticHealth,
   createWorld,
+  isPristineBuoyStates,
 } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
 
@@ -186,6 +188,52 @@ describe("isBuoyDestroyed (D-04, D-05)", () => {
     world.staticHealth.navBuoy = 0;
     expect(isBuoyDestroyed(world, "navBuoy")).toBe(true);
     expect(isBuoyDestroyed(world, "witchpoint")).toBe(false);
+  });
+});
+
+/**
+ * D-04 (plan 18-08): a destroyed, moved or stripped buoy lasts only as long as
+ * its world. The session builds every world through `createWorld`
+ * (`src/app/session/world-lifecycle.ts`, `create`): `begin` on every launch
+ * (`createWorldLifecycleFlow` in `event-router.ts`, the `launched` event) and
+ * every hyperspace arrival (`hyperspace-controller.ts`), and `resume` on a
+ * Continue or Load of an in-flight save (`restoreWorldAnchor`). Buoy state is
+ * never saved (the save carries the epoch and the anchor, not the world), so a
+ * new world restores both buoys whole, at 250 and unmoved. Oolite keeps a
+ * destroyed buoy through a dock and relaunch within one visit; that is the
+ * world-lifecycle divergence NPCs share (FIDELITY).
+ */
+describe("a new world restores both buoys (D-04, plan 18-08)", () => {
+  it("returns both buoys at 250, unmoved and whole whatever the previous world did to them", () => {
+    const old = createWorld(1);
+    old.staticHealth.navBuoy = 0;
+    old.buoys.witchpoint.offset = vec(300, -40, 12);
+    old.buoys.witchpoint.velocity = vec(2, 0, 0);
+    old.buoys.witchpoint.subentityEnergy = 0;
+    old.buoys.navBuoy.subentityTakingDamage = true;
+    expect(isBuoyDestroyed(old, "navBuoy")).toBe(true);
+    expect(isBuoySubentityAttached(old, "witchpoint")).toBe(false);
+
+    for (const seed of [0, 1, 2, 0x7fffffff, 0xffffffff]) {
+      const world = createWorld(seed);
+      for (const key of ["witchpoint", "navBuoy"] as const) {
+        expect(world.staticHealth[key]).toBe(250);
+        expect(isBuoyDestroyed(world, key)).toBe(false);
+        expect(world.buoys[key].offset).toEqual(vec(0, 0, 0));
+        expect(world.buoys[key].velocity).toEqual(vec(0, 0, 0));
+        expect(world.buoys[key].subentityEnergy).toBe(200);
+        expect(world.buoys[key].subentityTakingDamage).toBe(false);
+        expect(isBuoySubentityAttached(world, key)).toBe(true);
+        expect(buoyPosition(world, layout, key)).toEqual(layout[key].position);
+      }
+      expect(isPristineBuoyStates(world.buoys)).toBe(true);
+      // No state is shared with the old world.
+      expect(world.buoys.witchpoint).not.toBe(old.buoys.witchpoint);
+      expect(world.staticHealth).not.toBe(old.staticHealth);
+    }
+    // Building new worlds never touches the old one.
+    expect(old.staticHealth.navBuoy).toBe(0);
+    expect(old.buoys.witchpoint.offset).toEqual(vec(300, -40, 12));
   });
 });
 

@@ -10,8 +10,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Navigation buoys take laser damage (250 energy, recharging 2 per second)
   and can be destroyed. A destroyed buoy explodes, no longer stops a laser and
-  stays destroyed until you leave the system. Its removal from the view and
-  the scanner follows in a later update.
+  stays destroyed until your next launch, jump or load, which restores both
+  buoys.
+- A destroyed buoy disappears from the view and the scanner, a rammed buoy is
+  shown where it drifts, and the compass turns from a destroyed witchpoint
+  beacon to the planet.
 - Cargo pods and alloy plates can be shot; a navigation buoy's inner assembly
   takes damage and can be shot away.
 - Ident locks the Coriolis station, the navigation buoys, cargo pods and alloy
