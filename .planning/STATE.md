@@ -7,10 +7,10 @@ current_phase_name: Stations, Buoys and Collisions
 current_plan: 16
 status: executing
 stopped_at: Completed 18-07-PLAN.md
-last_updated: "2026-11-20T11:04:51.759Z"
+last_updated: "2026-11-20T11:21:13.428Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: e64c81615b54f30c583d35edf50ac9d8553bb002
+state_head: 581b888055140a3055f901d2827a6149f76d171d
 progress:
   total_phases: 6
   completed_phases: 3
@@ -583,6 +583,7 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-06: traffic-off HUD raw static key deferred to todo 2026-11-20-ident-hud-raw-static-key-traffic-off, triage at 18-12 (owner 2026-11-20)
 - [Phase 18]: 18-07: both live buoys block a completing jump by Oolite's mass rule (698,691.1875 kg, 264.33 m), from layout plus offset, with the float32 hull mass 691,044.375 once the subentity is detached; a destroyed buoy never blocks; order station, witchpoint buoy, nav buoy, NPC ships; mass via StepOptions.hyperspace.buoyMass
 - [Phase 18]: 18-07: hyperspace-failure.spec.ts ORIGIN_POSE moved [0,0,0] -> [1000,0,0] (D-06, owner sanction); witchpoint-beacon HUD copy 'Witchspace jump aborted: too near Witchpoint Beacon' is provisional (the plan's string is 55 > 54 chars), owner confirmation pending
+- [Phase 18]: 18-07 follow-up (owner decision 2026-11-20): MAX_MESSAGE_CHARS 54 -> 55; witchpoint-beacon line is the plan's 'Witchspace jump aborted: too close to Witchpoint Beacon' (55); Oolite's word wrap and exact witch-blocked string deferred to todo 2026-11-20-hud-message-word-wrap-like-oolite with guard tests/guards/hud-message-length.test.ts
 
 ### Pending Todos
 
