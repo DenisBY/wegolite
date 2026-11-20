@@ -8,17 +8,17 @@ updated: 2026-11-20T00:00:00Z
 
 ## Current Test
 
-number: 1
-name: Witchpoint beacon refusal line drawn in full
+number: 2
+name: Buoy subentity detach and buoy destruction in the 3D view
 expected: |
-  'Witchspace jump aborted: too close to Witchpoint Beacon' is drawn in full inside the message rows (no clipping); the 60-character budget the owner set holds visually
+  On detachment the core mesh disappears while the hull and flashers stay; on destruction the whole buoy disappears from the 3D view
 awaiting: user response
 
 ## Tests
 
 ### 1. Witchpoint beacon refusal line drawn in full
 expected: Complete a witchspace jump within about 264 m of the witchpoint beacon (traffic on) and read the refusal line on the HUD. 'Witchspace jump aborted: too close to Witchpoint Beacon' is drawn in full inside the message rows (no clipping); the 60-character budget the owner set holds visually.
-result: [pending]
+result: pass — owner screenshot 2026-11-20: the line is drawn in full with room to spare on the right, no overlap with the gauges.
 
 ### 2. Buoy subentity detach and buoy destruction in the 3D view
 expected: In a traffic-on session, shoot the nav buoy's frangible subentity until it detaches, then destroy the buoy. On detachment the core mesh disappears while the hull and flashers stay; on destruction the whole buoy disappears from the 3D view (the scanner half is automated by statics.spec.ts).
@@ -31,9 +31,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 0
+passed: 1
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 
