@@ -73,3 +73,26 @@ Options:
 No code, fixture or tolerance was changed by the re-measure. No tripwire guard
 was added: the follow-up was docs-only by instruction, and the first consumer
 is the 18-12 triage itself.
+
+## Resolution
+
+Option 1, owner decision 2026-11-20 (before plan 18-19). The collision stage's
+narrow phase takes Oolite's prime for every pair: the body first in Oolite's z
+list (`compareZOrder`, `src/sim/world/sorted-lists.ts`, the key the
+collision-chain prefilter now imports from there; Wegolite `-z - r`, ties by
+id). The rank order (`colliderRank`) still decides who calls first; the
+prime's list carries the touched part and the other's the prime's hull
+(`CollisionRegion.m:345-358`). The response is unchanged.
+
+- `tests/sim/combat/collision-prime.oolite.test.ts` holds the stage
+  (`resolveCollisions`) to the 11 sessions: the 5 MISMATCH sessions failed with
+  the player as the prime and pass now. Fixture with provenance:
+  `tests/sim/combat/fixtures/buoy-contact-remeasure-2026-11-20.json`.
+- Moved pin: in `tests/sim/combat/collision-buoy.test.ts` the real barrel in
+  the buoy's cavity no longer names the subentity (the buoy is the prime); the
+  two subentity-response tests now use a barrel whose collision radius is
+  above the buoy's, and a new test pins the real-barrel contact as the buoy's
+  body.
+- Recorded in FIDELITY.md (E-135 row, the re-measure paragraph: dispute
+  closed), PROJECT.md (Key Decisions "The octree test's prime follows Oolite's
+  z order") and CHANGELOG.md (Fixed).

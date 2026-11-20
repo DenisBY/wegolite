@@ -91,12 +91,12 @@ const FIXTURE_100 = {
 const BUOY_BRAKE_FROM_100 = 9.583335928122201;
 
 /** The app's options: hulls with the statics, the flight table, debris. */
-function options(): StepOptions {
+function options(hulls: HullTable = HULLS): StepOptions {
   return {
     npcFlight: realNpcFlightTable(),
     combat: {
       mounts: DEFAULT_LASER_MOUNTS,
-      hulls: HULLS,
+      hulls,
       debris: DEBRIS,
       collisions: true,
     },
@@ -317,6 +317,29 @@ describe("the player rams the nav buoy (tracer, PD-02)", () => {
 });
 
 describe("the buoy's frangible subentity (PD-01)", () => {
+  /**
+   * The hulls with the barrel's collision radius raised above the buoy's, so
+   * that a pod at the buoy's z is Oolite's prime (`compareZOrder`: z minus
+   * the collision radius) and its octree, touching the subentity only, names
+   * the subentity. With the real barrel the buoy is the prime at that z and
+   * the contact is the buoy's body (owner decision 2026-11-20, the last test
+   * below). In a scratch scan (2026-11-20) no hull of the test table reached
+   * the subentity first as the prime, nose first from 400 directions with
+   * the buoy unturned.
+   * The response does not read the radius.
+   */
+  const PRIME_BARREL_HULLS: HullTable = (() => {
+    const barrel = HULLS.get("barrel");
+    const buoy = HULLS.get("buoy");
+    if (barrel === undefined || buoy === undefined) throw new Error("hulls");
+    const hulls = new Map(HULLS);
+    hulls.set("barrel", {
+      ...barrel,
+      collisionRadius: buoy.collisionRadius + 1,
+    });
+    return hulls;
+  })();
+
   /** A pod in the buoy's cavity closing on its centre at `speed`. */
   function cavityScene(speed: number): {
     player: FlightState;
@@ -390,7 +413,7 @@ describe("the buoy's frangible subentity (PD-01)", () => {
       world,
       player,
       combat,
-      options(),
+      options(PRIME_BARREL_HULLS),
       layout,
     );
 
@@ -410,7 +433,13 @@ describe("the buoy's frangible subentity (PD-01)", () => {
 
   it("a rammer destroyed by the subentity: the buoy keeps +vel2a, the subentity's reversal is not applied", () => {
     const { player, combat, world } = cavityScene(100);
-    resolveCollisions(world, player, combat, options(), layout);
+    resolveCollisions(
+      world,
+      player,
+      combat,
+      options(PRIME_BARREL_HULLS),
+      layout,
+    );
     const buoy = world.buoys.navBuoy;
     const toCentre = Math.hypot(CAVITY_OFFSET.x, CAVITY_OFFSET.y);
     // vel2a = loc x v2b, loc from the pod to the subentity's centre.
@@ -474,5 +503,55 @@ describe("the buoy's frangible subentity (PD-01)", () => {
       [STATION_NAV_BUOY_ID, expected.dam2],
     ]);
     expect(expected.dam1).not.toBe(FIXTURE_100.dam1);
+  });
+
+  it("the real barrel in the cavity: Oolite's prime is the buoy, so the contact is the buoy's body (owner decision 2026-11-20)", () => {
+    // Re-pinned: with the lower rank as the prime (before 2026-11-20) the pod
+    // named the subentity (mass BUOY_SUBENTITY_MASS, dam2 on id 7). Cause:
+    // Oolite prime order (owner decision 2026-11-20). The buoy, first in
+    // Oolite's z list at the same z (larger radius), tests its octree first:
+    // its subentity touches the pod's hull, so the contact names the pod's
+    // hull, and the pod, ranked first, calls with the buoy's body
+    // (`CollisionRegion.m:345-358`).
+    const { player, combat, world, pod, podAt, podVelocity } = cavityScene(60);
+    const podEntity = world.store.get(pod);
+    if (podEntity === undefined) throw new Error("no pod");
+    const expected = collideWithShip({
+      self: {
+        position: podAt,
+        velocity: podVelocity,
+        mass: debrisMassOf(podEntity, DEBRIS) ?? 0,
+        energy: DEBRIS_MAX_ENERGY,
+        destroyable: true,
+      },
+      other: {
+        position: NAV_BUOY,
+        velocity: vec(0, 0, 0),
+        mass: NAV_BUOY_MASS,
+        energy: 250,
+        destroyable: true,
+      },
+    });
+    if (expected.kind !== "collided") throw new Error("expected a contact");
+
+    const { records, stats } = resolveCollisions(
+      world,
+      player,
+      combat,
+      options(),
+      layout,
+    );
+
+    expect(stats.contacts).toBe(1);
+    expect(records.map((r) => [r.kind, r.target, r.source, r.amount])).toEqual([
+      ["scrape", pod, STATION_NAV_BUOY_ID, expected.dam1],
+      ["scrape", STATION_NAV_BUOY_ID, pod, expected.dam2],
+    ]);
+    expect(records.some((r) => r.target === NAV_BUOY_SUBENTITY_ID)).toBe(false);
+    const buoy = world.buoys.navBuoy;
+    expect(buoy.velocity.x).toBe(expected.dvOtherBody.x);
+    expect(buoy.velocity.y).toBe(expected.dvOtherBody.y);
+    expect(buoy.offset.x).toBe(expected.dpOther.x);
+    expect(buoy.offset.y).toBe(expected.dpOther.y);
   });
 });

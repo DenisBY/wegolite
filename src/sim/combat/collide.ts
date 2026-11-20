@@ -74,6 +74,7 @@ import {
   MAX_ENTITY_VELOCITY,
   QUAT_UNIT_TOLERANCE,
 } from "../world/limits.js";
+import { compareZOrder } from "../world/sorted-lists.js";
 import {
   STATIC_TARGETS,
   buoyOrientation,
@@ -245,8 +246,9 @@ export interface RankedBody {
 }
 
 /**
- * One octree contact by rank: `self` is the lower rank and was the prime of
- * `doOctreesCollide`; `part` is the part of `other` it touched.
+ * One octree contact by rank: `self` was the prime of `doOctreesCollide`
+ * (Oolite's `e1`, the body first in the z list, `compareZOrder`; either
+ * rank); `part` is the part of `other` it touched.
  */
 export interface RankedContact {
   readonly self: number;
@@ -313,12 +315,18 @@ interface ListEntry {
  * in rank order (`count` of them, ranks `0..count-1`), each through its list
  * in the other's rank order, calling `call(self, other, part)` for every
  * entry still there. A contact puts each side in the other's list
- * (`CollisionRegion.m:340-351`): `self`'s entry carries the touched `part`,
- * the other's entry the hull (Oolite's `e2` lists `e1` itself). A call that
- * returns true (collided) removes `self` from the other's list
+ * (`CollisionRegion.m:345-358`): the prime's (`contact.self`) entry carries
+ * the touched `part`, the other's entry the prime's hull (Oolite's `e2`
+ * lists `e1` itself). Whichever of the two ranks first calls first, so a
+ * non-prime of lower rank calls with the prime's hull. A call that returns
+ * true (collided) removes `self` from the other's list
  * (`ShipEntity.m:11149-11150`), so the contact is resolved once; one that
  * returns false (separating, the C's `return NO` at 11080-11081) leaves it,
- * and the other calls in its own turn with the roles swapped.
+ * and the other calls in its own turn with the roles swapped. When a
+ * subentity is involved the C's `removeObject:self` misses (the call's
+ * `other` is the subentity, or the list holds the caller's subentity), so
+ * Oolite may run the contact again from the other side; here it is resolved
+ * once (a FIDELITY divergence, E-135).
  */
 export function runContactCalls(
   count: number,
@@ -513,9 +521,16 @@ function gatherColliders(
  *    id, a non-finite key last), then Oolite's sphere test
  *    `d^2 < (r1 + r2)^2` with the hull's collision radius
  *    (`CollisionRegion.m:292-297`, strict).
- * 3. Narrow phase: `doOctreesCollide(self, other)` with `self` the lower
- *    rank as the prime (a Wegolite choice: Oolite's prime is `e1` of the
- *    collision-chain sweep, `CollisionRegion.m:279-342`; a FIDELITY row).
+ * 3. Narrow phase: `doOctreesCollide(self, other)` with Oolite's prime as
+ *    `self`: `e1` of the collision chain, the body first in Oolite's z list
+ *    (`compareZOrder`, `../world/sorted-lists.ts`, the key the
+ *    collision-chain prefilter sorts by: Oolite's z, Wegolite's `-z`, minus
+ *    the collision radius, ascending, ties by id; `Entity.m:247`,
+ *    `Universe.m:7044-7073`, `CollisionRegion.m:284-287, 341-343`). The octree test is not symmetric, so the prime moves the
+ *    onset (owner decision 2026-11-20). The prime's list carries the part it
+ *    touched, the other's the prime's hull; the call order stays the rank
+ *    order. The station, Oolite's prime whenever it is in a pair
+ *    (`CollisionRegion.m:327-340`), is never a collider here.
  * 4. Response: `runContactCalls` runs each body's list in rank order. Each
  *    call reads the live positions and total velocities (drift plus
  *    forward x speed, plus the player's decaying dock `impulse`), calls
@@ -695,10 +710,15 @@ export function resolveCollisions(
       const dy = pb.y - pa.y;
       const dz = pb.z - pa.z;
       if (!(dx * dx + dy * dy + dz * dz < reach * reach)) continue;
-      // 3. Narrow phase, the lower rank as the prime; a detached subentity
-      // on either side takes no part (PD-01).
-      const self = Math.min(a, b);
-      const other = Math.max(a, b);
+      // 3. Narrow phase, Oolite's prime (the body first in Oolite's z list)
+      // as self; a detached subentity on either side takes no part (PD-01).
+      const aFirst =
+        compareZOrder(
+          { id: ca.id, position: pa, radius: ra },
+          { id: cb.id, position: pb, radius: cb.hull.collisionRadius },
+        ) < 0;
+      const self = aFirst ? a : b;
+      const other = aFirst ? b : a;
       const cs = ranked[self];
       const co = ranked[other];
       if (cs === undefined || co === undefined) continue;

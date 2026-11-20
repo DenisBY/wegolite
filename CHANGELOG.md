@@ -61,6 +61,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Collisions now begin where Oolite's do: a ship touching a navigation buoy
+  (or another ship, pod or plate) makes contact at the same distance as in
+  Oolite, where before it could touch up to about 22 m early.
 - In a test session (`?test=1&traffic=1`) an NPC ship whose Oolite ship data
   sets a laser colour now fires in that colour, as in Oolite, so a GalCop
   Viper's shots are magenta, not yellow. Other ships and your own shots keep

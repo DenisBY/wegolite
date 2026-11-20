@@ -58,6 +58,13 @@
 
 import type { Vec3 } from "../math.js";
 import type { EntityId } from "../world/ids.js";
+import {
+  OOLITE_X,
+  OOLITE_Y,
+  OOLITE_Z,
+  compareOnAxis,
+} from "../world/sorted-lists.js";
+import type { ListAxis } from "../world/sorted-lists.js";
 
 /** A body of the sorted lists. */
 export interface ChainBody {
@@ -78,10 +85,10 @@ export interface CollisionChains {
 }
 
 /** Oolite's coordinate on one axis: x and y as they are, z negated. */
-type Axis = (p: Vec3) => number;
-const AXIS_X: Axis = (p) => p.x;
-const AXIS_Y: Axis = (p) => p.y;
-const AXIS_Z: Axis = (p) => -p.z;
+type Axis = ListAxis;
+const AXIS_X: Axis = OOLITE_X;
+const AXIS_Y: Axis = OOLITE_Y;
+const AXIS_Z: Axis = OOLITE_Z;
 
 const ELIMINATED = 3;
 const SINGLETON_UP = 1;
@@ -93,15 +100,12 @@ interface Slot {
 
 /**
  * A list sorted as Oolite keeps it: by the lower edge, position minus ONE
- * collision radius (`Entity.m:247`, 462-467), although the walks below use
- * extents of two radii. Ties by ascending id.
+ * collision radius (`compareOnAxis`, `../world/sorted-lists.ts`; the key the
+ * collision stage's prime shares), although the walks below use extents of
+ * two radii. Ties by ascending id.
  */
 function sortedOn(slots: readonly Slot[], axis: Axis): Slot[] {
-  return [...slots].sort((a, b) => {
-    const pa = axis(a.body.position) - a.body.radius;
-    const pb = axis(b.body.position) - b.body.radius;
-    return pa < pb ? -1 : pa > pb ? 1 : a.body.id - b.body.id;
-  });
+  return [...slots].sort((a, b) => compareOnAxis(axis, a.body, b.body));
 }
 
 /** The index of the next slot after `i` whose filter is not 3, or -1. */

@@ -598,6 +598,7 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-18: resolveCollisions takes an optional layout; with it the buoys are colliders and movers (PD-02), their subentity answers contacts the hull does not make (PD-01), and the stage returns CollisionStats
 - [Phase 18]: 18-18: the stage's first player-buoy contact distance along the buoy's right axis is outside 18-20's bracket at a fixed player roll but inside it over the roll and spin scan; 18-20 did not log those angles, so the owner decides whether to re-measure
 - [Phase 18]: 18-21: live buoys are NPC proximity candidates through the world view (PD-06); Oolite's filterSortedLists ported as it really runs (dead downward walks, z chain, lower-edge sort, planet and sun slabs) and applied to buoy pairs only (PD-08, corrected 2026-11-20 by owner decision); the all-pairs version is todo 2026-11-20-collision-chain-prefilter-all-pairs, which with the corrected sort holds every Phase 14 suite
+- [Phase 18]: Owner decision 2026-11-20 (before 18-19): the collision stage's octree prime is Oolite's e1, the body first in Oolite's z list (compareZOrder, src/sim/world/sorted-lists.ts, shared with the collision-chain prefilter), for every pair; rank order still decides who calls; the 11 real-Oolite buoy sessions hold (tests/sim/combat/collision-prime.oolite.test.ts); todo buoy-contact-onset-mismatch completed
 
 ### Pending Todos
 
