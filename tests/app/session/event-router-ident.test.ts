@@ -148,6 +148,32 @@ describe("the ident lock names the station (tracer)", () => {
   });
 });
 
+describe("the ident lock names the buoys, pods and plates", () => {
+  it.each(["buoy", "buoy-witchpoint", "barrel", "alloy"])(
+    "prints the compiled name of %s with traffic on",
+    async (specKey) => {
+      const h = await booted(true);
+      h.dispatch(locked(specKey));
+      expect(h.log).toEqual([
+        `Ident system locked onto ${compiled(specKey)}. for 4.5`,
+      ]);
+    },
+  );
+
+  it("prints each raw key with traffic off", async () => {
+    const h = await booted(false);
+    for (const specKey of ["buoy", "buoy-witchpoint", "barrel", "alloy"]) {
+      h.dispatch(locked(specKey));
+    }
+    expect(h.log).toEqual([
+      "Ident system locked onto buoy. for 4.5",
+      "Ident system locked onto buoy-witchpoint. for 4.5",
+      "Ident system locked onto barrel. for 4.5",
+      "Ident system locked onto alloy. for 4.5",
+    ]);
+  });
+});
+
 describe("startSession installs the target names (source fact)", () => {
   it("builds ctx.core.targetNames from the boot load's static names and clears it on dispose", () => {
     // startSession has no Node harness (it builds the renderer, HUD and

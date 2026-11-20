@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   COBRA_VIEW_OFFSETS,
+  COBRA_WEAPON_OFFSETS,
   IDENT_ACQUIRE_RANGE,
   SCANNER_MAX_RANGE,
   toWegoliteLocal,
@@ -36,18 +37,35 @@ import {
 import type { Command } from "../../../src/sim/commands.js";
 import type { SimEvent } from "../../../src/sim/events.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
+import type { ControlIntent } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
-import { identity, vec } from "../../../src/sim/math.js";
-import type { Vec3 } from "../../../src/sim/math.js";
+import {
+  add,
+  identity,
+  quatFromUnitVectors,
+  rotate,
+  sub,
+  vec,
+} from "../../../src/sim/math.js";
+import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import type { SpawnInit } from "../../../src/sim/world/entity.js";
-import { MAIN_STATION_ID, NO_ENTITY } from "../../../src/sim/world/ids.js";
+import {
+  MAIN_STATION_ID,
+  NAV_BUOY_SUBENTITY_ID,
+  NO_ENTITY,
+  STATION_NAV_BUOY_ID,
+  WITCHPOINT_BUOY_ID,
+  WITCHPOINT_BUOY_SUBENTITY_ID,
+} from "../../../src/sim/world/ids.js";
+import { buoyPosition } from "../../../src/sim/world/statics.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { fullHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const { layout, config } = laveFixture();
@@ -560,5 +578,232 @@ describe("identTargetSnapshot", () => {
     expect(identTargetSnapshot(combat, undefined, layout)).toBeUndefined();
     world.store.kill(id);
     expect(identTargetSnapshot(combat, world, layout)).toBeUndefined();
+  });
+});
+
+/*
+ * The statics, pods and plates as ident targets (CBT-17, plan 18-06, D-05,
+ * D-07, PD-02), from Oolite's `firstEntityTargetedByPlayer`
+ * (`Universe.m:5649-5722`: every entity that `isShip` and `canCollide`, its
+ * `collisionRadius` the sphere) and `isValidTarget` (`PlayerEntity.m:3595-3628`:
+ * lost beyond `SCANNER_MAX_RANGE2`). A buoy's subentity is no entity of its own
+ * in Oolite's list, and a wreck cannot collide.
+ */
+
+/** A flying player `distance` metres along +Z from `target`, nose (-Z) at it. */
+function facing(target: Vec3, distance = 3000): FlightState {
+  const player = flyingPlayer();
+  player.position = vec(target.x, target.y, target.z + distance);
+  return player;
+}
+
+describe("both buoys, pods and plates lock; wrecks never (D-07)", () => {
+  it("locks the nav buoy as buoy and the witchpoint buoy as buoy-witchpoint, at their layout radius", () => {
+    for (const [key, id, specKey] of [
+      ["navBuoy", STATION_NAV_BUOY_ID, "buoy"],
+      ["witchpoint", WITCHPOINT_BUOY_ID, "buoy-witchpoint"],
+    ] as const) {
+      const world = createWorld(7);
+      const player = facing(buoyPosition(world, layout, key));
+      const combat = createPlayerCombatState();
+
+      const events = step(player, world, combat, [IDENT]);
+
+      expect(combat.identTarget).toBe(id);
+      expect(ofKind(events, "identLocked")).toEqual([
+        { kind: "identLocked", specKey },
+      ]);
+      expect(identTargetSnapshot(combat, world, layout)).toEqual({
+        position: layout[key].position,
+        radius: 59.13554763793945,
+      });
+    }
+  });
+
+  it("PD-02: locks a nav buoy moved by (200, 0, 0) only where it now is", () => {
+    const world = createWorld(7);
+    world.buoys.navBuoy.offset = vec(200, 0, 0);
+    const moved = buoyPosition(world, layout, "navBuoy");
+    expect(moved).toEqual(add(layout.navBuoy.position, vec(200, 0, 0)));
+
+    // Aimed at the layout position, 200 m beside the buoy's 59 m sphere.
+    const stale = facing(layout.navBuoy.position);
+    const staleCombat = createPlayerCombatState();
+    step(stale, world, staleCombat, [IDENT]);
+    expect(staleCombat.identTarget).not.toBe(STATION_NAV_BUOY_ID);
+
+    const player = facing(moved);
+    const combat = createPlayerCombatState();
+    step(player, world, combat, [IDENT]);
+    expect(combat.identTarget).toBe(STATION_NAV_BUOY_ID);
+    expect(identTargetSnapshot(combat, world, layout)?.position).toEqual(moved);
+  });
+
+  it("locks a cargo pod (barrel) and an alloy plate by their spec keys", () => {
+    // On the fore view axis: the view origin sits off the ship's centre line,
+    // and a 5 m piece is smaller than that offset.
+    const onAxis = add(ahead(3000), toWegoliteLocal(COBRA_VIEW_OFFSETS.fore));
+    for (const specKey of ["barrel", "alloy"]) {
+      const player = flyingPlayer();
+      const combat = createPlayerCombatState();
+      const world = createWorld(7);
+      const id = spawnShip(world, specKey, onAxis, {
+        kind: "cargo",
+        scanClass: "CLASS_CARGO",
+        radius: 5,
+      });
+
+      const events = step(player, world, combat, [IDENT]);
+
+      expect(combat.identTarget).toBe(id);
+      expect(ofKind(events, "identLocked")).toEqual([
+        { kind: "identLocked", specKey },
+      ]);
+      expect(identTargetSnapshot(combat, world, layout)).toEqual({
+        position: onAxis,
+        radius: 5,
+      });
+    }
+  });
+
+  it("never locks a wreck in the sights and locks the ship behind it", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    spawnShip(world, "wreck", ahead(3000), { kind: "wreckage" });
+    const behind = spawnShip(world, "adder", ahead(5000));
+
+    const events = step(player, world, combat, [IDENT]);
+
+    expect(combat.identTarget).toBe(behind);
+    expect(ofKind(events, "identLocked")).toEqual([
+      { kind: "identLocked", specKey: "adder" },
+    ]);
+  });
+
+  it("keeps the static on an equal distance: the station row is visited first", () => {
+    const world = createWorld(7);
+    const at = layout.navBuoy.position;
+    // A ship at the buoy's own centre is at exactly the buoy's distance.
+    spawnShip(world, "adder", at);
+    const player = facing(at);
+    const combat = createPlayerCombatState();
+
+    step(player, world, combat, [IDENT]);
+
+    expect(combat.identTarget).toBe(STATION_NAV_BUOY_ID);
+  });
+});
+
+describe("a static lock is lost as a ship's is (D-05)", () => {
+  /** The beam line of step.test's buoy tests: +X, 9 m up and 14 m aside. */
+  const PLUS_X = quatFromUnitVectors(vec(0, 0, -1), vec(1, 0, 0));
+  const HULL_LINE = vec(-2000, 9, 14);
+  const FIRE: ControlIntent = { ...ZERO_INTENT, fire: true };
+  const FULL: StepOptions = {
+    combat: { mounts: DEFAULT_LASER_MOUNTS, hulls: fullHullTable() },
+  };
+
+  /** A player whose fore pulse starts exactly at `origin`, facing `orientation`. */
+  function playerAt(origin: Vec3, orientation: Quat): FlightState {
+    const state = flyingPlayer();
+    state.flightTime = 0;
+    state.orientation = orientation;
+    state.position = sub(
+      origin,
+      rotate(orientation, toWegoliteLocal(COBRA_WEAPON_OFFSETS.fore)),
+    );
+    return state;
+  }
+
+  it("a locked nav buoy destroyed by a real shot emits identLost after shipDestroyed on that tick", () => {
+    const world = createWorld(7);
+    const player = playerAt(add(layout.navBuoy.position, HULL_LINE), PLUS_X);
+    const combat = createPlayerCombatState();
+    step(player, world, combat, [IDENT]);
+    expect(combat.identTarget).toBe(STATION_NAV_BUOY_ID);
+
+    // One pulse (15) is lethal once the buoy is down to 1.
+    world.staticHealth.navBuoy = 1;
+    const events = stepSim(
+      player,
+      world,
+      layout,
+      config,
+      FIRE,
+      [],
+      DT,
+      FULL,
+      combat,
+    );
+
+    const destroyed = events.findIndex(
+      (event) =>
+        event.kind === "shipDestroyed" && event.id === STATION_NAV_BUOY_ID,
+    );
+    const lost = events.findIndex((event) => event.kind === "identLost");
+    expect(destroyed).toBeGreaterThan(-1);
+    expect(lost).toBeGreaterThan(destroyed);
+    expect(combat.identTarget).not.toBe(STATION_NAV_BUOY_ID);
+    expect(combat.identEngaged).toBe(true);
+    expect(identTargetSnapshot(combat, world, layout)?.position).not.toEqual(
+      layout.navBuoy.position,
+    );
+  });
+
+  it("never acquires a destroyed buoy", () => {
+    const world = createWorld(7);
+    world.staticHealth.navBuoy = 0;
+    const player = facing(layout.navBuoy.position);
+    const combat = createPlayerCombatState();
+
+    const events = step(player, world, combat, [IDENT]);
+
+    expect(combat.identTarget).not.toBe(STATION_NAV_BUOY_ID);
+    expect(
+      ofKind(events, "identLocked").filter((e) => e.specKey === "buoy"),
+    ).toEqual([]);
+  });
+
+  it("holds a static at exactly 25,600 m and loses it 1 m further", () => {
+    const world = createWorld(7);
+    const at = layout.witchpoint.position;
+    expect(at).toEqual(vec(0, 0, 0));
+    const player = facing(at);
+    const combat = createPlayerCombatState();
+    step(player, world, combat, [IDENT]);
+    expect(combat.identTarget).toBe(WITCHPOINT_BUOY_ID);
+
+    player.position = vec(0, 0, SCANNER_MAX_RANGE);
+    expect(kinds(step(player, world, combat))).toEqual([]);
+    expect(combat.identTarget).toBe(WITCHPOINT_BUOY_ID);
+
+    player.position = vec(0, 0, SCANNER_MAX_RANGE + 1);
+    expect(kinds(step(player, world, combat))).toEqual(["identLost"]);
+    expect(combat.identTarget).toBe(NO_ENTITY);
+    expect(combat.identEngaged).toBe(true);
+  });
+
+  it("never holds a buoy subentity: ids 6 and 7 are no target", () => {
+    for (const id of [WITCHPOINT_BUOY_SUBENTITY_ID, NAV_BUOY_SUBENTITY_ID]) {
+      const player = flyingPlayer();
+      const combat = createPlayerCombatState();
+      combat.identEngaged = true;
+      combat.identTarget = id;
+      const world = createWorld(7);
+
+      expect(identTargetSnapshot(combat, world, layout)).toBeUndefined();
+      expect(kinds(step(player, world, combat))).toEqual(["identLost"]);
+      expect(combat.identTarget).toBe(NO_ENTITY);
+    }
+  });
+
+  it("frames nothing without a layout", () => {
+    const world = createWorld(7);
+    const player = facing(layout.station.position);
+    const combat = createPlayerCombatState();
+    step(player, world, combat, [IDENT]);
+    expect(combat.identTarget).toBe(MAIN_STATION_ID);
+    expect(identTargetSnapshot(combat, world, undefined)).toBeUndefined();
   });
 });

@@ -65,7 +65,8 @@ import {
   countdownSecondsRemaining,
 } from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
-import { NO_ENTITY } from "../../../src/sim/world/ids.js";
+import { NO_ENTITY, STATION_NAV_BUOY_ID } from "../../../src/sim/world/ids.js";
+import { buoyPosition } from "../../../src/sim/world/statics.js";
 import {
   debrisContacts,
   npcContacts,
@@ -823,6 +824,38 @@ describe("renderFrame ident frame (INPUT-01, D-03)", () => {
     combat.view = "fore";
     h.driver.renderFrame(0);
     expect(models[1]?.identFrame).toBeNull();
+  });
+
+  it("frames a locked nav buoy at its live position (plan 18-06, PD-02)", () => {
+    const { h, models, combat } = locked(5_000);
+    const world = h.ctx.core.worldLifecycle?.world;
+    if (world === undefined) throw new Error("no world");
+    world.buoys.navBuoy.offset = vec(200, 0, 0);
+    const moved = buoyPosition(world, layout, "navBuoy");
+    const pose = {
+      position: vec(moved.x, moved.y, moved.z + 5_000),
+      orientation: identity(),
+    };
+    h.ctx.core.previousPose = pose;
+    h.ctx.core.currentPose = pose;
+    if (h.ctx.core.state !== undefined)
+      h.ctx.core.state.position = pose.position;
+    combat.identTarget = STATION_NAV_BUOY_ID;
+
+    h.driver.renderFrame(0);
+    const frame = models[0]?.identFrame;
+    expect(frame).not.toBeNull();
+    // Dead ahead of the view horizontally: framed where the buoy now is, not
+    // 200 m aside at its layout position.
+    expect(frame?.x).toBeCloseTo(960, 3);
+
+    // Back at its layout position the buoy is 200 m to the left of the view
+    // axis: the frame follows it off centre.
+    world.buoys.navBuoy.offset = vec(0, 0, 0);
+    h.driver.renderFrame(0);
+    const stale = models[1]?.identFrame;
+    expect(stale).not.toBeNull();
+    expect(stale?.x).toBeLessThan(950);
   });
 
   it("draws no frame with no combat state or no world", () => {

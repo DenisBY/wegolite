@@ -34,7 +34,10 @@ import {
   TEST_ATTACKER_DISTANCE,
   TEST_FLYER_DISTANCE,
 } from "../../../src/sim/ai/test-spawn.js";
-import { MAX_ENTITIES } from "../../../src/sim/world/ids.js";
+import {
+  MAX_ENTITIES,
+  STATION_NAV_BUOY_ID,
+} from "../../../src/sim/world/ids.js";
 import type { Hud } from "../../../src/render/hud/hud.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
@@ -435,6 +438,32 @@ describe("probe.combat (plan 13-14)", () => {
 
     // A lock on a ship that is gone is no lock.
     spawned.entity.dead = true;
+    publisher.updateProbe();
+    expect(probe.combat?.identLocked).toBe(false);
+  });
+
+  it("flags a static lock (plan 18-06) and publishes no lock without a layout or once the buoy is destroyed", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.layout = layout;
+    ctx.core.state = initFlightState(layout);
+    const world = createWorld(7);
+    ctx.core.worldLifecycle = lifecycleOf(world);
+    const combat = createPlayerCombatState();
+    combat.identTarget = STATION_NAV_BUOY_ID;
+    ctx.core.combat = combat;
+
+    publisher.updateProbe();
+    expect(probe.combat?.identLocked).toBe(true);
+    expect(JSON.stringify(probe.combat)).not.toContain(
+      `"${STATION_NAV_BUOY_ID}"`,
+    );
+
+    ctx.core.layout = undefined;
+    publisher.updateProbe();
+    expect(probe.combat?.identLocked).toBe(false);
+
+    ctx.core.layout = layout;
+    world.staticHealth.navBuoy = 0;
     publisher.updateProbe();
     expect(probe.combat?.identLocked).toBe(false);
   });
