@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 16
+current_plan: 17
 status: executing
-stopped_at: Completed 18-07-PLAN.md
-last_updated: "2026-11-20T11:21:13.428Z"
+stopped_at: Completed 18-08-PLAN.md
+last_updated: "2026-11-20T11:53:19.547Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 581b888055140a3055f901d2827a6149f76d171d
+state_head: 05bea3793c6134ba81b1c4b4b84664f47b078c27
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 43
+  completed_plans: 44
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 16
+Current Plan: 17
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -228,6 +228,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P15 | 27min | 3 tasks | 13 files |
 | Phase 18 P06 | 58min | 3 tasks | 17 files |
 | Phase 18 P07 | 35 min | 3 tasks | 16 files |
+| Phase 18 P08 | 23 min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -584,6 +585,9 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-07: both live buoys block a completing jump by Oolite's mass rule (698,691.1875 kg, 264.33 m), from layout plus offset, with the float32 hull mass 691,044.375 once the subentity is detached; a destroyed buoy never blocks; order station, witchpoint buoy, nav buoy, NPC ships; mass via StepOptions.hyperspace.buoyMass
 - [Phase 18]: 18-07: hyperspace-failure.spec.ts ORIGIN_POSE moved [0,0,0] -> [1000,0,0] (D-06, owner sanction); witchpoint-beacon HUD copy 'Witchspace jump aborted: too near Witchpoint Beacon' is provisional (the plan's string is 55 > 54 chars), owner confirmation pending
 - [Phase 18]: 18-07 follow-up (owner decision 2026-11-20): MAX_MESSAGE_CHARS 54 -> 55; witchpoint-beacon line is the plan's 'Witchspace jump aborted: too close to Witchpoint Beacon' (55); Oolite's word wrap and exact witch-blocked string deferred to todo 2026-11-20-hud-message-word-wrap-like-oolite with guard tests/guards/hud-message-length.test.ts
+- [Phase 18]: Plan 18-08: keep Wegolite's compass cycle and skip a destroyed witchpoint beacon (station -> auto); PROJECT.md Key Decisions row and FIDELITY E-126 'Compass cycle model' (A7, D-05)
+- [Phase 18]: Plan 18-08: a witchpoint compass turns to the planet, mode and target, on the first stepped tick whose field reports the witchpoint buoy dead (PlayerEntity.m:4655-4659, FIDELITY E-125)
+- [Phase 18]: Plan 18-08: one per-frame buoyViewStates value feeds applyBuoyState and HudModelOptions.buoys; a new world restores both buoys (FIDELITY E-127 divergence: Oolite keeps them through a dock and relaunch)
 
 ### Pending Todos
 
@@ -723,8 +727,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-20T11:04:51.297Z
-Stopped at: Completed 18-07-PLAN.md
+Last session: 2026-11-20T11:53:19.106Z
+Stopped at: Completed 18-08-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
