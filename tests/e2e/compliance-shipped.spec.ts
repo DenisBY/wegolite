@@ -19,12 +19,13 @@ import { expect, test, type Page } from "@playwright/test";
 import { FIRST_LAUNCH_WAIT_MS, waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
-const DOCUMENTS = ["NOTICE", "LICENSE", "ASSETS.md"] as const;
+const DOCUMENTS = ["NOTICE", "LICENSE", "ASSETS.md", "CHANGELOG.md"] as const;
 
 const FOOTER_HREFS = [
   "./NOTICE",
   "./LICENSE",
   "./ASSETS.md",
+  "./CHANGELOG.md",
   "https://github.com/DenisBY/wegolite",
 ];
 
@@ -37,7 +38,7 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
-test("the built site serves NOTICE, LICENSE and ASSETS.md byte-for-byte", async ({
+test("the built site serves NOTICE, LICENSE, ASSETS.md and CHANGELOG.md byte-for-byte", async ({
   page,
 }) => {
   for (const name of DOCUMENTS) {
@@ -50,7 +51,7 @@ test("the built site serves NOTICE, LICENSE and ASSETS.md byte-for-byte", async 
   }
 });
 
-test("the shipped footer links the licence documents and the source", async ({
+test("the shipped footer links the licence documents, the changelog and the source", async ({
   page,
 }) => {
   const errors = collectErrors(page);
@@ -78,7 +79,7 @@ test("the shipped footer links the licence documents and the source", async ({
   expect(sourceUrl).toBe("https://github.com/DenisBY/wegolite");
   expect(hrefs.at(-1)).toBe(sourceUrl);
 
-  for (const href of FOOTER_HREFS.slice(0, 3)) {
+  for (const href of FOOTER_HREFS.slice(0, 4)) {
     const target = new URL(href, page.url()).toString();
     const response = await page.request.get(target);
     expect(response.status(), target).toBe(200);

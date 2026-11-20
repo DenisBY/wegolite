@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The page footer links the changelog, so you can see what changed in each
+  release.
+
 ## [0.7.0] - 2026-11-20
 
 Stations, buoys and collisions. Your ship can now take damage in normal play

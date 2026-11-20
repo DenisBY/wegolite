@@ -11,8 +11,14 @@ import { defineConfig, type Plugin } from "vite";
 const COMPLIANCE_DOCUMENTS = ["NOTICE", "LICENSE", "ASSETS.md"] as const;
 
 /**
+ * Repository-root documents the built site carries beside the licence
+ * documents: the changelog, which the footer links.
+ */
+const SHIPPED_DOCUMENTS = [...COMPLIANCE_DOCUMENTS, "CHANGELOG.md"] as const;
+
+/**
  * Ships NOTICE, LICENSE and ASSETS.md inside the build output (QUAL-07, D-03,
- * research Pattern 1).
+ * research Pattern 1), and CHANGELOG.md beside them for the footer link.
  *
  * The sources are the repository-root files, resolved from this config file's
  * directory rather than `process.cwd()`. They are emitted as build assets, so
@@ -26,7 +32,7 @@ function shipComplianceDocs(): Plugin {
     name: "wegolite-compliance-docs",
     apply: "build",
     generateBundle() {
-      for (const fileName of COMPLIANCE_DOCUMENTS) {
+      for (const fileName of SHIPPED_DOCUMENTS) {
         this.emitFile({
           type: "asset",
           fileName,

@@ -187,6 +187,7 @@ describe("shipped shell", () => {
       "./NOTICE",
       "./LICENSE",
       "./ASSETS.md",
+      "./CHANGELOG.md",
       "https://github.com/DenisBY/wegolite",
     ]) {
       expect(footer).toContain(`href="${href}"`);
