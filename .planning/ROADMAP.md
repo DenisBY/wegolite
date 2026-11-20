@@ -316,7 +316,7 @@ Plans:
 **Pitfalls to address**: 4 (the acceptance harness), 9 (single contact: no energy gained or lost twice), 11 (statics are not world entities: the hull table and their poses), 12 (the collision rule's wrong half), 17 (pair cost)
 **Decisions to settle**: the Coriolis hull's file (one artifact or a separate file); the destroyed-buoy semantics above; the player's response to impact; supersede the Key Decisions row "Statics are neither laser nor ident targets"
 **Todos**: `2026-11-15-lasers-and-ident-hit-stations-and-buoys.md` (closed by CBT-17); `2026-11-14-make-buoys-block-hyperspace-like-oolite.md` touches the same fixture and is a candidate to fold in by owner decision, not a requirement; `2026-11-10-add-planet-and-sun-collision.md` loses its buoy half to CBT-18 (planet and sun stay unscheduled)
-**Plans**: 17/22 plans executed; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
+**Plans**: 18/22 plans executed; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
 
 Plans:
 **Wave 1**
@@ -353,7 +353,7 @@ Plans:
 
 **Wave 9** *(blocked on Wave 8 completion)*
 - [x] 18-11-PLAN.md — CBT-18, criterion 4: the opt-in collision stage in `resolveShots` for the player, NPCs, pods and plates; station and launch excluded; kills and debris through the one kill path; rammed pods take damage (PD-05)
-- [ ] 18-22-PLAN.md — DATA-15, CBT-17: a new traffic-on browser spec: a destroyed nav buoy leaves the scanner, ident locks the station, the static chunk loads only with traffic on
+- [x] 18-22-PLAN.md — DATA-15, CBT-17: a new traffic-on browser spec: a destroyed nav buoy leaves the scanner, ident locks the station, the static chunk loads only with traffic on
 
 **Wave 10** *(blocked on Wave 9 completion)*
 - [ ] 18-18-PLAN.md — CBT-18, criteria 4–5: buoys as movers with their subentity in the collision stage; 30/60/144 Hz equality, cost guard, the player-death tripwire
@@ -461,7 +461,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
-| 18. Stations, Buoys and Collisions | v2.3 | 17/22 | In Progress | - |
+| 18. Stations, Buoys and Collisions | v2.3 | 18/22 | In Progress | - |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
 
