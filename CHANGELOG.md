@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-20
+
+Stations, buoys and collisions. Your ship can now take damage in normal play
+from collisions and explosions, but the player cannot die yet: your energy
+stops at zero until player death arrives in a later release.
+
 ### Added
 
 - Navigation buoys take laser damage (250 energy, recharging 2 per second)
