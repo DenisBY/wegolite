@@ -14,7 +14,16 @@
 
 import { readFileSync } from "node:fs";
 
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
+
+import { applyBuoyState } from "../../src/render/sync.js";
+import type { BuoyViewState, BuoyViewStates } from "../../src/render/sync.js";
+import type { SystemScene } from "../../src/render/system-scene.js";
+import { add, sub, vec } from "../../src/sim/math.js";
+import { laveFixture } from "../helpers/lave.js";
+
+const { layout } = laveFixture();
 
 const syncSource = readFileSync(
   new URL("../../src/render/sync.ts", import.meta.url),
@@ -72,5 +81,110 @@ describe("sync.ts structure", () => {
 
   it("exports the maximum camera-relative magnitude for the probe", () => {
     expect(code).toMatch(/export function maxRelativeMagnitude\(/);
+  });
+});
+
+/** A buoy body double: its root and the subentity visibility it was given. */
+function bodyDouble(root: THREE.Group) {
+  const calls: boolean[] = [];
+  return {
+    root,
+    calls,
+    setSubentityVisible(visible: boolean): void {
+      calls.push(visible);
+    },
+  };
+}
+
+/** The part of a scene `applyBuoyState` touches. */
+function buoyScene() {
+  const navBuoy = new THREE.Group();
+  const witchpoint = new THREE.Group();
+  // The scene lists the nav buoy first; the lookup must not rely on the order.
+  const witchpointBody = bodyDouble(witchpoint);
+  const navBody = bodyDouble(navBuoy);
+  const scene = {
+    navBuoy,
+    witchpoint,
+    buoys: [witchpointBody, navBody],
+  } as unknown as SystemScene;
+  return { scene, navBuoy, witchpoint, navBody, witchpointBody };
+}
+
+function buoyStates(
+  overrides: Partial<Record<"witchpoint" | "navBuoy", Partial<BuoyViewState>>>,
+): BuoyViewStates {
+  const base = (key: "witchpoint" | "navBuoy"): BuoyViewState => ({
+    position: layout[key].position,
+    destroyed: false,
+    subentityAttached: true,
+    ...overrides[key],
+  });
+  return { witchpoint: base("witchpoint"), navBuoy: base("navBuoy") };
+}
+
+describe("applyBuoyState (plan 18-08, D-05, PD-01, PD-02)", () => {
+  const cameraWorld = vec(1_000, -2_000, 3_000);
+
+  it("draws live, unmoved, whole buoys at their layout positions, camera-relative", () => {
+    const { scene, navBuoy, witchpoint, navBody, witchpointBody } =
+      buoyScene();
+    applyBuoyState(scene, buoyStates({}), cameraWorld);
+    for (const [group, key] of [
+      [navBuoy, "navBuoy"],
+      [witchpoint, "witchpoint"],
+    ] as const) {
+      const expected = sub(layout[key].position, cameraWorld);
+      expect(group.visible).toBe(true);
+      expect(group.position.toArray()).toEqual([
+        expected.x,
+        expected.y,
+        expected.z,
+      ]);
+    }
+    expect(navBody.calls).toEqual([true]);
+    expect(witchpointBody.calls).toEqual([true]);
+  });
+
+  it("hides a destroyed buoy and shows it again when the state says it is alive", () => {
+    const { scene, navBuoy, witchpoint } = buoyScene();
+    applyBuoyState(
+      scene,
+      buoyStates({ navBuoy: { destroyed: true } }),
+      cameraWorld,
+    );
+    expect(navBuoy.visible).toBe(false);
+    expect(witchpoint.visible).toBe(true);
+
+    applyBuoyState(scene, buoyStates({}), cameraWorld);
+    expect(navBuoy.visible).toBe(true);
+  });
+
+  it("places a buoy moved 50 m exactly 50 m further", () => {
+    const { scene, witchpoint, navBuoy } = buoyScene();
+    applyBuoyState(scene, buoyStates({}), cameraWorld);
+    const before = witchpoint.position.clone();
+    const navBefore = navBuoy.position.clone();
+    const moved = add(layout.witchpoint.position, vec(50, 0, 0));
+    applyBuoyState(
+      scene,
+      buoyStates({ witchpoint: { position: moved } }),
+      cameraWorld,
+    );
+    expect(witchpoint.position.x - before.x).toBeCloseTo(50, 9);
+    expect(witchpoint.position.y).toBe(before.y);
+    expect(witchpoint.position.z).toBe(before.z);
+    expect(navBuoy.position.toArray()).toEqual(navBefore.toArray());
+  });
+
+  it("hides a detached subentity on that buoy only", () => {
+    const { scene, navBody, witchpointBody } = buoyScene();
+    applyBuoyState(
+      scene,
+      buoyStates({ witchpoint: { subentityAttached: false } }),
+      cameraWorld,
+    );
+    expect(witchpointBody.calls).toEqual([false]);
+    expect(navBody.calls).toEqual([true]);
   });
 });

@@ -13,7 +13,7 @@
  * construction would keep skipping.
  */
 
-import type * as THREE from "three";
+import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it } from "vitest";
 
@@ -1289,5 +1289,116 @@ describe("renderFrame launch view from inside the dock slot (quick 261118-l26, 2
         drawn.z * twisted.z,
     );
     expect(dotq).toBeGreaterThan(1 - 1e-12);
+  });
+});
+
+describe("renderFrame live buoys (plan 18-08, D-05, PD-01, PD-02)", () => {
+  /** A buoy body double: its root and every subentity visibility it was given. */
+  function bodyDouble(root: THREE.Group) {
+    const calls: boolean[] = [];
+    return {
+      root,
+      calls,
+      update: () => undefined,
+      setSubentityVisible(visible: boolean): void {
+        calls.push(visible);
+      },
+    };
+  }
+
+  /** A flying session 5 km from the witchpoint, with real buoy groups. */
+  function session(withWorld: boolean) {
+    const h = harness();
+    const models: HudModel[] = [];
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    const navBuoy = new THREE.Group();
+    const witchpoint = new THREE.Group();
+    const navBody = bodyDouble(navBuoy);
+    const witchpointBody = bodyDouble(witchpoint);
+    h.ctx.core.scene = {
+      ...flyableScene(h.nebula),
+      navBuoy,
+      witchpoint,
+      buoys: [navBody, witchpointBody],
+    } as unknown as SystemScene;
+    h.ctx.runtime.hud = {
+      draw: (model: HudModel) => models.push(model),
+    } as unknown as Hud;
+    if (withWorld) {
+      const lifecycle = createWorldLifecycle({ traffic: true });
+      lifecycle.begin(marketSeedForSystem(system.id));
+      h.ctx.core.worldLifecycle = lifecycle;
+    }
+    const w = layout.witchpoint.position;
+    const pose = {
+      position: vec(w.x, w.y, w.z + 5_000),
+      orientation: identity(),
+    };
+    h.ctx.core.previousPose = pose;
+    h.ctx.core.currentPose = pose;
+    h.ctx.core.state = {
+      ...initFlightState(layout),
+      mode: "inFlight",
+      position: pose.position,
+    };
+    return { h, models, navBuoy, witchpoint, navBody, witchpointBody };
+  }
+
+  function contactIds(model: HudModel | undefined): string[] {
+    return (model?.contacts ?? []).map((contact) => contact.id);
+  }
+
+  it("draws both buoys at their layout positions with no world, as with a pristine world", () => {
+    const bare = session(false);
+    bare.h.driver.renderFrame(0);
+    const pristine = session(true);
+    pristine.h.driver.renderFrame(0);
+    for (const s of [bare, pristine]) {
+      expect(s.navBuoy.visible).toBe(true);
+      expect(s.witchpoint.visible).toBe(true);
+      expect(s.navBody.calls).toEqual([true]);
+      expect(s.witchpointBody.calls).toEqual([true]);
+      expect(contactIds(s.models[0])).toEqual([
+        "station",
+        "navBuoy",
+        "witchpoint",
+      ]);
+    }
+    expect(pristine.witchpoint.position.toArray()).toEqual(
+      bare.witchpoint.position.toArray(),
+    );
+    expect(pristine.navBuoy.position.toArray()).toEqual(
+      bare.navBuoy.position.toArray(),
+    );
+    expect(pristine.models[0]?.contacts).toEqual(bare.models[0]?.contacts);
+  });
+
+  it("hides a destroyed nav buoy, draws a moved witchpoint buoy without its subentity, and plots both so on the next frame", () => {
+    const s = session(true);
+    s.h.driver.renderFrame(0);
+    const before = s.witchpoint.position.clone();
+    const witchpointContact = s.models[0]?.contacts[2];
+
+    const world = s.h.ctx.core.worldLifecycle?.world;
+    if (world === undefined) throw new Error("no world");
+    world.staticHealth.navBuoy = 0;
+    world.buoys.witchpoint.offset = vec(50, 0, 0);
+    world.buoys.witchpoint.subentityEnergy = 0;
+    s.h.driver.renderFrame(0);
+
+    expect(s.navBuoy.visible).toBe(false);
+    expect(s.witchpoint.visible).toBe(true);
+    expect(s.witchpoint.position.x - before.x).toBeCloseTo(50, 6);
+    expect(s.witchpoint.position.y).toBeCloseTo(before.y, 9);
+    expect(s.witchpoint.position.z).toBeCloseTo(before.z, 9);
+    expect(s.witchpointBody.calls.at(-1)).toBe(false);
+    expect(s.navBody.calls.at(-1)).toBe(true);
+
+    const model = s.models[1];
+    expect(contactIds(model)).toEqual(["station", "witchpoint"]);
+    const moved = model?.contacts[1];
+    expect(moved?.id).toBe("witchpoint");
+    expect(moved?.x).not.toBeCloseTo(witchpointContact?.x ?? NaN, 6);
   });
 });

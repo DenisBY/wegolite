@@ -36,7 +36,7 @@ import {
   hashFlight,
   initFlightState,
 } from "../../src/sim/flight/state.js";
-import { length, sub, vec } from "../../src/sim/math.js";
+import { add, length, sub, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import { npcContacts } from "../../src/sim/world/contacts.js";
 import type { NpcContact } from "../../src/sim/world/contacts.js";
@@ -817,5 +817,100 @@ describe("the HUD while launching (quick 261118-spu, OD-2, OD-3, PD-1, PD-2)", (
         1e-9,
       );
     });
+  });
+});
+
+describe("buildHudModel live buoys (plan 18-08, D-05, PD-02)", () => {
+  const fixture = laveFixture();
+  const { layout } = fixture;
+
+  type BuoyKey = "witchpoint" | "navBuoy";
+  function buoys(
+    overrides: Partial<
+      Record<BuoyKey, { position?: Vec3; destroyed?: boolean }>
+    > = {},
+  ) {
+    const one = (key: BuoyKey) => ({
+      position: overrides[key]?.position ?? layout[key].position,
+      destroyed: overrides[key]?.destroyed ?? false,
+    });
+    return { witchpoint: one("witchpoint"), navBuoy: one("navBuoy") };
+  }
+
+  /** A ship `metres` along +x of the witchpoint, facing -z, compass on it. */
+  function nearWitchpoint(metres: number) {
+    const state = initFlightState(layout);
+    return {
+      ...state,
+      mode: "inFlight" as const,
+      position: add(layout.witchpoint.position, vec(metres, 0, 0)),
+      orientation: { w: 1, x: 0, y: 0, z: 0 },
+      compassMode: "witchpoint" as const,
+    };
+  }
+
+  function build(
+    state: ReturnType<typeof nearWitchpoint>,
+    live?: ReturnType<typeof buoys>,
+  ) {
+    return buildHudModel(
+      state,
+      layout,
+      fixture.config,
+      "",
+      70,
+      0,
+      "",
+      [],
+      live === undefined ? {} : { buoys: live },
+    );
+  }
+
+  it("draws the three static contacts exactly as before for live, unmoved buoys", () => {
+    const state = nearWitchpoint(1_000);
+    expect(build(state, buoys()).contacts).toEqual(build(state).contacts);
+    expect(build(state, buoys()).compass).toEqual(build(state).compass);
+  });
+
+  it("drops a destroyed nav buoy from the scanner and keeps the others", () => {
+    const state = nearWitchpoint(1_000);
+    const model = build(state, buoys({ navBuoy: { destroyed: true } }));
+    expect(model.contacts.map((contact) => contact.id)).toEqual([
+      "station",
+      "witchpoint",
+    ]);
+    const witchpoint = buoys({ witchpoint: { destroyed: true } });
+    expect(build(state, witchpoint).contacts.map((c) => c.id)).toEqual([
+      "station",
+      "navBuoy",
+    ]);
+  });
+
+  it("plots a moved witchpoint buoy where it is, not at its layout position", () => {
+    // 40 km out the layout position is off the 25.6 km scanner; the buoy
+    // moved 30 km towards the ship is 10 km away and on it.
+    const state = nearWitchpoint(40_000);
+    const moved = add(layout.witchpoint.position, vec(30_000, 0, 0));
+    const before = build(state, buoys()).contacts[2];
+    const after = build(state, buoys({ witchpoint: { position: moved } }))
+      .contacts[2];
+    expect(before?.id).toBe("witchpoint");
+    expect(before?.visible).toBe(false);
+    expect(after?.id).toBe("witchpoint");
+    expect(after?.visible).toBe(true);
+  });
+
+  it("points the witchpoint compass at the moved buoy", () => {
+    // The ship sits 1 km to starboard of the layout witchpoint: unmoved, the
+    // buoy is dead to port; moved 2 km along +x, it is dead to starboard.
+    const state = nearWitchpoint(1_000);
+    const unmoved = build(state, buoys()).compass;
+    expect(unmoved.target).toBe("witchpoint");
+    expect(unmoved.x).toBeCloseTo(-0.4 * COMPASS_SIZE, 9);
+    const moved = add(layout.witchpoint.position, vec(2_000, 0, 0));
+    const compass = build(state, buoys({ witchpoint: { position: moved } }))
+      .compass;
+    expect(compass.target).toBe("witchpoint");
+    expect(compass.x).toBeCloseTo(0.4 * COMPASS_SIZE, 9);
   });
 });

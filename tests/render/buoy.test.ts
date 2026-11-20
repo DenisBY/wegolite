@@ -349,4 +349,26 @@ describe("createBuoy", () => {
     if (core !== undefined) gltf.scene.remove(core);
     expect(() => createBuoy(gltf, "buoy")).toThrow(/"core" node/);
   });
+
+  // PD-01 (plan 18-08): the `core` node is the `oolite_buoy_subents` mesh. A
+  // detached subentity is hidden; the hull and the flashers stay.
+  it("hides only the subentity's core node when the subentity is detached, and shows it again", () => {
+    const buoy = createBuoy(fakeGltf(VALID), "buoy-witchpoint");
+    const core = buoy.root.getObjectByName("core");
+    const hull = buoy.root.getObjectByName("hull");
+    const sprite = buoy.root.getObjectByName("buoy-light-0");
+    if (core === undefined || hull === undefined || sprite === undefined) {
+      throw new Error("expected the core, the hull and a light");
+    }
+    expect(core.visible).toBe(true);
+
+    buoy.setSubentityVisible(false);
+    expect(core.visible).toBe(false);
+    expect(hull.visible).toBe(true);
+    expect(sprite.visible).toBe(true);
+    expect(buoy.root.visible).toBe(true);
+
+    buoy.setSubentityVisible(true);
+    expect(core.visible).toBe(true);
+  });
 });
