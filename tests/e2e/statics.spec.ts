@@ -11,7 +11,13 @@
  * L37, L383, L731 and L795@b45e113). This spec opts in by URL
  * (`?test=1&traffic=1&clock=manual`, the opt-in of tests/e2e/combat.spec.ts
  * and tests/e2e/traffic.spec.ts) and shows that the player's lasers destroy the
- * Lave nav buoy, which then leaves the scanner's contacts (plan 18-08).
+ * Lave nav buoy, which then leaves the scanner's contacts (plan 18-08), and
+ * that ident locks the Coriolis station (plan 18-06). It also checks the load
+ * path that `budget.spec.ts` cannot see, since that spec matches only
+ * `ships-hulls-*.js` and may not be edited in this phase: a traffic-on start
+ * requests the `ships-static-hulls-*.js` chunk once, a traffic-off start never
+ * requests it, and an aborted chunk ends the boot on the `#failure` surface
+ * (plan 18-13's load-failure rule, end to end).
  *
  * Limitation (review L905@2e0bfb3): the probe has no static-health field, and
  * this plan adds none, so the dropped `navBuoy` contact is the only
@@ -87,6 +93,21 @@ const BUOY_KILL_BOUND_TICKS =
   PULSE_PERIOD_TICKS;
 /** The chunk of manual ticks the firing loop advances between scanner reads. */
 const FIRE_CHUNK_TICKS = 120;
+
+/** Traffic off, manual clock: the default browser-test session. */
+const NO_TRAFFIC_URL = "/?test=1&clock=manual";
+/**
+ * The static-hull chunk's URL path (`src/content/ships-static-hulls.ts`, plan
+ * 18-01), the shape of `budget.spec.ts`'s `ships-hulls-*.js` check; the hash
+ * part changes with the content, so only the prefix is fixed.
+ */
+const STATIC_CHUNK = /\/assets\/ships-static-hulls-[^/]+\.js$/;
+/** The ship-hull chunk, which also loads only with traffic on (a vacuity guard). */
+const HULL_CHUNK = /\/assets\/ships-hulls-[^/]+\.js$/;
+/** The player's distance from the station on its dock axis for the ident case. */
+const IDENT_STANDOFF = 5000;
+/** The ident message for the Coriolis station (event-router, plan 18-06). */
+const STATION_LOCK_MESSAGE = "Ident system locked onto Coriolis Station.";
 
 test.setTimeout(240_000);
 
@@ -246,5 +267,140 @@ test("the player's lasers destroy the nav buoy and it leaves the scanner", async
   ).not.toContain("navBuoy");
   // The other static contacts stay: only the destroyed buoy left.
   expect(seen, "the station is still on the scanner").toContain("station");
+  expect(errors).toEqual([]);
+});
+
+/**
+ * Record every same-origin request path of `page` from now on. The list is
+ * live: read a copy when the moment matters.
+ */
+function recordRequests(page: Page, origin: string): string[] {
+  const requested: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.origin === origin) requested.push(url.pathname);
+  });
+  return requested;
+}
+
+test("a traffic-on start requests the static-hull chunk once before the first in-flight frame", async ({
+  page,
+  baseURL,
+}) => {
+  const errors = collectErrors(page);
+  const requested = recordRequests(
+    page,
+    new URL(baseURL ?? "http://127.0.0.1:4173").origin,
+  );
+  await launchInto(page, TRAFFIC_URL);
+  const beforeFlight = [...requested];
+  expect(
+    beforeFlight.filter((path) => HULL_CHUNK.test(path)),
+    "the ship-hull chunk loads with traffic on (the request log is live)",
+  ).toHaveLength(1);
+  const statics = beforeFlight.filter((path) => STATIC_CHUNK.test(path));
+  test.info().annotations.push({
+    type: "static-chunk",
+    description: statics.join(", "),
+  });
+  console.log(`static-chunk: ${statics.join(", ")}`);
+  expect(
+    statics,
+    "the static-hull chunk requested by a traffic-on start",
+  ).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
+
+test("a traffic-off start never requests the static-hull chunk", async ({
+  page,
+  baseURL,
+}) => {
+  const errors = collectErrors(page);
+  const requested = recordRequests(
+    page,
+    new URL(baseURL ?? "http://127.0.0.1:4173").origin,
+  );
+  await launchInto(page, NO_TRAFFIC_URL);
+  const beforeFlight = [...requested];
+  expect(
+    beforeFlight.some((path) => path.endsWith("/models/cobra3.glb")),
+    "the request log is live (the Cobra model was requested)",
+  ).toBe(true);
+  expect(
+    beforeFlight.filter((path) => STATIC_CHUNK.test(path)),
+    "the static-hull chunk requested by a traffic-off start",
+  ).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("an aborted static-hull chunk ends the traffic-on boot on the failure surface", async ({
+  page,
+}) => {
+  // Plan 18-13's load-failure rule, end to end (review L776@2e0bfb3): a
+  // rejected chunk fails the boot visibly, never into a session without
+  // statics. The aborted request logs a console error, so none are asserted.
+  let aborted = 0;
+  await page.route(
+    (url) => STATIC_CHUNK.test(url.pathname),
+    async (route) => {
+      aborted += 1;
+      await route.abort();
+    },
+  );
+  await page.goto(TRAFFIC_URL);
+  await waitForReady(page);
+  await startNewGame(page);
+
+  const failure = page.locator("#failure");
+  await expect(failure).toBeVisible({ timeout: SLOW });
+  await expect(failure).toHaveAttribute("role", "alert");
+  expect(
+    ((await failure.textContent()) ?? "").trim(),
+    "the failure surface states a reason",
+  ).not.toBe("");
+  await expect(page.locator("#view")).toBeHidden();
+  const published = await page.evaluate(() => {
+    const probe = window.__wegolite;
+    return {
+      ready: probe?.ready,
+      mode: probe?.mode,
+      error: probe?.error ?? "",
+    };
+  });
+  expect(published.ready, "the probe reports the failure").toBe(false);
+  expect(published.mode, "no session is running").toBe("menu");
+  expect(published.error, "the probe carries the reason").not.toBe("");
+  expect(aborted, "the static-hull chunk was requested and aborted").toBe(1);
+});
+
+test("ident locks the Coriolis station in a traffic-on session", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await launchInto(page, TRAFFIC_URL);
+  await expectLaveLayout(page);
+
+  // 5,000 m from the station on its dock axis (the nav buoy side), facing the
+  // station's centre; the nav buoy is 5,000 m behind.
+  const towardBuoy = normalizeVec(sub(LAVE_NAV_BUOY, LAVE_STATION));
+  const parked = add(LAVE_STATION, scale(towardBuoy, IDENT_STANDOFF));
+  await park(page, parked, LAVE_STATION);
+  await advance(page, 1);
+  expect(
+    await page.evaluate(() => window.__wegolite?.combat?.identLocked),
+    "no lock before the ident key",
+  ).toBe(false);
+
+  await page.keyboard.press("KeyR");
+  await advance(page, 2);
+  await page.waitForFunction(
+    (message) => (window.__wegolite?.hud.messageRows ?? []).includes(message),
+    STATION_LOCK_MESSAGE,
+    { timeout: SLOW },
+  );
+  expect(
+    await page.evaluate(() => window.__wegolite?.combat?.identLocked),
+    "ident holds a lock on the station",
+  ).toBe(true);
   expect(errors).toEqual([]);
 });
