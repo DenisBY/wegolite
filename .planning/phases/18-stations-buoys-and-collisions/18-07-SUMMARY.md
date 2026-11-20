@@ -251,6 +251,18 @@ None.
 - Commits `b94b444`, `b1f740d`, `d874637`, `4312b79` and `8a68443` are all ancestors of HEAD.
 - Acceptance criteria for Tasks 1 to 3 re-run: all pass (criterion 3.1 is read against this plan's base; see deviation 7).
 
+## Post-plan follow-up (owner decision 2026-11-20)
+
+The owner chose option C plus a todo for the witchpoint-beacon copy (deviation 1, frontmatter `D5`), after consulting three models. Oolite never truncates a HUD message: `PlayerEntity.m:6554` posts `witch-blocked`, "Witchspace jump aborted (too close to [blockerName])." (`descriptions.plist:503`), and `Universe.m:6403` hands it to `printLongText:` (`GuiDisplayGen.m:736-794`), which word-wraps a long line into extra rows. The old 54-character budget came from a stale comment ("~900 design px at 28px monospace").
+
+- `MAX_MESSAGE_CHARS` is now 55 (`src/render/hud/format.ts`). The comment gives the real geometry: 23.2 px at 0.6 em (`draw.ts`) is 13.92 design px per glyph, so 55 glyphs are 765.6 px wide, centred on x = 1248 and spanning x 865.2 to 1630.8 of the 1920 px design width.
+- The beacon line is the plan's "Witchspace jump aborted: too close to Witchpoint Beacon" (55), pinned in `tests/app/session/hyperspace-controller.test.ts`. The interim "too near" wording is gone, and PROJECT.md records the wording as final. The CHANGELOG entry does not quote the wording, so it is unchanged.
+- Todo `.planning/todos/pending/2026-11-20-hud-message-word-wrap-like-oolite.md` covers porting `printLongText:` and then switching the four witch-blocked lines to Oolite's exact string with real blocker names. Its tripwire is `tests/guards/hud-message-length.test.ts`. The guard fails when a HUD message exceeds the budget or when `refusalCopy` builds its text dynamically.
+- The guard found three messages that were already over the budget and are cut on screen today: "Too wide for the slot - roll 90 degrees to match the opening" (60), "Hull contact - roll 90 degrees and line up with the slot" (56) and the default pitch/roll hint "Up arrow / Down arrow pitch, Left arrow / Right arrow roll" (58). They are listed as known exceptions in the guard and the todo. The guard fails if one of them changes or disappears.
+- Commits: `5c037ca` (code and test), `c1dd254` (guard, todo, PROJECT.md, STATE.md).
+- Checks (Docker): targeted Vitest pass; `docker compose run --rm test` exit 0 (255 files, 6927 passed, 10 skipped); `lint` exit 0; `typecheck` exit 0. Remote `verify` exit 0 (snapshot `c1dd254`, 198 s). Remote `tests/e2e/hud.spec.ts` exit 0 (3 passed, snapshot `c1dd254`). That spec checks that the message line is one line of at most `MAX_MESSAGE_CHARS` characters.
+- Visual check: none is automated. No spec takes a screenshot of the message rows or measures the drawn width of the beacon line. `hud.spec.ts` reads the probe text only. The owner should look at the beacon refusal once on screen. To trigger it, complete a jump within about 264 m of the witchpoint beacon.
+
 ---
 *Phase: 18-stations-buoys-and-collisions*
 *Completed: 2026-11-20*
