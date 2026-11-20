@@ -62,15 +62,27 @@ export function autoCompassTarget(
   return aegisStatus(position, layout) === "none" ? "planet" : "station";
 }
 
-/** The manual cycle: auto -> planet -> station -> witchpoint -> auto. */
-export function nextCompassMode(mode: CompassMode): CompassMode {
+/**
+ * The manual cycle: auto -> planet -> station -> witchpoint -> auto.
+ *
+ * Oolite's `setNextCompassMode` walks live beacons only
+ * (PlayerEntity.m:4761-4808 at 7437f22), so a destroyed witchpoint beacon is
+ * skipped: with `witchpointAlive` false, `station` goes straight to `auto`
+ * (plan 18-08, D-05). Wegolite keeps its own cycle order; FIDELITY's 'Compass
+ * cycle model' row records the divergence. `witchpointAlive` defaults to true,
+ * the pristine world.
+ */
+export function nextCompassMode(
+  mode: CompassMode,
+  witchpointAlive = true,
+): CompassMode {
   switch (mode) {
     case "auto":
       return "planet";
     case "planet":
       return "station";
     case "station":
-      return "witchpoint";
+      return witchpointAlive ? "witchpoint" : "auto";
     case "witchpoint":
       return "auto";
   }

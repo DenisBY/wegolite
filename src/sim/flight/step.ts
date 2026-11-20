@@ -213,7 +213,13 @@ export function stepFlight(
         // The basic compass has only COMPASS_MODE_BASIC: Oolite switches modes
         // only when the mode is not basic (PlayerEntityControls.m:3629-3637).
         if (!hasAdvancedCompass) break;
-        state.compassMode = nextCompassMode(state.compassMode);
+        // D-05: a destroyed witchpoint beacon is skipped, as Oolite's cycle
+        // walks live beacons only (PlayerEntity.m:4761-4808). Without a field
+        // (no world) the buoy counts as alive.
+        state.compassMode = nextCompassMode(
+          state.compassMode,
+          ships?.buoy("witchpoint").alive ?? true,
+        );
         break;
       case "targetStation":
         // Wegolite's KeyQ action selects a non-basic mode, so it needs the ASC
@@ -437,6 +443,19 @@ export function stepFlight(
     state.stationAngle += layout.stationRollRadPerSec * dt;
     state.flightTime += dt;
     state.clockSeconds += dt;
+
+    // D-05: a compass left on a destroyed witchpoint beacon turns to the
+    // planet, mode and target, as Oolite's validateCompassTarget does for a
+    // target that is gone (PlayerEntity.m:4655-4659 at 7437f22). The mode
+    // stays "planet" for the life of the world; the field reports the buoy as
+    // the previous tick left it, so this is the first stepped tick that sees
+    // the destruction.
+    if (
+      state.compassMode === "witchpoint" &&
+      ships?.buoy("witchpoint").alive === false
+    ) {
+      state.compassMode = "planet";
+    }
 
     // The compass resolves after the position update, so a manual cycle or an
     // aegis crossing is reflected on the same tick. The HUD reads the resolved
