@@ -45,7 +45,7 @@ import type { Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import type { SpawnInit } from "../../../src/sim/world/entity.js";
-import { NO_ENTITY } from "../../../src/sim/world/ids.js";
+import { MAIN_STATION_ID, NO_ENTITY } from "../../../src/sim/world/ids.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
@@ -270,17 +270,30 @@ describe("what the sights pick", () => {
     expect(combat.identTarget).toBe(left);
   });
 
-  it("never locks the station or the buoys", () => {
+});
+
+describe("R locks the station (tracer, CBT-17 criterion 3)", () => {
+  it("locks the main station 3,000 m ahead and frames it at its layout radius", () => {
     const player = flyingPlayer();
-    // 4,000 m from the main station, nose (-Z) toward it.
+    // 3,000 m from the main station's centre, nose (-Z) toward it.
     const station = layout.station.position;
-    player.position = vec(station.x, station.y, station.z + 4000);
+    player.position = vec(station.x, station.y, station.z + 3000);
     const combat = createPlayerCombatState();
     const world = createWorld(7);
 
+    // OPTIONS carries no hull table: ident needs none, as with traffic off.
     const events = step(player, world, combat, [IDENT]);
-    expect(kinds(events)).toEqual(["identEngaged"]);
-    expect(combat.identTarget).toBe(NO_ENTITY);
+
+    expect(combat.identTarget).toBe(MAIN_STATION_ID);
+    expect(kinds(events)).toEqual(["identEngaged", "identLocked"]);
+    expect(ofKind(events, "identLocked")).toEqual([
+      { kind: "identLocked", specKey: "coriolis-station" },
+    ]);
+    // The collision radius `firstEntityTargetedByPlayer` uses (layout.ts).
+    expect(identTargetSnapshot(combat, world, layout)).toEqual({
+      position: station,
+      radius: 779.3702392578125,
+    });
   });
 });
 
@@ -529,7 +542,7 @@ describe("identTargetSnapshot", () => {
     spawnShip(world, "adder", ahead(5000), { radius: 41 });
     step(player, world, combat, [IDENT]);
 
-    expect(identTargetSnapshot(combat, world)).toEqual({
+    expect(identTargetSnapshot(combat, world, layout)).toEqual({
       position: ahead(5000),
       radius: 41,
     });
@@ -540,11 +553,11 @@ describe("identTargetSnapshot", () => {
     const combat = createPlayerCombatState();
     const world = createWorld(7);
     const id = spawnShip(world, "adder", ahead(5000));
-    expect(identTargetSnapshot(combat, world)).toBeUndefined();
+    expect(identTargetSnapshot(combat, world, layout)).toBeUndefined();
 
     step(player, world, combat, [IDENT]);
-    expect(identTargetSnapshot(combat, undefined)).toBeUndefined();
+    expect(identTargetSnapshot(combat, undefined, layout)).toBeUndefined();
     world.store.kill(id);
-    expect(identTargetSnapshot(combat, world)).toBeUndefined();
+    expect(identTargetSnapshot(combat, world, layout)).toBeUndefined();
   });
 });
