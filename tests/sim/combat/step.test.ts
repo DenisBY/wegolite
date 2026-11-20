@@ -1649,7 +1649,8 @@ describe("the buoy's frangible subentity (tracer, PD-01, plan 18-15)", () => {
     expect(
       Math.abs(beamLength(routed) - HULL_LINE_DISTANCE),
     ).toBeLessThanOrEqual(BUOY_TOLERANCE);
-    expect(world.buoys.navBuoy.subentityEnergy).toBe(170);
+    // One tick of recharge (1/120) lands before the second hit.
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(185 + DT - 15);
     expect(world.buoys.navBuoy.subentityTakingDamage).toBe(true);
   });
 
@@ -1689,7 +1690,7 @@ describe("the buoy's frangible subentity (tracer, PD-01, plan 18-15)", () => {
         shield: false,
       },
     ]);
-    expect(world.buoys.navBuoy.subentityEnergy).toBe(185 - beam);
+    expect(world.buoys.navBuoy.subentityEnergy).toBe(185 + DT - beam);
   });
 
   it("14 routed hits detach it at exactly 0 and clear the flag; then the beam no longer meets it and a hull hit is full", () => {

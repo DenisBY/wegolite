@@ -52,8 +52,13 @@
  * record of it), changes nothing. Oolite would explode the detached part and
  * scatter its debris; Wegolite draws neither (a FIDELITY divergence, PD-01).
  *
+ * A pod or plate (kind `cargo`, D-07) takes a hit as a ship does: its energy
+ * (1) is its health, so one pulse collects it, and `killShip` then marks it
+ * dead silently (no `shipDestroyed`, no debris). Oolite draws a small
+ * explosion for it; Wegolite draws none (a FIDELITY divergence).
+ *
  * Total (D-15): a record with a non-finite or non-positive amount, a target
- * that is missing, dead or not a ship, and a record on a non-player target
+ * that is missing, dead or neither a ship nor cargo, and a record on a non-player target
  * applied to a world that was not stepped are skipped, never thrown on.
  */
 
@@ -115,8 +120,9 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  *   Otherwise it writes `Math.max(0, before - amount)`, posts `shipHit` with
  *   `shield: false`, and is collected once, with the record's credit, when the
  *   unfloored result is 0 or below.
- * - Any other target is skipped when it is not a live ship of the store (a
- *   missing or dead id), or when its kind is not `"ship"`. Otherwise its energy is read once and the
+ * - Any other target is skipped when it is not a live entity of the store (a
+ *   missing or dead id), or when its kind is neither `"ship"` nor `"cargo"`
+ *   (a pod or plate, D-07, plan 18-15; a wreck never). Otherwise its energy is read once and the
  *   floored result written once; `shipHit` carries `shield: false`. When the
  *   unfloored result is 0 or below the victim is collected once, with the first
  *   lethal record's credit: `PLAYER_ID` for a player shot, the source when it is
@@ -218,7 +224,9 @@ export function applyLedger(
       continue;
     }
     const entity = world.store.get(record.target);
-    if (entity === undefined || entity.kind !== "ship") continue;
+    if (entity === undefined) continue;
+    // Ships, and pods and plates (D-07): a wreck is never a target.
+    if (entity.kind !== "ship" && entity.kind !== "cargo") continue;
     const before = Number.isFinite(entity.energy) ? entity.energy : 0;
     const after = before - record.amount;
     entity.energy = Math.max(0, after);

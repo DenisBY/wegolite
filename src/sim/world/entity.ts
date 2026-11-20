@@ -77,12 +77,13 @@ export interface Entity {
    * `maxEnergy` and a spawned ship starts at full. Hashed, snapshotted and
    * repaired like every other field.
    *
-   * D-02: debris keeps its remaining lifetime here, so `energy` means health
-   * for kind "ship" and remaining lifetime for "cargo" and "wreckage". The two
-   * meanings are exclusive per kind: only ships are hit candidates and only
-   * ships recharge (`src/sim/combat/step.ts`, `rechargeShips` and the
-   * hit-candidate filter). Tumble is render-side (D-03) and no contact-guard
-   * field exists (D-17).
+   * `energy` means health for kinds "ship" and "cargo" and remaining lifetime
+   * for "wreckage" (D-02). A pod or plate (kind "cargo", energy 1, which never
+   * expires) is a laser candidate from Phase 18 (D-07, plan 18-15) and dies at
+   * 0 like a ship; only wreckage keeps a lifetime here, and a wreck is never a
+   * hit candidate. Only ships recharge (`src/sim/combat/step.ts`,
+   * `rechargeShips` and the hit-candidate filter). Tumble is render-side
+   * (D-03) and no contact-guard field exists (D-17).
    */
   energy: number;
   maxEnergy: number;

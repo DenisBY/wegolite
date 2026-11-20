@@ -60,7 +60,12 @@ import { rangeToTargetIn } from "../npc/target.js";
 import { createRngState, rngNext } from "../rng.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
-import { BUOY_ENERGY_RECHARGE_RATE, BUOY_MAX_ENERGY } from "../world/limits.js";
+import {
+  BUOY_ENERGY_RECHARGE_RATE,
+  BUOY_MAX_ENERGY,
+  BUOY_SUBENTITY_MAX_ENERGY,
+  BUOY_SUBENTITY_RECHARGE_RATE,
+} from "../world/limits.js";
 import {
   FRANGIBLE_BLEED_THROUGH,
   STATIC_TARGETS,
@@ -339,17 +344,32 @@ function rechargeShips(world: World, dt: number): void {
  * after `rechargeShips`, before this tick's hits apply. Only a live buoy
  * (`value > 0`) recharges, so a destroyed buoy never revives (research
  * Pitfall 9, D-04); a buoy at its maximum is never written, so it stays
- * pristine. The station is never written: it only absorbs (A6). Plan 18-15
- * adds the buoy subentity's recharge beside this one.
+ * pristine. The station is never written: it only absorbs (A6).
+ *
+ * Each live buoy's frangible subentity (PD-01) recharges the same way, by
+ * `BUOY_SUBENTITY_RECHARGE_RATE` (Oolite's default 1, `ShipEntity.m:292`) up
+ * to `BUOY_SUBENTITY_MAX_ENERGY`, only while attached (above 0): a detached
+ * subentity never returns in its world, and a destroyed buoy's subentity is
+ * never written.
  */
 function rechargeStatics(world: World, dt: number): void {
   for (const key of ["witchpoint", "navBuoy"] as const) {
     const value = world.staticHealth[key];
-    if (!(value > 0) || !(value < BUOY_MAX_ENERGY)) continue;
-    world.staticHealth[key] = Math.min(
-      BUOY_MAX_ENERGY,
-      value + BUOY_ENERGY_RECHARGE_RATE * dt,
-    );
+    if (!(value > 0)) continue;
+    if (value < BUOY_MAX_ENERGY) {
+      world.staticHealth[key] = Math.min(
+        BUOY_MAX_ENERGY,
+        value + BUOY_ENERGY_RECHARGE_RATE * dt,
+      );
+    }
+    const buoy = world.buoys[key];
+    const sub = buoy.subentityEnergy;
+    if (sub > 0 && sub < BUOY_SUBENTITY_MAX_ENERGY) {
+      buoy.subentityEnergy = Math.min(
+        BUOY_SUBENTITY_MAX_ENERGY,
+        sub + BUOY_SUBENTITY_RECHARGE_RATE * dt,
+      );
+    }
   }
 }
 
@@ -385,14 +405,18 @@ function coolShips(world: World, dt: number): void {
  * and tumble, unless destroyed, D-05; Oolite lists every entity that `isShip`
  * and `canCollide`, `Universe.m:5575-5585`), the player
  * (id 100, the Cobra's hull) when a combat state is passed and the player is
- * launching or in flight, and the live, non-dead dynamic ships of the world; a
+ * launching or in flight, and the live, non-dead dynamic ships of the world
+ * together with its pods and plates (kind `cargo`, D-07, plan 18-15; candidates
+ * only when their `barrel` or `alloy` hull is in the table), in one ascending
+ * pass; wrecks never (`canCollide`, `ShipEntity.m:1858-1868`). A
  * shooter is never its own candidate. Without the static hulls (traffic off, or
  * the ten-hull table of the frozen acceptance worlds) no static is listed. The
  * statics and the ships are listed only when the world was stepped this tick,
  * so a tick that skipped the world (the jump step, or no world at all) draws the
  * beam and hits no static or ship. Before any hit is queued, every live ship
- * recharges its energy bank (N1), each live buoy its static health
- * (`rechargeStatics`), and every live ship then cools its forward weapon; the cooling
+ * recharges its energy bank (N1), each live buoy its static health and its
+ * attached subentity's energy (`rechargeStatics`), and every live ship then
+ * cools its forward weapon; the cooling
  * runs on every stepped tick, ahead of the empty-shot return. A shot moves its
  * NPC shooter's `missedShots` (-1 on a hit, a static target included; +1 on a
  * miss), and an NPC shot's `laserFired`
@@ -489,8 +513,12 @@ function resolveShotHits(
     });
   }
   if (world !== undefined && worldStepped) {
+    // Ships, and pods and plates (D-07: `cargo` can collide); never a wreck
+    // (`ShipEntity.m:1858-1868`). A piece whose spec key has no hull is "not
+    // loaded" in `firstShipHit` and cannot be hit.
     for (const entity of world.store.live) {
-      if (entity.dead || entity.kind !== "ship") continue;
+      if (entity.dead) continue;
+      if (entity.kind !== "ship" && entity.kind !== "cargo") continue;
       targets.push({
         id: entity.id,
         specKey: entity.specKey,

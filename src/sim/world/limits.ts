@@ -168,6 +168,14 @@ export const BUOY_ENERGY_RECHARGE_RATE = 2;
 export const BUOY_SUBENTITY_MAX_ENERGY = 200;
 
 /**
+ * A buoy subentity's recharge, energy per second (Phase 18, PD-01): Oolite's
+ * default `energy_recharge_rate` (`ShipEntity.m:292`), because the
+ * subentity's shipdata record sets none. It recharges only while attached
+ * (above 0) and while its buoy is alive.
+ */
+export const BUOY_SUBENTITY_RECHARGE_RATE = 1;
+
+/**
  * The largest magnitude of one component of a buoy's offset from its layout
  * position (m, Phase 18, PD-02). A buoy pushed at `MAX_ENTITY_VELOCITY` brakes
  * at 500 m/s^2, so it travels at most 1e8 / 1000 = 1e5 m; this is ten times
