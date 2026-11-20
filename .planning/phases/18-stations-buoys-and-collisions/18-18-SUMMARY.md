@@ -273,6 +273,32 @@ None.
 - FOUND: every key file listed above.
 - FOUND commits `b94053d`, `721eec6`, `0a2576c`, `70c2f30`, `42ed567` as ancestors of HEAD.
 
+## Post-plan follow-up: Oolite re-measure (owner decision 2026-11-20)
+
+The owner chose to settle the comparison with 18-20 by re-measuring on real Oolite with both orientations logged. Eleven sessions ran on the headless Oolite 1.93.1-255 reference, from `c988e17` with a clean tool tree, one at a time, 2026-11-20T15:12:10Z to 15:24:42Z, each `exit=0 container_exit=0`. Each session logged, on every frame up to the first contact, both bodies' positions, velocities, quaternions and basis vectors, the buoy's spin rates and the frame time. There were seven 18-20-style rams (100 m/s set, engine at rest with `maxSpeed = 0`): +right with the player rolled 0, 90, 180 and 270 degrees, then +forward, -right and -forward. There were also four step sessions at 0.5 m per frame. A scratch Vitest in the `test` container rebuilt every logged pose and called `doOctreesCollide` with `fullHullTable()`.
+
+| Run | Oolite prime | Oolite touch / no touch (m) | Wegolite onset, Oolite's prime (m) | Verdict | Stage onset, player prime (m) | Verdict |
+|---|---|---|---|---|---|---|
+| ram +right, roll 0 | buoy | 79.012 / 92.194 | 89.00 | SAME | 96.06 | MISMATCH, 3.77 m |
+| ram +right, roll 90 | buoy | 86.152 / 100.555 | 95.63 | SAME | 100.61 | SAME |
+| ram +right, roll 180 | buoy | 72.171 / 85.421 | 83.89 | SAME | 100.58 | MISMATCH, 15.37 m |
+| ram +right, roll 270 | buoy | 70.469 / 84.568 | 77.95 | SAME | 95.90 | MISMATCH, 11.42 m |
+| ram +forward, roll 0 | player | 91.372 / 104.853 | 104.18 | SAME | 104.18 | SAME |
+| ram -right, roll 0 | player | 99.558 / 115.331 | 102.45 | SAME | 102.45 | SAME |
+| ram -forward, roll 0 | buoy | 82.362 / 97.678 | 95.84 | SAME | 94.78 | SAME |
+| step +right, roll 0 | buoy | 71.5 / 72.0 | 73.44 | SAME | 94.40 | MISMATCH, 22.36 m |
+| step -right, roll 0 | player | 101.5 / 102.0 | 102.14 | SAME | 102.14 | SAME |
+| step +forward, roll 0 | player | 96.0 / 96.5 | 96.57 | SAME | 96.57 | SAME |
+| step -forward, roll 0 | buoy | 96.5 / 97.0 | 97.79 | SAME | 102.76 | MISMATCH, 5.88 m |
+
+Onsets are at the contact frame's orientations. SAME means the replay gives Oolite's answer on every logged frame (222 frames in all): no contact before the contact frame, contact on it.
+
+- The octree port is SAME at matched orientations on all 11 sessions, provided the prime is Oolite's. Oolite's prime is the collision chain's `e1`, the body with the lower `z - collision_radius` (`Entity.m:247`, `Universe.m:7044-7073`, `CollisionRegion.m:287`).
+- The octree test is not symmetric: at one pose the onset can differ by about 24 m between the primes. The stage always makes the player the prime (FIDELITY row E-135). It is a MISMATCH in the 5 sessions where Oolite's prime was the buoy, 3.77 to 22.36 m outside the bracket.
+- This explains the 18-18 dispute: 18-20's +right session had the buoy as Oolite's prime, and its +forward session had the player. The dispute is **not closed**. Following the owner's instruction, nothing was changed in code, fixtures or tolerances. The todo `.planning/todos/pending/2026-11-20-buoy-contact-onset-mismatch.md` holds the evidence and two options (port Oolite's z-order prime, or accept and widen E-135) for triage at 18-12.
+- FIDELITY.md, PD-03 section: the 18-18 comparison paragraph now points to the new paragraph "Buoy first-contact re-measure with both orientations logged", which carries the full table with session ids and orientations.
+- Evidence, outside the repository: `/tmp/remeasure-1818/`. It holds the probe OXP template and scripts (`src/`), each session's OXP, steps file and outputs (`runs/<name>/`), the parsed frames and replay results (`analysis/`), and the scratch replay (`replay/replay.test.ts`, `replay/vitest.config.mjs`).
+
 ---
 *Phase: 18-stations-buoys-and-collisions*
 *Completed: 2026-11-20*
