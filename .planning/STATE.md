@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 20
+current_plan: 21
 status: executing
-stopped_at: Completed 18-18-PLAN.md
-last_updated: "2026-11-20T13:32:14.240Z"
+stopped_at: Completed 18-21-PLAN.md
+last_updated: "2026-11-20T15:02:20.208Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 42ed56740da66996b682ed89220c32fda3896b95
+state_head: 6043d87bfbda7918e1edba376561777ed1aea797
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 47
+  completed_plans: 48
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 20
+Current Plan: 21
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -232,6 +232,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P11 | 35 min | 3 tasks | 15 files |
 | Phase 18 P22 | 16 min | 2 tasks | 1 files |
 | Phase 18 P18 | 41 min | 3 tasks | 12 files |
+| Phase 18 P21 | 31min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -596,6 +597,7 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-22: tests/e2e/statics.spec.ts is the traffic-on browser proof of the statics (buoy shot off the scanner in 960-1,080 ticks, station ident, static chunk once with traffic on and never off, aborted chunk ends on #failure); five tests, no existing spec, probe field or hook changed
 - [Phase 18]: 18-18: resolveCollisions takes an optional layout; with it the buoys are colliders and movers (PD-02), their subentity answers contacts the hull does not make (PD-01), and the stage returns CollisionStats
 - [Phase 18]: 18-18: the stage's first player-buoy contact distance along the buoy's right axis is outside 18-20's bracket at a fixed player roll but inside it over the roll and spin scan; 18-20 did not log those angles, so the owner decides whether to re-measure
+- [Phase 18]: 18-21: live buoys are NPC proximity candidates through the world view (PD-06); Oolite's filterSortedLists ported as it really runs (dead downward walks, z chain, lower-edge sort, planet and sun slabs) and applied to buoy pairs only (PD-08, corrected 2026-11-20 by owner decision); the all-pairs version is todo 2026-11-20-collision-chain-prefilter-all-pairs, which with the corrected sort holds every Phase 14 suite
 
 ### Pending Todos
 
@@ -735,8 +737,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-20T13:32:13.766Z
-Stopped at: Completed 18-18-PLAN.md
+Last session: 2026-11-20T15:02:19.734Z
+Stopped at: Completed 18-21-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
