@@ -12,6 +12,7 @@ files:
   - tests/e2e/hud.spec.ts
   - tests/e2e/scene.spec.ts
   - tests/e2e/probe-shape.spec.ts
+  - tests/e2e/helpers/probe.ts
 ---
 
 ## Problem
@@ -56,3 +57,38 @@ test timeout.
   - the in-flight probe shape, 79 % of 30 s: 60 s.
 - **The watch continues.** After the first sharded CI runs, re-measure each test's share of its timeout per shard
   and apply the Rule above.
+
+## Status (2026-11-20, quick task 261120-ryc)
+
+- **Cause.** Quick tasks 261118-os8 (the 1.5 s pre-roll inside the dock slot) and 261118-spu (the HUD drawn during the
+  launch) and Phase 18's cockpit launch view lengthened the full launch. The first launch of a fresh browser profile
+  cannot be skipped (`launchSeen` is false in fresh settings, `src/app/session/start-session.ts`), and on CI the
+  session is frame-bound (at most 5 fixed steps of 1/120 s per rendered frame on SwiftShader), so the full launch takes
+  about 70 s of real time (`launch.spec.ts:72` passed in 1.2 min, 60 % of its old 120 s).
+- **The run.** PR #1 CI run 44796363344 failed 17 tests, all at an inner launch wait of 30 s or 60 s, or at the 30 s
+  default test timeout around `compliance-shipped.spec.ts:111`'s 120 s wait.
+- **The fix.** `FIRST_LAUNCH_WAIT_MS = 180_000` in `tests/e2e/helpers/probe.ts`, plus the budget rule: a test or file
+  timeout covering such a wait is its non-launch budget plus one `FIRST_LAUNCH_WAIT_MS` per unskipped launch, written
+  as an expression in code. Test-only: no product code, launch sequence, `launchSeen` seeding or assertion changed.
+- **Tests changed** (new budgets at scale 1; the shared helpers also serve tests that passed on that run):
+  - `scene.spec.ts:15`: wait and budget 30 s + 180 s = 210 s;
+  - `context-loss.spec.ts`: `waitForMode` 180 s, file budget 540 s + 180 s = 720 s;
+  - `core-loop.spec.ts`: `waitForMode` `scaled(180 s)`, file budget `scaled(1,140 s + 180 s)` = 1,320 s;
+  - `docking.spec.ts`: `waitForMode` 180 s; the aligned-pose test gains 90 s + 180 s = 270 s; the bounce and the two
+    Shift+C tests 150 s + 180 s = 330 s; the file default of 120 s stays for the non-launching tests;
+  - `flight.spec.ts`: `bootToFlight` 180 s, file budget 60 s + 180 s = 240 s;
+  - `hud.spec.ts`: `launch()` 180 s; the scanner and the eleven-element tests 60 s + 180 s = 240 s; the message-line
+    test 450 s + 180 s = 630 s (its 450 s message wait is unchanged);
+  - `launch.spec.ts`: `waitForMode` 180 s (`waitForPreRoll` stays 30 s), file budget 90 s + 180 s = 270 s;
+  - `probe-shape.spec.ts:294`: `waitForState` gains an optional timeout, the in-flight call passes 180 s, budget
+    30 s + 180 s = 210 s;
+  - `settings.spec.ts`: `startAndLaunch` 180 s; budgets 420 s (two launches, two tests), 240 s (two tests), 300 s,
+    480 s (two launches) and 360 s;
+  - `station.spec.ts:281` and `:823`: in-flight wait 180 s, budget 150 s + 180 s = 330 s each;
+  - `compliance-shipped.spec.ts:111`: in-flight wait 180 s, budget 30 s + 180 s = 210 s.
+- **Remote result.** The eleven changed specs, Chromium, committed snapshot 03faf01: 54 passed, 0 failed, 5.5 min
+  (script elapsed 334 s).
+- **The watch continues.** After the next sharded CI run, re-measure each launch-spanning test's share of its new
+  budget and apply the Rule above. The specs that passed on run 44796363344 with their own launch waits
+  (`station.spec.ts:847`, `save-load.spec.ts:721`, the `SLOW`-constant specs) were left unchanged and are the first to
+  check.
