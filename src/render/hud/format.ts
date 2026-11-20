@@ -41,8 +41,19 @@ export function formatFuel(fuelTenths: number): string {
   return `${(fuelTenths / 10).toFixed(1)} LY`;
 }
 
-/** The message line is ~900 design px wide at 28px monospace. */
-export const MAX_MESSAGE_CHARS = 54;
+/**
+ * One message row's character budget. The rows are drawn at 23.2 design px of
+ * a font advancing 0.6 em (`HUD_MESSAGE_FONT_PX` and `NOMINAL_ADVANCE` in
+ * `draw.ts`), 13.92 design px per glyph, centred on x = 1248 without clipping:
+ * 55 glyphs are 765.6 px wide and span x 865.2 to 1630.8 of the 1920 px design
+ * width. Oolite never truncates a message; `printLongText` word-wraps it into
+ * extra rows (`Universe.m:6403`, `GuiDisplayGen.m:736-794`). Until that wrap is
+ * ported (todo 2026-11-20-hud-message-word-wrap-like-oolite), every message
+ * Wegolite writes stays within this budget, which
+ * `tests/guards/hud-message-length.test.ts` enforces (owner decision
+ * 2026-11-20: raised from 54 so the witchpoint-beacon line fits).
+ */
+export const MAX_MESSAGE_CHARS = 55;
 
 /**
  * Clamp a message to one line with an ellipsis on overflow.

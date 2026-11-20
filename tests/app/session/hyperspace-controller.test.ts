@@ -37,6 +37,7 @@ import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { MAX_SAVE_EPOCH } from "../../../src/persistence/save.js";
+import { MAX_MESSAGE_CHARS } from "../../../src/render/hud/format.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
@@ -437,18 +438,21 @@ describe("refusalCopy and targetSystem", () => {
     );
   });
 
-  it("names each buoy blocker by its Oolite name within the 54-character HUD line (D-09)", () => {
+  it("names each buoy blocker by its Oolite name within the HUD message line (D-09)", () => {
     const { controller } = harness();
     // Oolite's witch-blocked string names the blocker (`[blocker name]`,
     // PlayerEntity.m lines 6552-6553); the names are shipdata.plist's. The
-    // station's wording with "Witchpoint Beacon" would be 55 characters and
-    // the HUD would cut the name, so the beacon line says "too near".
+    // beacon line is 55 characters, the HUD line's budget since the owner
+    // decision of 2026-11-20, so the HUD never cuts the name.
     const nav = controller.refusalCopy("blocked", "navBuoy");
     const beacon = controller.refusalCopy("blocked", "witchpointBeacon");
     expect(nav).toBe("Witchspace jump aborted: too close to Navigation Buoy");
-    expect(beacon).toBe("Witchspace jump aborted: too near Witchpoint Beacon");
-    expect(nav.length).toBeLessThanOrEqual(54);
-    expect(beacon.length).toBeLessThanOrEqual(54);
+    expect(beacon).toBe(
+      "Witchspace jump aborted: too close to Witchpoint Beacon",
+    );
+    expect(beacon).toHaveLength(55);
+    expect(nav.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+    expect(beacon.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
     expect(controller.refusalCopy("insufficient fuel", "navBuoy")).toBe(
       "Insufficient fuel",
     );

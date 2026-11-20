@@ -137,17 +137,19 @@ export function createHyperspaceController(
         // The blocker is named as Oolite's witch-blocked message names it
         // (PlayerEntity.m lines 6550-6553): the Coriolis station, the two
         // buoys (Phase 18, D-09) or an NPC ship. Every line fits
-        // MAX_MESSAGE_CHARS (54): the HUD clamps a longer line with an
-        // ellipsis, which would cut the name. The station line is exactly 54,
-        // the nav buoy line 53, the ship line 44; the station's wording with
-        // "Witchpoint Beacon" would be 55, so that line says "too near" (51).
+        // MAX_MESSAGE_CHARS (55, owner decision 2026-11-20): the HUD clamps a
+        // longer line with an ellipsis, which would cut the name. The beacon
+        // line is exactly 55, the station line 54, the nav buoy line 53, the
+        // ship line 44. Oolite's own string, "Witchspace jump aborted (too
+        // close to [blockerName])." (descriptions.plist line 503), waits for
+        // the HUD word wrap (todo 2026-11-20-hud-message-word-wrap-like-oolite).
         switch (blocker) {
           case "ship":
             return "Witchspace jump aborted: too close to a ship";
           case "navBuoy":
             return "Witchspace jump aborted: too close to Navigation Buoy";
           case "witchpointBeacon":
-            return "Witchspace jump aborted: too near Witchpoint Beacon";
+            return "Witchspace jump aborted: too close to Witchpoint Beacon";
           case "station":
           case undefined:
             return "Witchspace jump aborted: too close to Coriolis Station";
