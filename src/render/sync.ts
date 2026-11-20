@@ -132,6 +132,47 @@ export function applyFrame(
   return cameraWorld;
 }
 
+/** One buoy as the frame draws it, read from the live world (plan 18-08). */
+export interface BuoyViewState {
+  /** Where the buoy is: its layout position plus its PD-02 offset. */
+  readonly position: Vec3;
+  /** Shot to zero energy (D-05): not drawn and not plotted. */
+  readonly destroyed: boolean;
+  /** False once the subentity is detached (PD-01): its mesh is hidden. */
+  readonly subentityAttached: boolean;
+}
+
+/** Both buoys, named by their layout keys, never by an entity id. */
+export interface BuoyViewStates {
+  readonly witchpoint: BuoyViewState;
+  readonly navBuoy: BuoyViewState;
+}
+
+/**
+ * Draw the buoys as they are (plan 18-08, D-05, PD-01, PD-02): each buoy group
+ * is placed camera-relative at its live position, hidden once destroyed, and
+ * its subentity mesh hidden once detached. `applyFrame` places the groups at
+ * the layout positions first; this runs after it in the same frame, so an
+ * unmoved buoy lands exactly where `applyFrame` put it. The body of each group
+ * is found by its root, so the order of `scene.buoys` does not matter.
+ */
+export function applyBuoyState(
+  scene: SystemScene,
+  buoys: BuoyViewStates,
+  cameraWorld: Vec3,
+): void {
+  const groups = [
+    [scene.witchpoint, buoys.witchpoint],
+    [scene.navBuoy, buoys.navBuoy],
+  ] as const;
+  for (const [group, state] of groups) {
+    placeRelative(group, state.position, cameraWorld);
+    group.visible = !state.destroyed;
+    const body = scene.buoys.find((candidate) => candidate.root === group);
+    body?.setSubentityVisible(state.subentityAttached);
+  }
+}
+
 /**
  * The largest absolute `Object3D.position` component in the scene. The probe
  * publishes it so a regression that writes a world coordinate into a body is

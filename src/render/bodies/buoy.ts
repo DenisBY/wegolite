@@ -72,10 +72,19 @@ export interface BuoyBody {
   /** The number of flasher lights, for the tests. */
   readonly lightCount: number;
   update(elapsedSeconds: number): void;
+  /**
+   * Show or hide the subentity's mesh, the model's `core` node (the
+   * `oolite_buoy_subents` model). A detached subentity is hidden; the hull and
+   * the flashers stay (Phase 18, PD-01). Oolite removes a destroyed subentity
+   * from the ship and draws no explosion for it here either.
+   */
+  setSubentityVisible(visible: boolean): void;
   dispose(): void;
 }
 
 const NODE_NAMES = ["hull", "core"] as const;
+/** The node of `NODE_NAMES` that holds the subentity (`oolite_buoy_subents`). */
+const SUBENTITY_NODE = "core" satisfies (typeof NODE_NAMES)[number];
 const BLOB_SIZE = 32;
 
 /**
@@ -222,6 +231,8 @@ export function createBuoy(gltf: GLTF, role: BuoyRole): BuoyBody {
       );
     }
   }
+  // Checked just above, so the lookup cannot miss.
+  const subentity = model.getObjectByName(SUBENTITY_NODE) as THREE.Object3D;
   cloneMaterials(model);
   model.traverse((object) => {
     if (!isMesh(object)) return;
@@ -295,6 +306,9 @@ export function createBuoy(gltf: GLTF, role: BuoyRole): BuoyBody {
     root,
     lightCount: lights.length,
     update,
+    setSubentityVisible(visible: boolean): void {
+      subentity.visible = visible;
+    },
     dispose(): void {
       disposeClonedMaterials(model);
       for (const sprite of sprites) sprite.material.dispose();

@@ -908,8 +908,10 @@ describe("buildHudModel live buoys (plan 18-08, D-05, PD-02)", () => {
     expect(unmoved.target).toBe("witchpoint");
     expect(unmoved.x).toBeCloseTo(-0.4 * COMPASS_SIZE, 9);
     const moved = add(layout.witchpoint.position, vec(2_000, 0, 0));
-    const compass = build(state, buoys({ witchpoint: { position: moved } }))
-      .compass;
+    const compass = build(
+      state,
+      buoys({ witchpoint: { position: moved } }),
+    ).compass;
     expect(compass.target).toBe("witchpoint");
     expect(compass.x).toBeCloseTo(0.4 * COMPASS_SIZE, 9);
   });

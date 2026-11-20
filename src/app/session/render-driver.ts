@@ -32,6 +32,14 @@ import { identTargetSnapshot } from "../../sim/combat/ident.js";
 import { sub, vec } from "../../sim/math.js";
 import { aegisStatus } from "../../sim/world/aegis.js";
 import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
+import type { SystemLayout } from "../../sim/world/layout.js";
+import {
+  buoyPosition,
+  isBuoyDestroyed,
+  isBuoySubentityAttached,
+} from "../../sim/world/statics.js";
+import type { BuoyKey } from "../../sim/world/statics.js";
+import type { World } from "../../sim/world/world.js";
 import {
   computeSlotLaunchCamera,
   computeViewCamera,
@@ -45,10 +53,12 @@ import type { CameraPose } from "../../render/launch-camera.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import {
+  applyBuoyState,
   applyFrame,
   applyStationRoll,
   interpolatePose,
 } from "../../render/sync.js";
+import type { BuoyViewState, BuoyViewStates } from "../../render/sync.js";
 import {
   HUD_DESIGN_HEIGHT,
   HUD_DESIGN_WIDTH,
@@ -93,6 +103,25 @@ export interface RenderDriverDeps {
     LaunchSequence,
     "preRolling" | "preRollElapsed"
   >;
+}
+
+/**
+ * The buoys as the live world has them this frame (plan 18-08, D-05, PD-01,
+ * PD-02): where each is (`buoyPosition`), whether it is destroyed and whether
+ * its subentity is attached. With no world both are alive, whole and at their
+ * layout positions. Read by layout key; no entity id leaves the sim.
+ */
+export function buoyViewStates(
+  world: World | undefined,
+  layout: SystemLayout,
+): BuoyViewStates {
+  const one = (key: BuoyKey): BuoyViewState => ({
+    position: buoyPosition(world, layout, key),
+    destroyed: world !== undefined && isBuoyDestroyed(world, key),
+    subentityAttached:
+      world === undefined || isBuoySubentityAttached(world, key),
+  });
+  return { witchpoint: one("witchpoint"), navBuoy: one("navBuoy") };
 }
 
 export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
@@ -232,6 +261,12 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
       camera,
       currentState.flightTime,
     );
+    // Plan 18-08: the buoys as the live world has them, read at this frame and
+    // not kept (G-8). The one value feeds the scene and the scanner, so a
+    // destroyed buoy leaves both on the same frame and a moved one is drawn,
+    // plotted and pointed at in one place.
+    const buoys = buoyViewStates(ctx.core.worldLifecycle?.world, currentLayout);
+    applyBuoyState(currentScene, buoys, cameraWorld);
     // D-04: dust is camera-local. The world delta comes from the one transform
     // path; the field wraps inside its box, so it never drifts to the origin.
     const currentDust = currentScene.dust;
@@ -365,6 +400,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
           identFrame: identFrameFor(currentScene.camera, camera),
           viewAspect: currentScene.camera.aspect,
           messageRows: rows,
+          buoys,
           // Oolite's hostiles flag (`PlayerEntity.m:2935-2950`), read from
           // the live world at this frame and not kept (G-8).
           hostiles: hostilesNearPlayer(

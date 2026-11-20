@@ -9,7 +9,9 @@
  * it is Node-testable: no canvas, no DOM, no state mutation.
  *
  * The scanner plots the Coriolis, the nav buoy and the witchpoint (D-07), and
- * since Phase 12 one contact per inert NPC ship (`NpcContact`, id-free); the
+ * since Phase 12 one contact per inert NPC ship (`NpcContact`, id-free). Since
+ * plan 18-08 a buoy is plotted where it is and a destroyed one not at all
+ * (`HudModelOptions.buoys`). The
  * planet and sun are deliberately absent because a 41 km planet would fill the
  * 25.6 km display. The aegis/compass rules come from `src/sim/world/aegis`,
  * which is the single owner of the 51,200 m and 3r boundaries.
@@ -75,31 +77,81 @@ interface ScannerTarget {
   readonly body: Body;
 }
 
-function bodyFor(target: CompassTarget, layout: SystemLayout): Body {
+/** One buoy as the HUD reads it: where it is and whether it is destroyed. */
+export interface HudBuoy {
+  readonly position: Vec3;
+  readonly destroyed: boolean;
+}
+
+/** Both buoys, named by their layout keys. */
+export interface HudBuoys {
+  readonly witchpoint: HudBuoy;
+  readonly navBuoy: HudBuoy;
+}
+
+/**
+ * The buoy `key` as a body: at its live position when `buoys` is given
+ * (PD-02), else at its layout position. The radius is always the layout's.
+ */
+function buoyBody(
+  layout: SystemLayout,
+  key: keyof HudBuoys,
+  buoys: HudBuoys | undefined,
+): Body {
+  if (buoys === undefined) return layout[key];
+  return { position: buoys[key].position, radius: layout[key].radius };
+}
+
+function bodyFor(
+  target: CompassTarget,
+  layout: SystemLayout,
+  buoys: HudBuoys | undefined,
+): Body {
   switch (target) {
     case "planet":
       return layout.planet;
     case "station":
       return layout.station;
     case "witchpoint":
-      return layout.witchpoint;
+      return buoyBody(layout, "witchpoint", buoys);
   }
 }
 
-function scannerTargets(layout: SystemLayout): readonly ScannerTarget[] {
-  return [
+/**
+ * The static contacts: the station, then the nav buoy and the witchpoint
+ * buoy where they are. A destroyed buoy is not plotted (D-05).
+ */
+function scannerTargets(
+  layout: SystemLayout,
+  buoys: HudBuoys | undefined,
+): readonly ScannerTarget[] {
+  const targets: ScannerTarget[] = [
     { id: "station", kind: "station", body: layout.station },
-    { id: "navBuoy", kind: "buoy", body: layout.navBuoy },
-    { id: "witchpoint", kind: "beacon", body: layout.witchpoint },
   ];
+  if (buoys?.navBuoy.destroyed !== true) {
+    targets.push({
+      id: "navBuoy",
+      kind: "buoy",
+      body: buoyBody(layout, "navBuoy", buoys),
+    });
+  }
+  if (buoys?.witchpoint.destroyed !== true) {
+    targets.push({
+      id: "witchpoint",
+      kind: "beacon",
+      body: buoyBody(layout, "witchpoint", buoys),
+    });
+  }
+  return targets;
 }
 
 function buildContacts(
   state: FlightState,
   layout: SystemLayout,
   npc: readonly NpcContact[],
+  buoys: HudBuoys | undefined,
 ): readonly HudContact[] {
-  const statics = scannerTargets(layout).map((target): HudContact => {
+  const statics = scannerTargets(layout, buoys).map((target): HudContact => {
     const relative: Vec3 = sub(target.body.position, state.position);
     const blip = projectToScanner(
       relative,
@@ -129,13 +181,20 @@ function buildContacts(
   return [...statics, ...ships];
 }
 
-function buildCompass(state: FlightState, layout: SystemLayout): HudCompass {
+function buildCompass(
+  state: FlightState,
+  layout: SystemLayout,
+  buoys: HudBuoys | undefined,
+): HudCompass {
   const target = resolveCompassTarget(
     state.position,
     state.compassMode,
     layout,
   );
-  const relative = sub(bodyFor(target, layout).position, state.position);
+  // PD-02: the witchpoint target is the buoy where it is. A destroyed
+  // witchpoint buoy is left by the sim's compass rule (PlayerEntity.m:4655-4659
+  // at 7437f22), so the HUD does not repeat it.
+  const relative = sub(bodyFor(target, layout, buoys).position, state.position);
   // D-06: Oolite's compass size, the full ring diameter (HeadUpDisplay.h:57).
   const blip = projectToCompass(relative, state.orientation, COMPASS_SIZE);
   // PD-2 (quick 261118-spu): Oolite draws the target blip only in system
@@ -185,6 +244,13 @@ export interface HudModelOptions {
    * `ALERT_FLAG_HOSTILES`). Absent reads as none.
    */
   readonly hostiles?: boolean | undefined;
+  /**
+   * The buoys as the live world has them (plan 18-08, D-05, PD-02): a
+   * destroyed buoy has no scanner contact, and a live one is plotted, and the
+   * witchpoint compass target pointed at, where it is. Absent (no world) reads
+   * as both buoys alive at their layout positions.
+   */
+  readonly buoys?: HudBuoys | undefined;
 }
 
 /**
@@ -363,9 +429,9 @@ export function buildHudModel(
     flashAlpha: clamp(flashAlpha, 0, 1),
     massLocked: state.torus.massLocked,
     scannerRange: layout.scannerRange,
-    contacts: buildContacts(state, layout, npc),
+    contacts: buildContacts(state, layout, npc, options.buoys),
     scannerFlash: scannerFlashAt(state.flightTime),
-    compass: buildCompass(state, layout),
+    compass: buildCompass(state, layout, options.buoys),
     aegis,
     bars: buildBars(state, config, tank, combat),
     speedText: formatSpeed(state.speed),

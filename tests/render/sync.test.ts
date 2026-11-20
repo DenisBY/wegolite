@@ -127,8 +127,7 @@ describe("applyBuoyState (plan 18-08, D-05, PD-01, PD-02)", () => {
   const cameraWorld = vec(1_000, -2_000, 3_000);
 
   it("draws live, unmoved, whole buoys at their layout positions, camera-relative", () => {
-    const { scene, navBuoy, witchpoint, navBody, witchpointBody } =
-      buoyScene();
+    const { scene, navBuoy, witchpoint, navBody, witchpointBody } = buoyScene();
     applyBuoyState(scene, buoyStates({}), cameraWorld);
     for (const [group, key] of [
       [navBuoy, "navBuoy"],
