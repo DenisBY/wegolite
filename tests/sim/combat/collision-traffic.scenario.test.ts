@@ -19,11 +19,14 @@
  * column on the witchpoint beacon's +z side, intercepting the player beyond
  * it.
  *
- * Per seed the run prints the contacts by pair kind, the kills and their
- * causes and the buoy alerts for the SUMMARY. It pins no count; it asserts
- * sanity bounds only: every tick's hash computes, no world or flight value is
- * non-finite, no pair is answered twice in one tick, kills never exceed the
- * ships spawned, and both buoys' offsets stay within `MAX_BUOY_OFFSET`.
+ * Per seed the run asserts sanity bounds: every tick's hash computes, no
+ * world or flight value is non-finite, no pair is answered twice in one tick,
+ * kills never exceed the ships spawned, and both buoys' offsets stay within
+ * `MAX_BUOY_OFFSET`. It also pins each seed's deterministic report (contacts by
+ * pair kind, kills and their causes, buoy alerts; review IN-05), so a run that
+ * silently stops colliding fails. Epoch 101 (parked) measures no contact, kill
+ * or buoy alert at all: only epoch 202 exercises the stage, and it must keep a
+ * ship-ship and a ship-buoy contact.
  *
  * A collision posts a `shipHit` for each side in its tick; a laser hit posts
  * one, from a shooter that fired that tick. So a source that fired no laser in
@@ -365,12 +368,49 @@ function runSeed(epoch: number, build: "parked" | "beacon"): SeedReport {
   };
 }
 
+const NO_CONTACTS = {
+  "ship-ship": 0,
+  "ship-buoy": 0,
+  "ship-pod": 0,
+  "ship-station": 0,
+  "player-any": 0,
+  other: 0,
+};
+
+/** The measured reports (4,000 ticks, deterministic), pinned by review IN-05. */
+const MEASURED: Record<number, SeedReport> = {
+  101: {
+    epoch: 101,
+    ships: 12,
+    contacts: NO_CONTACTS,
+    kills: { laser: 0, collision: 0, other: 0 },
+    buoyAlertTicks: 0,
+    shipsAlertedByBuoy: 0,
+    buoyOffsets: { witchpoint: 0, navBuoy: 0 },
+    buoysDestroyed: 0,
+  },
+  202: {
+    epoch: 202,
+    ships: 12,
+    contacts: { ...NO_CONTACTS, "ship-ship": 10, "ship-buoy": 1 },
+    kills: { laser: 0, collision: 1, other: 0 },
+    buoyAlertTicks: 892,
+    shipsAlertedByBuoy: 8,
+    buoyOffsets: { witchpoint: 0, navBuoy: 0 },
+    buoysDestroyed: 0,
+  },
+};
+
 describe("a populated world with collisions on (plan 18-21, review L191@2e0bfb3)", () => {
   for (const { epoch, build } of SEEDS) {
     it(`epoch ${String(epoch)} (${build}): 4,000 ticks under the traffic-on options hold the sanity bounds`, () => {
       const report = runSeed(epoch, build);
-      console.log(`COLLISION-TRAFFIC ${JSON.stringify(report)}`);
       expect(report.ships).toBeGreaterThan(0);
+      expect(report).toEqual(MEASURED[epoch]);
+      if (epoch === 202) {
+        expect(report.contacts["ship-ship"]).toBeGreaterThan(0);
+        expect(report.contacts["ship-buoy"]).toBeGreaterThan(0);
+      }
     }, 300_000);
   }
 });

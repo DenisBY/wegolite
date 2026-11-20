@@ -23,9 +23,12 @@
  *  - the Lave nav buoy lies inside the planet's slab, so a z approach to it is
  *    alerted at the pair trigger too.
  *
- * Measured values (alert tick, closest approach) are printed for the SUMMARY,
- * not asserted: Oolite guarantees the alert and that avoidance engages, not a
- * miss distance (review L529, L301@2e0bfb3).
+ * The measured values (alert tick, onsets, closest approach) are pinned as
+ * regression values of this deterministic run (review IN-05), not as Oolite
+ * claims: Oolite guarantees the alert and that avoidance engages, not a miss
+ * distance (review L529, L301@2e0bfb3). The approach harness runs without the
+ * collision stage, so a closest approach below the contact distance is a pass
+ * through, not a modelled collision.
  */
 
 import { describe, expect, it } from "vitest";
@@ -272,9 +275,6 @@ describe("the Lave statics in the chains (computed, not assumed)", () => {
   const chains = collisionChains(laveStatics());
 
   it("the witchpoint beacon is outside the planet's and the sun's slabs", () => {
-    console.log(
-      `BUOY-PROX lave planet z=${String(layout.planet.position.z)} R=${String(layout.planet.radius)} sun z=${String(layout.sun.position.z)} R=${String(layout.sun.radius)} navBuoy z=${String(layout.navBuoy.position.z)}`,
-    );
     expect(chainsPair(chains, WITCHPOINT_BUOY_ID, PLANET_ID)).toBe(false);
     expect(chainsPair(chains, WITCHPOINT_BUOY_ID, SUN_ID)).toBe(false);
   });
@@ -315,10 +315,14 @@ describe("a Krait flying at the witchpoint beacon is alerted and turns away (tra
 
   it("records the alert tick, the onset distance and the closest approach", () => {
     const closest = Math.min(...run.frames.map((f) => f.distance));
-    console.log(
-      `BUOY-PROX tracer alertTick=${String(at + 1)} onset=${String(run.frames[at]?.distance)} closest=${String(closest)} contactAt=${String(KRAIT + BEACON)} contact=${String(closest < KRAIT + BEACON)}`,
-    );
-    expect(Number.isFinite(closest)).toBe(true);
+    // regression pins of the deterministic run (review IN-05)
+    expect(at + 1).toBe(313);
+    expect(run.frames[at]?.distance).toBe(217.5);
+    expect(KRAIT + BEACON).toBeCloseTo(109.33213806152344, 9);
+    // avoidance engages but does not clear the beacon: the Krait passes
+    // 22.24 m from its centre, inside the 109.33 m contact distance
+    expect(closest).toBeCloseTo(22.23525664591719, 6);
+    expect(closest).toBeLessThan(KRAIT + BEACON);
   });
 
   it("with the beacon destroyed no alert names it and the course does not change", () => {
@@ -334,8 +338,9 @@ describe("a Krait flying at the witchpoint beacon is alerted and turns away (tra
       expect(frame.alert).toBe(0);
       expect(frame.behaviour).toBe("FLY_TO_DESTINATION");
     }
+    // without the alert the course runs straight through the beacon centre
     const closest = Math.min(...control.frames.map((f) => f.distance));
-    console.log(`BUOY-PROX control closest=${String(closest)}`);
+    expect(closest).toBe(0);
   });
 
   it("a beacon pushed to a non-zero offset alerts from its live centre", () => {
@@ -414,7 +419,7 @@ describe("the alert onset of a buoy (PD-08)", () => {
     });
     const at = firstAlert(run.frames, WITCHPOINT_BUOY_ID);
     const onset = run.frames[at]?.distance ?? 0;
-    console.log(`BUOY-PROX band z onset=${String(onset)}`);
+    expect(onset).toBe(217.5);
     expect(onset).toBeLessThanOrEqual(CHAIN_ONSET);
     expect(onset).toBeGreaterThan(CHAIN_ONSET - PER_TICK);
     // the tick before, the pair trigger already held: the chain decided
@@ -431,7 +436,7 @@ describe("the alert onset of a buoy (PD-08)", () => {
     });
     const at = firstAlert(run.frames, WITCHPOINT_BUOY_ID);
     const onset = run.frames[at]?.distance ?? 0;
-    console.log(`BUOY-PROX band x onset=${String(onset)}`);
+    expect(onset).toBe(235);
     expect(onset).toBeLessThan(PAIR_TRIGGER);
     expect(onset).toBeGreaterThan(PAIR_TRIGGER - PER_TICK);
   });
@@ -444,7 +449,7 @@ describe("the alert onset of a buoy (PD-08)", () => {
     });
     const at = firstAlert(run.frames, STATION_NAV_BUOY_ID);
     const onset = run.frames[at]?.distance ?? 0;
-    console.log(`BUOY-PROX band navBuoy z onset=${String(onset)}`);
+    expect(onset).toBe(235);
     expect(onset).toBeLessThan(PAIR_TRIGGER);
     expect(onset).toBeGreaterThan(PAIR_TRIGGER - PER_TICK);
   });
