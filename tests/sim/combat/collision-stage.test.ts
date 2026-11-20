@@ -28,6 +28,7 @@ import { collideWithShip } from "../../../src/sim/combat/response.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { SimEvent } from "../../../src/sim/events.js";
+import { portFrame } from "../../../src/sim/dock/port-frame.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
@@ -38,11 +39,24 @@ import type { Vec3 } from "../../../src/sim/math.js";
 import { massFor } from "../../../src/sim/npc/stats.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
-import { PLAYER_ID } from "../../../src/sim/world/ids.js";
+import {
+  DEBRIS_MAX_ENERGY,
+  debrisMassOf,
+} from "../../../src/sim/world/debris.js";
+import { NO_ENTITY, PLAYER_ID } from "../../../src/sim/world/ids.js";
 import type { EntityId } from "../../../src/sim/world/ids.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import {
+  FIXTURE_PLATE,
+  FIXTURE_POD,
+  debrisFixture,
+} from "../../helpers/debris-fixture.js";
+import {
+  laveDockGeometry,
+  placeShipInPortFrame,
+} from "../../helpers/dock-pose.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
@@ -370,5 +384,409 @@ describe("the player rams a Krait (tracer)", () => {
   it("the player is the hull in the table under its own key", () => {
     expect(HULLS.has(PLAYER_HULL_KEY)).toBe(true);
     expect(KRAIT_MASS).toBe(93_291.40625);
+  });
+});
+
+// --- Task 2: ships, pods and plates, kills, the exclusions ------------------
+
+const DEBRIS = debrisFixture();
+
+/** The app's options with the debris content (pods and plates collide). */
+function withDebris(collisions = true): StepOptions {
+  const base = options(collisions);
+  return {
+    ...base,
+    combat: { ...base.combat, mounts: DEFAULT_LASER_MOUNTS, debris: DEBRIS },
+  };
+}
+
+/** A pod (`barrel`) or plate (`alloy`) at `position` with `velocity`. */
+function spawnPiece(
+  world: World,
+  position: Vec3,
+  velocity: Vec3 = vec(0, 0, 0),
+  specKey: "barrel" | "alloy" = "barrel",
+  kind: "cargo" | "wreckage" = "cargo",
+): EntityId {
+  const model = specKey === "barrel" ? FIXTURE_POD : FIXTURE_PLATE;
+  const result = spawnEntity(
+    world,
+    {
+      kind,
+      specKey,
+      scanClass: "CLASS_CARGO",
+      position,
+      orientation: identity(),
+      radius: model.radius,
+      maxEnergy: DEBRIS_MAX_ENERGY,
+      velocity,
+    },
+    0,
+  );
+  if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+  return result.entity.id;
+}
+
+function destroyed(
+  events: readonly SimEvent[],
+): Extract<SimEvent, { kind: "shipDestroyed" }>[] {
+  return events.filter(
+    (event): event is Extract<SimEvent, { kind: "shipDestroyed" }> =>
+      event.kind === "shipDestroyed",
+  );
+}
+
+describe("ships, pods and plates (D-01, D-07, PD-05)", () => {
+  it("rams a pod above 15.3 m/s and removes it: no scoop (PD-05)", () => {
+    const player = flyingPlayer(20);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const pod = spawnPiece(world, vec(FAR.x, FAR.y, FAR.z - 120));
+    let removedAt = -1;
+    let podHits = 0;
+    let playerHits = 0;
+    for (let tick = 0; tick < 600 && removedAt < 0; tick += 1) {
+      const events = step(player, world, combat, withDebris());
+      for (const hit of hits(events)) {
+        if (hit.target === pod) podHits += 1;
+        if (hit.target === PLAYER_ID) playerHits += 1;
+      }
+      if (events.some((e) => e.kind === "entityRemoved" && e.id === pod)) {
+        removedAt = tick;
+      }
+    }
+    expect(removedAt).toBeGreaterThan(0);
+    expect(podHits).toBe(1);
+    // 993.37 x 20^2 / 5e7 = 0.008: below the 0.05 scrape floor.
+    expect(playerHits).toBe(0);
+    expect(world.store.get(pod)).toBeUndefined();
+  });
+
+  it("a pod hit at 10 m/s survives with its energy lowered by m1 x v^2 / 5e7", () => {
+    const player = flyingPlayer(10);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const pod = spawnPiece(world, vec(FAR.x, FAR.y, FAR.z - 120));
+    let podHit: Extract<SimEvent, { kind: "shipHit" }> | undefined;
+    for (let tick = 0; tick < 1200 && podHit === undefined; tick += 1) {
+      podHit = hits(step(player, world, combat, withDebris())).find(
+        (hit) => hit.target === pod,
+      );
+    }
+    expect(podHit?.amount).toBeCloseTo((PLAYER_MASS_KG * 100) / 5e7, 4);
+    expect(entityOf(world, pod).energy).toBeCloseTo(
+      1 - (podHit?.amount ?? 0),
+      9,
+    );
+  });
+
+  it("a plate rams a pod: both masses from debrisMassOf, the response as collideWithShip gives it", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const at = vec(FAR.x + 3000, FAR.y, FAR.z);
+    const pod = spawnPiece(world, at);
+    const plate = spawnPiece(
+      world,
+      vec(at.x - 8, at.y, at.z),
+      vec(30, 0, 0),
+      "alloy",
+    );
+    const podEntity = entityOf(world, pod);
+    const plateEntity = entityOf(world, plate);
+    const podMass = debrisMassOf(podEntity, DEBRIS);
+    const plateMass = debrisMassOf(plateEntity, DEBRIS);
+    expect(podMass).toBeCloseTo(993.37, 6);
+    expect(plateMass).toBeCloseTo(273.44, 6);
+    // The plate is nearer the player: it is self.
+    const expected = collideWithShip({
+      self: {
+        position: plateEntity.position,
+        velocity: vec(30, 0, 0),
+        mass: plateMass ?? 0,
+        energy: 1,
+        destroyable: true,
+      },
+      other: {
+        position: podEntity.position,
+        velocity: vec(0, 0, 0),
+        mass: podMass ?? 0,
+        energy: 1,
+        destroyable: true,
+      },
+    });
+    if (expected.kind !== "collided") throw new Error("expected a contact");
+    const { records } = resolveCollisions(world, player, combat, withDebris());
+    expect(records.map((r) => [r.target, r.source, r.amount])).toEqual([
+      [plate, pod, expected.dam1],
+      [pod, plate, expected.dam2],
+    ]);
+    expect(plateEntity.velocity).toEqual(add(vec(30, 0, 0), expected.dv1));
+    expect(podEntity.velocity).toEqual(add(vec(0, 0, 0), expected.dvOtherBody));
+  });
+
+  it("two NPCs collide with the one nearer the player as self", () => {
+    const orders = [-1, 1].map((side) => {
+      const player = flyingPlayer();
+      player.position = vec(FAR.x, FAR.y, FAR.z + side * 5000);
+      const combat = createPlayerCombatState();
+      const world = createWorld(7);
+      const a = spawnShip(world, vec(FAR.x, FAR.y, FAR.z - 40));
+      const b = spawnShip(world, vec(FAR.x, FAR.y, FAR.z + 40));
+      entityOf(world, a).velocity = vec(0, 0, 30);
+      const { records } = resolveCollisions(world, player, combat, options());
+      return { a, b, first: records[0]?.target };
+    });
+    // The player behind (-Z side): a is nearer; in front: b is nearer.
+    expect(orders[0]?.first).toBe(orders[0]?.a);
+    expect(orders[1]?.first).toBe(orders[1]?.b);
+  });
+
+  it("a Krait rammed to zero is destroyed through killShip with its debris, credited to the player", () => {
+    const player = flyingPlayer(350);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const krait = spawnShip(world, vec(FAR.x, FAR.y, FAR.z - 200));
+    let kills: Extract<SimEvent, { kind: "shipDestroyed" }>[] = [];
+    let pieces = 0;
+    for (let tick = 0; tick < 120 && kills.length === 0; tick += 1) {
+      kills = destroyed(step(player, world, combat, withDebris()));
+      pieces = world.store.live.filter(
+        (e) => e.kind === "cargo" || e.kind === "wreckage",
+      ).length;
+    }
+    expect(kills).toEqual([
+      expect.objectContaining({ id: krait, killer: PLAYER_ID }),
+    ]);
+    expect(world.store.get(krait)).toBeUndefined();
+    expect(pieces).toBeGreaterThan(0);
+    // The player is never destroyable: 228.6 damage, energy floored, alive.
+    expect(combat.energy).toBeGreaterThan(0);
+    expect(combat.energy).toBeLessThan(256);
+    expect(player.mode).toBe("inFlight");
+  });
+
+  it("two Kraits that kill each other in one ram: both die on the same tick, credited by the ledger's same-tick rule (D-10 asymmetry)", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const at = vec(FAR.x + 5000, FAR.y, FAR.z);
+    // Already overlapping, closing at 100 m/s (the drift pass brakes each by
+    // 175 / 120 m/s before the stage: 18.66 x (97.08 / 100)^2 = 17.6 > 10).
+    const a = spawnShip(world, vec(at.x - 20, at.y, at.z), "krait", 10);
+    const b = spawnShip(world, vec(at.x + 20, at.y, at.z), "krait", 10);
+    entityOf(world, a).velocity = vec(50, 0, 0);
+    entityOf(world, b).velocity = vec(-50, 0, 0);
+    let kills: Extract<SimEvent, { kind: "shipDestroyed" }>[] = [];
+    for (let tick = 0; tick < 240 && kills.length === 0; tick += 1) {
+      kills = destroyed(step(player, world, combat, withDebris()));
+    }
+    // Ascending victim id: the lower id is credited to the other ship, which
+    // is dead by the time the higher id is killed, so that one carries nobody.
+    expect(kills.map((k) => [k.id, k.killer])).toEqual([
+      [a, b],
+      [b, NO_ENTITY],
+    ]);
+    expect(world.store.get(a)).toBeUndefined();
+    expect(world.store.get(b)).toBeUndefined();
+  });
+});
+
+describe("the exclusions", () => {
+  it("a launching player overlapping a pod makes no pair (A3)", () => {
+    const player = initFlightState(layout);
+    stepFlight(player, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+    expect(player.mode).toBe("launching");
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const pod = spawnPiece(world, player.position, vec(0, 0, 20));
+    spawnPiece(world, vec(player.position.x + 1e5, 0, 0));
+    const { records } = resolveCollisions(world, player, combat, withDebris());
+    expect(records).toEqual([]);
+    expect(entityOf(world, pod).velocity).toEqual(vec(0, 0, 20));
+    expect(player.drift).toEqual(vec(0, 0, 0));
+  });
+
+  it("the station is never a collider: a ship at its centre is untouched", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const krait = spawnShip(world, layout.station.position);
+    entityOf(world, krait).velocity = vec(0, 0, 40);
+    const { records } = resolveCollisions(world, player, combat, options());
+    expect(records).toEqual([]);
+    expect(entityOf(world, krait).velocity).toEqual(vec(0, 0, 40));
+  });
+
+  it("wreckage never takes part, even on a hull and mass that would collide", () => {
+    const player = flyingPlayer(20);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const wreck = spawnPiece(
+      world,
+      vec(FAR.x, FAR.y, FAR.z - 70),
+      vec(0, 0, 0),
+      "barrel",
+      "wreckage",
+    );
+    const { records } = resolveCollisions(world, player, combat, withDebris());
+    expect(records).toEqual([]);
+    expect(entityOf(world, wreck).velocity).toEqual(vec(0, 0, 0));
+  });
+
+  it("a pod without debris content and a ship with no mass are skipped", () => {
+    const player = flyingPlayer(20);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    spawnPiece(world, vec(FAR.x, FAR.y, FAR.z - 70));
+    expect(resolveCollisions(world, player, combat, options()).records).toEqual(
+      [],
+    );
+
+    const nameless = new Map(HULLS);
+    const krait = HULLS.get("krait");
+    if (krait === undefined) throw new Error("no krait hull");
+    nameless.set("nonesuch", krait);
+    const world2 = createWorld(7);
+    spawnShip(world2, vec(FAR.x, FAR.y, FAR.z - 60), "nonesuch");
+    const noMass: StepOptions = {
+      npcFlight: NPC_FLIGHT,
+      combat: {
+        mounts: DEFAULT_LASER_MOUNTS,
+        hulls: nameless,
+        collisions: true,
+      },
+    };
+    expect(resolveCollisions(world2, player, combat, noMass).records).toEqual(
+      [],
+    );
+  });
+
+  it("contact at exactly the radius sum is no pair (the strict sphere test)", () => {
+    // Solid cubes of half-width 10 whose spheres are drawn at 10: the cubes
+    // touch face to face at 20 m, where the sphere test already refuses.
+    const cubes = new Map(HULLS);
+    cubes.set("cube", {
+      collisionRadius: 10,
+      octree: { radius: 10, depth: 0, root: -1 },
+    });
+    const cubeOptions: StepOptions = {
+      hyperspace: {
+        fuel: 0,
+        origin: { id: "test", x: 0, y: 0 },
+        shipMasses: [{ specKey: "cube", mass: 1e6 }],
+      },
+      combat: { mounts: DEFAULT_LASER_MOUNTS, hulls: cubes, collisions: true },
+    };
+    const counts = [20, 19.999].map((gap) => {
+      const player = flyingPlayer();
+      const world = createWorld(7);
+      const at = vec(FAR.x + 5000, FAR.y, FAR.z);
+      const a = spawnShip(world, at, "cube", 100);
+      spawnShip(world, vec(at.x + gap, at.y, at.z), "cube", 100);
+      entityOf(world, a).velocity = vec(10, 0, 0);
+      return resolveCollisions(world, player, undefined, cubeOptions).records
+        .length;
+    });
+    expect(counts).toEqual([0, 2]);
+  });
+});
+
+describe("docking is unchanged with collisions on (DOCK-09)", () => {
+  const geometry = laveDockGeometry();
+  const K = portFrame(layout, 0).k;
+
+  /**
+   * The integrated manual dock (`tests/sim/dock-integrated.test.ts`) through
+   * `stepSim` with a world holding one far Krait and the full hull table,
+   * optionally after a drift toward the station hull. Returns the world hash
+   * of every tick and the counts at the end.
+   */
+  function replay(
+    collisions: boolean,
+    drift: number,
+  ): {
+    hashes: string[];
+    bounces: number;
+    docks: number;
+    mode: string;
+  } {
+    const stepOptions: StepOptions = { ...options(collisions), dock: geometry };
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    spawnShip(world, add(layout.station.position, vec(1e5, 0, 0)));
+    const hashes: string[] = [];
+    const run = (commands: Parameters<typeof stepSim>[5] = []): void => {
+      stepSim(
+        player,
+        world,
+        layout,
+        config,
+        ZERO_INTENT,
+        commands,
+        DT,
+        stepOptions,
+        combat,
+      );
+      hashes.push(hashWorld(player, world, combat));
+    };
+    run([{ kind: "launch" }]);
+    for (let tick = 0; tick < 400 && player.mode === "launching"; tick += 1) {
+      run();
+    }
+    for (let tick = 0; tick < 240; tick += 1) run();
+
+    if (drift > 0) {
+      // In front of the hull beside the slot, drifting into it (18-10's
+      // contact branch: one bounce at the face).
+      const front = placeShipInPortFrame(layout, geometry, {
+        nosePastPlane: -(geometry.contactPort.zMax + 1),
+        rollFromMatched: 0,
+        lateral: 300,
+        stationAngle: player.stationAngle,
+      });
+      player.position = front.position;
+      player.orientation = front.orientation;
+      player.speed = 0;
+      player.impulse = vec(0, 0, 0);
+      player.drift = vec(-K.x * drift, -K.y * drift, -K.z * drift);
+      for (let tick = 0; tick < 600; tick += 1) run();
+    }
+
+    const retry = placeShipInPortFrame(layout, geometry, {
+      nosePastPlane: 90,
+      rollFromMatched: 0,
+      stationAngle: player.stationAngle,
+    });
+    player.position = retry.position;
+    player.orientation = retry.orientation;
+    player.speed = 0;
+    player.impulse = vec(0, 0, 0);
+    player.drift = vec(0, 0, 0);
+    for (let tick = 0; tick < 10 && player.mode === "inFlight"; tick += 1)
+      run();
+    return {
+      hashes,
+      bounces: player.bounceCount,
+      docks: player.dockCount,
+      mode: player.mode,
+    };
+  }
+
+  it("a manual dock at zero drift is byte-identical with collisions on and off", () => {
+    const on = replay(true, 0);
+    const off = replay(false, 0);
+    expect(on.mode).toBe("docked");
+    expect(on.docks).toBe(1);
+    expect(on.hashes).toEqual(off.hashes);
+  });
+
+  it("a 68 m/s drift into the hull bounces once, then docks, byte-identical on and off (a regression test of 18-10's contact branch)", () => {
+    const on = replay(true, 68);
+    const off = replay(false, 68);
+    expect(on.bounces).toBe(1);
+    expect(on.mode).toBe("docked");
+    expect(on.hashes).toEqual(off.hashes);
   });
 });

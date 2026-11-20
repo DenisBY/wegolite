@@ -1418,7 +1418,7 @@ describe("buildStepOptions", () => {
     expect(options).toEqual({
       dock,
       equipment,
-      combat: { mounts: DEFAULT_LASER_MOUNTS },
+      combat: { mounts: DEFAULT_LASER_MOUNTS, collisions: true },
       hyperspace: {
         fuel: 70,
         origin: {
