@@ -56,7 +56,7 @@
     {
       "number": "18",
       "name": "Stations, Buoys and Collisions",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "19",
@@ -71,8 +71,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 4 of 6 · 50% · ready to verify"
+    "label": "Advance to the next step (plan phase 19)",
+    "reason": "Phase 5 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-20T17:21:29.969Z"
+  "updated_at": "2026-11-20T18:32:02.960Z"
 }

@@ -2,21 +2,21 @@
 gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
-current_phase: 18
-current_phase_name: Stations, Buoys and Collisions
-current_plan: 22
-status: verifying
-stopped_at: Completed 18-12-PLAN.md
-last_updated: "2026-11-20T17:21:32.467Z"
-last_activity: 2026-11-19
-last_activity_desc: Phase 18 execution started
-state_head: 5b3cc96f27f79a4fa1f099623f5db7843cbbcbdf
+current_phase: 19
+current_phase_name: Equipment Damage and Repair
+current_plan: Not started
+status: planning
+stopped_at: Phase 18 complete, ready to plan Phase 19
+last_updated: "2026-11-20T18:32:02.933Z"
+last_activity: 2026-11-20
+last_activity_desc: Phase 18 complete, transitioned to Phase 19
+state_head: 65aee7149a808a0128d45547410450ba147f4070
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 50
   completed_plans: 50
-  percent: 50
+  percent: 67
 ---
 
 # Project State
@@ -26,21 +26,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-16)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 18 — Stations, Buoys and Collisions
+**Current focus:** Phase 19 — Equipment Damage and Repair
 
 ## Current Position
 
-Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 22
-Total Plans in Phase: 22
-Status: Phase complete — ready for verification
-Last activity: 2026-11-19 — Phase 18 execution started
+Phase: 19 — Equipment Damage and Repair
+Current Plan: Not started
+Total Plans in Phase: TBD
+Status: Ready to plan
+Last activity: 2026-11-20 — Phase 18 complete, transitioned to Phase 19
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 167
+- Total plans completed: 189
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -64,6 +64,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | 15 | 6 | - | - |
 | 16 | 9 | - | - |
 | 17 | 13 | - | - |
+| 18 | 22 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -745,7 +746,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-20T17:21:31.997Z
-Stopped at: Completed 18-12-PLAN.md
+Stopped at: Phase 18 complete, ready to plan Phase 19
 Resume file: None
 
 ## Operator Next Steps

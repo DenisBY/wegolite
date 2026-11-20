@@ -84,7 +84,7 @@ Total: 35 of 35 plans complete. Requirements 10/10. Phase directories now live i
 - [x] **Phase 15: Damage Ledger and Kills** - A ship at zero energy is destroyed and removed through one damage ledger and one idempotent kill path; the tick boundary never holds a dead entity; the NPC records and entity state carry every field the milestone needs, in one snapshot bump (completed 2026-11-16)
 - [x] **Phase 16: Wreckage, Cargo and the Entity Cap** - A destroyed ship explodes into alloy plates, cargo pods and wreckage by Oolite's cargo rule, drawn within the draw-call budget and held under the entity cap of 256, with the debris models vendored from the Oolite checkout (completed 2026-11-17)
 - [x] **Phase 17: NPC Fire and Hits on the Player** - NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot says so; hits on the player pass through shields and energy; NPCs still never attack in ordinary play (completed 2026-11-19)
-- [ ] **Phase 18: Stations, Buoys and Collisions** - Lasers and ident hit the station and the navigation buoys (buoys can be destroyed); ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule; the station hull stays damage-free
+- [x] **Phase 18: Stations, Buoys and Collisions** - Lasers and ident hit the station and the navigation buoys (buoys can be destroyed); ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule; the station hull stays damage-free (completed 2026-11-20)
 - [ ] **Phase 19: Equipment Damage and Repair** - Hits on the player can damage equipment; the damage persists in save schema v5, a damaged item stops counting as installed, and F3 repairs it at Oolite's price
 - [ ] **Phase 20: Player Death and Game Over** - The player dies at zero energy from any cause while in flight; game over reloads the page and offers Continue only when a loadable save exists, through one death path that autosave, pause and the title flow respect; the milestone's determinism and release gates close here
 
@@ -316,7 +316,7 @@ Plans:
 **Pitfalls to address**: 4 (the acceptance harness), 9 (single contact: no energy gained or lost twice), 11 (statics are not world entities: the hull table and their poses), 12 (the collision rule's wrong half), 17 (pair cost)
 **Decisions to settle**: the Coriolis hull's file (one artifact or a separate file); the destroyed-buoy semantics above; the player's response to impact; supersede the Key Decisions row "Statics are neither laser nor ident targets"
 **Todos**: `2026-11-15-lasers-and-ident-hit-stations-and-buoys.md` (closed by CBT-17); `2026-11-14-make-buoys-block-hyperspace-like-oolite.md` touches the same fixture and is a candidate to fold in by owner decision, not a requirement; `2026-11-10-add-planet-and-sun-collision.md` loses its buoy half to CBT-18 (planet and sun stay unscheduled)
-**Plans**: 22/22 plans executed; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
+**Plans**: 22/22 plans complete; 22 plans in 13 waves (revised twice after plan checks and after two cross-AI review rounds; owner decisions PD-01..PD-08 in `18-CONTEXT.md`)
 
 Plans:
 **Wave 1**
@@ -461,7 +461,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 15. Damage Ledger and Kills | v2.3 | 6/6 | Complete    | 2026-11-16 |
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
-| 18. Stations, Buoys and Collisions | v2.3 | 22/22 | In Progress | - |
+| 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
 | 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
 
