@@ -13,9 +13,13 @@
  * (D16-01, D16-24).
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
+import { playerLaserRay } from "../../../src/sim/combat/aim.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
+import { resolveShots } from "../../../src/sim/combat/step.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { SimEvent } from "../../../src/sim/events.js";
@@ -75,6 +79,12 @@ import {
 } from "../../helpers/debris-fixture.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import {
+  BLAST_FIXTURE_FILE,
+  BlastFileSchema,
+  withinTolerance,
+} from "../../oracles/combat/response/schema.js";
+import type { BlastFixture } from "../../oracles/combat/response/schema.js";
 
 const { layout, config } = laveFixture();
 const HULLS = realHullTable();
@@ -1333,5 +1343,150 @@ describe("debris is no target (D16-03, OC-3)", () => {
         layout.scannerRange,
       ),
     ).toBe(false);
+  });
+});
+
+describe("the blast on the player (D-03, ShipEntity.m:7680-7698, 11178-11181)", () => {
+  const KRAIT_RADIUS = 50.196590423583984;
+  const FLOOR_FIXTURE_ID = "blast-krait-player-floor-10m";
+
+  function blastFixture(id: string): BlastFixture {
+    const fixtures = BlastFileSchema.parse(
+      JSON.parse(
+        readFileSync(
+          new URL(
+            `../../oracles/combat/response/${BLAST_FIXTURE_FILE}`,
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ) as unknown,
+    );
+    const fixture = fixtures.find((f) => f.id === id);
+    if (fixture === undefined) throw new Error(`no fixture ${id}`);
+    return fixture;
+  }
+
+  /**
+   * A Krait (energy 10, so one pulse kills it) with its centre at the player's
+   * position minus `offset`, i.e. the player sits at `offset` from the Krait.
+   */
+  function krait(world: World, player: FlightState, offset: Vec3): Entity {
+    const ship = spawnShip(world, {
+      specKey: "krait",
+      cargo: 0,
+      maxEnergy: 10,
+      position: vec(
+        player.position.x - offset.x,
+        player.position.y - offset.y,
+        player.position.z - offset.z,
+      ),
+    });
+    ship.radius = KRAIT_RADIUS;
+    return ship;
+  }
+
+  it("throws the player clear by the 18-03 floor fixture, then the drift brakes to rest", () => {
+    const fixture = blastFixture(FLOOR_FIXTURE_ID);
+    const victim = fixture.victims[0];
+    const receiver = fixture.receivers[0];
+    const contribution = fixture.expected.receivers[0]?.contributions[0];
+    const expected = fixture.expected.receivers[0]?.dv;
+    if (
+      victim === undefined ||
+      receiver === undefined ||
+      contribution === undefined ||
+      !expected
+    ) {
+      throw new Error("fixture shape");
+    }
+    expect(victim.mass).toBe(CONTENT.hulls.get("krait")?.mass);
+    expect(victim.radius).toBe(KRAIT_RADIUS);
+    expect(contribution.floored).toBe(true);
+    // The fixture puts the player 10 m from the Krait's centre, so d2 takes
+    // the 0.1 floor and the push does not depend on the distance inside the
+    // player's own radius (72.697 m). The pulse cannot hit a Krait from inside
+    // its hull, so the Krait sits 60 m ahead (also floored): the same speed,
+    // along the unit vector from the Krait (+z here).
+    const magnitude = Math.hypot(expected[0], expected[1], expected[2]);
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    krait(world, player, vec(0, 0, 60));
+    const events = stepOnce(player, world, combat, FIRE, debrisOptions());
+    expect(events.some((e) => e.kind === "shipDestroyed")).toBe(true);
+    expect(player.drift.x).toBe(0);
+    expect(player.drift.y).toBe(0);
+    expect(
+      withinTolerance(player.drift.z, magnitude, fixture.tolerance),
+      `drift z ${player.drift.z} vs ${magnitude}`,
+    ).toBe(true);
+
+    // It then brakes by the Cobra's raw thrust, 32 m/s^2, to exactly zero.
+    const speed = (v: Vec3): number => Math.hypot(v.x, v.y, v.z);
+    const start = speed(player.drift);
+    stepOnce(player, world, combat, ZERO_INTENT, debrisOptions());
+    expect(start - speed(player.drift)).toBeCloseTo(32 / 120, 5);
+    let ticks = 1;
+    while (speed(player.drift) > 0 && ticks < 400) {
+      stepOnce(player, world, combat, ZERO_INTENT, debrisOptions());
+      ticks += 1;
+    }
+    expect(speed(player.drift)).toBe(0);
+    expect(ticks).toBe(Math.ceil(start / (32 / 120)));
+  });
+
+  it("leaves the player's drift exactly zero 400 m away (range plus radius is about 198 m)", () => {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    krait(world, player, vec(0, 0, 400));
+    const events = stepOnce(player, world, combat, FIRE, debrisOptions());
+    expect(events.some((e) => e.kind === "shipDestroyed")).toBe(true);
+    expect(player.drift).toEqual(vec(0, 0, 0));
+  });
+
+  it("never pushes a launching or a docked player, and nothing without debris content", () => {
+    const offset = vec(0, 0, 60);
+    const run = (
+      mode: FlightState["mode"],
+      options: StepOptions,
+    ): FlightState => {
+      const player = flyingPlayer();
+      const combat = createPlayerCombatState();
+      const world = createWorld(7);
+      krait(world, player, offset);
+      const shot = {
+        shooter: PLAYER_ID,
+        ray: playerLaserRay(
+          player.position,
+          player.orientation,
+          "fore",
+          "EQ_WEAPON_PULSE_LASER",
+        ),
+        laser: "EQ_WEAPON_PULSE_LASER",
+      } as const;
+      player.mode = mode;
+      const events = resolveShots(
+        world,
+        true,
+        player,
+        combat,
+        [shot],
+        options,
+        DT,
+        layout,
+      );
+      expect(events.some((e) => e.kind === "shipDestroyed")).toBe(true);
+      return player;
+    };
+    // The control: the same shot in flight pushes.
+    expect(run("inFlight", debrisOptions()).drift).not.toEqual(vec(0, 0, 0));
+    expect(run("launching", debrisOptions()).drift).toEqual(vec(0, 0, 0));
+    expect(run("docked", debrisOptions()).drift).toEqual(vec(0, 0, 0));
+    const bare: StepOptions = {
+      combat: { mounts: DEFAULT_LASER_MOUNTS, hulls: HULLS },
+    };
+    expect(run("inFlight", bare).drift).toEqual(vec(0, 0, 0));
   });
 });
