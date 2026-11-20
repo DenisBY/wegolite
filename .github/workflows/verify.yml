@@ -24,6 +24,13 @@ on:
     branches: [main]
   pull_request:
 
+# A newer push to the same pull request or branch cancels the older run, which
+# the newer one supersedes. A cancelled run on main concludes `cancelled`, so
+# pages.yml skips it and deploys from the newer run instead.
+concurrency:
+  group: verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
