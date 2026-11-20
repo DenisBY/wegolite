@@ -271,7 +271,7 @@ guide ([`AGENTS.md`](./AGENTS.md)) assumes them when they are present:
 
 - **[GSD (`@opengsd/gsd-core`)](https://github.com/open-gsd/gsd-core)** — the
   planning and execution workflow behind `.planning/` (phases, plans, summaries,
-  verification). Install with `npx -y @opengsd/gsd-core@latest --claude --local`.
+  verification). See the project's site for installation instructions.
 - **codebase-memory MCP** — a code knowledge graph for symbol, caller and
   architecture queries. Index this repository as project `wegolite` and, if you
   keep an Oolite source checkout for reference, index it as project `oolite`.
