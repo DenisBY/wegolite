@@ -12,6 +12,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and can be destroyed. A destroyed buoy explodes, no longer stops a laser and
   stays destroyed until you leave the system. Its removal from the view and
   the scanner follows in a later update.
+- Cargo pods and alloy plates can be shot; a navigation buoy's inner assembly
+  takes damage and can be shot away.
 - In a test session (`?test=1&traffic=1`) a new test hook member,
   `spawnTestAttacker()`, puts a Viper 3,000 m ahead of you that attacks you
   with Oolite's attack manoeuvres and fires through the NPC fire gate. It marks
