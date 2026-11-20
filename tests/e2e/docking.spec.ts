@@ -29,7 +29,11 @@ import {
   sub,
   vec,
 } from "../../src/sim/math.js";
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 
 test.setTimeout(120_000);
 
@@ -55,13 +59,15 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 30_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
 test("an independently derived aligned pose docks through the visible opening", async ({
   page,
 }) => {
+  // The old 90 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(90_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -215,7 +221,9 @@ async function placePose(
 test("a bounce shakes, flashes and messages, and a retry is immediate", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  // The old 150 s non-launch budget plus the first-launch wait (quick
+  // 261120-ryc).
+  test.setTimeout(150_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -540,7 +548,9 @@ test("docked Controls rebind keeps probe.mode docked and no pause", async ({
 test("Shift+C with the computer granted docks instantly with exactly 1200 s", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  // The old 150 s non-launch budget plus the first-launch wait (quick
+  // 261120-ryc).
+  test.setTimeout(150_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -600,7 +610,9 @@ test("Shift+C with the computer granted docks instantly with exactly 1200 s", as
 test("Shift+C beyond the station aegis stays in flight and says why", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  // The old 150 s non-launch budget plus the first-launch wait (quick
+  // 261120-ryc).
+  test.setTimeout(150_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());

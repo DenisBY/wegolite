@@ -18,13 +18,20 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { getProbe, hold, press, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  hold,
+  press,
+  waitForReady,
+} from "./helpers/probe.js";
 
 // The full verify chain runs the e2e suite with two workers. Under parallel
 // SwiftShader load this correctness spec (which waits on simulated time, not
 // wall time) can exceed the 30 s default; the bound is not a performance claim
-// (Pitfall 15).
-test.setTimeout(90_000);
+// (Pitfall 15). The budget is the old 60 s non-launch budget plus the
+// first-launch wait (quick 261120-ryc, FIRST_LAUNCH_WAIT_MS).
+test.setTimeout(60_000 + FIRST_LAUNCH_WAIT_MS);
 
 const TORUS_TEST_POINT = [
   -121_635.102_366_311_97, 149_362.238_845_820_7, -391_031.703_458_028_1,
@@ -48,7 +55,7 @@ async function bootToFlight(page: Page): Promise<void> {
       );
     },
     undefined,
-    { timeout: 30_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 

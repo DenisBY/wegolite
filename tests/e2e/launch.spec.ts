@@ -26,10 +26,16 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { getProbe, press, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  press,
+  waitForReady,
+} from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
-test.setTimeout(120_000);
+// The old 90 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+test.setTimeout(90_000 + FIRST_LAUNCH_WAIT_MS);
 
 async function bootToDocked(page: Page): Promise<void> {
   await page.goto("/?test=1");
@@ -65,7 +71,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 30_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 

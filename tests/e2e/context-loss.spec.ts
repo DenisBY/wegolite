@@ -23,11 +23,16 @@ import {
   CONTEXT_RESTORED_NOTICE,
   CONTEXT_RESTORE_FAILURE_COPY,
 } from "../../src/app/context-recovery.js";
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 import { readRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
 
-test.setTimeout(600_000);
+// The old 540 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+test.setTimeout(540_000 + FIRST_LAUNCH_WAIT_MS);
 
 /** The extension handle this spec stashes on `window` between evaluations. */
 interface LoseContextWindow {
@@ -52,7 +57,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 

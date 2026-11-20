@@ -14,7 +14,11 @@
 import { expect, test } from "@playwright/test";
 
 import { MAX_MESSAGE_CHARS } from "../../src/render/hud/format.js";
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 
 interface HudFrame {
   readonly canvas: { width: number; height: number } | null;
@@ -49,7 +53,7 @@ async function launch(page: import("@playwright/test").Page): Promise<void> {
       );
     },
     undefined,
-    { timeout: 30_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
@@ -76,7 +80,8 @@ function readHud(page: import("@playwright/test").Page): Promise<HudFrame> {
 test("the scanner and compass draw and the probe reports the station contact", async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  // The old 60 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(60_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -125,7 +130,8 @@ test("the scanner and compass draw and the probe reports the station contact", a
 test("the HUD set is the eleven v1 elements and letterboxes on ultrawide", async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  // The old 60 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(60_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -228,8 +234,10 @@ test("the message line is one clamped line and expires on flightTime", async ({
   // performance claim (Pitfall 15). The ceiling is deliberately generous
   // because a harness cadence regression must fail as "stuck", not as "slow".
   // CI measured 210 s on run 44125946218, 64 % of the former 330 s budget and
-  // above the owner's 60 % rule, so the wait is 450 s and the budget 480 s.
-  test.setTimeout(480_000);
+  // above the owner's 60 % rule, so the message wait is 450 s. The budget adds
+  // the first-launch wait to the 450 s non-launch budget (quick 261120-ryc,
+  // FIRST_LAUNCH_WAIT_MS); the 450 s message wait is unchanged.
+  test.setTimeout(450_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());

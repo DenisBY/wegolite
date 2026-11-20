@@ -12,7 +12,11 @@
 
 import { expect, test } from "@playwright/test";
 
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
 interface StoredSettings {
@@ -38,7 +42,7 @@ async function startAndLaunch(
       );
     },
     undefined,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
@@ -68,7 +72,8 @@ async function storedSettings(
 test("rebinding roll-right persists through reload and changes the flight", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  // The old 60 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(60_000 + 2 * FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -150,7 +155,8 @@ test("rebinding roll-right persists through reload and changes the flight", asyn
 test("pause freezes the clock and resume never replays hidden time", async ({
   page,
 }) => {
-  test.setTimeout(120_000);
+  // The old 60 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(60_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -191,7 +197,8 @@ test("pause freezes the clock and resume never replays hidden time", async ({
 test("blur and visibility hidden auto-pause and clear held input", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  // The old 120 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(120_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -260,7 +267,8 @@ test("blur and visibility hidden auto-pause and clear held input", async ({
 test("the focus-loss toggle decides whether blur and a hidden tab pause the game", async ({
   page,
 }) => {
-  test.setTimeout(180_000);
+  // The old 60 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(60_000 + 2 * FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -347,7 +355,8 @@ test("the focus-loss toggle decides whether blur and a hidden tab pause the game
 test("the overlay traps focus and Escape backs out one level", async ({
   page,
 }) => {
-  test.setTimeout(120_000);
+  // The old 60 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(60_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -397,7 +406,8 @@ test("the overlay traps focus and Escape backs out one level", async ({
 test("the High-quality toggle rebuilds the planet, persists and resets", async ({
   page,
 }) => {
-  test.setTimeout(240_000);
+  // The old 120 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(120_000 + 2 * FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -482,7 +492,8 @@ test("the High-quality toggle rebuilds the planet, persists and resets", async (
 test("the Show FPS toggle shows a live counter in flight and docked, persists and resets", async ({
   page,
 }) => {
-  test.setTimeout(240_000);
+  // The old 180 s non-launch budget plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(180_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());

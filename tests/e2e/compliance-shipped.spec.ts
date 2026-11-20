@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { waitForReady } from "./helpers/probe.js";
+import { FIRST_LAUNCH_WAIT_MS, waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
 const DOCUMENTS = ["NOTICE", "LICENSE", "ASSETS.md"] as const;
@@ -109,6 +109,8 @@ test("the CSP blocks a cross-origin connection from the shipped page", async ({
 });
 
 test("booting to flight raises no CSP violation", async ({ page }) => {
+  // The old 30 s default plus the first-launch wait (quick 261120-ryc).
+  test.setTimeout(30_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
 
   // Count violations from the first script onward, so a violation during boot
@@ -135,7 +137,7 @@ test("booting to flight raises no CSP violation", async ({ page }) => {
   await page.waitForFunction(
     () => window.__wegolite?.mode === "inFlight",
     undefined,
-    { timeout: 120_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 
   const violations = await page.evaluate(

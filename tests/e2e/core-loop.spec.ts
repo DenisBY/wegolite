@@ -64,7 +64,7 @@ import {
   watchConsole,
   watchNetwork,
 } from "./helpers/guards.js";
-import { getProbe } from "./helpers/probe.js";
+import { FIRST_LAUNCH_WAIT_MS, getProbe } from "./helpers/probe.js";
 import { readRaw, writeRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
 
@@ -92,7 +92,9 @@ function scaled(milliseconds: number): number {
 /** The bound for one UI or probe wait, before scaling. */
 const UI_WAIT = scaled(30_000);
 
-test.setTimeout(scaled(1_200_000));
+// The old 1,140 s non-launch budget plus the first-launch wait (quick
+// 261120-ryc).
+test.setTimeout(scaled(1_140_000 + FIRST_LAUNCH_WAIT_MS));
 
 async function waitReady(page: Page): Promise<void> {
   await page.waitForFunction(
@@ -114,7 +116,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: scaled(60_000) },
+    { timeout: scaled(FIRST_LAUNCH_WAIT_MS) },
   );
 }
 

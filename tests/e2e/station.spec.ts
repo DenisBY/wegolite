@@ -15,7 +15,11 @@ import type { Page } from "@playwright/test";
 
 import { formatDecicredits } from "../../src/sim/player/profile.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 
 test.setTimeout(180_000);
 
@@ -281,6 +285,9 @@ test("F8 and F5 fit at 1280x720 without scrolling", async ({ page }) => {
 test("launch and redock reuse the persisted seed, prices and stock", async ({
   page,
 }) => {
+  // The old 150 s non-launch budget plus the first-launch wait (quick
+  // 261120-ryc).
+  test.setTimeout(150_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await bootToHome(page);
 
@@ -294,7 +301,7 @@ test("launch and redock reuse the persisted seed, prices and stock", async ({
   await page.waitForFunction(
     () => window.__wegolite?.mode === "inFlight",
     undefined,
-    { timeout: 30_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 
   const granted = await page.evaluate(() => {
@@ -821,6 +828,9 @@ test("real F3/F5/F8 presses never reload the page", async ({ page }) => {
 });
 
 test("station F-keys are inert in flight", async ({ page }) => {
+  // The old 150 s non-launch budget plus the first-launch wait (quick
+  // 261120-ryc).
+  test.setTimeout(150_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await bootToHome(page);
   const before = await getProbe(page);
@@ -829,7 +839,7 @@ test("station F-keys are inert in flight", async ({ page }) => {
   await page.waitForFunction(
     () => window.__wegolite?.mode === "inFlight",
     undefined,
-    { timeout: 30_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 
   for (const key of ["F8", "F3", "F5"]) {

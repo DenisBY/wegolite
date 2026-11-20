@@ -69,7 +69,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { waitForReady } from "./helpers/probe.js";
+import { FIRST_LAUNCH_WAIT_MS, waitForReady } from "./helpers/probe.js";
 import {
   compareProbeShapes,
   PROBE_SHAPE_OPTIONAL_KEYS,
@@ -135,13 +135,15 @@ const recorded: Partial<Record<StateName, unknown>> = {};
 
 /**
  * Wait until the probe is in `mode` and publishes every key in `keys` (a dotted
- * path; a trailing `[]` requires a non-empty list).
+ * path; a trailing `[]` requires a non-empty list). `timeout` defaults to SLOW;
+ * a wait that spans an unskipped launch passes FIRST_LAUNCH_WAIT_MS.
  */
 async function waitForState(
   page: Page,
   mode: string,
   keys: readonly string[],
   committed = 0,
+  timeout = SLOW,
 ): Promise<void> {
   await page.waitForFunction(
     (arg) => {
@@ -165,7 +167,7 @@ async function waitForState(
       return arg.committed === 0 || (save?.committed ?? 0) >= arg.committed;
     },
     { mode, keys: [...keys], committed },
-    { timeout: SLOW },
+    { timeout },
   );
 }
 
@@ -287,11 +289,13 @@ test("chart probe shape", async ({ page }, testInfo) => {
 
 test("in-flight probe shape", async ({ page }, testInfo) => {
   // CI measured 23.8 s of the 30 s default (79 %), above the owner's 60 % rule.
-  test.setTimeout(60_000);
+  // The budget is the old 30 s non-launch budget plus the first-launch wait
+  // (quick 261120-ryc).
+  test.setTimeout(30_000 + FIRST_LAUNCH_WAIT_MS);
   await bootDocked(page, "/");
   await page.click('button[data-action="launch"]');
   // The launch autosave must be committed so `save.lastClock` is a number.
-  await waitForState(page, "inFlight", IN_FLIGHT_KEYS, 1);
+  await waitForState(page, "inFlight", IN_FLIGHT_KEYS, 1, FIRST_LAUNCH_WAIT_MS);
   await waitForFrames(page, 3);
   await checkState(page, "inFlight", testInfo);
 });
