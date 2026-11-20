@@ -201,7 +201,7 @@ describe("what the sights pick", () => {
     expect(combat.identTarget).toBe(first);
   });
 
-  it("ignores a ship behind the view, off the axis, out of range or not a ship", () => {
+  it("ignores a ship behind the view, off the axis, out of range, a wreck or a CLASS_NO_DRAW ship", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     const world = createWorld(7);
@@ -210,7 +210,9 @@ describe("what the sights pick", () => {
     spawnShip(world, "offaxis", ahead(4000, 40));
     // Inside the scanner range but beyond the 25,500 m acquisition range.
     spawnShip(world, "toofar", ahead(25_560));
-    spawnShip(world, "crate", ahead(3000), { kind: "cargo" });
+    // A wreck cannot collide (D-07, Universe.m:5691); a pod or plate can and
+    // is locked (plan 18-06, below).
+    spawnShip(world, "wreck", ahead(3000), { kind: "wreckage" });
     spawnShip(world, "hidden", ahead(2500), { scanClass: "CLASS_NO_DRAW" });
 
     const events = step(player, world, combat, [IDENT]);
@@ -269,7 +271,6 @@ describe("what the sights pick", () => {
     step(player, world, combat, [IDENT]);
     expect(combat.identTarget).toBe(left);
   });
-
 });
 
 describe("R locks the station (tracer, CBT-17 criterion 3)", () => {

@@ -719,7 +719,8 @@ export function resolveShots(
     drainAiEventsNow(world, player, layout, player.tick, events, registry);
     for (const id of commitWorld(world))
       events.push({ kind: "entityRemoved", id });
-    if (combat !== undefined) updateIdentTarget(combat, player, world, events);
+    if (combat !== undefined)
+      updateIdentTarget(combat, player, world, events, layout);
   }
   return events;
 }

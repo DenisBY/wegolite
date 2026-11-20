@@ -10,8 +10,17 @@
  * (`PlayerEntityControls.m` pinned `:1255-1258`, `:1404-1418`, `:4758-4773`),
  * `updateTargeting` (`PlayerEntity.m:3699-3750`), `isValidTarget` (`:3595-3628`)
  * and `firstEntityTargetedByPlayer` (`Universe.m:5648-5710`). The search is
- * sphere-based on the entity's `radius` and tied to the view direction, so it
- * needs no hull data.
+ * sphere-based on the target's collision radius and tied to the view
+ * direction, so it needs no hull data and works with traffic off.
+ *
+ * The targets are everything Oolite's search lists that `canCollide`
+ * (`Universe.m:5689-5707`, plan 18-06, CBT-17): the main station and the two
+ * buoys (the static targets of `../world/statics.ts`, ids 3 to 5, at their
+ * live position, PD-02, and their layout radius, the collision radius), the
+ * dynamic ships, and the pods and plates (kind `cargo`, D-07). A wreck cannot
+ * collide (`ShipEntity.m:1858-1868`) and is never a target; a destroyed buoy is
+ * no target (D-05); a buoy's frangible subentity is no entity of its own in
+ * Oolite's list and is never a target either.
  *
  * The combat step runs it in two halves, both inside `./step.ts` so `../sim.ts`
  * is unchanged:
@@ -32,8 +41,17 @@ import type { SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { add, dot, lengthSquared, rotate, sub } from "../math.js";
 import type { Vec3 } from "../math.js";
+import type { Entity } from "../world/entity.js";
 import { NO_ENTITY } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import type { SystemLayout } from "../world/layout.js";
+import {
+  STATIC_TARGETS,
+  buoyPosition,
+  isBuoyDestroyed,
+  staticTargetById,
+} from "../world/statics.js";
+import type { StaticTarget } from "../world/statics.js";
 import type { World } from "../world/world.js";
 import { laserFrame } from "./aim.js";
 import {
@@ -44,7 +62,7 @@ import {
 } from "./constants.js";
 import type { PlayerCombatState } from "./state.js";
 
-/** A locked ship as the HUD frames it: where it is and its collision radius. */
+/** A locked target as the HUD frames it: where it is and its collision radius. */
 export interface IdentTargetSnapshot {
   readonly position: Vec3;
   readonly radius: number;
@@ -58,40 +76,90 @@ function hasEvent(
 }
 
 /**
- * Whether the locked ship is still a valid target (`isValidTarget`): it exists
- * in this world, is a live ship and lies within scanner range of the player.
- * Oolite loses a target when `zero_distance > SCANNER_MAX_RANGE2`, so a ship at
- * exactly 25,600 m is still valid. The test is written so a non-finite distance
- * is never valid.
+ * The ident sphere of a static target now: the station at its layout centre,
+ * a buoy at its live position (`buoyPosition`, PD-02), each with its layout
+ * radius, Oolite's collision radius (`../world/layout.ts`). Undefined for a
+ * destroyed buoy (D-05).
+ */
+function staticSphere(
+  row: StaticTarget,
+  world: World,
+  layout: SystemLayout,
+): IdentTargetSnapshot | undefined {
+  if (row.layoutKey === "station") {
+    return {
+      position: layout.station.position,
+      radius: layout.station.radius,
+    };
+  }
+  if (isBuoyDestroyed(world, row.layoutKey)) return undefined;
+  return {
+    position: buoyPosition(world, layout, row.layoutKey),
+    radius: layout[row.layoutKey].radius,
+  };
+}
+
+/**
+ * Whether a store entity can be an ident target: a live ship, pod or plate
+ * (`canCollide`, D-07). A wreck never can.
+ */
+function isTargetableEntity(entity: Entity): boolean {
+  return !entity.dead && (entity.kind === "ship" || entity.kind === "cargo");
+}
+
+/**
+ * The target `id` names now, or undefined when it names no target of this
+ * world: a static row (a buoy not destroyed) or a live ship, pod or plate.
+ */
+function targetSphere(
+  world: World,
+  layout: SystemLayout,
+  id: EntityId,
+): IdentTargetSnapshot | undefined {
+  const row = staticTargetById(id);
+  if (row !== undefined) return staticSphere(row, world, layout);
+  const entity = world.store.get(id);
+  if (entity === undefined || !isTargetableEntity(entity)) return undefined;
+  return { position: entity.position, radius: entity.radius };
+}
+
+/**
+ * Whether the locked target is still valid (`isValidTarget`): it is a target of
+ * this world (a static row whose buoy is not destroyed, or a live ship, pod or
+ * plate) and lies within scanner range of the player. Oolite loses a target
+ * when `zero_distance > SCANNER_MAX_RANGE2`, so a target at exactly 25,600 m
+ * is still valid. The test is written so a non-finite distance is never valid.
  */
 function isValidTarget(
   world: World,
   player: FlightState,
   id: EntityId,
+  layout: SystemLayout,
 ): boolean {
-  const entity = world.store.get(id);
-  if (entity === undefined || entity.dead || entity.kind !== "ship") {
-    return false;
-  }
-  const distance2 = lengthSquared(sub(entity.position, player.position));
+  const sphere = targetSphere(world, layout, id);
+  if (sphere === undefined) return false;
+  const distance2 = lengthSquared(sub(sphere.position, player.position));
   return distance2 <= SCANNER_MAX_RANGE * SCANNER_MAX_RANGE;
 }
 
 /**
- * `-[Universe firstEntityTargetedByPlayer]`: the nearest ship whose collision
+ * `-[Universe firstEntityTargetedByPlayer]`: the nearest target whose collision
  * sphere the view axis passes through, within `IDENT_ACQUIRE_RANGE` (100 m
  * inside the scanner range) and in front of the view. The origin is the player
  * position plus the view offset rotated by the ship's orientation; the axis is
  * the facing's forward from `laserFrame`, the same rotation the lasers and the
- * cameras use. Candidates are the live, non-dead dynamic ships in ascending id;
- * the strict `<` keeps the first on an equal distance. The station and the
- * buoys are static entities and never candidates; a `CLASS_NO_DRAW` ship is
- * skipped as Oolite skips it. Returns `NO_ENTITY` when nothing is in the sights.
+ * cameras use. Candidates are visited in ascending id: the static targets (the
+ * station, 3, and the buoys, 4 and 5, unless destroyed, at their live position
+ * and layout radius), then the live dynamic ships, pods and plates of the
+ * store; the strict `<` keeps the first on an equal distance. A wreck cannot
+ * collide and is skipped, as is a `CLASS_NO_DRAW` entity, as Oolite skips both
+ * (`Universe.m:5691`). Returns `NO_ENTITY` when nothing is in the sights.
  */
 function firstEntityTargetedByPlayer(
   player: FlightState,
   combat: PlayerCombatState,
   world: World,
+  layout: SystemLayout,
 ): EntityId {
   const frame = laserFrame(player.orientation, combat.view);
   const origin = add(
@@ -103,25 +171,29 @@ function firstEntityTargetedByPlayer(
   );
   let nearest2 = IDENT_ACQUIRE_RANGE * IDENT_ACQUIRE_RANGE;
   let hit: EntityId = NO_ENTITY;
-  for (const entity of world.store.live) {
-    if (
-      entity.dead ||
-      entity.kind !== "ship" ||
-      entity.scanClass === "CLASS_NO_DRAW"
-    ) {
-      continue;
-    }
-    const rp = sub(entity.position, origin);
+  const consider = (id: EntityId, position: Vec3, radius: number): void => {
+    const rp = sub(position, origin);
     const dist2 = lengthSquared(rp);
-    if (!(dist2 < nearest2)) continue;
+    if (!(dist2 < nearest2)) return;
     const df = dot(frame.forward, rp);
-    if (!(df > 0 && df * df < nearest2)) continue;
+    if (!(df > 0 && df * df < nearest2)) return;
     const du = dot(frame.up, rp);
     const dr = dot(frame.right, rp);
-    if (du * du + dr * dr < entity.radius * entity.radius) {
-      hit = entity.id;
+    if (du * du + dr * dr < radius * radius) {
+      hit = id;
       nearest2 = dist2;
     }
+  };
+  // The static targets first: their ids (3 to 5) are below every store id.
+  for (const row of STATIC_TARGETS) {
+    const sphere = staticSphere(row, world, layout);
+    if (sphere !== undefined) consider(row.id, sphere.position, sphere.radius);
+  }
+  for (const entity of world.store.live) {
+    if (!isTargetableEntity(entity) || entity.scanClass === "CLASS_NO_DRAW") {
+      continue;
+    }
+    consider(entity.id, entity.position, entity.radius);
   }
   return hit;
 }
@@ -179,21 +251,24 @@ export function stepIdent(
 }
 
 /**
- * The post-world half (`updateTargeting`): runs after shot resolution, only on a
- * tick that stepped the world. A target that is no longer valid is dropped with
- * `identLost` (ident stays engaged); then, with ident engaged, no target and
- * the player in flight, the ship in the sights is locked and `identLocked`
- * carries its spec key.
+ * The post-world half (`updateTargeting`): runs after shot resolution and the
+ * kills, only on a tick that stepped the world. A target that is no longer
+ * valid is dropped with `identLost` (ident stays engaged), so a buoy destroyed
+ * this tick loses its lock on the same tick (D-05); then, with ident engaged,
+ * no target and the player in flight, the target in the sights is locked and
+ * `identLocked` carries its spec key: a static's compiled ident name key, or
+ * the entity's spec key.
  */
 export function updateIdentTarget(
   combat: PlayerCombatState,
   player: FlightState,
   world: World,
   events: SimEvent[],
+  layout: SystemLayout,
 ): void {
   if (
     combat.identTarget !== NO_ENTITY &&
-    !isValidTarget(world, player, combat.identTarget)
+    !isValidTarget(world, player, combat.identTarget, layout)
   ) {
     combat.identTarget = NO_ENTITY;
     if (combat.identEngaged) events.push({ kind: "identLost" });
@@ -203,30 +278,35 @@ export function updateIdentTarget(
     combat.identTarget === NO_ENTITY &&
     player.mode === "inFlight"
   ) {
-    const found = firstEntityTargetedByPlayer(player, combat, world);
+    const found = firstEntityTargetedByPlayer(player, combat, world, layout);
     if (found !== NO_ENTITY) {
-      const entity = world.store.get(found);
-      if (entity !== undefined) {
+      const specKey =
+        staticTargetById(found)?.identKey ?? world.store.get(found)?.specKey;
+      if (specKey !== undefined) {
         combat.identTarget = found;
-        events.push({ kind: "identLocked", specKey: entity.specKey });
+        events.push({ kind: "identLocked", specKey });
       }
     }
   }
 }
 
 /**
- * The locked ship's position and collision radius, for the HUD frame, or
- * undefined when nothing is locked, there is no world or the id names no live
- * ship in it. Read-only.
+ * The locked target's position and collision radius, for the HUD frame and the
+ * probe, or undefined when nothing is locked, there is no world or no layout,
+ * or the id names no target of the world (a destroyed buoy, a ship that is
+ * gone). A static's position is its live one. Read-only; no id leaves it.
  */
 export function identTargetSnapshot(
   combat: PlayerCombatState,
   world: World | undefined,
+  layout: SystemLayout | undefined,
 ): IdentTargetSnapshot | undefined {
-  if (world === undefined || combat.identTarget === NO_ENTITY) return undefined;
-  const entity = world.store.get(combat.identTarget);
-  if (entity === undefined || entity.dead || entity.kind !== "ship") {
+  if (
+    world === undefined ||
+    layout === undefined ||
+    combat.identTarget === NO_ENTITY
+  ) {
     return undefined;
   }
-  return { position: entity.position, radius: entity.radius };
+  return targetSphere(world, layout, combat.identTarget);
 }

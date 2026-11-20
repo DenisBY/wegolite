@@ -395,6 +395,8 @@ describe("probe.combat (plan 13-14)", () => {
 
   it("flags a live lock without ever publishing the locked entity's id", () => {
     const { ctx, probe, publisher } = harness();
+    // The snapshot reads the layout (plan 18-06: a static lock's live pose).
+    ctx.core.layout = layout;
     ctx.core.state = initFlightState(layout);
     const world = createWorld(7);
     const spawned = spawnEntity(

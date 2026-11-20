@@ -296,6 +296,26 @@ export function formatIdentLocked(
     .join(scanClass);
 }
 
+/**
+ * The display name of an ident lock's spec key (plan 18-06, CBT-17): the NPC
+ * traffic catalogue's name, else the compiled target name (the station, the
+ * buoys, pods and plates, from the static artifact), else the key itself.
+ * Every name comes from compiled content; with traffic off neither table is
+ * loaded and the key is the name.
+ */
+export function identName(
+  specKey: string,
+  catalogue:
+    readonly { readonly key: string; readonly name: string }[] | undefined,
+  targetNames: ReadonlyMap<string, string> | undefined,
+): string {
+  return (
+    catalogue?.find((record) => record.key === specKey)?.name ??
+    targetNames?.get(specKey) ??
+    specKey
+  );
+}
+
 /** What the HUD message subscriber calls outside the session context. */
 export interface HudMessagesDeps {
   readonly messages: Pick<MessageQueue, "enqueue" | "clearPrevious">;
@@ -406,15 +426,17 @@ export function createHudMessages(
       case "identLocked":
         // ident-locked-onto-target lasts 4.5 s (PlayerEntity.m:10917).
         throttled("identLocked", 4.5, () => {
-          // The event carries the spec key only; the name and class come from
-          // the session's own catalogue, falling back to the key (never an id).
-          const ship = ctx.core.npcTraffic?.catalogue.find(
+          // The event carries the spec key only; the name comes from the
+          // session's compiled catalogues (`identName`) and the class from the
+          // NPC record, each falling back to the key (never an id).
+          const catalogue = ctx.core.npcTraffic?.catalogue;
+          const ship = catalogue?.find(
             (candidate) => candidate.key === event.specKey,
           );
-          return formatIdentLocked(
-            IDENT_LOCKED_TEMPLATE,
-            ship ?? { name: event.specKey, scanClass: event.specKey },
-          );
+          return formatIdentLocked(IDENT_LOCKED_TEMPLATE, {
+            name: identName(event.specKey, catalogue, ctx.core.targetNames),
+            scanClass: ship?.scanClass ?? event.specKey,
+          });
         });
         break;
       case "identLost":

@@ -457,8 +457,11 @@ export function createProbePublisher(
         laserTemp: combat.laserTemp[combat.view],
         cabinTemp: combat.cabinTemp,
         identLocked:
-          identTargetSnapshot(combat, ctx.core.worldLifecycle?.world) !==
-          undefined,
+          identTargetSnapshot(
+            combat,
+            ctx.core.worldLifecycle?.world,
+            ctx.core.layout,
+          ) !== undefined,
       };
     } else {
       delete probe.combat;

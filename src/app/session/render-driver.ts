@@ -383,10 +383,12 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
   }
 
   /**
-   * D-03: the frame around the ident-locked ship, projected through the pose
-   * the scene is drawn from this frame (the current view, shake included), or
-   * null with no lock, no world, no in-flight pose or the ship out of view.
-   * The lock's entity id never leaves the sim (`identTargetSnapshot`).
+   * D-03: the frame around the ident-locked target, projected through the
+   * pose the scene is drawn from this frame (the current view, shake
+   * included), or null with no lock, no world, no layout, no in-flight pose or
+   * the target out of view. A static target (the station, a buoy) is framed at
+   * its live position and layout radius (plan 18-06). The lock's entity id
+   * never leaves the sim (`identTargetSnapshot`).
    */
   function identFrameFor(
     live: THREE.PerspectiveCamera,
@@ -394,7 +396,11 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
   ): IdentFrame | null {
     const combat = ctx.core.combat;
     if (combat === undefined || pose === null) return null;
-    const target = identTargetSnapshot(combat, ctx.core.worldLifecycle?.world);
+    const target = identTargetSnapshot(
+      combat,
+      ctx.core.worldLifecycle?.world,
+      ctx.core.layout,
+    );
     if (target === undefined) return null;
     return projectIdentFrame(
       pose,

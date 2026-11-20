@@ -223,10 +223,21 @@ export const SESSION_CONTENT_LOADERS: SessionContentLoaders = {
 /** What the boot content load hands back beyond what it installs on `ctx`. */
 export interface SessionContent {
   /**
-   * The static artifact's compiled ident names (plan 18-06 installs them);
-   * `undefined` with traffic off.
+   * The static artifact's compiled ident names; `undefined` with traffic off.
+   * `startSession` installs them as `ctx.core.targetNames` (plan 18-06).
    */
   readonly staticNames: readonly StaticName[] | undefined;
+}
+
+/**
+ * The ident name table of the static artifact's compiled `names` (plan 18-06):
+ * spec key to display name, or undefined without the artifact (traffic off).
+ */
+export function targetNameMap(
+  names: readonly StaticName[] | undefined,
+): ReadonlyMap<string, string> | undefined {
+  if (names === undefined) return undefined;
+  return new Map(names.map((entry) => [entry.key, entry.name]));
 }
 
 /**
@@ -531,6 +542,9 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       },
     );
     if (content === undefined) return;
+    // CBT-17: the ident lock names a static target, pod or plate from the
+    // compiled names; with traffic off there are none and it prints the key.
+    ctx.core.targetNames = targetNameMap(content.staticNames);
 
     const playerDef = playerShip(catalogue).shipDef;
     const stationEntry = stationShip(catalogue);
@@ -1022,6 +1036,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.core.state = undefined;
     ctx.core.combat = undefined;
     ctx.core.hulls = undefined;
+    ctx.core.targetNames = undefined;
     ctx.core.scene = undefined;
     ctx.core.layout = undefined;
     // The world dies with the live state; the epoch stays (plan 08-15).

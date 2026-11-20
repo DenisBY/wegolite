@@ -154,7 +154,8 @@ describe("startSession installs the target names (source fact)", () => {
     // input), so the wiring is pinned as source facts, as start-session.test
     // pins the content load.
     const source = readFileSync("src/app/session/start-session.ts", "utf8");
-    const install = "ctx.core.targetNames = targetNameMap(content.staticNames);";
+    const install =
+      "ctx.core.targetNames = targetNameMap(content.staticNames);";
     expect(source.split(install)).toHaveLength(2);
     const load = source.indexOf("const content = await loadSessionContent(");
     expect(load).toBeGreaterThan(0);

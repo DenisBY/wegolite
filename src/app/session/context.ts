@@ -192,6 +192,14 @@ export interface SessionCore {
    * Static content keyed by spec key.
    */
   hulls: HullTable | undefined;
+  /**
+   * The compiled ident names of the static targets, pods and plates, keyed by
+   * spec key (plan 18-06, CBT-17): the static artifact's `names`, installed
+   * from the boot load. Loaded with the static hulls and only with traffic on,
+   * so it is undefined with traffic off (the lock message then prints the
+   * key) and until the boot load has finished. Static content; no entity id.
+   */
+  targetNames: ReadonlyMap<string, string> | undefined;
 }
 
 /** The station computer's own state; the UI is purely presentational. */
@@ -395,6 +403,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       npcTraffic: undefined,
       combat: undefined,
       hulls: undefined,
+      targetNames: undefined,
     },
     station: {
       stationScreen: "home",
