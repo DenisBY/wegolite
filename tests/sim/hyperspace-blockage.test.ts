@@ -29,14 +29,19 @@ import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import type { StepOptions } from "../../src/sim/flight/step.js";
 import {
+  BUOY_SUBENTITY_MASS,
   CORIOLIS_STATION_MASS,
   HYPERSPACE_COUNTDOWN_STEPS,
   isWitchspaceBlocked,
+  NAV_BUOY_HULL_MASS,
+  NAV_BUOY_MASS,
   witchspaceBlockedAt,
   witchspaceStationMass,
   WITCH_BLOCK_K,
 } from "../../src/sim/hyperspace/countdown.js";
 import { add, vec } from "../../src/sim/math.js";
+import type { Vec3 } from "../../src/sim/math.js";
+import type { ShipField } from "../../src/sim/world/ship-field.js";
 import { DT } from "../../src/sim/time.js";
 import { laveFixture } from "../helpers/lave.js";
 
@@ -252,5 +257,228 @@ describe("witchspace mass blockage (NAV-04)", () => {
         jumped = true;
     }
     expect(jumped).toBe(true);
+  });
+});
+
+/**
+ * The two navigation buoys block a completing jump (Phase 18, D-09, PD-01).
+ * Oolite's loop tests every ship, buoys included, by `0.1 x [ship mass] > d^2`
+ * and `d^2 < SCANNER_MAX_RANGE2` (ShipEntity.m lines 12498-12531). The buoy's
+ * mass is the composite the content build compiles (hull 691,044.375 plus the
+ * frangible subentity 7,646.786), so the blockage radius is
+ * `sqrt(69,869.11875)`, about 264.33 m.
+ */
+describe("witchspace buoy blockage (D-09)", () => {
+  const lave = byName("Lave");
+  const diso = byName("Diso");
+  const fixture = laveFixture();
+  const { layout, config } = fixture;
+  const laveOrigin = { id: lave.id, x: lave.chartX, y: lave.chartY };
+  const witchpoint = layout.witchpoint.position;
+  const navBuoy = layout.navBuoy.position;
+
+  interface BuoyOptions {
+    readonly buoyMass?: number;
+    readonly stationMass?: number;
+  }
+
+  function optionsWith(facts: BuoyOptions): StepOptions {
+    return {
+      hyperspace: {
+        fuel: 70,
+        origin: laveOrigin,
+        target: { id: diso.id, x: diso.chartX, y: diso.chartY },
+        ...(facts.stationMass === undefined
+          ? {}
+          : { stationMass: facts.stationMass }),
+        ...(facts.buoyMass === undefined ? {} : { buoyMass: facts.buoyMass }),
+      },
+    };
+  }
+
+  function shipNear(centre: Vec3, distance: number): FlightState {
+    const state = initFlightState(layout);
+    state.mode = "inFlight";
+    state.dockArmed = false;
+    state.position = add(centre, vec(distance, 0, 0));
+    return state;
+  }
+
+  /**
+   * Begin a countdown at `state`'s pose and run it to completion; return the
+   * completion tick's events, the countdown's refusal count and the clock it
+   * spent.
+   */
+  function complete(
+    state: FlightState,
+    options: StepOptions,
+    ships?: ShipField,
+  ): { last: SimEvent[]; refused: number; elapsed: number } {
+    stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      [{ kind: "beginHyperspace" }],
+      DT,
+      options,
+      ships,
+    );
+    const clockBefore = state.clockSeconds;
+    let last: SimEvent[] = [];
+    let refused = 0;
+    for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS; i += 1) {
+      last = stepFlight(
+        state,
+        layout,
+        config,
+        ZERO_INTENT,
+        [],
+        DT,
+        options,
+        ships,
+      );
+      refused += last.filter(
+        (event) => event.kind === "hyperspaceRefused",
+      ).length;
+    }
+    return { last, refused, elapsed: state.clockSeconds - clockBefore };
+  }
+
+  function readJson<T>(path: string): T {
+    return JSON.parse(
+      readFileSync(new URL(path, import.meta.url), "utf8"),
+    ) as T;
+  }
+
+  it("pins the buoy masses to the compiled catalogue and the static artifact", () => {
+    const catalogue = readJson<{ key: string; mass: number }[]>(
+      "../../src/content/generated/ships-client.json",
+    );
+    const buoy = catalogue.find((entry) => entry.key === "buoy");
+    if (buoy === undefined) throw new Error("no buoy entry");
+    expect(buoy.mass).toBe(NAV_BUOY_MASS);
+    expect(NAV_BUOY_MASS).toBe(698_691.1875);
+
+    const statics = readJson<{
+      hulls: { key: string; subentities?: { mass: number }[] }[];
+    }>("../../src/content/generated/ships-static-hulls.json");
+    const hull = statics.hulls.find((entry) => entry.key === "buoy");
+    expect(hull?.subentities?.[0]?.mass).toBe(BUOY_SUBENTITY_MASS);
+    expect(BUOY_SUBENTITY_MASS).toBe(7_646.7861328125);
+
+    // Oolite subtracts the dead subentity from a GLfloat mass (ShipEntity.m
+    // line 8194), so the detached buoy holds the float32 of the difference,
+    // which equals the compiled hull-only mass of oolite_buoy.dat
+    // (tools/oolite-ingest/convert/ship-mass.test.ts line 112).
+    expect(NAV_BUOY_HULL_MASS).toBe(
+      Math.fround(NAV_BUOY_MASS - BUOY_SUBENTITY_MASS),
+    );
+    expect(NAV_BUOY_HULL_MASS).toBe(691_044.375);
+  });
+
+  it("puts the blockage radius between 263.3 m and 265.3 m", () => {
+    const radius = Math.sqrt(WITCH_BLOCK_K * NAV_BUOY_MASS);
+    expect(radius).toBeGreaterThan(264.3);
+    expect(radius).toBeLessThan(264.4);
+  });
+
+  it("refuses a completion 263.3 m from the nav buoy, naming it, with no fuel or jump time spent", () => {
+    const state = shipNear(navBuoy, 263.3);
+    const result = complete(state, optionsWith({ buoyMass: NAV_BUOY_MASS }));
+    expect(result.refused).toBe(1);
+    expect(result.last).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "navBuoy" },
+    ]);
+    expect(state.hyperspaceCountdown).toBe(0);
+    expect(state.hyperspaceTarget).toBeNull();
+    expect(result.elapsed).toBeCloseTo(DT * HYPERSPACE_COUNTDOWN_STEPS, 1);
+  });
+
+  it("commits a completion 265.3 m from the nav buoy", () => {
+    const state = shipNear(navBuoy, 265.3);
+    const result = complete(state, optionsWith({ buoyMass: NAV_BUOY_MASS }));
+    expect(result.refused).toBe(0);
+    expect(result.last.map((event) => event.kind)).toContain(
+      "hyperspaceJumped",
+    );
+  });
+
+  it("names the witchpoint beacon when it blocks", () => {
+    const inside = complete(
+      shipNear(witchpoint, 263.3),
+      optionsWith({ buoyMass: NAV_BUOY_MASS }),
+    );
+    expect(inside.last).toEqual([
+      {
+        kind: "hyperspaceRefused",
+        reason: "blocked",
+        blocker: "witchpointBeacon",
+      },
+    ]);
+    const outside = complete(
+      shipNear(witchpoint, 265.3),
+      optionsWith({ buoyMass: NAV_BUOY_MASS }),
+    );
+    expect(outside.refused).toBe(0);
+  });
+
+  it("blocks nothing without a buoy mass, or with a NaN or negative one (T-18-16)", () => {
+    for (const buoyMass of [undefined, Number.NaN, -1, 0]) {
+      const facts = buoyMass === undefined ? {} : { buoyMass };
+      for (const centre of [navBuoy, witchpoint]) {
+        const result = complete(shipNear(centre, 10), optionsWith(facts));
+        expect(result.refused).toBe(0);
+        expect(result.last.map((event) => event.kind)).toContain(
+          "hyperspaceJumped",
+        );
+      }
+    }
+  });
+
+  it("checks the station first, then the buoys, then the NPC ships", () => {
+    // A synthetic layout puts the nav buoy beside the station, so both block.
+    const crowded = {
+      ...layout,
+      navBuoy: { ...layout.navBuoy, position: layout.station.position },
+    };
+    const atStation = initFlightState(crowded);
+    atStation.mode = "inFlight";
+    atStation.dockArmed = false;
+    atStation.position = add(layout.station.position, vec(100, 0, 0));
+    const both = optionsWith({
+      buoyMass: NAV_BUOY_MASS,
+      stationMass: CORIOLIS_STATION_MASS,
+    });
+    stepFlight(
+      atStation,
+      crowded,
+      config,
+      ZERO_INTENT,
+      [{ kind: "beginHyperspace" }],
+      DT,
+      both,
+    );
+    let last: SimEvent[] = [];
+    for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS; i += 1) {
+      last = stepFlight(atStation, crowded, config, ZERO_INTENT, [], DT, both);
+    }
+    expect(last).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "station" },
+    ]);
+
+    // A field whose every ship blocks still loses to the buoy.
+    const everyShipBlocks: ShipField = {
+      massLocked: () => false,
+      blocks: () => true,
+    };
+    const result = complete(
+      shipNear(navBuoy, 10),
+      optionsWith({ buoyMass: NAV_BUOY_MASS }),
+      everyShipBlocks,
+    );
+    expect(result.last).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "navBuoy" },
+    ]);
   });
 });

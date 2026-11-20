@@ -437,6 +437,23 @@ describe("refusalCopy and targetSystem", () => {
     );
   });
 
+  it("names each buoy blocker by its Oolite name within the 54-character HUD line (D-09)", () => {
+    const { controller } = harness();
+    // Oolite's witch-blocked string names the blocker (`[blocker name]`,
+    // PlayerEntity.m lines 6552-6553); the names are shipdata.plist's. The
+    // station's wording with "Witchpoint Beacon" would be 55 characters and
+    // the HUD would cut the name, so the beacon line says "too near".
+    const nav = controller.refusalCopy("blocked", "navBuoy");
+    const beacon = controller.refusalCopy("blocked", "witchpointBeacon");
+    expect(nav).toBe("Witchspace jump aborted: too close to Navigation Buoy");
+    expect(beacon).toBe("Witchspace jump aborted: too near Witchpoint Beacon");
+    expect(nav.length).toBeLessThanOrEqual(54);
+    expect(beacon.length).toBeLessThanOrEqual(54);
+    expect(controller.refusalCopy("insufficient fuel", "navBuoy")).toBe(
+      "Insufficient fuel",
+    );
+  });
+
   it("resolves the committed target only through the catalogue", () => {
     const { ctx, controller } = harness();
     expect(controller.targetSystem()).toBe(destination);
