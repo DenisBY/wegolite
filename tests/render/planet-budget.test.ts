@@ -233,9 +233,11 @@ export function frozenContractViolations(
     }
   }
 
-  if (!hudSource.includes("test.setTimeout(480_000)")) {
+  // The 450 s non-launch budget plus one first-launch wait (quick 261120-ryc
+  // raised the former 480_000 by FIRST_LAUNCH_WAIT_MS).
+  if (!hudSource.includes("test.setTimeout(450_000 + FIRST_LAUNCH_WAIT_MS)")) {
     violations.push(
-      "tests/e2e/hud.spec.ts no longer contains test.setTimeout(480_000) (the 480_000 test timeout)",
+      "tests/e2e/hud.spec.ts no longer contains test.setTimeout(450_000 + FIRST_LAUNCH_WAIT_MS) (the 450_000 + FIRST_LAUNCH_WAIT_MS test timeout)",
     );
   }
   if (!hudSource.includes("timeout: 450_000")) {
@@ -385,13 +387,13 @@ describe("frozen delivery contract", () => {
 
   it("rejects a shortened HUD test timeout", () => {
     const shortened = HUD_SOURCE.replace(
-      "test.setTimeout(480_000)",
+      "test.setTimeout(450_000 + FIRST_LAUNCH_WAIT_MS)",
       "test.setTimeout(90_000)",
     );
 
     expect(
       frozenContractViolations(STEP_SOURCE, shortened, CONFIG_SOURCE).some(
-        (message) => message.includes("480_000"),
+        (message) => message.includes("450_000 + FIRST_LAUNCH_WAIT_MS"),
       ),
     ).toBe(true);
   });
