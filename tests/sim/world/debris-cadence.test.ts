@@ -22,6 +22,9 @@
  * a blast kick on the pods (Pitfall 7). The same scenario with the store
  * pre-filled to 240 live entities sheds pieces at the cap identically at every
  * cadence.
+ *
+ * A second scenario (plan 18-19, D-03, PD-02) kills a Krait whose blast pushes
+ * the player, a Shuttle and the nav buoy, and holds the same rule.
  */
 
 import { describe, expect, it } from "vitest";
@@ -29,6 +32,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
+import { PLAYER_MASS_KG } from "../../../src/sim/combat/constants.js";
 import type { Command } from "../../../src/sim/commands.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
@@ -274,9 +278,14 @@ class DebrisScenario {
   }
 }
 
-/** The frame runner of `world-cadence.test.ts`, driving the debris scenario. */
-function replay(hz: number, fillers: number): DebrisLog {
-  const scenario = new DebrisScenario(fillers);
+/** A tick-indexed scenario the frame runner drives. */
+interface Stepper {
+  readonly done: boolean;
+  step(): void;
+}
+
+/** The frame runner of `world-cadence.test.ts`. */
+function runFrames(hz: number, scenario: Stepper): void {
   let accumulator = 0;
   for (let frame = 0; !scenario.done; frame += 1) {
     if (frame > 200_000) {
@@ -295,6 +304,12 @@ function replay(hz: number, fillers: number): DebrisLog {
     }
     if (stepsThisFrame === MAX_STEPS_PER_FRAME) accumulator = 0;
   }
+}
+
+/** The debris scenario at `hz`. */
+function replay(hz: number, fillers: number): DebrisLog {
+  const scenario = new DebrisScenario(fillers);
+  runFrames(hz, scenario);
   return scenario.log;
 }
 
@@ -442,5 +457,155 @@ describe("debris cross-cadence determinism (D16-05, D16-12, QUAL-11)", () => {
     });
     expect(liveEntityCount(world)).toBeLessThanOrEqual(244);
     expect(liveEntityCount(world)).toBeGreaterThan(CAPPED_FILLERS);
+  });
+});
+
+/**
+ * The blast on ships, a buoy and the player (D-03, PD-02): the player parks
+ * 60 m behind a Krait (energy 10, cargo 0) beside the nav buoy and fires once.
+ * The Krait's blast pushes the player (inside its own radius, so d2 takes the
+ * 0.1 floor), a Shuttle 60 m from the Krait and the nav buoy 150 m from it;
+ * each then brakes (the player by its thrust, the Shuttle and the buoy by
+ * theirs). Tick-indexed, so every sampled hash must match at 30, 60 and
+ * 144 Hz.
+ */
+const KRAIT = { mass: 93291.40625, radius: 50.196590423583984 };
+const BUOY = fixture.layout.navBuoy;
+const KRAIT_AT = vec(BUOY.position.x + 150, BUOY.position.y, BUOY.position.z);
+const BLAST_PLAYER_AT = vec(KRAIT_AT.x, KRAIT_AT.y, KRAIT_AT.z + 60);
+const SHUTTLE_AT = vec(KRAIT_AT.x, KRAIT_AT.y + 60, KRAIT_AT.z);
+
+interface BlastLog {
+  readonly hashes: Map<number, string>;
+  killTick: number;
+  /** At the kill tick: the player's drift, the Shuttle's and the buoy's velocity. */
+  playerDrift: Vec3;
+  shuttle: Vec3;
+  buoy: Vec3;
+  endTick: number;
+}
+
+class BlastScenario {
+  readonly state: FlightState = initFlightState(fixture.layout);
+  readonly combat: PlayerCombatState = createPlayerCombatState();
+  readonly log: BlastLog = {
+    hashes: new Map(),
+    killTick: -1,
+    playerDrift: vec(0, 0, 0),
+    shuttle: vec(0, 0, 0),
+    buoy: vec(0, 0, 0),
+    endTick: -1,
+  };
+  done = false;
+  private world: World | undefined;
+  private shuttle: Entity | undefined;
+
+  step(): void {
+    const { state, combat, log } = this;
+    const tick = state.tick;
+    if (tick === START_TICK) {
+      state.position = BLAST_PLAYER_AT;
+      state.orientation = identity();
+      state.speed = 0;
+      const world = createWorld(WORLD_SEED);
+      this.world = world;
+      const spawn = (specKey: string, position: Vec3, radius: number): Entity => {
+        const result = spawnEntity(
+          world,
+          {
+            kind: "ship",
+            specKey,
+            scanClass: "CLASS_NEUTRAL",
+            position,
+            orientation: identity(),
+            radius,
+            speed: 0,
+            maxEnergy: 10,
+            energyRechargeRate: 0,
+            cargo: 0,
+          },
+          tick,
+        );
+        if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+        return result.entity;
+      };
+      spawn("krait", KRAIT_AT, KRAIT.radius);
+      this.shuttle = spawn("shuttle", SHUTTLE_AT, 22.7517147064209);
+    }
+    const commands: Command[] =
+      tick === 0
+        ? [{ kind: "launch" }]
+        : tick === 1
+          ? [{ kind: "skipLaunch" }]
+          : [];
+    const fire = tick >= START_TICK && log.killTick < 0;
+    const events = stepSim(
+      state,
+      this.world,
+      fixture.layout,
+      config,
+      fire ? { ...ZERO_INTENT, fire: true } : ZERO_INTENT,
+      commands,
+      DT,
+      OPTIONS,
+      combat,
+    );
+    const world = this.world;
+    if (world === undefined) return;
+    const killedNow = events.some((e) => e.kind === "shipDestroyed");
+    if (killedNow) {
+      log.killTick = state.tick;
+      log.playerDrift = { ...state.drift };
+      log.shuttle = { ...(this.shuttle?.velocity ?? vec(0, 0, 0)) };
+      log.buoy = { ...world.buoys.navBuoy.velocity };
+    }
+    const since = state.tick - START_TICK;
+    const end = since >= STEPS;
+    if (since % SAMPLE_EVERY === 0 || killedNow || end) {
+      log.hashes.set(state.tick, hashWorld(state, world, combat));
+    }
+    if (end) {
+      log.endTick = state.tick;
+      this.done = true;
+    }
+  }
+}
+
+function blastAt(hz: number): BlastLog {
+  const scenario = new BlastScenario();
+  runFrames(hz, scenario);
+  return scenario.log;
+}
+
+describe("the blast on ships, a buoy and the player across cadences (D-03, PD-02)", () => {
+  const reference = blastAt(60);
+
+  it("pushes the player, the Shuttle and the nav buoy on the kill tick", () => {
+    expect(reference.killTick).toBeGreaterThan(START_TICK);
+    // The player, inside its own radius: the floor, along +z (away from the Krait).
+    const floor =
+      (BLAST_MOMENTUM_FACTOR * KRAIT.mass * KRAIT.radius * BLAST_RANGE_FACTOR) /
+      0.1 /
+      PLAYER_MASS_KG;
+    expect(reference.playerDrift.x).toBe(0);
+    expect(reference.playerDrift.y).toBe(0);
+    expect(reference.playerDrift.z).toBeCloseTo(floor, 9);
+    expect(reference.shuttle.y).toBeGreaterThan(0);
+    expect(reference.shuttle.x).toBe(0);
+    expect(reference.buoy.x).toBeLessThan(0);
+    expect(reference.buoy.y).toBe(0);
+  });
+
+  it("gives the same hashes and pushes at 30, 60 and 144 Hz", () => {
+    expect(reference.hashes.size).toBeGreaterThan(20);
+    for (const hz of CADENCES) {
+      const log = blastAt(hz);
+      expect(sorted(log.hashes)).toEqual(sorted(reference.hashes));
+      expect(log.killTick).toBe(reference.killTick);
+      expect(log.playerDrift).toEqual(reference.playerDrift);
+      expect(log.shuttle).toEqual(reference.shuttle);
+      expect(log.buoy).toEqual(reference.buoy);
+      expect(log.endTick).toBe(reference.endTick);
+    }
   });
 });

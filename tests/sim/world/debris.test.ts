@@ -1003,7 +1003,7 @@ describe("the alloy plate (ShipEntity.m:8068-8111, D16-07)", () => {
   });
 });
 
-describe("the blast (ShipEntity.m:7680-7698, 8123-8126; D16-04)", () => {
+describe("the blast (ShipEntity.m:7680-7698, 8123-8126; D16-04, D-03)", () => {
   const COBRA_MASS = 52291.8359375;
   const COBRA_RADIUS = 39.260494232177734;
   const CENTRE = vec(100, 200, 300);
@@ -1176,13 +1176,16 @@ describe("the blast (ShipEntity.m:7680-7698, 8123-8126; D16-04)", () => {
     }
   });
 
-  it("never pushes a ship, and the player's state is the same with or without debris", () => {
+  it("pushes a ship neighbour by its hull mass (D-03), and a player out of range is the same with or without debris", () => {
     const world = createWorld(3);
     const neighbour = place(world, "ship", "adder", vec(10, 0, 0), 30);
-    const before = JSON.stringify(neighbour);
+    const adderMass = CONTENT.hulls.get("adder")?.mass;
+    if (adderMass === undefined) throw new Error("no adder hull");
     blastOnly(world);
-    expect(JSON.stringify(neighbour)).toBe(before);
-    expect(neighbour.velocity).toEqual(vec(0, 0, 0));
+    // 10 m, inside the Adder's own 30 m radius: d2 takes the 0.1 floor.
+    expect(neighbour.velocity).toEqual(
+      vec((AMOUNT * RANGE) / BLAST_MIN_DISTANCE_SQUARED / adderMass, 0, 0),
+    );
     expect(neighbour.speed).toBe(50);
 
     const run = (options: StepOptions): FlightState => {

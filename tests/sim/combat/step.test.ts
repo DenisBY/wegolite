@@ -82,6 +82,7 @@ import {
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { fullHullTable, realHullTable } from "../../helpers/hull-table.js";
+import { debrisFixture, FIXTURE_POD } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const { layout, config } = laveFixture();
@@ -1781,6 +1782,96 @@ describe("the buoy's frangible subentity (tracer, PD-01, plan 18-15)", () => {
     const events = shoot(world, player, HULLS);
     expect(ofKind(events, "shipHit")).toEqual([]);
     expect(hashWorld(player, world)).toBe(before);
+  });
+});
+
+describe("a buoy subentity's blast at detachment (D-03, ShipEntity.m:7895-7904)", () => {
+  /** A pod 30 m beside the nav buoy's centre, out of the subentity beam. */
+  function podBeside(world: World): ReturnType<typeof spawnEntity> {
+    return spawnEntity(
+      world,
+      {
+        kind: "cargo",
+        specKey: "barrel",
+        scanClass: "CLASS_CARGO",
+        position: add(layout.navBuoy.position, vec(30, 0, 0)),
+        orientation: identity(),
+        radius: FIXTURE_POD.radius,
+        speed: 0,
+        ai: null,
+        maxEnergy: 1,
+        energyRechargeRate: 0,
+      },
+      0,
+    );
+  }
+
+  const debrisOptions: StepOptions = {
+    combat: {
+      mounts: DEFAULT_LASER_MOUNTS,
+      hulls: FULL,
+      debris: debrisFixture(),
+    },
+  };
+
+  it("the pulse that brings the subentity to 0 blasts once from its absolute position, with its own mass and radius; the buoy gets no push (a zero direction)", () => {
+    const world = createWorld(7);
+    world.buoys.navBuoy.subentityEnergy = 5;
+    const spawned = podBeside(world);
+    if (!spawned.ok) throw new Error("spawn refused");
+    const pod = spawned.entity;
+    const player = playerAt(add(layout.navBuoy.position, SUB_LINE), PLUS_Z);
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      createPlayerCombatState(),
+      [pulseOf(player)],
+      debrisOptions,
+      DT,
+      layout,
+    );
+    expect(ofKind(events, "shipHit")).toEqual(
+      splitHits(STATION_NAV_BUOY_ID, NAV_BUOY_SUBENTITY_ID),
+    );
+    expect(Object.is(world.buoys.navBuoy.subentityEnergy, 0)).toBe(true);
+    expect(ofKind(events, "shipDestroyed")).toEqual([]);
+    // From the C, by hand: 0.125 x 7,646.786 kg within 2.5 x 25.8226 m, the
+    // pod 30 m out along +x, d2 = 30^2 - r_pod^2.
+    const amount = 0.125 * 7646.7861328125;
+    const range = 2.5 * 25.822647094726562;
+    const d2 = 900 - FIXTURE_POD.radius ** 2;
+    const dv = (amount * range) / d2 / FIXTURE_POD.mass;
+    expect(Math.abs(pod.velocity.x - dv)).toBeLessThanOrEqual(1e-12 * dv);
+    expect(pod.velocity.y).toBe(0);
+    expect(pod.velocity.z).toBe(0);
+    // The parent sits at the subentity's centre: no push, no write.
+    expect(world.buoys.navBuoy.velocity).toEqual(vec(0, 0, 0));
+
+    // The next pulse finds the subentity detached: no second blast.
+    const after = { ...pod.velocity };
+    resolveShots(
+      world,
+      true,
+      player,
+      createPlayerCombatState(),
+      [pulseOf(player)],
+      debrisOptions,
+      DT,
+      layout,
+    );
+    expect(pod.velocity).toEqual(after);
+  });
+
+  it("without debris content the detachment pushes nothing", () => {
+    const world = createWorld(7);
+    world.buoys.navBuoy.subentityEnergy = 5;
+    const spawned = podBeside(world);
+    if (!spawned.ok) throw new Error("spawn refused");
+    const player = playerAt(add(layout.navBuoy.position, SUB_LINE), PLUS_Z);
+    shoot(world, player);
+    expect(Object.is(world.buoys.navBuoy.subentityEnergy, 0)).toBe(true);
+    expect(spawned.entity.velocity).toEqual(vec(0, 0, 0));
   });
 });
 

@@ -9,6 +9,8 @@
  * live NPC killer, and none needed an added drain.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { createFlightScriptAi } from "../../../src/sim/ai/pilots/flight-script.js";
@@ -22,8 +24,12 @@ import type { SimEvent } from "../../../src/sim/events.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
+import {
+  NAV_BUOY_HULL_MASS,
+  NAV_BUOY_MASS,
+} from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
-import type { Quat } from "../../../src/sim/math.js";
+import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import {
@@ -36,9 +42,11 @@ import {
 import { createRngState, rngNext } from "../../../src/sim/rng.js";
 import { clampDebrisVelocity } from "../../../src/sim/world/debris.js";
 import type {
+  BlastPush,
   DebrisContent,
   DebrisHull,
 } from "../../../src/sim/world/debris.js";
+import { MAX_ENTITY_VELOCITY } from "../../../src/sim/world/limits.js";
 import type { Entity } from "../../../src/sim/world/entity.js";
 import { destroyBuoy, killShip } from "../../../src/sim/world/kill.js";
 import { staticTargetById } from "../../../src/sim/world/statics.js";
@@ -50,6 +58,7 @@ import {
   MAX_AI_QUEUE_LENGTH,
   commitWorld,
   createWorld,
+  isPristineBuoyStates,
   spawnEntity,
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
@@ -64,6 +73,12 @@ import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
+import {
+  BLAST_FIXTURE_FILE,
+  BlastFileSchema,
+  withinTolerance,
+} from "../../oracles/combat/response/schema.js";
+import type { BlastFixture } from "../../oracles/combat/response/schema.js";
 
 const { layout, config } = laveFixture();
 
@@ -1242,5 +1257,367 @@ describe("destroyBuoy (D-04, D-13)", () => {
       NO_ENTITY,
       NO_ENTITY,
     ]);
+  });
+});
+
+/**
+ * The blast's sources and receivers (Phase 18, D-03, PD-02): every exploding
+ * body pushes every movable body in range by `ShipEntity.m:7680-7698` and
+ * `11178-11181`. The expectations are written from the C (`amount = 0.125 x
+ * mass`, `desired_range = 2.5 x radius`, `d2 = |p|^2 - r_receiver^2` floored
+ * at 0.1, `dv = amount x desired_range / d2 / receiver mass` along the unit
+ * vector from the source) or read from the 18-03 fixtures.
+ */
+describe("the blast's sources and receivers (D-03, PD-02)", () => {
+  const KRAIT = { mass: 93291.40625, radius: 50.196590423583984 };
+  const SHUTTLE = { mass: 11317.5634765625, radius: 22.7517147064209 };
+
+  /** The C's push magnitude, by hand (no port call). */
+  function push(
+    source: { readonly mass: number; readonly radius: number },
+    distance: number,
+    receiverRadius: number,
+    receiverMass: number,
+  ): number {
+    const amount = 0.125 * source.mass;
+    const range = 2.5 * source.radius;
+    const d2 = Math.max(0.1, distance * distance - receiverRadius ** 2);
+    return (amount * range) / d2 / receiverMass;
+  }
+
+  function relClose(actual: number, expected: number): void {
+    expect(Math.abs(actual - expected)).toBeLessThanOrEqual(
+      1e-12 * Math.abs(expected),
+    );
+  }
+
+  function readBlast(id: string): BlastFixture {
+    const fixtures = BlastFileSchema.parse(
+      JSON.parse(
+        readFileSync(
+          new URL(
+            `../../oracles/combat/response/${BLAST_FIXTURE_FILE}`,
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ) as unknown,
+    );
+    const fixture = fixtures.find((f) => f.id === id);
+    if (fixture === undefined) throw new Error(`no fixture ${id}`);
+    return fixture;
+  }
+
+  /** The Krait victim's content: no fragment, so the blast is all it releases. */
+  function kraitContent(extra: Record<string, number> = {}): DebrisContent {
+    const hulls = new Map<string, DebrisHull>();
+    const box = { min: vec(0, 0, 0), max: vec(0, 0, 0) };
+    hulls.set("krait", { mass: KRAIT.mass, fragmentChance: 0, boundingBox: box });
+    hulls.set("shuttle", {
+      mass: SHUTTLE.mass,
+      fragmentChance: 0,
+      boundingBox: box,
+    });
+    for (const [key, mass] of Object.entries(extra)) {
+      hulls.set(key, { mass, fragmentChance: 0, boundingBox: box });
+    }
+    return { ...debrisFixture(), hulls };
+  }
+
+  function ship(
+    world: World,
+    specKey: string,
+    position: Vec3,
+    radius: number,
+  ): Entity {
+    const result = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey,
+        scanClass: "CLASS_NEUTRAL",
+        position,
+        orientation: identity(),
+        radius,
+        maxEnergy: 85,
+        cargo: 0,
+      },
+      0,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return result.entity;
+  }
+
+  function piece(
+    world: World,
+    specKey: string,
+    position: Vec3,
+    radius: number,
+  ): Entity {
+    const result = spawnEntity(
+      world,
+      {
+        kind: "cargo",
+        specKey,
+        scanClass: "CLASS_CARGO",
+        position,
+        orientation: identity(),
+        radius,
+        speed: 0,
+        ai: null,
+        maxEnergy: 1,
+        energyRechargeRate: 0,
+      },
+      0,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    return result.entity;
+  }
+
+  const at = (base: Vec3, x: number, y: number, z: number): Vec3 =>
+    vec(base.x + x, base.y + y, base.z + z);
+
+  it("a Krait's blast pushes a live NPC in range by its hull mass; a ship with no mass entry, one out of range and the victim are not pushed", () => {
+    const world = createWorld(1);
+    const centre = vec(100, 200, 300);
+    const victim = ship(world, "krait", centre, KRAIT.radius);
+    victim.velocity = vec(1, 2, 3);
+    const shuttle = ship(world, "shuttle", at(centre, 60, 0, 0), SHUTTLE.radius);
+    const unknown = ship(world, "nonesuch", at(centre, 0, 60, 0), 20);
+    const far = ship(world, "shuttle", at(centre, 0, 0, 149), SHUTTLE.radius);
+    killShip(world, victim.id, PLAYER_ID, [], {
+      tick: 1,
+      content: kraitContent(),
+    });
+    relClose(shuttle.velocity.x, push(KRAIT, 60, SHUTTLE.radius, SHUTTLE.mass));
+    expect(shuttle.velocity.y).toBe(0);
+    expect(shuttle.velocity.z).toBe(0);
+    expect(unknown.velocity).toEqual(vec(0, 0, 0));
+    // 149 m is beyond 125.491 + 22.752 = 148.243 m.
+    expect(far.velocity).toEqual(vec(0, 0, 0));
+    expect(victim.velocity).toEqual(vec(1, 2, 3));
+  });
+
+  it("a live buoy in range is pushed with its live mass and layout radius; detached, with the hull-only mass; a destroyed buoy and the station never move", () => {
+    const run = (prepare: (world: World) => void, near: Vec3): World => {
+      const world = createWorld(1);
+      prepare(world);
+      const victim = ship(world, "krait", near, KRAIT.radius);
+      killShip(world, victim.id, PLAYER_ID, [], {
+        tick: 1,
+        content: kraitContent(),
+        layout,
+      });
+      return world;
+    };
+    const buoy = layout.navBuoy;
+    // 150 m out along +z, inside 125.491 + 59.136 = 184.627 m.
+    const near = at(buoy.position, 0, 0, 150);
+    const attached = run(() => undefined, near);
+    relClose(
+      attached.buoys.navBuoy.velocity.z,
+      -push(KRAIT, 150, buoy.radius, NAV_BUOY_MASS),
+    );
+    expect(attached.buoys.navBuoy.velocity.x).toBe(0);
+    expect(attached.buoys.navBuoy.offset).toEqual(vec(0, 0, 0));
+    expect(attached.buoys.witchpoint.velocity).toEqual(vec(0, 0, 0));
+
+    const detached = run((w) => {
+      w.buoys.navBuoy.subentityEnergy = 0;
+    }, near);
+    relClose(
+      detached.buoys.navBuoy.velocity.z,
+      -push(KRAIT, 150, buoy.radius, NAV_BUOY_HULL_MASS),
+    );
+
+    const destroyedBuoy = run((w) => {
+      w.staticHealth.navBuoy = 0;
+    }, near);
+    expect(destroyedBuoy.buoys.navBuoy.velocity).toEqual(vec(0, 0, 0));
+
+    // Without the layout in the context no buoy is a receiver.
+    const world = createWorld(1);
+    const victim = ship(world, "krait", near, KRAIT.radius);
+    killShip(world, victim.id, PLAYER_ID, [], {
+      tick: 1,
+      content: kraitContent(),
+    });
+    expect(isPristineBuoyStates(world.buoys)).toBe(true);
+
+    // The station is never a receiver: a kill touching its sphere moves
+    // nothing (it has no velocity state; T-18-32).
+    const station = run(
+      () => undefined,
+      at(layout.station.position, 0, 0, layout.station.radius + 10),
+    );
+    expect(isPristineBuoyStates(station.buoys)).toBe(true);
+    expect(station.staticHealth.station).toBe(createWorld(1).staticHealth.station);
+  });
+
+  it("a pod killed with debris content blasts its neighbours by the 18-03 fixtures: 8 m, and 5 m inside the receiver's radius (the floor)", () => {
+    for (const id of ["blast-pod-pod-8m", "blast-pod-pod-5m-floor"]) {
+      const fixture = readBlast(id);
+      const victim = fixture.victims[0];
+      const receiver = fixture.receivers[0];
+      const expected = fixture.expected.receivers[0]?.dv;
+      if (victim === undefined || receiver === undefined || !expected) {
+        throw new Error("fixture shape");
+      }
+      const content: DebrisContent = {
+        ...debrisFixture(),
+        pod: { key: "barrel", mass: victim.mass, radius: victim.radius },
+      };
+      const world = createWorld(1);
+      const base = vec(100, 200, 300);
+      const dying = piece(world, "barrel", base, victim.radius);
+      const offset = receiver.position;
+      const neighbour = piece(
+        world,
+        "barrel",
+        at(base, offset[0], offset[1], offset[2]),
+        receiver.radius,
+      );
+      const events: SimEvent[] = [];
+      expect(
+        killShip(world, dying.id, PLAYER_ID, events, { tick: 1, content }),
+      ).toBe(true);
+      expect(events).toEqual([]);
+      const v = neighbour.velocity;
+      const got = [v.x, v.y, v.z];
+      for (let i = 0; i < 3; i += 1) {
+        expect(
+          withinTolerance(got[i] ?? Number.NaN, expected[i] ?? 0, fixture.tolerance),
+          `${id}[${String(i)}] ${String(got[i])} vs ${String(expected[i])}`,
+        ).toBe(true);
+      }
+      expect(dying.velocity).toEqual(vec(0, 0, 0));
+    }
+    // Without a context a pod's death pushes nothing.
+    const world = createWorld(1);
+    const dying = piece(world, "barrel", vec(0, 0, 0), 5.8);
+    const neighbour = piece(world, "barrel", vec(0, 0, 8), 5.8);
+    killShip(world, dying.id, PLAYER_ID, []);
+    expect(neighbour.velocity).toEqual(vec(0, 0, 0));
+  });
+
+  it("a destroyed buoy blasts twice in the C's order, the subentity then the hull: a pod and the player 100 m away get the fixture's sums; detached, only the hull fires", () => {
+    const fixture = readBlast("blast-buoy-dying-with-subentity");
+    const [sub, hull] = fixture.victims;
+    const [podBody, playerBody] = fixture.receivers;
+    const [podExpected, playerExpected] = fixture.expected.receivers;
+    if (
+      sub === undefined ||
+      hull === undefined ||
+      podBody === undefined ||
+      playerBody === undefined ||
+      podExpected?.dv == null ||
+      playerExpected?.dv == null
+    ) {
+      throw new Error("fixture shape");
+    }
+    const offsetOf = (p: readonly number[]): Vec3 =>
+      vec(
+        (p[0] ?? 0) - sub.position[0],
+        (p[1] ?? 0) - sub.position[1],
+        (p[2] ?? 0) - sub.position[2],
+      );
+    const run = (
+      attached: boolean,
+    ): { readonly pod: Entity; readonly push: BlastPush; readonly world: World } => {
+      const world = createWorld(1);
+      world.staticHealth.navBuoy = 0;
+      if (!attached) world.buoys.navBuoy.subentityEnergy = 0;
+      const base = layout.navBuoy.position;
+      const po = offsetOf(podBody.position);
+      const pod = piece(world, "barrel", at(base, po.x, po.y, po.z), podBody.radius);
+      const pl = offsetOf(playerBody.position);
+      const blastPush: BlastPush = { x: 0, y: 0, z: 0 };
+      const content: DebrisContent = {
+        ...debrisFixture(),
+        pod: { key: "barrel", mass: podBody.mass, radius: podBody.radius },
+      };
+      const events: SimEvent[] = [];
+      const row = staticTargetById(STATION_NAV_BUOY_ID);
+      if (row === undefined) throw new Error("no row");
+      expect(
+        destroyBuoy(world, row, PLAYER_ID, events, layout, {
+          tick: 1,
+          content,
+          layout,
+          player: {
+            position: at(base, pl.x, pl.y, pl.z),
+            radius: playerBody.radius,
+            mass: playerBody.mass,
+          },
+          playerPush: blastPush,
+        }),
+      ).toBe(true);
+      expect(destroyed(events)).toHaveLength(1);
+      return { pod, push: blastPush, world };
+    };
+    const close = (actual: Vec3, expected: readonly number[]): void => {
+      const got = [actual.x, actual.y, actual.z];
+      for (let i = 0; i < 3; i += 1) {
+        expect(
+          withinTolerance(got[i] ?? Number.NaN, expected[i] ?? 0, fixture.tolerance),
+          `[${String(i)}] ${String(got[i])} vs ${String(expected[i])}`,
+        ).toBe(true);
+      }
+    };
+    const both = run(true);
+    close(both.pod.velocity, podExpected.dv);
+    close(vec(both.push.x, both.push.y, both.push.z), playerExpected.dv);
+    // The destroyed buoy itself never moves.
+    expect(both.world.buoys.navBuoy.velocity).toEqual(vec(0, 0, 0));
+
+    const hullOnly = run(false);
+    const podHull = podExpected.contributions[1]?.dv;
+    const playerHull = playerExpected.contributions[1]?.dv;
+    if (!podHull || !playerHull) throw new Error("fixture shape");
+    close(hullOnly.pod.velocity, podHull);
+    close(vec(hullOnly.push.x, hullOnly.push.y, hullOnly.push.z), playerHull);
+  });
+
+  it("clamps every component at MAX_ENTITY_VELOCITY: a pod beside a dying buoy's hull takes the floor", () => {
+    const world = createWorld(1);
+    world.staticHealth.navBuoy = 0;
+    world.buoys.navBuoy.subentityEnergy = 0;
+    const base = layout.navBuoy.position;
+    const pod = piece(world, "barrel", at(base, 1, 0, 0), 5.7986);
+    const row = staticTargetById(STATION_NAV_BUOY_ID);
+    if (row === undefined) throw new Error("no row");
+    destroyBuoy(world, row, PLAYER_ID, [], layout, {
+      tick: 1,
+      content: debrisFixture(),
+      layout,
+    });
+    // 0.125 x 691,044.375 x 147.84 / 0.1 / 993.37: far beyond 1e4.
+    expect(push({ mass: NAV_BUOY_HULL_MASS, radius: layout.navBuoy.radius }, 1, 5.7986, 993.37)).toBeGreaterThan(1e4);
+    expect(pod.velocity.x).toBe(MAX_ENTITY_VELOCITY);
+    expect(pod.velocity.y).toBe(0);
+    expect(sanitizeEntity(pod)).toBe(false);
+  });
+
+  it("a kill with nothing movable in range hashes exactly as with no receivers in the context", () => {
+    const run = (withReceivers: boolean): string => {
+      const world = createWorld(1);
+      const player = initFlightState(layout);
+      const victim = ship(world, "krait", vec(1e7, 0, 0), KRAIT.radius);
+      const blastPush: BlastPush = { x: 0, y: 0, z: 0 };
+      killShip(world, victim.id, PLAYER_ID, [], {
+        tick: 1,
+        content: kraitContent(),
+        ...(withReceivers
+          ? {
+              layout,
+              player: { position: vec(1e7, 0, 400), radius: 72.7, mass: 214737.6875 },
+              playerPush: blastPush,
+            }
+          : {}),
+      });
+      expect(blastPush).toEqual({ x: 0, y: 0, z: 0 });
+      return hashWorld(player, world);
+    };
+    expect(run(true)).toBe(run(false));
   });
 });
