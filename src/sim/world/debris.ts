@@ -29,8 +29,8 @@
  * 4. the plates, `floor(n_alloys)` of them (0 or 1 for every compiled hull, 0
  *    when the victim cannot fragment): 13 draws each, as a pod, with no role
  *    draw (D16-07);
- * 5. the blast, which draws nothing: every live pod, plate and wreck near the
- *    victim is pushed once, in ascending id (D16-04).
+ * 5. the blast, which draws nothing: every movable body near the victim is
+ *    pushed once, in ascending id (D-03, see `blast`).
  *
  * The wreckage, the plate and the blast come after the pods, so no pod draw
  * moves (plan 16-04); the blast changes the pods' velocities afterwards. Every draw of a piece is taken before its spawn is
@@ -134,6 +134,31 @@ export interface DebrisContent {
   readonly wrecks: readonly DebrisModel[];
 }
 
+/**
+ * A caller-owned accumulator of the blast's push on the player (D-03): the
+ * blast adds to it and the caller adds the sum to `FlightState.drift` once,
+ * after the tick's kills (`../combat/step.ts`).
+ */
+export interface BlastPush {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** A blast receiver outside the store (the player): its centre, collision radius and mass. */
+export interface BlastBody {
+  readonly position: Vec3;
+  readonly radius: number;
+  readonly mass: number;
+}
+
+/** One exploding body: its centre, mass in kg and collision radius in m. */
+export interface BlastSource {
+  readonly position: Vec3;
+  readonly mass: number;
+  readonly radius: number;
+}
+
 /** The per-kill context `killShip` receives (`../combat/step.ts` builds it). */
 export interface DebrisContext {
   /** The tick the debris spawns on (`spawnTick`). */
@@ -141,6 +166,13 @@ export interface DebrisContext {
   readonly content: DebrisContent;
   /** The hull octrees, read by plan 16-04 for wreckage placement. */
   readonly octrees?: HullTable;
+  /**
+   * The player as a blast receiver (D-03), present only while the player is
+   * in flight; its push goes to `playerPush`, never to the flight state.
+   */
+  readonly player?: BlastBody;
+  /** The accumulator of the player's push; the player is pushed only with both. */
+  readonly playerPush?: BlastPush;
 }
 
 /** The first pod's survival chance in percent (`ShipEntity.m:7823`). */
@@ -585,60 +617,121 @@ export function debrisMassOf(
   return undefined;
 }
 
+const f = Math.fround;
+
 /**
- * The blast (`ShipEntity.m:8123-8126` calling `dealMomentumWithinDesiredRange:`,
- * `7680-7698`, and `addImpactMoment:fraction:`, `11178-11181`), after every
- * spawn of the kill (D16-12 step 5). `amount = 0.125 x hull mass` and
- * `desired_range = 2.5 x victim radius`. Every live cargo or wreckage entity in
- * ascending id whose centre is strictly within `desired_range + its radius`
- * (`Universe.m:5862-5867`) and not at the victim's centre gets one kick
- * `normal(p2) x moment / mass` with `moment = amount x desired_range / d2`,
- * `d2 = |p2|^2 - radius^2` floored at 0.1. Each velocity component is clamped
- * at `MAX_ENTITY_VELOCITY` at the write (T-16-13: a piece near the centre hits
- * the floor, 6,458 m/s for a pod and 23,463 m/s for a plate). A piece from an
- * earlier kill in range is kicked too.
+ * The velocity change one exploding body gives one receiver
+ * (`dealMomentumWithinDesiredRange:`, `ShipEntity.m:7680-7698`, with
+ * `addImpactMoment:fraction:`, `11178-11181`), or undefined when the receiver
+ * is out of range or an input is unusable.
  *
- * Ships and the player are never pushed (D16-04, OC-4): a non-overlapping NPC
- * neighbour of the heaviest victim (a Krait) gets at most 0.027 m/s (on a
- * Shuttle) and the player under 0.002 m/s, and ships have no drift integration
- * until Phase 18. An overlapping pair, which only Phase 18's collisions allow,
- * would hit the 0.1 floor; Phase 18 revisits the push on ships with rebounds.
+ * - `amount = 0.125 x source mass` and `desired_range = 2.5 x source radius`
+ *   (`ShipEntity.m:8123-8126`).
+ * - In range: `|p|^2 < (desired_range + r)^2`, strict, with `r` the
+ *   RECEIVER's collision radius (`Universe.m:5862-5868`). The test follows the
+ *   C's float `EntityInRange` (`cr` is a float), so a body on the boundary is
+ *   in or out exactly as in Oolite; `|p|^2` is the double `HPdistance2`.
+ * - `d2 = |p|^2 - r^2` with the same receiver radius, floored at 0.1
+ *   (`ShipEntity.m:7686-7690`); `moment = amount x desired_range / d2`.
+ * - `dv = normal(p) x moment / receiver mass`, `p` from the source to the
+ *   receiver; a receiver at the source's centre gets the zero vector
+ *   (`vector_normal` of a zero vector).
+ *
+ * The magnitude is computed in double, as Phase 16 ported it, which is within
+ * about 1e-7 of the C's float arithmetic: every 18-03 blast fixture passes at
+ * its 1e-6 relative tolerance (`tests/sim/world/blast.oracle.test.ts`).
  */
-function blast(
-  world: World,
-  origin: Vec3,
-  hullMass: number,
-  victimRadius: number,
-  content: DebrisContent,
-): void {
-  const amount = BLAST_MOMENTUM_FACTOR * hullMass;
-  const range = victimRadius * BLAST_RANGE_FACTOR;
+export function blastImpulse(
+  source: BlastSource,
+  position: Vec3,
+  radius: number,
+  mass: number,
+): Vec3 | undefined {
+  if (
+    !Number.isFinite(source.mass) ||
+    !(source.mass > 0) ||
+    !Number.isFinite(source.radius) ||
+    !(source.radius > 0) ||
+    !Number.isFinite(radius) ||
+    !(radius >= 0) ||
+    !Number.isFinite(mass) ||
+    !(mass > 0)
+  ) {
+    return undefined;
+  }
+  const origin: unknown = source.position;
+  const at: unknown = position;
+  if (!isObject(origin) || !isObject(at)) return undefined;
+  const p2 = vec(
+    position.x - source.position.x,
+    position.y - source.position.y,
+    position.z - source.position.z,
+  );
+  const distanceSq = lengthSquared(p2);
+  const cr = f(f(f(source.radius) * f(BLAST_RANGE_FACTOR)) + f(radius));
+  if (!(distanceSq < f(cr * cr))) return undefined;
+  if (!(distanceSq > 0)) return vec(0, 0, 0);
+  const amount = BLAST_MOMENTUM_FACTOR * source.mass;
+  const range = source.radius * BLAST_RANGE_FACTOR;
+  const d2 = Math.max(BLAST_MIN_DISTANCE_SQUARED, distanceSq - radius * radius);
+  const dv = (amount * range) / d2 / mass;
+  const normal = normalizeVec(p2);
+  return vec(normal.x * dv, normal.y * dv, normal.z * dv);
+}
+
+/** `dv` is the zero vector (no write, so a pristine velocity stays pristine). */
+function isZeroVec(dv: Vec3): boolean {
+  return dv.x === 0 && dv.y === 0 && dv.z === 0;
+}
+
+/**
+ * The blast of one exploding body (`ShipEntity.m:8123-8126` calling
+ * `dealMomentumWithinDesiredRange:`, `7680-7698`, and `addImpactMoment:
+ * fraction:`, `11178-11181`; D-03): every receiver in range gets one
+ * `blastImpulse`, in ascending id. Receivers:
+ *
+ * - the player (id 100), when the context carries its body and the
+ *   accumulator: the push is added to `playerPush`, and the caller adds the
+ *   sum to its drift after the tick's kills (only in flight: a docked or
+ *   launching player is never pushed, the launching case a recorded
+ *   divergence because Oolite's `isInSpace` lists `STATUS_LAUNCHING`,
+ *   `Entity.m:1038`);
+ * - every live pod, plate and wreck, with its `debrisMassOf` mass.
+ *
+ * A dead entity (the victim among them, marked dead before its blast) is
+ * never pushed. Each velocity component is clamped at `MAX_ENTITY_VELOCITY`
+ * at the write (T-16-13: a piece near the centre takes the 0.1 floor, 6,458
+ * m/s for a pod beside a Cobra Mk I), and a zero push writes nothing.
+ */
+function blast(world: World, source: BlastSource, ctx: DebrisContext): void {
+  const player = ctx.player;
+  const push = ctx.playerPush;
+  if (player !== undefined && push !== undefined) {
+    const dv = blastImpulse(
+      source,
+      player.position,
+      player.radius,
+      player.mass,
+    );
+    if (dv !== undefined && !isZeroVec(dv)) {
+      push.x += dv.x;
+      push.y += dv.y;
+      push.z += dv.z;
+    }
+  }
   for (const piece of world.store.live) {
     if (piece.dead) continue;
     if (piece.kind !== "cargo" && piece.kind !== "wreckage") continue;
     const position: unknown = piece.position;
     const velocity: unknown = piece.velocity;
     if (!isObject(position) || !isObject(velocity)) continue;
-    const p2 = vec(
-      piece.position.x - origin.x,
-      piece.position.y - origin.y,
-      piece.position.z - origin.z,
-    );
-    const distanceSq = lengthSquared(p2);
-    const reach = range + piece.radius;
-    if (!(distanceSq < reach * reach) || !(distanceSq > 0)) continue;
-    const mass = debrisMassOf(piece, content);
+    const mass = debrisMassOf(piece, ctx.content);
     if (mass === undefined) continue;
-    const d2 = Math.max(
-      BLAST_MIN_DISTANCE_SQUARED,
-      distanceSq - piece.radius * piece.radius,
-    );
-    const moment = (amount * range) / d2;
-    const normal = normalizeVec(p2);
-    const dv = moment / mass;
+    const dv = blastImpulse(source, piece.position, piece.radius, mass);
+    if (dv === undefined || isZeroVec(dv)) continue;
     const v = piece.velocity;
     piece.velocity = clampDebrisVelocity(
-      vec(v.x + normal.x * dv, v.y + normal.y * dv, v.z + normal.z * dv),
+      vec(v.x + dv.x, v.y + dv.y, v.z + dv.z),
     );
   }
 }
@@ -776,14 +869,13 @@ export function releaseDebris(
     );
   }
 
-  // The blast, last, over every piece now live (ShipEntity.m:8123-8126).
-  const victimRadius = victim.radius;
-  if (
-    hullMass !== undefined &&
-    Number.isFinite(victimRadius) &&
-    victimRadius > 0
-  ) {
-    blast(world, origin, hullMass, victimRadius, ctx.content);
+  // The blast, last, over every body now live (ShipEntity.m:8123-8126).
+  if (hullMass !== undefined) {
+    blast(
+      world,
+      { position: origin, mass: hullMass, radius: victim.radius },
+      ctx,
+    );
   }
 
   victim.rng.combat = stream.s;

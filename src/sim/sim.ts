@@ -6,10 +6,13 @@
  *
  * `stepSim` is the one function the session calls per fixed step: it runs the
  * unchanged `stepFlight` first and then `stepWorld`. The world side mutates
- * the `FlightState` in one place only: the collision stage inside
- * `resolveShots` (`./combat/collide.ts`, CBT-18, D-01), which writes the
+ * the `FlightState` in two places only, both inside `resolveShots`: the
+ * collision stage (`./combat/collide.ts`, CBT-18, D-01), which writes the
  * player's `drift` and `position` when the player's hull touches a ship, pod
- * or plate (only with the app's `CombatOptions.collisions` opt-in). The world
+ * or plate (only with the app's `CombatOptions.collisions` opt-in), and the
+ * explosion blast (`./world/debris.ts`, D-03), whose push on the in-flight
+ * player is added to its `drift` after the tick's kills (only with debris
+ * content). The world
  * enters `stepFlight` read-only, as a ship field (WORLD-10): mass lock and
  * jump blockage count the NPC ships, and `stepFlight` never mutates the
  * world.

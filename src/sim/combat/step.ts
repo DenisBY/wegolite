@@ -75,7 +75,12 @@ import {
   staticPose,
   staticTargetById,
 } from "../world/statics.js";
-import type { DebrisContent, DebrisContext } from "../world/debris.js";
+import { clampDebrisVelocity } from "../world/debris.js";
+import type {
+  BlastPush,
+  DebrisContent,
+  DebrisContext,
+} from "../world/debris.js";
 import { destroyBuoy, killShip } from "../world/kill.js";
 import type { SystemLayout } from "../world/layout.js";
 import { drainAiEventsNow } from "../world/step.js";
@@ -87,7 +92,7 @@ import type { World } from "../world/world.js";
 import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
 import type { NpcWeapon } from "./aim.js";
 import { resolveCollisions } from "./collide.js";
-import { LASER_STATS } from "./constants.js";
+import { LASER_STATS, PLAYER_MASS_KG } from "./constants.js";
 import { firstShipHit } from "./hit.js";
 import { stepIdent, updateIdentTarget } from "./ident.js";
 import type { HitPart, HitTarget, HullTable, LaserRay } from "./hit.js";
@@ -638,18 +643,50 @@ function routeBuoyHit(
 /**
  * The debris context of this tick's kills, or undefined without debris
  * content. The hull octrees ride along when loaded (plan 16-04 reads them);
- * the key is omitted otherwise (exactOptionalPropertyTypes).
+ * the key is omitted otherwise (exactOptionalPropertyTypes). While the player
+ * is in flight it carries the player's body (its position,
+ * `PLAYER_COLLISION_RADIUS_M`, `PLAYER_MASS_KG`) and `playerPush`, the zeroed
+ * accumulator of the blasts' push on it (D-03); a docked or launching player
+ * is never pushed.
  */
 function debrisContext(
   options: StepOptions | undefined,
-  tick: number,
+  player: FlightState,
+  playerPush: BlastPush,
 ): DebrisContext | undefined {
   const combat = options?.combat;
   const content = combat?.debris;
   if (content === undefined) return undefined;
-  return combat?.hulls === undefined
-    ? { tick, content }
-    : { tick, content, octrees: combat.hulls };
+  return {
+    tick: player.tick,
+    content,
+    ...(combat?.hulls === undefined ? {} : { octrees: combat.hulls }),
+    ...(player.mode === "inFlight"
+      ? {
+          player: {
+            position: player.position,
+            radius: PLAYER_COLLISION_RADIUS_M,
+            mass: PLAYER_MASS_KG,
+          },
+          playerPush,
+        }
+      : {}),
+  };
+}
+
+/**
+ * Add the blasts' accumulated push to the player's drift, once, after the
+ * tick's kills (D-03), each component clamped at `MAX_ENTITY_VELOCITY`. A zero
+ * push writes nothing, so a tick whose kills push nobody hashes as before.
+ */
+function applyPlayerPush(player: FlightState, push: BlastPush): void {
+  if (push.x === 0 && push.y === 0 && push.z === 0) return;
+  const drift = player.drift;
+  player.drift = clampDebrisVelocity({
+    x: drift.x + push.x,
+    y: drift.y + push.y,
+    z: drift.z + push.z,
+  });
 }
 
 /**
@@ -662,8 +699,9 @@ function debrisContext(
  *    `resolveCollisions`, CBT-18) resolves every octree contact of the tick
  *    in Oolite's update order: it applies each rebound to the velocities and
  *    positions at once and queues the damage as `"scrape"` records after the
- *    laser records (A5). It is the one place the world side writes the
- *    player's `FlightState` (its `drift` and `position`).
+ *    laser records (A5). With the blast push of step 3 it is one of the two
+ *    places the world side writes the player's `FlightState` (the stage its
+ *    `drift` and `position`, the blast its `drift`).
  * 2. `applyLedger` (`./ledger.ts`) applies every record in queue order (ascending
  *    shooter id) and returns the ships brought to 0 energy; every record applies
  *    before lethality is decided.
@@ -676,7 +714,10 @@ function debrisContext(
  *    lower-id victim is therefore credited to the other ship and the higher-id
  *    victim carries `NO_ENTITY`. With `options.combat.debris`, each kill also
  *    releases the victim's debris from its own stream (Phase 16), spawning
- *    pieces that post no event; the event order below is unchanged.
+ *    pieces that post no event, and its blast pushes every movable body in
+ *    range (`../world/debris.ts`, D-03); the event order below is unchanged.
+ *    The player's share of the blasts is accumulated and added to its drift
+ *    once, after the kills (`applyPlayerPush`), only while it is in flight.
  * 4. `drainAiEventsNow` (`../world/step.ts`) delivers the AI events the kills
  *    posted (`shipTargetLost`, `shipTargetDestroyed`, `shipKilledOther`, D-04)
  *    before the commit, discarding any fire request a handler makes meanwhile,
@@ -737,7 +778,8 @@ export function resolveShots(
     events,
   );
   if (world !== undefined && worldStepped) {
-    const debris = debrisContext(options, player.tick);
+    const playerPush: BlastPush = { x: 0, y: 0, z: 0 };
+    const debris = debrisContext(options, player, playerPush);
     for (const hit of lethal) {
       const row = staticTargetById(hit.victim);
       if (row === undefined) {
@@ -746,6 +788,7 @@ export function resolveShots(
         destroyBuoy(world, row, hit.killer, events, layout);
       }
     }
+    applyPlayerPush(player, playerPush);
     drainAiEventsNow(world, player, layout, player.tick, events, registry);
     for (const id of commitWorld(world))
       events.push({ kind: "entityRemoved", id });
