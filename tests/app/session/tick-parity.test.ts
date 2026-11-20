@@ -75,6 +75,7 @@ import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { worldSeedFor } from "../../../src/sim/rng.js";
 import { npcContacts } from "../../../src/sim/world/contacts.js";
+import { STATION_NAV_BUOY_ID } from "../../../src/sim/world/ids.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
@@ -753,12 +754,21 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
     expect(s.routed.slice(routedAtSpawn)).not.toContain("laserRefused");
     expect(combat.energy).toBeGreaterThanOrEqual(ENERGY_AT_KILL_FLOOR);
     expect(combat.energy).toBeCloseTo(ENERGY_AT_KILL, 9);
-    // The lock on the destroyed ship ends on the kill tick with identLost and
-    // no fresh lock follows in this world: "Target lost." is what shows.
+    // The lock on the destroyed ship ends on the kill tick with identLost, and
+    // ident then re-locks the nav buoy on the sight line (plan 18-06: ident
+    // locks buoys; owner decision 2026-11-20).
     const kindsOfKillTick = s.routed.slice(routedBeforeKillTick);
-    expect(kindsOfKillTick).toContain("identLost");
-    expect(kindsOfKillTick).not.toContain("identLocked");
-    expect(s.messages.current(state.flightTime)).toBe("Target lost.");
+    const lostAt = kindsOfKillTick.indexOf("identLost");
+    expect(lostAt).toBeGreaterThan(-1);
+    expect(kindsOfKillTick.indexOf("identLocked", lostAt)).toBeGreaterThan(
+      lostAt,
+    );
+    expect(combat.identTarget).toBe(STATION_NAV_BUOY_ID);
+    // The fresh lock's message replaces "Target lost." (this twin installs no
+    // static names, so the HUD shows the raw key).
+    expect(s.messages.current(state.flightTime)).toMatch(
+      /^Ident system locked onto/,
+    );
   });
 });
 
@@ -786,7 +796,8 @@ const ENTITIES_AT_KILL = 16;
 // Re-pinned in plan 17-12 (G-17-1) from "a545cb4b": the literal beam period
 // moves every shot and the shooter's stream. Measured, not derived.
 // Follows plan 18-05: the warm-up burst now hits the nav buoy (owner decision 2026-11-20).
-const HASH_60_AFTER_KILL = "f1926a36";
+// Follows plan 18-06: ident now re-locks the nav buoy on the kill tick (owner decision 2026-11-20).
+const HASH_60_AFTER_KILL = "f6927215";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {
