@@ -10,13 +10,19 @@
 
 import { expect, test } from "@playwright/test";
 
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 
 test("boots to the title, starts docked at Lave, launches and flies", async ({
   page,
 }) => {
   // CI measured 22.7 s of the 30 s default (76 %), above the owner's 60 % rule.
-  test.setTimeout(60_000);
+  // The budget is the old 30 s non-launch budget plus the first-launch wait
+  // (quick 261120-ryc).
+  test.setTimeout(30_000 + FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -45,7 +51,7 @@ test("boots to the title, starts docked at Lave, launches and flies", async ({
       );
     },
     undefined,
-    { timeout: 30_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 
   const info = await getProbe(page);

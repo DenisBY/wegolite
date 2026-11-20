@@ -13,6 +13,25 @@ import type { Page } from "@playwright/test";
 
 import type { WegoliteProbe } from "../../../src/app/probe.js";
 
+/**
+ * The ceiling for an inner wait that spans a launch the test does not skip.
+ *
+ * The first launch of a fresh browser profile cannot be skipped (D-10:
+ * `launchSeen` is false in fresh settings), so it plays the pre-roll and the
+ * launch view in full. The wait is frame-bound: the session runs at most 5
+ * fixed steps of 1/120 s per rendered frame, and GitHub's ubuntu-latest runner
+ * renders on SwiftShader without a GPU. The full first launch took about 70 s
+ * of real time on CI run 44796363344 (launch.spec.ts "the first launch plays
+ * the full launch view" passed in 1.2 min); 180 s leaves margin over that.
+ *
+ * Budget rule: a test or file timeout that covers such a wait is its non-launch
+ * budget plus one FIRST_LAUNCH_WAIT_MS per unskipped launch. The CI timeout
+ * rule and its history live in
+ * .planning/todos/pending/2026-11-16-ci-e2e-timeout-margins.md (quick task
+ * 261120-ryc). This is a correctness wait, not a performance claim (Pitfall 15).
+ */
+export const FIRST_LAUNCH_WAIT_MS = 180_000;
+
 /** Wait until the app has published a ready probe. */
 export async function waitForReady(page: Page): Promise<void> {
   await page.waitForFunction(
