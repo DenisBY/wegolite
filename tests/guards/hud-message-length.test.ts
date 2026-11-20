@@ -23,9 +23,11 @@
  *   ident lock for every NPC and static name, the arrival line for every
  *   system, and every hint.
  *
- * Three messages were already longer than the budget when the guard was added
- * and are cut on screen today; they are listed below and in the todo, and the
- * guard fails if one of them changes or disappears, so the list cannot rot.
+ * Three messages were longer than the first budget (55) and were cut on screen:
+ * the two docking bounce lines and the default pitch and roll hint. The owner
+ * raised the budget to 60 the same day so they fit whole; no message is
+ * exempt. They stay below as witnesses: the guard fails if the scan stops
+ * producing one of them, so it cannot silently lose sight of the longest lines.
  *
  * It is a tripwire, not a proof: a message assembled elsewhere is not seen. The
  * fix for every failure is the todo below, or a shorter wording.
@@ -53,11 +55,12 @@ const WORD_WRAP_TODO =
 const RULE = `longer than MAX_MESSAGE_CHARS (${String(MAX_MESSAGE_CHARS)}): the HUD would cut it with an ellipsis; port Oolite's word wrap first, see ${WORD_WRAP_TODO}`;
 
 /**
- * Messages already longer than the budget and cut on screen today, recorded in
- * the todo: two docking bounce lines (`bounceMessage`) and the pitch and roll
- * hint with the default bindings (`hintText("pitchRoll")`).
+ * The longest messages the scan sees, once cut at the old budget of 55 (owner
+ * decision 2026-11-20 raised it to 60): two docking bounce lines
+ * (`bounceMessage`) and the pitch and roll hint with the default bindings
+ * (`hintText("pitchRoll")`). If a wording changes, update it here.
  */
-const KNOWN_OVERLONG: readonly string[] = [
+const LONGEST_WITNESSES: readonly string[] = [
   "Too wide for the slot - roll 90 degrees to match the opening",
   "Hull contact - roll 90 degrees and line up with the slot",
   "Up arrow / Down arrow pitch, Left arrow / Right arrow roll",
@@ -135,13 +138,10 @@ function builtMessages(): string[] {
   ];
 }
 
-/** One violation line per text longer than the budget and not known. */
+/** One violation line per text longer than the budget. */
 function overlong(texts: readonly string[]): string[] {
   return texts
-    .filter(
-      (text) =>
-        text.length > MAX_MESSAGE_CHARS && !KNOWN_OVERLONG.includes(text),
-    )
+    .filter((text) => text.length > MAX_MESSAGE_CHARS)
     .map((text) => `"${text}" (${String(text.length)}) is ${RULE}`);
 }
 
@@ -173,11 +173,11 @@ describe("HUD messages fit one message row (todo 2026-11-20-hud-message-word-wra
     expect(overlong(builtMessages())).toEqual([]);
   });
 
-  it("every known overlong message is still produced, so the list cannot rot", () => {
+  it("the scan still sees the longest messages, and they fit", () => {
     const produced = [...subscriberLiterals(), ...builtMessages()];
-    for (const known of KNOWN_OVERLONG) {
-      expect(known.length).toBeGreaterThan(MAX_MESSAGE_CHARS);
-      expect(produced).toContain(known);
+    for (const witness of LONGEST_WITNESSES) {
+      expect(produced).toContain(witness);
+      expect(witness.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
     }
   });
 });

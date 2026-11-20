@@ -442,8 +442,8 @@ describe("refusalCopy and targetSystem", () => {
     const { controller } = harness();
     // Oolite's witch-blocked string names the blocker (`[blocker name]`,
     // PlayerEntity.m lines 6552-6553); the names are shipdata.plist's. The
-    // beacon line is 55 characters, the HUD line's budget since the owner
-    // decision of 2026-11-20, so the HUD never cuts the name.
+    // beacon line is 55 characters, within the HUD line's budget of 60 (owner
+    // decisions of 2026-11-20), so the HUD never cuts the name.
     const nav = controller.refusalCopy("blocked", "navBuoy");
     const beacon = controller.refusalCopy("blocked", "witchpointBeacon");
     expect(nav).toBe("Witchspace jump aborted: too close to Navigation Buoy");

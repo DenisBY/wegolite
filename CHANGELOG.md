@@ -61,6 +61,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The two docking hints that tell you to roll 90 degrees and the arrow-key
+  pitch and roll hint are no longer cut off with an ellipsis.
 - Collisions now begin where Oolite's do: a ship touching a navigation buoy
   (or another ship, pod or plate) makes contact at the same distance as in
   Oolite, where before it could touch up to about 22 m early.

@@ -262,6 +262,7 @@ The owner chose option C plus a todo for the witchpoint-beacon copy (deviation 1
 - Commits: `5c037ca` (code and test), `c1dd254` (guard, todo, PROJECT.md, STATE.md).
 - Checks (Docker): targeted Vitest pass; `docker compose run --rm test` exit 0 (255 files, 6927 passed, 10 skipped); `lint` exit 0; `typecheck` exit 0. Remote `verify` exit 0 (snapshot `c1dd254`, 198 s). Remote `tests/e2e/hud.spec.ts` exit 0 (3 passed, snapshot `c1dd254`). That spec checks that the message line is one line of at most `MAX_MESSAGE_CHARS` characters.
 - Visual check: none is automated. No spec takes a screenshot of the message rows or measures the drawn width of the beacon line. `hud.spec.ts` reads the probe text only. The owner should look at the beacon refusal once on screen. To trigger it, complete a jump within about 264 m of the witchpoint beacon.
+- Second follow-up (owner decision 2026-11-20): `MAX_MESSAGE_CHARS` raised from 55 to 60 (rows span x 830.4 to 1665.6, no new overlap), so the three known exceptions now fit whole and the guard has none; they stay in it as scan witnesses, and the word-wrap todo stays open.
 
 ---
 *Phase: 18-stations-buoys-and-collisions*
