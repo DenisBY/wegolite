@@ -75,8 +75,9 @@ export interface BuoyBody {
   /**
    * Show or hide the subentity's mesh, the model's `core` node (the
    * `oolite_buoy_subents` model). A detached subentity is hidden; the hull and
-   * the flashers stay (Phase 18, PD-01). Oolite removes a destroyed subentity
-   * from the ship and draws no explosion for it here either.
+   * the flashers stay (Phase 18, PD-01), as Oolite removes a detached
+   * subentity from the ship. Wegolite draws no explosion for it, a recorded
+   * divergence (FIDELITY.md, PD-01 rows).
    */
   setSubentityVisible(visible: boolean): void;
   dispose(): void;
