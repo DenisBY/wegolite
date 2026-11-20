@@ -86,6 +86,7 @@ import { commitWorld } from "../world/world.js";
 import type { World } from "../world/world.js";
 import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
 import type { NpcWeapon } from "./aim.js";
+import { resolveCollisions } from "./collide.js";
 import { LASER_STATS } from "./constants.js";
 import { firstShipHit } from "./hit.js";
 import { stepIdent, updateIdentTarget } from "./ident.js";
@@ -129,6 +130,14 @@ export interface CombatOptions {
    * content has loaded; absent means a kill releases no debris.
    */
   readonly debris?: DebrisContent;
+  /**
+   * The collision stage (CBT-18, `./collide.ts`, `resolveCollisions`), opt-in:
+   * it runs only when this is `true`, the world was stepped and `hulls` is
+   * present. The app sets it (`buildStepOptions`); the frozen acceptance
+   * harness never does, so its worlds stay byte-identical (PITFALLS 4,
+   * QUAL-11).
+   */
+  readonly collisions?: boolean;
 }
 
 /** One shot queued for resolution after the world step. */
@@ -563,6 +572,7 @@ function resolveShotHits(
         world?.store.get(shot.shooter)?.position ?? shot.ray.origin;
       if (routedTo === undefined) {
         records.push({
+          kind: "laser",
           target: hit.id,
           source: shot.shooter,
           amount: stats.damage,
@@ -572,12 +582,14 @@ function resolveShotHits(
         // `ShipEntity.m:10202-10209`, `10409-10416`: 1 % on the frangible
         // parent, then the full damage on the subentity.
         records.push({
+          kind: "laser",
           target: hit.id,
           source: shot.shooter,
           amount: FRANGIBLE_BLEED_THROUGH * stats.damage,
           sourcePosition: { ...sourcePosition },
         });
         records.push({
+          kind: "laser",
           target: routedTo,
           source: shot.shooter,
           amount: stats.damage,
@@ -698,6 +710,15 @@ export function resolveShots(
     dt,
     layout,
   );
+  if (
+    world !== undefined &&
+    worldStepped &&
+    options?.combat?.collisions === true &&
+    options.combat.hulls !== undefined
+  ) {
+    // The collision records join the one ledger after the laser records (A5).
+    records.push(...resolveCollisions(world, player, combat, options).records);
+  }
   const lethal = applyLedger(
     world,
     worldStepped,

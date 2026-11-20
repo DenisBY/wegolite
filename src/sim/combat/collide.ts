@@ -48,10 +48,16 @@
  * Three.js, no DOM.
  */
 
+import type { FlightState } from "../flight/state.js";
+import type { StepOptions } from "../flight/step.js";
 import { dot, rotate, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
+import type { EntityId } from "../world/ids.js";
 import { QUAT_UNIT_TOLERANCE } from "../world/limits.js";
+import type { World } from "../world/world.js";
 import type { HullData } from "./hit.js";
+import type { HitRecord } from "./ledger.js";
+import type { PlayerCombatState } from "./state.js";
 import { isHitByOctree } from "./octree.js";
 
 /** Where a hull is and how it is turned, in Wegolite world axes. */
@@ -185,4 +191,56 @@ export function doOctreesCollide(
 
   // `:1924-1938` is not ported (see the header); `:1940-1941` no collision.
   return null;
+}
+
+// --- The collision stage (plan 18-11, skeleton) ------------------------------
+
+/** The player cannot die of a collision before Phase 20 (stub). */
+export const PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20 = true;
+
+/** A body the update order ranks: its id and where it is. */
+export interface RankedBody {
+  readonly id: EntityId;
+  readonly position: Vec3;
+}
+
+/** One octree contact between two colliders, by rank. */
+export interface RankedContact {
+  readonly self: number;
+  readonly other: number;
+  readonly part: ContactPart;
+}
+
+/** Stub. */
+export function colliderRank(
+  bodies: readonly RankedBody[],
+  playerPosition: Vec3,
+): EntityId[] {
+  void playerPosition;
+  return bodies.map((body) => body.id);
+}
+
+/** Stub. */
+export function runContactCalls(
+  count: number,
+  contacts: readonly RankedContact[],
+  call: (self: number, other: number, part: ContactPart) => boolean,
+): void {
+  void count;
+  void contacts;
+  void call;
+}
+
+/** Stub. */
+export function resolveCollisions(
+  world: World,
+  player: FlightState,
+  combat: PlayerCombatState | undefined,
+  options: StepOptions,
+): { records: HitRecord[] } {
+  void world;
+  void player;
+  void combat;
+  void options;
+  return { records: [] };
 }

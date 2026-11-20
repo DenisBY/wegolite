@@ -918,6 +918,7 @@ function playerShot(player: FlightState): ShotRequest {
 
 function stationRecord(player: FlightState, amount: number): HitRecord {
   return {
+    kind: "laser",
     target: MAIN_STATION_ID,
     source: PLAYER_ID,
     amount,
@@ -1232,6 +1233,7 @@ function pulseOf(player: FlightState): ShotRequest {
 
 function buoyRecord(target: number, amount: number): HitRecord {
   return {
+    kind: "laser",
     target,
     source: PLAYER_ID,
     amount,

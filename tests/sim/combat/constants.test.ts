@@ -24,6 +24,7 @@ import {
   LASER_SHOT_DURATION,
   LASER_STATS,
   PLAYER_HEAT_INSULATION,
+  PLAYER_MASS_KG,
   PLAYER_MAX_WEAPON_TEMP,
   SCANNER_MAX_RANGE,
   SHIELD_CHARGE_ENERGYBANK_THRESHOLD,
@@ -217,6 +218,14 @@ describe("scalar ledger", () => {
     expect(SCANNER_MAX_RANGE).toBe(25600);
     expect(IDENT_ACQUIRE_RANGE).toBe(25500);
     expect(LASER_SHOT_DURATION).toBe(0.09);
+  });
+
+  it("pins PLAYER_MASS_KG to the compiled Cobra mass (the collision stage's m1)", () => {
+    const cobra = ships.find(
+      (record) => record.key === "oolite_template_cobra3-player",
+    ) as unknown as { readonly mass: number };
+    expect(PLAYER_MASS_KG).toBe(214_737.6875);
+    expect(PLAYER_MASS_KG).toBe(cobra.mass);
   });
 
   it("derives the 0.5 heat factor from the Cobra mass below 400000", () => {

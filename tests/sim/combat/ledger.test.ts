@@ -62,8 +62,13 @@ function ship(
   return result.entity.id;
 }
 
-function record(target: number, source: number, amount: number): HitRecord {
-  return { target, source, amount, sourcePosition: vec(1e7, 0, -2000) };
+function record(
+  target: number,
+  source: number,
+  amount: number,
+  kind: HitRecord["kind"] = "laser",
+): HitRecord {
+  return { kind, target, source, amount, sourcePosition: vec(1e7, 0, -2000) };
 }
 
 function energyOf(world: World, id: number): number {
@@ -221,6 +226,71 @@ describe("applyLedger", () => {
     );
     expect(events).toMatchObject([{ kind: "shipHit", shield: true }]);
     expect(combat.energy).toBe(256);
+  });
+
+  it("routes a scrape on the player through the shield on the source's side, with no cabin heat, never lethal (CBT-18)", () => {
+    const world = createWorld(1);
+    // The source is 2,000 m ahead: the forward shield takes it first.
+    const combat = createPlayerCombatState();
+    const events: SimEvent[] = [];
+    const lethal = applyLedger(
+      world,
+      true,
+      player(),
+      combat,
+      [record(PLAYER_ID, 999, 20, "scrape")],
+      events,
+    );
+    expect(lethal).toEqual([]);
+    expect(combat.fwdShield).toBe(108);
+    expect(combat.aftShield).toBe(128);
+    expect(combat.energy).toBe(256);
+    expect(combat.cabinTemp).toBe(60);
+    expect(events).toEqual([
+      {
+        kind: "shipHit",
+        target: PLAYER_ID,
+        source: 999,
+        amount: 20,
+        shield: true,
+      },
+    ]);
+
+    // A scrape far above shield and energy floors the energy at 0, unheated.
+    const lethal2 = applyLedger(
+      world,
+      true,
+      player(),
+      combat,
+      [record(PLAYER_ID, 999, 1000, "scrape")],
+      events,
+    );
+    expect(lethal2).toEqual([]);
+    expect(combat.energy).toBe(0);
+    expect(combat.cabinTemp).toBe(60);
+  });
+
+  it("a laser on the player still heats the cabin (routeDamage)", () => {
+    const world = createWorld(1);
+    const combat = createPlayerCombatState();
+    applyLedger(
+      world,
+      true,
+      player(),
+      combat,
+      [record(PLAYER_ID, 999, 300, "laser")],
+      [],
+    );
+    expect(combat.cabinTemp).toBeGreaterThan(60);
+  });
+
+  it("a scrape on a ship lowers its energy as a laser record does", () => {
+    const world = createWorld(1);
+    const id = ship(world, 10);
+    const { lethal, events } = run(world, [record(id, PLAYER_ID, 15, "scrape")]);
+    expect(lethal).toEqual([{ victim: id, killer: PLAYER_ID }]);
+    expect(energyOf(world, id)).toBe(0);
+    expect(events).toMatchObject([{ kind: "shipHit", target: id, shield: false }]);
   });
 
   it("skips a player record when there is no combat state", () => {

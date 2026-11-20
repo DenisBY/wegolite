@@ -23,8 +23,9 @@
  *
  * The player is a target too, but never a lethal one: a hit on the player goes
  * through `routeDamage` (the facing shield first, then energy, heating the
- * cabin) and the energy floors at 0 until the player's death in Phase 20
- * (D-13).
+ * cabin), a collision's scrape through `routeScrapeDamage` (the same shield
+ * rule, no heat, CBT-18), and the energy floors at 0 until the player's death
+ * in Phase 20 (D-13).
  *
  * A static target (`../world/statics.ts`) is one of two kinds (Phase 18,
  * CBT-17). The main station only absorbs a hit (A6): the record posts
@@ -74,15 +75,28 @@ import {
   staticTargetById,
 } from "../world/statics.js";
 import type { World } from "../world/world.js";
-import { routeDamage } from "./shields.js";
+import { routeDamage, routeScrapeDamage } from "./shields.js";
 import type { PlayerCombatState } from "./state.js";
 
-/** One hit queued during resolution and applied after every shot is resolved. */
+/**
+ * One hit queued during resolution and applied after every shot is resolved.
+ *
+ * `kind` says which half of Oolite's damage it is: `"laser"` is
+ * `takeEnergyDamage` (`PlayerEntity.m:5599-5700`), `"scrape"` a collision's
+ * `takeScrapeDamage` (`PlayerEntity.m:5701-5753`, `ShipEntity.m:11636-11676`,
+ * queued by the collision stage, `./collide.ts`). Only the player tells them
+ * apart (a scrape does not heat the cabin); every other target takes either
+ * kind the same way.
+ */
 export interface HitRecord {
+  readonly kind: "laser" | "scrape";
   readonly target: EntityId;
   readonly source: EntityId;
   readonly amount: number;
-  /** Where the shooter was, which decides the shield a hit on the player drains. */
+  /**
+   * Where the source was when the record was queued (a copy, never a live
+   * reference), which decides the shield a hit on the player drains.
+   */
   readonly sourcePosition: Vec3;
 }
 
@@ -107,7 +121,8 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  * - A record on `PLAYER_ID` is applied exactly as in Phase 13 (skipped without a
  *   combat state; `routeDamage` with the offset from the player to the
  *   shooter and the player's forward; `shipHit` with `shield`) and is never
- *   lethal.
+ *   lethal. A `"scrape"` record takes `routeScrapeDamage` instead, which does
+ *   not heat the cabin (CBT-18).
  * - Any other target is skipped when the world is missing or was not stepped.
  * - A buoy subentity (`buoySubentityTargetById`) is skipped when its buoy is
  *   destroyed or its energy is not above 0. Otherwise it writes
@@ -144,7 +159,11 @@ export function applyLedger(
     if (!Number.isFinite(record.amount) || !(record.amount > 0)) continue;
     if (record.target === PLAYER_ID) {
       if (combat === undefined) continue;
-      const result = routeDamage(
+      // A laser heats the cabin (`takeEnergyDamage`); a collision's scrape
+      // does not (`takeScrapeDamage`, CBT-18). Both drain the shield on the
+      // source's side first and floor the energy at 0.
+      const route = record.kind === "scrape" ? routeScrapeDamage : routeDamage;
+      const result = route(
         combat,
         record.amount,
         sub(record.sourcePosition, player.position),

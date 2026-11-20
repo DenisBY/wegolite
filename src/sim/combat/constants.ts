@@ -161,6 +161,15 @@ export const COBRA_MAX_ENERGY = 256;
 /** The Cobra Mk III's `energy_recharge_rate` per second: `shipdata.plist:1296`. */
 export const COBRA_ENERGY_RECHARGE_RATE = 4;
 
+/**
+ * The player Cobra Mk III's mass in kg (`ShipEntity.m:11053`, `mass`), the
+ * compiled `mass` of `ships-client.json` `oolite_template_cobra3-player`
+ * (Oolite derives it from the hull volume and `density`). A literal because
+ * `src/sim` may not import the catalogue; `constants.test.ts` pins it. The
+ * collision stage (`./collide.ts`, CBT-18) reads it as the player's `m1`.
+ */
+export const PLAYER_MASS_KG = 214_737.6875;
+
 // --- Cabin temperature (RESEARCH C1-C5, D-05, D-06) -------------------------
 
 /** Cabin cooling coefficient: `ShipEntity.h:63`. */

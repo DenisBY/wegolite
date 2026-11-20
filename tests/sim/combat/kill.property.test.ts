@@ -1290,6 +1290,7 @@ const coordArb: fc.Arbitrary<number> = fc.oneof(
 );
 
 const recordArb: fc.Arbitrary<HitRecord> = fc.record({
+  kind: fc.constantFrom("laser" as const, "scrape" as const),
   target: idArb,
   source: idArb,
   amount: amountArb,
