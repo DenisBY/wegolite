@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 18
 current_phase_name: Stations, Buoys and Collisions
-current_plan: 17
+current_plan: 18
 status: executing
-stopped_at: Completed 18-08-PLAN.md
-last_updated: "2026-11-20T11:53:19.547Z"
+stopped_at: Completed 18-11-PLAN.md
+last_updated: "2026-11-20T12:31:41.018Z"
 last_activity: 2026-11-19
 last_activity_desc: Phase 18 execution started
-state_head: 05bea3793c6134ba81b1c4b4b84664f47b078c27
+state_head: 856f89b2a0a60f5def66cc3a83f4176533b04e69
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 50
-  completed_plans: 44
+  completed_plans: 45
   percent: 50
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 ## Current Position
 
 Phase: 18 (Stations, Buoys and Collisions) — EXECUTING
-Current Plan: 17
+Current Plan: 18
 Total Plans in Phase: 22
 Status: Ready to execute
 Last activity: 2026-11-19 — Phase 18 execution started
@@ -229,6 +229,7 @@ Last activity: 2026-11-19 — Phase 18 execution started
 | Phase 18 P06 | 58min | 3 tasks | 17 files |
 | Phase 18 P07 | 35 min | 3 tasks | 16 files |
 | Phase 18 P08 | 23 min | 3 tasks | 16 files |
+| Phase 18 P11 | 35 min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -588,6 +589,8 @@ Recent decisions affecting current work:
 - [Phase 18]: Plan 18-08: keep Wegolite's compass cycle and skip a destroyed witchpoint beacon (station -> auto); PROJECT.md Key Decisions row and FIDELITY E-126 'Compass cycle model' (A7, D-05)
 - [Phase 18]: Plan 18-08: a witchpoint compass turns to the planet, mode and target, on the first stepped tick whose field reports the witchpoint buoy dead (PlayerEntity.m:4655-4659, FIDELITY E-125)
 - [Phase 18]: Plan 18-08: one per-frame buoyViewStates value feeds applyBuoyState and HudModelOptions.buoys; a new world restores both buoys (FIDELITY E-127 divergence: Oolite keeps them through a dock and relaunch)
+- [Phase 18]: 18-11: the collision stage runs each body's own collision list in rank order (runContactCalls); a collided call removes self from the other's list, a separating one leaves it. Because the stage runs after every body has moved, 18-20's 1 m/s anti-conjoin push is not reproduced (FIDELITY divergence).
+- [Phase 18]: 18-11: collisions are opt-in via CombatOptions.collisions, set by buildStepOptions and never by the acceptance harness; collision damage enters the one ledger as "scrape" records after the laser records, the player's through routeScrapeDamage (no heat).
 
 ### Pending Todos
 
@@ -727,8 +730,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-20T11:53:19.106Z
-Stopped at: Completed 18-08-PLAN.md
+Last session: 2026-11-20T12:31:40.569Z
+Stopped at: Completed 18-11-PLAN.md
 Resume file: None
 
 ## Operator Next Steps
