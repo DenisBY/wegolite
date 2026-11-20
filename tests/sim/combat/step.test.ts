@@ -1839,7 +1839,7 @@ describe("a buoy subentity's blast at detachment (D-03, ShipEntity.m:7895-7904)"
     // From the C, by hand: 0.125 x 7,646.786 kg within 2.5 x 25.8226 m, the
     // pod 30 m out along +x, d2 = 30^2 - r_pod^2.
     const amount = 0.125 * 7646.7861328125;
-    const range = 2.5 * 25.822647094726562;
+    const range = 2.5 * 25.8226470947265625;
     const d2 = 900 - FIXTURE_POD.radius ** 2;
     const dv = (amount * range) / d2 / FIXTURE_POD.mass;
     expect(Math.abs(pod.velocity.x - dv)).toBeLessThanOrEqual(1e-12 * dv);

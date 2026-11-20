@@ -30,7 +30,7 @@
  *    when the victim cannot fragment): 13 draws each, as a pod, with no role
  *    draw (D16-07);
  * 5. the blast, which draws nothing: every movable body near the victim is
- *    pushed once, in ascending id (D-03, see `blast`).
+ *    pushed once, in ascending id (D-03, see `blastFrom`).
  *
  * The wreckage, the plate and the blast come after the pods, so no pod draw
  * moves (plan 16-04); the blast changes the pods' velocities afterwards. Every draw of a piece is taken before its spawn is
@@ -807,7 +807,7 @@ const BUOY_KEYS = ["witchpoint", "navBuoy"] as const;
  * here; `tests/sim/world/blast.oracle.test.ts` pins it to the fixture and to
  * the rule over the vendored mesh.
  */
-export const BUOY_SUBENTITY_RADIUS = 25.822647094726562;
+export const BUOY_SUBENTITY_RADIUS = 25.8226470947265625;
 
 /**
  * The explosion of the buoy `key`'s frangible subentity (`becomeExplosion`
