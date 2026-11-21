@@ -1934,31 +1934,32 @@ describe("load", () => {
     expect(h.lifecycle.world?.store.nextId).toBe(101);
   });
 
-  it("a v2 save, which has no epoch, restores at epoch 0 and launches at epoch 1", async () => {
-    const v2 = JSON.parse(laveBlob("docked", NO_COUNTERS)) as Record<
+  it("an older save is corrupt on Load and restores nothing (D-11: no migration)", async () => {
+    // A version-2 shape: no epoch, no counter, no mounts. It is no longer read.
+    const older = JSON.parse(laveBlob("docked", NO_COUNTERS)) as Record<
       string,
       unknown
     >;
-    v2.version = 2;
-    delete v2.epoch;
-    delete v2.nextEntityId;
-    delete v2.laserMounts;
+    older.version = 2;
+    delete older.epoch;
+    delete older.nextEntityId;
+    delete older.laserMounts;
+    expect(parseSave(JSON.stringify(older), SAVE_ALLOW)).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
     const h = loadHarness();
-    h.read.current = { kind: "ok", raw: JSON.stringify(v2) };
+    const before = h.lifecycle.world;
+    h.read.current = { kind: "ok", raw: JSON.stringify(older) };
 
     await h.controller.loadFromSave();
 
+    // Nothing was restored: no lifecycle call, the epoch and the world stand.
     expect(h.log.filter((entry) => entry.startsWith("worldLifecycle"))).toEqual(
-      ["worldLifecycle.resetForRestore 0"],
+      [],
     );
-    expect(h.lifecycle.epoch).toBe(0);
-    expect(h.lifecycle.world).toBeUndefined();
-
-    h.lifecycle.begin(MARKET_SEED_LAVE);
-    expect(h.lifecycle.epoch).toBe(1);
-    expect(h.lifecycle.world?.worldSeed).toBe(
-      worldSeedFor(MARKET_SEED_LAVE, 1),
-    );
+    expect(h.lifecycle.epoch).toBe(2);
+    expect(h.lifecycle.world).toBe(before);
   });
 
   it("a failed parse touches neither the epoch nor the world", async () => {

@@ -2,14 +2,15 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The save schema v3 contract (Phase 11, SAVE-07, CONTEXT D-01 to D-08).
+ * The leg-anchor contract of the save (Phase 11, SAVE-07, CONTEXT D-01 to D-08):
+ * the lifecycle `epoch` and the anchor world's `nextEntityId`.
  *
- * Plan 11-01 pins the D-07 cross-check vector here before any v3 save exists:
- * once the epoch is persisted, the mix32 world-seed derivation is one-way, so
- * its drift has to be caught from literals that are independent of the code.
- * Plans 11-02 and 11-03 add the round trip, the bounds and the worst case.
- * Expected values come from the decisions and the PROJECT.md Key Decisions row,
- * never from running the code twice.
+ * The D-07 cross-check vector is pinned here: once the epoch is persisted, the
+ * mix32 world-seed derivation is one-way, so its drift has to be caught from
+ * literals that are independent of the code. The round trip, the bounds and the
+ * writer gate run on a current-version blob from the shared builders
+ * (`tests/helpers/save-builders.ts`). Expected values come from the decisions
+ * and the PROJECT.md Key Decisions row, never from running the code twice.
  */
 
 import { readFileSync } from "node:fs";
@@ -41,25 +42,16 @@ import {
   MAX_SAVE_EPOCH,
   MAX_SAVE_NEXT_ENTITY_ID,
   SAVE_VERSION,
-  SaveV3Schema,
   encodeSave,
   isEncodedSaveValid,
-  migrateV1ToV2,
   migrateV2ToV3,
-  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
-import type {
-  SaveAllowLists,
-  SaveInputs,
-  SaveV1,
-  SaveV2,
-} from "../../src/persistence/save.js";
+import type { SaveAllowLists, SaveV2 } from "../../src/persistence/save.js";
 import {
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
-import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
 import { identity, vec } from "../../src/sim/math.js";
 import { newProfile } from "../../src/sim/player/profile.js";
 import { initFlightState, CLOCK_START } from "../../src/sim/flight/state.js";
@@ -69,8 +61,9 @@ import { serializeWorldSection } from "../../src/sim/world/serialize.js";
 import { liveEntityCount, spawnEntity } from "../../src/sim/world/world.js";
 import { commoditiesFixture } from "../helpers/commodities.js";
 import { laveFixture } from "../helpers/lave.js";
+import { currentSave, saveInputs } from "../helpers/save-builders.js";
 
-describe("world-seed cross-check vector (D-07), pinned before the first v3 write", () => {
+describe("world-seed cross-check vector (D-07), pinned before the first epoch write", () => {
   it("marketSeedForSystem(g0-s7) is 3545325333", () => {
     expect(marketSeedForSystem("g0-s7")).toBe(3545325333);
   });
@@ -147,7 +140,7 @@ function snapshot(mode: "docked" | "inFlight", counters: SaveWorldCounters) {
   );
 }
 
-describe("the epoch and counter anchor end to end, as the v3 schema introduced them (tracer)", () => {
+describe("the epoch and counter anchor end to end (tracer)", () => {
   it("an in-flight save after the first launch from Lave records epoch 1 and the anchor counter 101", () => {
     const lifecycle = createWorldLifecycle({ traffic: false });
     lifecycle.begin(LAVE_SEED);
@@ -157,7 +150,9 @@ describe("the epoch and counter anchor end to end, as the v3 schema introduced t
     expect(inputs.nextEntityId).toBe(101);
 
     const encoded = encodeSave(inputs);
-    expect(encoded.startsWith('{"version":4,')).toBe(true);
+    expect(encoded.startsWith(`{"version":${String(SAVE_VERSION)},`)).toBe(
+      true,
+    );
     expect(encoded).toContain('"epoch":1');
     expect(encoded).toContain('"nextEntityId":101');
     expect(isEncodedSaveValid(encoded, ALLOW)).toBe(true);
@@ -165,7 +160,7 @@ describe("the epoch and counter anchor end to end, as the v3 schema introduced t
     const parsed = parseSave(encoded, ALLOW);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.save.version).toBe(4);
+    expect(parsed.save.version).toBe(SAVE_VERSION);
     expect(parsed.save.epoch).toBe(1);
     expect(parsed.save.nextEntityId).toBe(101);
 
@@ -379,54 +374,6 @@ describe("migration to v3 (D-02, D-03)", () => {
     station: { key: "coriolis-station" },
     marketSeed: 1234,
   };
-  const v1: SaveV1 = {
-    version: 1,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 10,
-    credits: 100,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-  };
-
-  it("a v2 seed-only docked blob parses to the v2 object stepped to v4: epoch 0, counter 101, the stock mounts", () => {
-    const parsed = parseSave(JSON.stringify(v2), ALLOW);
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
-    expect(parsed.save).toStrictEqual({
-      ...v2,
-      version: 4,
-      epoch: 0,
-      nextEntityId: 101,
-      laserMounts: DEFAULT_LASER_MOUNTS,
-    });
-    // The v2 -> v3 step itself is frozen at version 3 (the v3 -> v4 step is
-    // pinned in save-v4.test.ts).
-    expect(migrateV2ToV3(v2)).toStrictEqual({
-      ...v2,
-      version: 3,
-      epoch: 0,
-      nextEntityId: 101,
-    });
-  });
-
-  it("a v1 blob parses through v2 and v3 into v4 with the derived market seed", () => {
-    const parsed = parseSave(JSON.stringify(v1), ALLOW);
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
-    expect(parsed.save).toStrictEqual({
-      ...v1,
-      version: 4,
-      mode: "docked",
-      marketSeed: marketSeedForSystem("g0-s7"),
-      epoch: 0,
-      nextEntityId: 101,
-      laserMounts: DEFAULT_LASER_MOUNTS,
-    });
-    expect(parsed.save).toStrictEqual(
-      migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(v1))),
-    );
-  });
 
   it("migrateV2ToV3 never mutates its input and is deterministic", () => {
     const frozen: SaveV2 = JSON.parse(JSON.stringify(v2)) as SaveV2;
@@ -438,42 +385,21 @@ describe("migration to v3 (D-02, D-03)", () => {
   });
 });
 
-describe("v3 constants", () => {
-  it("pins the version, the counter equality and the bounds", () => {
-    // v3 is frozen history; this build writes v4 (Phase 13).
-    expect(SAVE_VERSION).toBe(4);
+describe("leg-anchor constants", () => {
+  it("pins the counter equality and the bounds", () => {
     expect(FRESH_WORLD_NEXT_ENTITY_ID).toBe(FIRST_DYNAMIC_ID);
     expect(MAX_SAVE_EPOCH).toBe(0xfffffffe);
     expect(MAX_SAVE_NEXT_ENTITY_ID).toBe(2 ** 32);
   });
 });
 
-/** A valid docked v3 blob as a plain record, for the edge tables. */
-function validV3(
-  overrides: Record<string, unknown> = {},
-): Record<string, unknown> {
-  return {
-    version: 3,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-    marketSeed: 3545325333,
-    epoch: 0,
-    nextEntityId: 101,
-    ...overrides,
-  };
-}
-
 function parseOf(value: Record<string, unknown>) {
   return parseSave(JSON.stringify(value), ALLOW);
 }
 
-describe("v3 bounds and required fields (D-03, D-04)", () => {
+describe("epoch and counter bounds and required fields (D-03, D-04)", () => {
   it("the control blob is accepted", () => {
-    expect(parseOf(validV3()).ok).toBe(true);
+    expect(parseOf(currentSave()).ok).toBe(true);
   });
 
   it.each([
@@ -486,14 +412,14 @@ describe("v3 bounds and required fields (D-03, D-04)", () => {
     ['the string "1"', "1", false],
     ["null", null, false],
   ])("epoch %s", (_name, epoch, ok) => {
-    const result = parseOf(validV3({ epoch }));
+    const result = parseOf(currentSave({ epoch }));
     expect(result.ok).toBe(ok);
     if (!result.ok) expect(result.reason).toBe("corrupt");
     if (result.ok) expect(result.save.epoch).toBe(epoch);
   });
 
   it("an absent epoch is corrupt", () => {
-    const blob = validV3();
+    const blob = currentSave();
     delete blob.epoch;
     expect(parseOf(blob)).toEqual({ ok: false, reason: "corrupt" });
   });
@@ -506,26 +432,16 @@ describe("v3 bounds and required fields (D-03, D-04)", () => {
     ["2^32 + 1", 0x100000001, false],
     ["101.5", 101.5, false],
   ])("nextEntityId %s", (_name, nextEntityId, ok) => {
-    const result = parseOf(validV3({ nextEntityId }));
+    const result = parseOf(currentSave({ nextEntityId }));
     expect(result.ok).toBe(ok);
     if (!result.ok) expect(result.reason).toBe("corrupt");
     if (result.ok) expect(result.save.nextEntityId).toBe(nextEntityId);
   });
 
   it("an absent nextEntityId is corrupt", () => {
-    const blob = validV3();
+    const blob = currentSave();
     delete blob.nextEntityId;
     expect(parseOf(blob)).toEqual({ ok: false, reason: "corrupt" });
-  });
-
-  it("a v2 or v1 blob carrying epoch is corrupt", () => {
-    expect(parseOf(validV3({ version: 2, nextEntityId: undefined }))).toEqual({
-      ok: false,
-      reason: "corrupt",
-    });
-    const v1 = validV3({ version: 1, nextEntityId: undefined });
-    delete v1.marketSeed;
-    expect(parseOf(v1)).toEqual({ ok: false, reason: "corrupt" });
   });
 
   it.each([
@@ -535,9 +451,9 @@ describe("v3 bounds and required fields (D-03, D-04)", () => {
     ["kills", 0],
     ["cargoCostBasis", {}],
   ])(
-    "a v3 blob carrying %s is corrupt (a save never carries world state)",
+    "a blob carrying %s is corrupt (a save never carries world state)",
     (key, value) => {
-      expect(parseOf(validV3({ [key]: value }))).toEqual({
+      expect(parseOf(currentSave({ [key]: value }))).toEqual({
         ok: false,
         reason: "corrupt",
       });
@@ -548,32 +464,14 @@ describe("v3 bounds and required fields (D-03, D-04)", () => {
     const lifecycle = createWorldLifecycle({ traffic: false });
     expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH)).toBe(true);
     expect(lifecycle.resetForRestore(MAX_SAVE_EPOCH + 1)).toBe(false);
-    expect(
-      SaveV3Schema.safeParse(validV3({ epoch: MAX_SAVE_EPOCH })).success,
-    ).toBe(true);
-    expect(
-      SaveV3Schema.safeParse(validV3({ epoch: MAX_SAVE_EPOCH + 1 })).success,
-    ).toBe(false);
+    expect(parseOf(currentSave({ epoch: MAX_SAVE_EPOCH })).ok).toBe(true);
+    expect(parseOf(currentSave({ epoch: MAX_SAVE_EPOCH + 1 })).ok).toBe(false);
   });
 });
 
 describe("the writer gate refuses an out-of-range epoch", () => {
-  const inputs = (epoch: number): SaveInputs => ({
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    cargo: [],
-    fuel: 70,
-    missiles: 3,
-    passengerBerths: 0,
-    mode: "docked",
-    marketSeed: LAVE_SEED,
-    systemId: "g0-s7",
-    stationKey: "coriolis-station",
-    epoch,
-    nextEntityId: 101,
-    laserMounts: DEFAULT_LASER_MOUNTS,
-  });
+  const inputs = (epoch: number) =>
+    saveInputs({ epoch, marketSeed: LAVE_SEED, missiles: 3 });
 
   it("epoch 0xffffffff is invalid-save and the stored bytes are untouched", async () => {
     const committed = encodeSave(inputs(7));
@@ -599,19 +497,17 @@ describe("the writer gate refuses an out-of-range epoch", () => {
 });
 
 describe("classification: future, corrupt and the backup path", () => {
-  // src/main.ts lines 216-229: reason "corrupt" is the only path to
-  // backupCorrupt (the autosave.corrupt copy), and nothing reads the backup key
-  // back. Phase 11 leaves that unchanged, so the classification is the part
-  // this phase must prove.
-  it("version 5 is future-version", () => {
-    expect(parseOf(validV3({ version: 5 }))).toEqual({
+  // src/main.ts: reason "corrupt" is the only path to backupCorrupt (the
+  // autosave.corrupt copy), and nothing reads the backup key back.
+  it("the next version is future-version", () => {
+    expect(parseOf(currentSave({ version: SAVE_VERSION + 1 }))).toEqual({
       ok: false,
       reason: "future-version",
     });
   });
 
-  it("an oversized version 5 blob is future-version and JSON.parse never runs", () => {
-    const oversized = `${JSON.stringify(validV3({ version: 5 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+  it("an oversized next-version blob is future-version and JSON.parse never runs", () => {
+    const oversized = `${JSON.stringify(currentSave({ version: SAVE_VERSION + 1 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
     expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
     const parse = vi.spyOn(JSON, "parse");
     try {
@@ -625,8 +521,8 @@ describe("classification: future, corrupt and the backup path", () => {
     }
   });
 
-  it("a v3 blob with epoch 0xffffffff is corrupt, the one reason that is backed up", () => {
-    expect(parseOf(validV3({ epoch: 0xffffffff }))).toEqual({
+  it("a blob with epoch 0xffffffff is corrupt, the one reason that is backed up", () => {
+    expect(parseOf(currentSave({ epoch: 0xffffffff }))).toEqual({
       ok: false,
       reason: "corrupt",
     });

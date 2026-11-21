@@ -12,94 +12,49 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
 import { CLOCK_START } from "../../src/sim/flight/state.js";
-import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
   CORRUPT_BACKUP_MARKER,
   MAX_SAVE_CHARS,
+  SAVE_VERSION,
   boundCorruptBackup,
   encodeSave,
-  migrateV1ToV2,
-  migrateV2ToV3,
-  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
-import type { SaveAllowLists, SaveV1 } from "../../src/persistence/save.js";
+import {
+  currentSave,
+  saveAllowLists,
+  saveInputs,
+} from "../helpers/save-builders.js";
 
-/** The 17 commodity keys a market snapshot may carry (Alien Items included). */
-export const MARKET_GOODS: readonly string[] = [
-  "food",
-  "textiles",
-  "radioactives",
-  "slaves",
-  "liquor_wines",
-  "luxuries",
-  "narcotics",
-  "computers",
-  "machinery",
-  "alloys",
-  "firearms",
-  "furs",
-  "minerals",
-  "gold",
-  "platinum",
-  "gem_stones",
-  "alien_items",
-];
+const ALLOW = saveAllowLists();
 
-const ALLOW: SaveAllowLists = {
-  equipment: new Set([
-    "EQ_CARGO_BAY",
-    "EQ_DOCK_COMP",
-    "EQ_FUEL",
-    "EQ_MISSILE",
-    "EQ_MISSILE_REMOVAL",
-    "EQ_PASSENGER_BERTH",
-    "EQ_PASSENGER_BERTH_REMOVAL",
-  ]),
-  systems: new Set(["g0-s7"]),
-  stations: new Set(["coriolis-station"]),
-  commodities: new Map([
-    ["food", "t"],
-    ["gold", "kg"],
-    ["gem_stones", "g"],
-  ]),
-  marketGoods: new Set(MARKET_GOODS),
-};
-
-function validSave(overrides: Record<string, unknown> = {}): SaveV1 {
-  return {
-    version: 1,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-    ...overrides,
-  };
+/** A current-version blob (the production writer's output) with overrides. */
+function validSave(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return currentSave(overrides);
 }
 
 function raw(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** What a v1 blob becomes after the ordered chain: v1 -> v2 -> v3 -> v4 (D-02, D-03). */
-function migrated(save: SaveV1) {
-  return migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(save)));
+/** What the parser returns for a blob it accepts: the blob itself, parsed. */
+function accepted(save: Record<string, unknown>) {
+  return { ok: true, save: JSON.parse(raw(save)) as unknown };
 }
 
 describe("parseSave accept path", () => {
-  it("migrates the exact v1 blob this build's predecessor wrote", () => {
+  it("accepts the exact current blob the writer produces", () => {
     const save = validSave({
       equipment: ["EQ_DOCK_COMP"],
       credits: 5000,
     });
     const result = parseSave(raw(save), ALLOW);
-    expect(result).toEqual({ ok: true, save: migrated(save) });
+    expect(result).toEqual(accepted(save));
     if (!result.ok) return;
-    expect(result.save.version).toBe(4);
+    expect(result.save.version).toBe(SAVE_VERSION);
     expect(result.save.epoch).toBe(0);
     expect(result.save.nextEntityId).toBe(101);
     expect(result.save.mode).toBe("docked");
@@ -111,7 +66,7 @@ describe("parseSave accept path", () => {
     expect(parseSave(null, ALLOW)).toEqual({ ok: false, reason: "absent" });
   });
 
-  it("accepts the additive cargo, counts and seed fields through migration", () => {
+  it("accepts the optional cargo, counts and seed fields", () => {
     const save = validSave({
       equipment: ["EQ_DOCK_COMP"],
       cargo: [
@@ -123,33 +78,7 @@ describe("parseSave accept path", () => {
       passengerBerths: 1,
       marketSeed: 0x12345678,
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: migrated(save),
-    });
-  });
-
-  it("accepts a minimal v2 docked object carrying one seed", () => {
-    const save = {
-      version: 2,
-      mode: "docked",
-      clockSeconds: CLOCK_START + 600,
-      credits: 1000,
-      equipment: [],
-      system: { id: "g0-s7" },
-      station: { key: "coriolis-station" },
-      marketSeed: 0x12345678,
-    };
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: {
-        ...save,
-        version: 4,
-        epoch: 0,
-        nextEntityId: 101,
-        laserMounts: DEFAULT_LASER_MOUNTS,
-      },
-    });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 });
 
@@ -161,7 +90,7 @@ describe("parseSave reject table", () => {
   }> = [
     {
       name: "truncated JSON",
-      raw: '{"version":1',
+      raw: `{"version":${String(SAVE_VERSION)}`,
       reason: "unreadable",
     },
     {
@@ -170,29 +99,45 @@ describe("parseSave reject table", () => {
       reason: "corrupt",
     },
     {
-      name: "version 5 is a future build",
-      raw: raw(validSave({ version: 5 })),
+      name: "the next version is a future build",
+      raw: raw(validSave({ version: SAVE_VERSION + 1 })),
       reason: "future-version",
-    },
-    {
-      name: "v2 with an unknown top-level key",
-      raw: raw({
-        version: 2,
-        mode: "docked",
-        clockSeconds: CLOCK_START + 600,
-        credits: 1000,
-        equipment: [],
-        system: { id: "g0-s7" },
-        station: { key: "coriolis-station" },
-        marketSeed: 0x12345678,
-        futureBuild: "not this build",
-      }),
-      reason: "corrupt",
     },
     {
       name: "future version before schema validation",
-      raw: raw(validSave({ version: 9, mode: "inFlight", credits: -5 })),
+      raw: raw(
+        validSave({
+          version: SAVE_VERSION + 5,
+          mode: "inFlight",
+          credits: -5,
+        }),
+      ),
       reason: "future-version",
+    },
+    {
+      name: "version 1, an older release",
+      raw: raw(validSave({ version: 1 })),
+      reason: "corrupt",
+    },
+    {
+      name: "version 2, an older release",
+      raw: raw(validSave({ version: 2 })),
+      reason: "corrupt",
+    },
+    {
+      name: "version 3, the newest retired one, with every current field",
+      raw: raw(validSave({ version: 3 })),
+      reason: "corrupt",
+    },
+    {
+      name: "a negative version",
+      raw: raw(validSave({ version: -1 })),
+      reason: "corrupt",
+    },
+    {
+      name: "a fractional version",
+      raw: raw(validSave({ version: 1.5 })),
+      reason: "corrupt",
     },
     {
       name: "clock 1e308",
@@ -255,8 +200,8 @@ describe("parseSave reject table", () => {
       reason: "corrupt",
     },
     {
-      name: "wrong mode",
-      raw: raw(validSave({ mode: "inFlight" })),
+      name: "unknown mode",
+      raw: raw(validSave({ mode: "paused" })),
       reason: "corrupt",
     },
     {
@@ -308,7 +253,10 @@ describe("parseSave reject table", () => {
 });
 
 describe("cargo and hold semantics", () => {
-  const rows: ReadonlyArray<{ name: string; save: SaveV1 }> = [
+  const rows: ReadonlyArray<{
+    name: string;
+    save: Record<string, unknown>;
+  }> = [
     {
       name: "unknown commodity key",
       save: validSave({ cargo: [{ key: "unobtainium", quantity: 1 }] }),
@@ -403,10 +351,7 @@ describe("cargo and hold semantics", () => {
 
   it("accepts a lone Phase 4 berth alias and folds it in as one berth", () => {
     const save = validSave({ equipment: ["EQ_PASSENGER_BERTH"] });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: migrated(save),
-    });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 
   it("rejects a lone missile alias plus a non-zero missile count", () => {
@@ -421,10 +366,7 @@ describe("cargo and hold semantics", () => {
 describe("exact capacity boundaries and the optional seed", () => {
   it("accepts four missiles, the Cobra's pylon count, and rejects five", () => {
     const four = validSave({ missiles: 4 });
-    expect(parseSave(raw(four), ALLOW)).toEqual({
-      ok: true,
-      save: migrated(four),
-    });
+    expect(parseSave(raw(four), ALLOW)).toEqual(accepted(four));
     expect(parseSave(raw(validSave({ missiles: 5 })), ALLOW)).toEqual({
       ok: false,
       reason: "corrupt",
@@ -438,10 +380,7 @@ describe("exact capacity boundaries and the optional seed", () => {
         { key: "gold", quantity: 499 },
       ],
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: migrated(save),
-    });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 
   it("rejects a 20 t hold plus 500 kg of gold", () => {
@@ -462,10 +401,7 @@ describe("exact capacity boundaries and the optional seed", () => {
       equipment: ["EQ_CARGO_BAY"],
       cargo: [{ key: "food", quantity: 25 }],
     });
-    expect(parseSave(raw(withBay), ALLOW)).toEqual({
-      ok: true,
-      save: migrated(withBay),
-    });
+    expect(parseSave(raw(withBay), ALLOW)).toEqual(accepted(withBay));
 
     const withoutBay = validSave({ cargo: [{ key: "food", quantity: 25 }] });
     expect(parseSave(raw(withoutBay), ALLOW)).toEqual({
@@ -479,34 +415,18 @@ describe("exact capacity boundaries and the optional seed", () => {
       equipment: ["EQ_CARGO_BAY"],
       passengerBerths: 7,
     });
-    expect(parseSave(raw(withBay), ALLOW)).toEqual({
-      ok: true,
-      save: migrated(withBay),
-    });
+    expect(parseSave(raw(withBay), ALLOW)).toEqual(accepted(withBay));
   });
 
   it("accepts the uint32 ceiling and rejects one above it", () => {
     const ceiling = validSave({ marketSeed: 0xffffffff });
-    expect(parseSave(raw(ceiling), ALLOW)).toEqual({
-      ok: true,
-      save: migrated(ceiling),
-    });
+    expect(parseSave(raw(ceiling), ALLOW)).toEqual(accepted(ceiling));
 
     const above = validSave({ marketSeed: 0x1_0000_0000 });
     expect(parseSave(raw(above), ALLOW)).toEqual({
       ok: false,
       reason: "corrupt",
     });
-  });
-
-  it("derives the seed for a Phase 4 blob that carried none", () => {
-    const result = parseSave(raw(validSave()), ALLOW);
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    // D-14: the migration derives `marketSeedForSystem(system.id)` when the v1
-    // blob had no seed; the parser never invents a clock or random seed.
-    expect(result.save.marketSeed).toBe(marketSeedForSystem("g0-s7"));
-    expect(result.save.market).toBeUndefined();
   });
 });
 
@@ -528,7 +448,7 @@ describe("parseSave resource bound", () => {
     // CR-02: the version sniff runs on a bounded prefix *before* the blob is
     // classified, so a newer build's oversized save is untouchable, not
     // corrupt.
-    const oversized = `${raw(validSave({ version: 5 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+    const oversized = `${raw(validSave({ version: SAVE_VERSION + 1 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
     expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
 
     const parse = vi.spyOn(JSON, "parse");
@@ -543,7 +463,7 @@ describe("parseSave resource bound", () => {
   it("does not let a version marker beyond the sniff window defeat the bound", () => {
     // A hostile oversized blob cannot force a full parse by hiding the marker:
     // without a recognised prefix it is simply unreadable (still untouchable).
-    const hidden = `${" ".repeat(MAX_SAVE_CHARS)}${raw(validSave({ version: 5 }))}`;
+    const hidden = `${" ".repeat(MAX_SAVE_CHARS)}${raw(validSave({ version: SAVE_VERSION + 1 }))}`;
     expect(hidden.length).toBeGreaterThan(MAX_SAVE_CHARS);
     const parse = vi.spyOn(JSON, "parse");
     expect(parseSave(hidden, ALLOW)).toEqual({
@@ -573,22 +493,16 @@ describe("boundCorruptBackup", () => {
 
 describe("encodeSave", () => {
   it("writes exactly the documented key set and no pose or timestamp", () => {
-    const encoded = encodeSave({
-      clockSeconds: CLOCK_START + 600,
-      credits: 5000,
-      equipment: ["EQ_DOCK_COMP"],
-      cargo: [{ key: "food", quantity: 2 }],
-      fuel: 70,
-      missiles: 3,
-      passengerBerths: 0,
-      mode: "docked",
-      marketSeed: 0x12345678,
-      systemId: "g0-s7",
-      stationKey: "coriolis-station",
-      epoch: 0,
-      nextEntityId: 101,
-      laserMounts: DEFAULT_LASER_MOUNTS,
-    });
+    const encoded = encodeSave(
+      saveInputs({
+        clockSeconds: CLOCK_START + 600,
+        credits: 5000,
+        equipment: ["EQ_DOCK_COMP"],
+        cargo: [{ key: "food", quantity: 2 }],
+        missiles: 3,
+        marketSeed: 0x12345678,
+      }),
+    );
     const parsed = JSON.parse(encoded) as Record<string, unknown>;
 
     expect(Object.keys(parsed).sort()).toEqual([
@@ -613,5 +527,21 @@ describe("encodeSave", () => {
     expect(encoded).not.toMatch(
       /position|orientation|quaternion|timestamp|createdAt|host/iu,
     );
+  });
+});
+
+describe("the shared builders", () => {
+  it("currentSave is the parsed output of the production writer and parses ok", () => {
+    expect(currentSave()).toEqual(JSON.parse(encodeSave(saveInputs())));
+    const result = parseSave(raw(currentSave()), saveAllowLists());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.save.version).toBe(SAVE_VERSION);
+  });
+
+  it("an override whose value is undefined removes the key from the blob", () => {
+    const blob = JSON.parse(
+      raw(currentSave({ marketSeed: undefined })),
+    ) as Record<string, unknown>;
+    expect("marketSeed" in blob).toBe(false);
   });
 });

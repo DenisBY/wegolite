@@ -57,9 +57,9 @@ import type { Market } from "../sim/economy/market.js";
 import { CLOCK_START } from "../sim/flight/state.js";
 
 /**
- * The schema version this build writes and accepts (D-13). It is 4 since
- * Phase 13 (CBT-05): v1, v2 and v3 blobs are still read, through the ordered
- * chain.
+ * The schema version this build writes and the only one it reads (D-13, D-11).
+ * It is 4 since Phase 13 (CBT-05). Since Phase 19 there is no migration: a blob
+ * of any older version is `corrupt` (backed up once, cleared by New game).
  */
 export const SAVE_VERSION = 4 as const;
 
@@ -524,10 +524,16 @@ export function migrateV3ToV4(v3: SaveV3): SaveV4 {
  * converted to `null` by the caller.
  *
  * "Unreadable" is deliberately distinct from "corrupt". Only a blob this build
- * can positively recognise as its own v1 family (a JSON object with a numeric
- * `version` not newer than this build) may be backed up and cleared. Anything
- * else — oversized, unparseable, a JSON scalar, an object with no version — is
- * `unreadable`: the caller must never clear or overwrite it.
+ * can positively recognise as a save of its own family (a JSON object with a
+ * numeric `version` not newer than this build) may be backed up and cleared.
+ * Anything else — oversized, unparseable, a JSON scalar, an object with no
+ * version — is `unreadable`: the caller must never clear or overwrite it.
+ *
+ * There is no migration since Phase 19 (D-11): only `SAVE_VERSION` is read. An
+ * older save is `corrupt`, never `unreadable`, because `canOverwrite` and
+ * `canClear` (`src/app/session/save-controller.ts`) would turn `unreadable`
+ * into a session-long save lockout; `corrupt` is backed up once at boot and
+ * cleared by New game.
  */
 export function parseSave(
   raw: string | null,
@@ -565,36 +571,23 @@ export function parseSave(
 
   // A JSON value that does not carry this save family's numeric `version`
   // field is an unknown shape, not a corrupt save. Only a positively recognised
-  // v1/v2/v3/v4 object may be backed up and cleared by New game.
+  // object of this family may be backed up and cleared by New game.
   if (!isRecord(parsed) || typeof parsed["version"] !== "number") {
     return { ok: false, reason: "unreadable" };
   }
 
-  const version = parsed["version"];
-  let save: SaveV4;
-  if (version === 1) {
-    // The historical schema is the migration input; a v1-shaped blob that
-    // fails it is positively corrupt. The chain never skips a step (D-03).
-    const migrated = SaveV1Schema.safeParse(parsed);
-    if (!migrated.success) return { ok: false, reason: "corrupt" };
-    save = migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(migrated.data)));
-  } else if (version === 2) {
-    const historical = SaveV2Schema.safeParse(parsed);
-    if (!historical.success) return { ok: false, reason: "corrupt" };
-    save = migrateV3ToV4(migrateV2ToV3(historical.data));
-  } else if (version === 3) {
-    const historical = SaveV3Schema.safeParse(parsed);
-    if (!historical.success) return { ok: false, reason: "corrupt" };
-    save = migrateV3ToV4(historical.data);
-  } else if (version === 4) {
-    const current = SaveV4Schema.safeParse(parsed);
-    if (!current.success) return { ok: false, reason: "corrupt" };
-    save = current.data;
-  } else {
-    // A numeric version this build knows is historical/current (0, negative,
-    // fractional) but has no schema for: positively this family, so corrupt.
+  // D-11 (Phase 19): no migration. Only the current version is read, through the
+  // current schema. Every other recognised numeric version not above it (an
+  // older release's 1, 2 or 3, and also 0, a negative or a fractional number) is
+  // positively this save family but is not one this build reads, so it is
+  // `corrupt`: backed up once and cleared by New game. It is never `unreadable`,
+  // which `canOverwrite`/`canClear` would turn into a session-long lockout.
+  if (parsed["version"] !== SAVE_VERSION) {
     return { ok: false, reason: "corrupt" };
   }
+  const current = SaveV4Schema.safeParse(parsed);
+  if (!current.success) return { ok: false, reason: "corrupt" };
+  const save: SaveV4 = current.data;
 
   // The schema proves the shape; the shared semantic validator proves the
   // referents, cargo accounting and canonical equipment. It is the same stage

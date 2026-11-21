@@ -2,27 +2,27 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The v2 save contract as the v3 build reads it (D-13…D-16, SAVE-01, SAVE-04,
- * T-06-05…T-06-07; Phase 11 SAVE-07).
+ * The market snapshot, flight pose, encode projections and writer gate of the
+ * save contract (D-13…D-16, SAVE-01, SAVE-04, T-06-05…T-06-07).
  *
- * A v2 blob and a v1 blob are still accepted: they migrate in order to v3 with
- * epoch 0 and nextEntityId 101 (D-02, D-03), so every whole-save expectation
- * here is the v3 projection of the v2 object.
+ * Every case here runs on a current-version blob from the shared builders
+ * (`tests/helpers/save-builders.ts`): the rules were introduced with the second
+ * save format, but they are the rules of the format this build reads, and an
+ * older blob is `corrupt` before any of them runs (D-11; the historical
+ * classification is pinned in `save-v4.test.ts`).
  *
- * One table proves the migration is total and lossless; another proves the
- * classification order (`absent`/`unreadable`/`future-version`/`corrupt`) still
- * distinguishes a blob this build wrote from one it merely recognises. The
- * market and pose rules land on the same validator in Task 2.
+ * One table proves the classification order
+ * (`absent`/`unreadable`/`future-version`/`corrupt`) still distinguishes a blob
+ * this build wrote from one it merely recognises.
  */
 
 import { describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
 import { CLOCK_START } from "../../src/sim/flight/state.js";
-import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
   MAX_SAVE_CHARS,
   MAX_SAVE_POSITION_MAGNITUDE,
+  SAVE_VERSION,
   SaveV1Schema,
   SaveV2Schema,
   SaveV3Schema,
@@ -30,57 +30,39 @@ import {
   isEncodedSaveValid,
   migrateV1ToV2,
   migrateV2ToV3,
-  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
 import type {
   SaveAllowLists,
   SaveFlightPose,
-  SaveInputs,
   SaveV1,
   SaveV2,
 } from "../../src/persistence/save.js";
+import { marketSeedForSystem } from "../../src/sim/economy/market.js";
+import {
+  MARKET_GOODS,
+  currentSave,
+  saveAllowLists,
+  saveInputs,
+} from "../helpers/save-builders.js";
 
-/** The 17 commodity keys a market snapshot may carry (Alien Items included). */
-export const MARKET_GOODS: readonly string[] = [
-  "food",
-  "textiles",
-  "radioactives",
-  "slaves",
-  "liquor_wines",
-  "luxuries",
-  "narcotics",
-  "computers",
-  "machinery",
-  "alloys",
-  "firearms",
-  "furs",
-  "minerals",
-  "gold",
-  "platinum",
-  "gem_stones",
-  "alien_items",
-];
-
-export const ALLOW: SaveAllowLists = {
-  equipment: new Set(["EQ_CARGO_BAY", "EQ_DOCK_COMP"]),
+/** Lave and its neighbour: the committed-target and market-mismatch rows. */
+const ALLOW: SaveAllowLists = saveAllowLists({
   systems: new Set(["g0-s7", "g0-s1"]),
-  stations: new Set(["coriolis-station"]),
-  commodities: new Map([
-    ["food", "t"],
-    ["gold", "kg"],
-    ["gem_stones", "g"],
-  ]),
-  marketGoods: new Set(MARKET_GOODS),
-};
+});
 
-export const SEED = 0x12345678;
+const SEED = 0x12345678;
 
 function raw(value: unknown): string {
   return JSON.stringify(value);
 }
 
-export function validV1(overrides: Record<string, unknown> = {}): SaveV1 {
+/** What the parser returns for a blob it accepts: the blob itself, parsed. */
+function accepted(save: Record<string, unknown>) {
+  return { ok: true, save: JSON.parse(raw(save)) as unknown };
+}
+
+function validV1(overrides: Record<string, unknown> = {}): SaveV1 {
   return {
     version: 1,
     mode: "docked",
@@ -93,7 +75,7 @@ export function validV1(overrides: Record<string, unknown> = {}): SaveV1 {
   };
 }
 
-export function validV2(overrides: Record<string, unknown> = {}): SaveV2 {
+function validV2(overrides: Record<string, unknown> = {}): SaveV2 {
   return {
     version: 2,
     mode: "docked",
@@ -133,32 +115,6 @@ function flightPose(overrides: Record<string, unknown> = {}): SaveFlightPose {
     pitchRate: 0,
     rollRate: 0,
     torus: false,
-    ...overrides,
-  };
-}
-
-/** What a v2 object becomes after the rest of the ordered chain (v2 -> v3 -> v4). */
-function toV4(v2: SaveV2) {
-  return migrateV3ToV4(migrateV2ToV3(v2));
-}
-
-/** A canonical encoder input; each test overrides the field under test. */
-function saveInputs(overrides: Partial<SaveInputs> = {}): SaveInputs {
-  return {
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    cargo: [],
-    fuel: 70,
-    missiles: 3,
-    passengerBerths: 0,
-    mode: "docked",
-    marketSeed: SEED,
-    systemId: "g0-s7",
-    stationKey: "coriolis-station",
-    epoch: 0,
-    nextEntityId: 101,
-    laserMounts: DEFAULT_LASER_MOUNTS,
     ...overrides,
   };
 }
@@ -220,60 +176,40 @@ describe("v1 → v2 migration", () => {
     expect(SaveV3Schema.safeParse(validV2()).success).toBe(false);
     expect(SaveV2Schema.safeParse(v3).success).toBe(false);
   });
-
-  it("parseSave reads a v1 blob through v2 and v3 into the v4 object", () => {
-    const v1 = validV1({ marketSeed: SEED });
-    const result = parseSave(raw(v1), ALLOW);
-    expect(result).toEqual({
-      ok: true,
-      save: toV4(migrateV1ToV2(v1)),
-    });
-  });
 });
 
-describe("v2 accept path", () => {
-  it("accepts a minimal docked v2 object carrying one seed", () => {
-    const save = validV2();
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: toV4(save),
-    });
+describe("the accept path", () => {
+  it("accepts a minimal docked object carrying one seed", () => {
+    const save = currentSave({ marketSeed: SEED });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 
-  it("accepts the same object with a v1-style equipment/cargo tuple", () => {
-    const save = validV2({
+  it("accepts the same object with an equipment/cargo tuple", () => {
+    const save = currentSave({
       equipment: ["EQ_DOCK_COMP"],
       cargo: [{ key: "food", quantity: 2 }],
       fuel: 10,
       missiles: 0,
       passengerBerths: 0,
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: toV4(save),
-    });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 });
 
-describe("v2 classification", () => {
+describe("classification", () => {
   const rows: ReadonlyArray<{
     readonly name: string;
     readonly blob: string;
     readonly reason: "corrupt" | "future-version" | "unreadable";
   }> = [
     {
-      name: "a version-5 object is future-version",
-      blob: raw(validV2({ version: 5 })),
+      name: "the next version is future-version",
+      blob: raw(currentSave({ version: SAVE_VERSION + 1 })),
       reason: "future-version",
     },
     {
-      name: "a version-1 object that fails the v1 schema is corrupt",
-      blob: raw(validV1({ credits: -1 })),
-      reason: "corrupt",
-    },
-    {
-      name: "a v2 object with an unknown top-level key is corrupt",
-      blob: raw(validV2({ futureBuild: "leave this alone" })),
+      name: "an object with an unknown top-level key is corrupt",
+      blob: raw(currentSave({ futureBuild: "leave this alone" })),
       reason: "corrupt",
     },
     {
@@ -288,7 +224,7 @@ describe("v2 classification", () => {
     },
     {
       name: "a numeric version 0 is corrupt",
-      blob: raw(validV2({ version: 0 })),
+      blob: raw(currentSave({ version: 0 })),
       reason: "corrupt",
     },
   ];
@@ -304,7 +240,13 @@ describe("v2 classification", () => {
   }
 
   it("never throws on a hostile blob", () => {
-    for (const blob of ["{", "null", "[]", "42", '{"version":2']) {
+    for (const blob of [
+      "{",
+      "null",
+      "[]",
+      "42",
+      `{"version":${String(SAVE_VERSION)}`,
+    ]) {
       expect(() => parseSave(blob, ALLOW)).not.toThrow();
     }
   });
@@ -312,48 +254,42 @@ describe("v2 classification", () => {
 
 describe("the market snapshot", () => {
   it("accepts a docked save whose market matches the saved system", () => {
-    const save = validV2({ market: marketSnapshot(), marketSeed: undefined });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: toV4(validV2({ market: marketSnapshot(), marketSeed: undefined })),
+    const save = currentSave({
+      market: marketSnapshot(),
+      marketSeed: undefined,
     });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 
   it("accepts an in-flight save with a pose and a market", () => {
-    const save = validV2({
+    const save = currentSave({
       mode: "inFlight",
       market: marketSnapshot(),
       marketSeed: undefined,
       flight: flightPose(),
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: toV4(save),
-    });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 
   it("accepts an allow-listed committed target", () => {
-    const save = validV2({ targetSystem: "g0-s1" });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: toV4(save),
-    });
+    const save = currentSave({ targetSystem: "g0-s1" });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 
   const corruptRows: ReadonlyArray<{
     readonly name: string;
-    readonly save: SaveV2;
+    readonly save: Record<string, unknown>;
   }> = [
     {
       name: "market system id disagrees with the saved system",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({ systemId: "g0-s1" }),
         marketSeed: undefined,
       }),
     },
     {
       name: "an unknown market goods key",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({
           goods: [
             ...goods().slice(1),
@@ -365,7 +301,7 @@ describe("the market snapshot", () => {
     },
     {
       name: "a duplicate market goods key",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({
           goods: goods().map((good, index) =>
             index === 1 ? { ...good, key: "food" } : good,
@@ -376,7 +312,7 @@ describe("the market snapshot", () => {
     },
     {
       name: "stock 128",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({
           goods: goods().map((good, index) =>
             index === 0 ? { ...good, stock: 128 } : good,
@@ -387,7 +323,7 @@ describe("the market snapshot", () => {
     },
     {
       name: "a negative price",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({
           goods: goods().map((good, index) =>
             index === 0 ? { ...good, price: -1 } : good,
@@ -398,7 +334,7 @@ describe("the market snapshot", () => {
     },
     {
       name: "a fractional price",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({
           goods: goods().map((good, index) =>
             index === 0 ? { ...good, price: 1.5 } : good,
@@ -409,14 +345,14 @@ describe("the market snapshot", () => {
     },
     {
       name: "fewer than 17 goods",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({ goods: goods().slice(0, 16) }),
         marketSeed: undefined,
       }),
     },
     {
       name: "more than 17 goods",
-      save: validV2({
+      save: currentSave({
         market: marketSnapshot({
           goods: [...goods(), { key: "food", price: 1, stock: 1 }],
         }),
@@ -425,15 +361,15 @@ describe("the market snapshot", () => {
     },
     {
       name: "both market and marketSeed",
-      save: validV2({ market: marketSnapshot() }),
+      save: currentSave({ market: marketSnapshot() }),
     },
     {
       name: "neither market nor marketSeed",
-      save: validV2({ marketSeed: undefined }),
+      save: currentSave({ marketSeed: undefined }),
     },
     {
       name: "a target system outside the allow-list",
-      save: validV2({ targetSystem: "g9-s1" }),
+      save: currentSave({ targetSystem: "g9-s1" }),
     },
   ];
 
@@ -450,47 +386,47 @@ describe("the market snapshot", () => {
 describe("the flight pose", () => {
   const corruptRows: ReadonlyArray<{
     readonly name: string;
-    readonly save: SaveV2;
+    readonly save: Record<string, unknown>;
   }> = [
     {
       name: "a docked save carrying a pose",
-      save: validV2({ flight: flightPose() }),
+      save: currentSave({ flight: flightPose() }),
     },
     {
       name: "an in-flight save without a pose",
-      save: validV2({ mode: "inFlight" }),
+      save: currentSave({ mode: "inFlight" }),
     },
     {
       name: "a position magnitude past 1e9 m",
-      save: validV2({
+      save: currentSave({
         mode: "inFlight",
         flight: flightPose({ position: [1e30, 0, 0] }),
       }),
     },
     {
       name: "a non-unit-able zero orientation",
-      save: validV2({
+      save: currentSave({
         mode: "inFlight",
         flight: flightPose({ orientation: [0, 0, 0, 0] }),
       }),
     },
     {
       name: "a speed past the torus cap",
-      save: validV2({
+      save: currentSave({
         mode: "inFlight",
         flight: flightPose({ speed: 1_000_001 }),
       }),
     },
     {
       name: "a pitch rate past the bound",
-      save: validV2({
+      save: currentSave({
         mode: "inFlight",
         flight: flightPose({ pitchRate: 10.5 }),
       }),
     },
     {
       name: "a non-boolean torus flag",
-      save: validV2({
+      save: currentSave({
         mode: "inFlight",
         flight: flightPose({ torus: "yes" }),
       }),
@@ -507,20 +443,17 @@ describe("the flight pose", () => {
   }
 
   it("accepts a finite position at the magnitude bound", () => {
-    const save = validV2({
+    const save = currentSave({
       mode: "inFlight",
       flight: flightPose({
         position: [MAX_SAVE_POSITION_MAGNITUDE, 0, 0],
       }),
     });
-    expect(parseSave(raw(save), ALLOW)).toEqual({
-      ok: true,
-      save: toV4(save),
-    });
+    expect(parseSave(raw(save), ALLOW)).toEqual(accepted(save));
   });
 });
 
-describe("encodeSave v2 projections", () => {
+describe("encodeSave projections", () => {
   it("emits the market and omits marketSeed when a snapshot is supplied", () => {
     const encoded = encodeSave(
       saveInputs({
@@ -535,10 +468,9 @@ describe("encodeSave v2 projections", () => {
   });
 
   it("emits marketSeed and omits market when only a seed is supplied", () => {
-    const parsed = JSON.parse(encodeSave(saveInputs())) as Record<
-      string,
-      unknown
-    >;
+    const parsed = JSON.parse(
+      encodeSave(saveInputs({ marketSeed: SEED })),
+    ) as Record<string, unknown>;
     expect(parsed["marketSeed"]).toBe(SEED);
     expect(parsed["market"]).toBeUndefined();
   });
@@ -585,9 +517,9 @@ describe("encodeSave v2 projections", () => {
   });
 });
 
-describe("the v2 size bound", () => {
+describe("the size bound", () => {
   it("rejects a 65,537-character blob before JSON.parse runs", () => {
-    const oversized = `${raw(validV2({ targetSystem: "g0-s1" }))}${" ".repeat(
+    const oversized = `${raw(currentSave({ targetSystem: "g0-s1" }))}${" ".repeat(
       MAX_SAVE_CHARS,
     )}`;
     expect(oversized.length).toBeGreaterThan(MAX_SAVE_CHARS);
@@ -600,8 +532,8 @@ describe("the v2 size bound", () => {
     parse.mockRestore();
   });
 
-  it("recognises an oversized version-5 prefix as future-version", () => {
-    const future = `${raw(validV2({ version: 5 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
+  it("recognises an oversized next-version prefix as future-version", () => {
+    const future = `${raw(currentSave({ version: SAVE_VERSION + 1 }))}${" ".repeat(MAX_SAVE_CHARS)}`;
     expect(parseSave(future, ALLOW)).toEqual({
       ok: false,
       reason: "future-version",
@@ -611,13 +543,13 @@ describe("the v2 size bound", () => {
 
 describe("the writer gate (isEncodedSaveValid)", () => {
   it("accepts a canonical blob under the full allow-list, as the reader does", () => {
-    const encoded = raw(toV4(validV2()));
+    const encoded = encodeSave(saveInputs());
     expect(isEncodedSaveValid(encoded, ALLOW)).toBe(true);
     expect(parseSave(encoded, ALLOW).ok).toBe(true);
   });
 
   it("rejects a saved system the allow-list omits, as the reader does", () => {
-    const encoded = raw(toV4(validV2()));
+    const encoded = encodeSave(saveInputs());
     const systemsWithoutSaved: SaveAllowLists = {
       ...ALLOW,
       systems: new Set(["g0-s1"]),
@@ -630,7 +562,7 @@ describe("the writer gate (isEncodedSaveValid)", () => {
   });
 
   it("rejects a station key the allow-list omits, as the reader does", () => {
-    const encoded = raw(toV4(validV2()));
+    const encoded = encodeSave(saveInputs());
     const stationsWithoutSaved: SaveAllowLists = {
       ...ALLOW,
       stations: new Set(["other-station"]),
@@ -643,9 +575,7 @@ describe("the writer gate (isEncodedSaveValid)", () => {
   });
 
   it("rejects a market good the allow-list does not know, as the reader does", () => {
-    const encoded = raw(
-      toV4(validV2({ market: marketSnapshot(), marketSeed: undefined })),
-    );
+    const encoded = encodeSave(saveInputs({ market: marketSnapshot() }));
     const withoutFood: SaveAllowLists = {
       ...ALLOW,
       marketGoods: new Set(MARKET_GOODS.filter((key) => key !== "food")),

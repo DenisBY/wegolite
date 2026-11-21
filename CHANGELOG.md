@@ -11,6 +11,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The page footer links the changelog, so you can see what changed in each
   release.
 
+### Changed
+
+- **Breaking:** a save written by an older release (save format 1 to 3) is no
+  longer loaded. It is kept as a backup, Continue is not offered for it, and
+  New game starts a fresh commander with saving working again. Saves are no
+  longer migrated between formats.
+
 ## [0.7.0] - 2026-11-20
 
 Stations, buoys and collisions. Your ship can now take damage in normal play
