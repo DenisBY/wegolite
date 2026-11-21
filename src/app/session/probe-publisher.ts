@@ -31,6 +31,7 @@ import type * as THREE from "three";
 import { capacityPodsFor, holdPodsUsed } from "../../sim/economy/cargo.js";
 import type { FlightState } from "../../sim/flight/state.js";
 import type { Vec3 } from "../../sim/math.js";
+import { SINGLE_INSTANCE_KEYS } from "../../sim/player/outfitting.js";
 import { MAX_EQUIPMENT_KEYS, setCredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
 import {
@@ -322,13 +323,27 @@ export function createProbePublisher(
     return commitProfile(setCredits(ctx.core.profile, credits));
   }
 
-  /** `?test=1` seam: grant only a key the validated catalogue knows. */
+  /**
+   * `?test=1` seam: grant only a key the validated catalogue knows and F3 can
+   * install (`SINGLE_INSTANCE_KEYS`), so no laser and no key the repair door
+   * cannot repair ever enters `equipment` (CONTEXT D-03, Pitfall 13). A damaged
+   * key is refused, and both lists count against the 64-key bound, so the hook
+   * cannot build a profile the save would refuse.
+   */
   function applyTestEquipment(key: string): boolean {
     const catalogue = ctx.core.equipmentCatalogue;
     if (catalogue === undefined) return false;
     if (catalogue.every((item) => item.key !== key)) return false;
+    if (!SINGLE_INSTANCE_KEYS.has(key)) return false;
+    if (ctx.core.profile.damagedEquipment.includes(key)) return false;
     if (ctx.core.profile.equipment.includes(key)) return false;
-    if (ctx.core.profile.equipment.length >= MAX_EQUIPMENT_KEYS) return false;
+    if (
+      ctx.core.profile.equipment.length +
+        ctx.core.profile.damagedEquipment.length >=
+      MAX_EQUIPMENT_KEYS
+    ) {
+      return false;
+    }
     return commitProfile({
       ...ctx.core.profile,
       equipment: [...ctx.core.profile.equipment, key],

@@ -29,6 +29,7 @@ import type {
   WegoliteSaveProbe,
 } from "../../../src/app/probe.js";
 import { trafficContent } from "../../../src/app/session/traffic.js";
+import { parseEquipment } from "../../../src/content/equipment.js";
 import type { NpcShip } from "../../../src/content/types.js";
 import {
   TEST_ATTACKER_DISTANCE,
@@ -53,6 +54,8 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
+import { newProfile } from "../../../src/sim/player/profile.js";
+import type { PlayerProfile } from "../../../src/sim/player/profile.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
@@ -76,7 +79,9 @@ interface Harness {
   readonly renderer: { info: { render: { frame: number } } };
 }
 
-function harness(): Harness {
+function harness(
+  commit: (ctx: SessionState, next: PlayerProfile) => boolean = () => false,
+): Harness {
   const ctx = createSessionState({
     system,
     saveStatus: "absent",
@@ -112,7 +117,7 @@ function harness(): Harness {
     saveProbe,
     redrawGate: gate,
     messages,
-    commitProfile: () => false,
+    commitProfile: (next) => commit(ctx, next),
     swapSystem: () => Promise.resolve(),
     disposeSystem: () => undefined,
     advanceTicks: () => 0,
@@ -257,6 +262,96 @@ describe("bindTestHook", () => {
     expect(state.speed).toBe(speedBefore);
     expect(ctx.runtime.testTainted).toBe(false);
     expect(probe.test?.tainted).toBe(false);
+  });
+});
+
+describe("the ?test=1 grantEquipment seam (Phase 19, D-03, Pitfall 13)", () => {
+  const equipmentCatalogue = parseEquipment(
+    JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../src/content/generated/equipment.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as unknown,
+  );
+
+  /** A harness whose commit stores the profile, with the real catalogue loaded. */
+  function grantHarness(profile: PlayerProfile = newProfile()) {
+    const committed: PlayerProfile[] = [];
+    const h = harness((ctx, next) => {
+      ctx.core.profile = next;
+      committed.push(next);
+      return true;
+    });
+    h.ctx.core.equipmentCatalogue = equipmentCatalogue;
+    h.ctx.core.profile = profile;
+    h.publisher.bindTestHook(initFlightState(layout));
+    const grant = (key: string): boolean =>
+      h.probe.test?.grantEquipment(key) ?? false;
+    return { ...h, committed, grant };
+  }
+
+  it("grants an undamaged F3 key and taints the session", () => {
+    const { ctx, committed, grant } = grantHarness();
+    expect(grant("EQ_DOCK_COMP")).toBe(true);
+    expect(ctx.core.profile.equipment).toEqual(["EQ_DOCK_COMP"]);
+    expect(committed).toHaveLength(1);
+    expect(ctx.runtime.testTainted).toBe(true);
+  });
+
+  it("refuses a key that is currently damaged and commits nothing", () => {
+    const { ctx, committed, grant } = grantHarness({
+      ...newProfile(),
+      damagedEquipment: ["EQ_DOCK_COMP"],
+    });
+    expect(grant("EQ_DOCK_COMP")).toBe(false);
+    expect(committed).toEqual([]);
+    expect(ctx.core.profile.equipment).toEqual([]);
+    expect(ctx.runtime.testTainted).toBe(false);
+  });
+
+  it("refuses a catalogue key outside the F3 set: a laser, ECM and fuel", () => {
+    for (const key of ["EQ_WEAPON_PULSE_LASER", "EQ_ECM", "EQ_FUEL"]) {
+      expect(
+        equipmentCatalogue.some((item) => item.key === key),
+        `${key} is a catalogue key`,
+      ).toBe(true);
+      const { ctx, committed, grant } = grantHarness();
+      expect(grant(key)).toBe(false);
+      expect(committed).toEqual([]);
+      expect(ctx.core.profile.equipment).toEqual([]);
+    }
+  });
+
+  it("refuses a key the catalogue does not know and a second grant of the same key", () => {
+    const { committed, grant } = grantHarness();
+    expect(grant("EQ_NOT_IN_CATALOGUE")).toBe(false);
+    expect(grant("EQ_DOCK_COMP")).toBe(true);
+    expect(grant("EQ_DOCK_COMP")).toBe(false);
+    expect(committed).toHaveLength(1);
+  });
+
+  it("counts installed and damaged keys together against the 64-key bound", () => {
+    const filler = (prefix: string, count: number): string[] =>
+      Array.from({ length: count }, (_, index) => `${prefix}${String(index)}`);
+    const full = grantHarness({
+      ...newProfile(),
+      equipment: filler("EQ_FILL_A", 60),
+      damagedEquipment: filler("EQ_FILL_B", 4),
+    });
+    expect(full.grant("EQ_ADVANCED_COMPASS")).toBe(false);
+    expect(full.committed).toEqual([]);
+
+    const room = grantHarness({
+      ...newProfile(),
+      equipment: filler("EQ_FILL_A", 60),
+      damagedEquipment: filler("EQ_FILL_B", 3),
+    });
+    expect(room.grant("EQ_ADVANCED_COMPASS")).toBe(true);
+    expect(room.ctx.core.profile.equipment).toHaveLength(61);
   });
 });
 
