@@ -61,6 +61,7 @@ import type { SystemScene } from "../../render/system-scene.js";
 import type { SettingsV1 } from "../../settings/schema.js";
 import type { SaveStatus } from "../../persistence/store.js";
 import type { HullTable } from "../../sim/combat/hit.js";
+import type { InternalDamageFacts } from "../../sim/combat/internal-damage.js";
 import type { PlayerCombatState } from "../../sim/combat/state.js";
 import type { Command } from "../../sim/commands.js";
 import type { HyperspaceRefusal } from "../../sim/events.js";
@@ -142,6 +143,20 @@ export interface SessionCore {
    */
   equipmentSetSource: readonly string[] | undefined;
   equipmentSetCache: ReadonlySet<string>;
+  /**
+   * The profile, equipment catalogue and commodities the internal-damage facts
+   * were built from (Phase 19, D-01): the cache is rebuilt only when any of the
+   * three identities changes, so the fixed step does not rebuild it 120 times a
+   * second and the step after a damage commit sees the damaged key gone.
+   */
+  internalDamageKey:
+    | {
+        readonly profile: PlayerProfile;
+        readonly catalogue: readonly Equipment[];
+        readonly commodities: readonly Commodity[];
+      }
+    | undefined;
+  internalDamageCache: InternalDamageFacts | undefined;
   /** Market lifetime (D-17/D-18/D-19): generated once from the persisted seed. */
   market: Market | undefined;
   marketSeed: number | undefined;
@@ -385,6 +400,8 @@ export function createSessionState(init: SessionStateInit): SessionState {
       lastDockClockDelta: 0,
       equipmentSetSource: undefined,
       equipmentSetCache: new Set(),
+      internalDamageKey: undefined,
+      internalDamageCache: undefined,
       market: undefined,
       marketSeed: undefined,
       hyperspaceTargetId: undefined,

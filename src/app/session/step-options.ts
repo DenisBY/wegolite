@@ -10,22 +10,32 @@
  * that assembles them, so the live session and a Node tick replay (plans 08-14
  * and 08-16) cannot drift apart.
  *
+ * Phase 19 adds the player's internal-damage facts (`internalDamageFactsFor`),
+ * which the session derives from the live profile and the loaded catalogues.
+ * The Node tick replay (`tests/helpers/tick-script.ts`) builds none: the roll
+ * only emits events that the session's damage flow commits to the profile, and
+ * the replay neither routes them nor hashes the profile, so its world hash
+ * cannot move.
+ *
  * It must stay importable by the Playwright Node runner: pure, no DOM, no Three,
  * no `import.meta.glob`, and nothing beyond `src/sim` and one type import from
  * `src/content/types.ts`.
  */
 
-import type { System } from "../../content/types.js";
+import type { Commodity, Equipment, System } from "../../content/types.js";
 import type { NpcWeapon } from "../../sim/combat/aim.js";
 import type { HullTable } from "../../sim/combat/hit.js";
+import type { InternalDamageFacts } from "../../sim/combat/internal-damage.js";
 import type { LaserMounts } from "../../sim/combat/mounts.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
+import { capacityPodsFor, holdPods } from "../../sim/economy/cargo.js";
 import type { StepOptions } from "../../sim/flight/step.js";
 import {
   NAV_BUOY_MASS,
   witchspaceStationMass,
 } from "../../sim/hyperspace/countdown.js";
 import type { NpcFlightStats } from "../../sim/npc/stats.js";
+import type { PlayerProfile } from "../../sim/player/profile.js";
 import type { DebrisContent } from "../../sim/world/debris.js";
 import type { ShipMass } from "../../sim/world/ship-field.js";
 
@@ -72,6 +82,43 @@ export interface StepOptionsInput {
    * to the step.
    */
   readonly debris?: DebrisContent;
+  /**
+   * The player's internal-damage facts (CBT-08, D-01, D-03), from
+   * `internalDamageFactsFor`. Absent until both the equipment catalogue and the
+   * commodities are loaded, and absent means no roll: a probability is never
+   * guessed.
+   */
+  readonly internalDamage?: InternalDamageFacts;
+}
+
+/**
+ * The read-only facts of the player's internal-damage roll (CBT-08, D-01, D-03)
+ * derived from the live profile and the loaded catalogues.
+ *
+ * `items` follow `profile.equipment` order (Oolite's insertion order), each with
+ * its compiled `damageProbability` (0 for a key the catalogue lacks; a key with
+ * probability 0 stays listed, as it takes part in Oolite's pick sum).
+ * `capacityPods` is Oolite's `maxAvailableCargoSpace` (`ShipEntity.m:7198-7201`),
+ * the hold's capacity and not its free space. `pods` is `holdPods` of the hold.
+ * Pure; never mutates the profile or the catalogues.
+ */
+export function internalDamageFactsFor(
+  profile: Pick<PlayerProfile, "equipment" | "passengerBerths" | "cargo">,
+  catalogue: readonly Pick<Equipment, "key" | "damageProbability">[],
+  commodities: readonly Pick<Commodity, "key" | "unit" | "sortOrder">[],
+): InternalDamageFacts {
+  const probabilities = new Map<string, number>();
+  for (const record of catalogue) {
+    probabilities.set(record.key, record.damageProbability);
+  }
+  return {
+    items: profile.equipment.map((key) => ({
+      key,
+      damageProbability: probabilities.get(key) ?? 0,
+    })),
+    capacityPods: capacityPodsFor(profile.equipment, profile.passengerBerths),
+    pods: holdPods(profile.cargo, commodities),
+  };
 }
 
 /**
@@ -81,8 +128,8 @@ export interface StepOptionsInput {
  * committed, `stationMass` only when the origin's station kind has a recorded
  * mass, `shipMasses` only when the caller has them, `dock` only when the
  * geometry exists, `npcFlight` only when the caller has the table, and
- * `combat.hulls`, `combat.npcWeapons` and `combat.debris` only when the
- * caller has them. `combat` itself is always present: it carries the mounts.
+ * `combat.hulls`, `combat.npcWeapons`, `combat.debris` and
+ * `combat.internalDamage` only when the caller has them. `combat` itself is always present: it carries the mounts.
  */
 export function buildStepOptions(input: StepOptionsInput): StepOptions {
   const {
@@ -97,6 +144,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     npcWeapons,
     npcFlight,
     debris,
+    internalDamage,
   } = input;
   // The read-only station mass of the live system's station kind. Only a
   // Coriolis station has a recorded mass; the others omit the fact.
@@ -130,6 +178,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     ...(hulls === undefined ? {} : { hulls }),
     ...(npcWeapons === undefined ? {} : { npcWeapons }),
     ...(debris === undefined ? {} : { debris }),
+    ...(internalDamage === undefined ? {} : { internalDamage }),
   };
   const base = {
     equipment,

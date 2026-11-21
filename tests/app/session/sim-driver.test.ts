@@ -35,6 +35,7 @@ import {
 import { parseTestFlags } from "../../../src/app/session/test-flags.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import { buildStepOptions } from "../../../src/app/session/step-options.js";
+import { parseEquipment } from "../../../src/content/equipment.js";
 import type { System } from "../../../src/content/types.js";
 import type { WegoliteProbe } from "../../../src/app/probe.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
@@ -55,11 +56,14 @@ import { initFlightState } from "../../../src/sim/flight/state.js";
 import { NAV_BUOY_MASS } from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { flightTableFrom } from "../../../src/sim/npc/stats.js";
+import { applyEquipmentDamaged } from "../../../src/sim/player/damage.js";
+import { newProfile } from "../../../src/sim/player/profile.js";
 import type { FlightRecord } from "../../../src/sim/npc/stats.js";
 import { spawnEntity } from "../../../src/sim/world/world.js";
 import type { InputFrame } from "../../../src/sim/state.js";
 import { MAX_STEPS_PER_FRAME } from "../../../src/sim/step.js";
 import { DT } from "../../../src/sim/time.js";
+import { commoditiesFixture } from "../../helpers/commodities.js";
 import { sessionSources } from "../../helpers/session-source.js";
 import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
@@ -569,6 +573,115 @@ describe("stepOnce, the single flight step", () => {
     // same list reaches the step, and the key is absent without traffic.
     expect(without).not.toHaveProperty("npcFlight");
     expect(withMasses?.npcFlight).toBe(flight);
+  });
+
+  describe("the internal-damage facts (plan 19-11, CBT-08, D-01, D-03)", () => {
+    interface SeenOptions {
+      combat?: {
+        internalDamage?: {
+          items: { key: string; damageProbability: number }[];
+          capacityPods: number;
+          pods: { commodity: string; amount: number }[];
+        };
+      };
+    }
+
+    const equipmentCatalogue = parseEquipment(
+      JSON.parse(
+        readFileSync(
+          new URL(
+            "../../../src/content/generated/equipment.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ) as unknown,
+    );
+    const commodities = commoditiesFixture();
+
+    /** A loaded harness whose profile holds a bay, a docking computer and gold. */
+    function loaded(): Harness {
+      const built = harness({ mode: "inFlight" });
+      built.ctx.core.equipmentCatalogue = equipmentCatalogue;
+      built.ctx.core.commodities = commodities;
+      built.ctx.core.profile = {
+        ...newProfile(),
+        equipment: ["EQ_CARGO_BAY", "EQ_DOCK_COMP"],
+        passengerBerths: 1,
+        cargo: { gold: 2700 },
+      };
+      return built;
+    }
+
+    function stepAndSee(built: Harness): SeenOptions {
+      const seen: unknown[] = [];
+      hooks.onOptions = (options) => {
+        seen.push(options);
+      };
+      built.driver.stepOnce([], IDLE);
+      expect(seen).toHaveLength(1);
+      return seen[0] as SeenOptions;
+    }
+
+    it("hands the live profile's facts to the next step", () => {
+      const built = loaded();
+      expect(stepAndSee(built).combat?.internalDamage).toEqual({
+        items: [
+          { key: "EQ_CARGO_BAY", damageProbability: 0 },
+          { key: "EQ_DOCK_COMP", damageProbability: 1 },
+        ],
+        capacityPods: 30,
+        pods: [
+          { commodity: "gold", amount: 1000 },
+          { commodity: "gold", amount: 1000 },
+          { commodity: "gold", amount: 201 },
+        ],
+      });
+    });
+
+    it("shares one facts object across steps and rebuilds it when the profile changes", () => {
+      const built = loaded();
+      const first = stepAndSee(built).combat?.internalDamage;
+      const second = stepAndSee(built).combat?.internalDamage;
+      expect(second).toBe(first);
+
+      // A damage commit removes the damaged key from the next step's items.
+      built.ctx.core.profile = applyEquipmentDamaged(
+        built.ctx.core.profile,
+        "EQ_DOCK_COMP",
+      );
+      const afterDamage = stepAndSee(built).combat?.internalDamage;
+      expect(afterDamage).not.toBe(first);
+      expect(afterDamage?.items.map((item) => item.key)).toEqual([
+        "EQ_CARGO_BAY",
+      ]);
+
+      // A cargo change (a trade, a destroyed pod) re-derives the pods.
+      built.ctx.core.profile = {
+        ...built.ctx.core.profile,
+        cargo: { gold: 1700 },
+      };
+      const afterCargo = stepAndSee(built).combat?.internalDamage;
+      expect(afterCargo).not.toBe(afterDamage);
+      expect(afterCargo?.pods).toEqual([
+        { commodity: "gold", amount: 1000 },
+        { commodity: "gold", amount: 201 },
+      ]);
+    });
+
+    it("omits the facts, and so the roll, without the equipment catalogue or the commodities", () => {
+      const noCatalogue = loaded();
+      noCatalogue.ctx.core.equipmentCatalogue = undefined;
+      expect(stepAndSee(noCatalogue).combat).not.toHaveProperty(
+        "internalDamage",
+      );
+
+      const noCommodities = loaded();
+      noCommodities.ctx.core.commodities = undefined;
+      expect(stepAndSee(noCommodities).combat).not.toHaveProperty(
+        "internalDamage",
+      );
+    });
   });
 
   it("moves the pose window forward by one step", () => {
