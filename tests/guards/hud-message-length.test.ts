@@ -39,6 +39,9 @@ import { describe, expect, it } from "vitest";
 
 import { withoutComments } from "./source-scan.js";
 import {
+  CARGO_DESTROYED_TEMPLATE,
+  EQUIPMENT_DAMAGED_TEMPLATE,
+  formatDamageMessage,
   formatIdentLocked,
   IDENT_LOCKED_TEMPLATE,
 } from "../../src/app/session/event-router.js";
@@ -126,7 +129,27 @@ function builtMessages(): string[] {
   expect(read("src/app/session/hyperspace-controller.ts")).toContain(
     "`Arrived at ${destination.name}`",
   );
+  // Phase 19 (D-07, D-04): the damage messages over every compiled equipment
+  // and commodity display name.
+  const equipmentNames = (
+    JSON.parse(read("src/content/generated/equipment.json")) as {
+      name: string;
+    }[]
+  ).map((record) => record.name);
+  const commodityNames = (
+    JSON.parse(read("src/content/generated/commodities.json")) as {
+      name: string;
+    }[]
+  ).map((record) => record.name);
+  expect(equipmentNames.length).toBeGreaterThan(0);
+  expect(commodityNames.length).toBeGreaterThan(0);
   return [
+    ...equipmentNames.map((name) =>
+      formatDamageMessage(EQUIPMENT_DAMAGED_TEMPLATE, name),
+    ),
+    ...commodityNames.map((name) =>
+      formatDamageMessage(CARGO_DESTROYED_TEMPLATE, name),
+    ),
     ...shipNames.map((name) =>
       formatIdentLocked(IDENT_LOCKED_TEMPLATE, {
         name,

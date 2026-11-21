@@ -273,6 +273,7 @@ function session(
     onPreRollStart: () => undefined,
     router: createEventRouter(ctx, {
       stationFlow: quiet,
+      damageFlow: quiet,
       hudMessages,
       dockFeedback: quiet,
       hyperspaceFlow: createHyperspaceFlow(ctx, {

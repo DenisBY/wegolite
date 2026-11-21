@@ -4,9 +4,9 @@
 /**
  * The ordered event router (Phase 8, D-12 step 8, ARCHITECTURE.md section 4.2).
  *
- * `handleEvent` used to be one switch over every `SimEvent` kind. It is now four
- * gameplay subscribers (`stationFlow`, `hudMessages`, `dockFeedback`,
- * `hyperspaceFlow`), the world lifecycle subscriber the router builds itself
+ * `handleEvent` used to be one switch over every `SimEvent` kind. It is now five
+ * gameplay subscribers (`stationFlow`, `damageFlow`, `hudMessages`,
+ * `dockFeedback`, `hyperspaceFlow`), the world lifecycle subscriber the router builds itself
  * (`worldLifecycle`, plan 08-15) and a router that offers each event to them in
  * `EVENT_SUBSCRIBER_ORDER`. Which subscribers handle which kind is the
  * declarative table `EVENT_KIND_SUBSCRIBER`; the order tests pin it. The
@@ -15,9 +15,16 @@
  * or ended. Every gameplay arm body is the one `handleEvent` carried before the
  * split, with its statement order unchanged.
  *
+ * Phase 19 (D-01, D-04, D-07): `equipmentDamaged` and `cargoDestroyed` are
+ * routed to `damageFlow` alone. It commits the profile in one atomic update and
+ * prints Oolite's HUD message only when its own commit took effect, as
+ * `hyperspaceFlow` prints `hyperspaceRefused`: only the subscriber that ran the
+ * commit knows whether it did (a refused, repeated or stale event prints
+ * nothing, T-19-17). It writes no save (D-11).
+ *
  * Order independence with plan 08-11 (which widens `SimEvent` with reserved
  * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
- * of the 22 routed kinds, never to the full `SimEvent` kind union, and every
+ * of the 24 routed kinds, never to the full `SimEvent` kind union, and every
  * read of it with a value that is not already a `RoutedKind` goes through
  * `isRoutedKind`. The only mention of the full union's kind type is the
  * `satisfies` check on `ROUTED_EVENT_KINDS`. There is no exhaustive check and no
@@ -36,6 +43,11 @@ import type {
 } from "../../sim/events.js";
 import { poseOf } from "../../sim/flight/state.js";
 import {
+  applyCargoDestroyed,
+  applyEquipmentDamaged,
+} from "../../sim/player/damage.js";
+import type { PlayerProfile } from "../../sim/player/profile.js";
+import {
   shouldEmitScrapeMessage,
   shouldEmitThrottledMessage,
 } from "../dock-feedback.js";
@@ -47,6 +59,7 @@ import type { CombatMessageKind, SessionState } from "./context.js";
 export const EVENT_SUBSCRIBER_ORDER = [
   "stationFlow",
   "worldLifecycle",
+  "damageFlow",
   "hudMessages",
   "dockFeedback",
   "hyperspaceFlow",
@@ -86,6 +99,9 @@ export const ROUTED_EVENT_KINDS = [
   "laserFired",
   // D16-21: the explosion, for the presentation subscriber (Phase 15 OD-2).
   "shipDestroyed",
+  // Phase 19 (D-01, D-04): internal damage, committed by `damageFlow`.
+  "equipmentDamaged",
+  "cargoDestroyed",
 ] as const satisfies readonly SimEvent["kind"][];
 
 export type RoutedKind = (typeof ROUTED_EVENT_KINDS)[number];
@@ -120,6 +136,8 @@ export const EVENT_KIND_SUBSCRIBER: Readonly<
   identOff: ["hudMessages"],
   laserFired: ["dockFeedback"],
   shipDestroyed: ["dockFeedback"],
+  equipmentDamaged: ["damageFlow"],
+  cargoDestroyed: ["damageFlow"],
 };
 
 /** Whether `kind` is one of the routed kinds; a reserved or unknown kind is not. */
@@ -131,7 +149,7 @@ export function isRoutedKind(kind: string): kind is RoutedKind {
 export type EventSubscriber = (event: SimEvent) => void;
 
 /**
- * What the facade passes: the four gameplay subscribers. `worldLifecycle` is
+ * What the facade passes: the five gameplay subscribers. `worldLifecycle` is
  * optional and only for a test that records it; the router builds the real one
  * from `ctx` when it is absent, so the facade never changes.
  */
@@ -587,6 +605,94 @@ export function createHyperspaceFlow(
       case "hyperspaceJumped":
         handleHyperspaceJumped(event);
         break;
+    }
+  };
+}
+
+/**
+ * Oolite's `"@-damaged"` (`descriptions.plist:895`): the message for an item
+ * the internal-damage roll damaged. `%@` is the equipment's display name.
+ */
+export const EQUIPMENT_DAMAGED_TEMPLATE = "%@ damaged.";
+
+/**
+ * Oolite's `"@-destroyed"` (`descriptions.plist:896`): the message for a cargo
+ * pod the internal-damage roll destroyed. `%@` is the commodity's display name.
+ */
+export const CARGO_DESTROYED_TEMPLATE = "%@ destroyed.";
+
+/** Fill a damage template: `%@` is replaced by `name`. */
+export function formatDamageMessage(template: string, name: string): string {
+  return template.split("%@").join(name);
+}
+
+/** What the damage subscriber calls outside the session context. */
+export interface DamageFlowDeps {
+  /** Replace the live profile; returns false when nothing was committed. */
+  readonly commitProfile: (next: PlayerProfile) => boolean;
+  readonly messages: Pick<MessageQueue, "enqueue" | "clearPrevious">;
+}
+
+/**
+ * equipmentDamaged and cargoDestroyed (Phase 19, D-01, D-04, D-07): apply the
+ * pure profile operation, commit it once, and print Oolite's message only when
+ * `commitProfile` returned true. A refused operation returns the same profile,
+ * so nothing is committed and nothing is printed (T-19-17), as Oolite prints
+ * each message only for the change it makes (`PlayerEntity.m:6105-6113`,
+ * `6155-6171`). Each message clears the previous one first and lasts 4.5 s
+ * (`PlayerEntity.m:6110-6111, 6164-6171`). No save is written here (D-11): the
+ * damage becomes durable at the existing triggers.
+ */
+export function createDamageFlow(
+  ctx: SessionState,
+  deps: DamageFlowDeps,
+): EventSubscriber {
+  const { commitProfile, messages } = deps;
+  return (event) => {
+    switch (event.kind) {
+      case "equipmentDamaged": {
+        // descriptions.plist:895; PlayerEntity.m:6155-6171.
+        if (
+          !commitProfile(applyEquipmentDamaged(ctx.core.profile, event.key))
+        ) {
+          return;
+        }
+        const name =
+          ctx.core.equipmentCatalogue?.find(
+            (record) => record.key === event.key,
+          )?.name ?? event.key;
+        messages.clearPrevious();
+        messages.enqueue(
+          formatDamageMessage(EQUIPMENT_DAMAGED_TEMPLATE, name),
+          4.5,
+        );
+        break;
+      }
+      case "cargoDestroyed": {
+        // descriptions.plist:896; PlayerEntity.m:6105-6113: Oolite prints the
+        // message for the pod it removes, so a refused loss (no such goods
+        // held, or more than held) prints nothing.
+        if (
+          !commitProfile(
+            applyCargoDestroyed(
+              ctx.core.profile,
+              event.commodity,
+              event.amount,
+            ),
+          )
+        ) {
+          return;
+        }
+        const name =
+          ctx.core.commodities?.find((record) => record.key === event.commodity)
+            ?.name ?? event.commodity;
+        messages.clearPrevious();
+        messages.enqueue(
+          formatDamageMessage(CARGO_DESTROYED_TEMPLATE, name),
+          4.5,
+        );
+        break;
+      }
     }
   };
 }

@@ -192,6 +192,7 @@ function harness(
   const realScripted = new ScriptedLaunchController();
   const subscribers: EventRouterSubscribers = {
     stationFlow: (event) => log.push(`stationFlow ${event.kind}`),
+    damageFlow: (event) => log.push(`damageFlow ${event.kind}`),
     hudMessages: (event) => log.push(`hudMessages ${event.kind}`),
     dockFeedback: (event) => log.push(`dockFeedback ${event.kind}`),
     hyperspaceFlow: (event) => log.push(`hyperspaceFlow ${event.kind}`),

@@ -41,6 +41,7 @@ import {
   statusSkipReason,
 } from "./session/save-controller.js";
 import {
+  createDamageFlow,
   createDockFeedbackFlow,
   createEventRouter,
   createHudMessages,
@@ -439,7 +440,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     onSubpanelKeyDown,
   } = settingsController;
 
-  // D-12 step 8: sim events go through the ordered router (the four gameplay
+  // D-12 step 8: sim events go through the ordered router (the five gameplay
   // subscribers, in `EVENT_SUBSCRIBER_ORDER`), and the sim driver owns the
   // drain, the launch filter, the pre-launch autosave and the one flight-step
   // call site. Both are built after every function they call.
@@ -457,6 +458,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       autosave,
       closeChart: chartController.closeChart,
     }),
+    damageFlow: createDamageFlow(ctx, { commitProfile, messages }),
     hudMessages: createHudMessages({ messages }, ctx),
     dockFeedback: createDockFeedbackFlow(ctx, { messages }),
     hyperspaceFlow: createHyperspaceFlow(ctx, {
