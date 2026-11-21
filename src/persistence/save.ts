@@ -73,7 +73,7 @@ export const SAVE_VERSION = 5 as const;
  * The largest raw blob the parser will even attempt to parse (D-15, T-06-04).
  *
  * This is a true upper bound on what `encodeSave` can produce, including
- * worst-case JSON escaping. The v2 worst case is:
+ * worst-case JSON escaping. The v5 worst case is:
  *
  * - equipment, 64 keys of 64 characters: 64 × 64 × 6 = 24,576 characters
  *   (a control character encodes to six characters, `\u00XX`);
@@ -82,11 +82,14 @@ export const SAVE_VERSION = 5 as const;
  * - pose: about 250; scalar/system/station envelope: about 400;
  * - the two v3 numbers, `epoch` and `nextEntityId`: about 40;
  * - the v4 `laserMounts` object, four mount keys of at most 24 characters:
- *   about 170.
+ *   about 170;
+ * - the v5 `damagedEquipment` list, 16 keys of 64 characters:
+ *   16 × (64 × 6 + 3) = 6,192 characters.
  *
- * That is ≈39.1 KB, comfortably under 65,536 while remaining a hard resource
- * bound checked before `JSON.parse`. tests/persistence/save-v5.test.ts measures
- * the v5 worst case (plan 19-08). The version sniff copies at most
+ * Measured by tests/persistence/save-v5.test.ts: 46,796 characters, comfortably
+ * under 65,536 while remaining a hard resource bound checked before
+ * `JSON.parse`. That schema bound is not a save that parses (the combined
+ * 64-key rule rejects 64 equipment plus 16 damaged keys). The version sniff copies at most
  * `MAX_VERSION_SNIFF_CHARS` characters, never the whole stored string.
  */
 export const MAX_SAVE_CHARS = 65_536;
