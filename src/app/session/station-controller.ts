@@ -806,12 +806,22 @@ export function createStationController(
    * Commit an accepted profile change: publish it to the 04-05 seam, then
    * refresh the station header/market. A refusal returns `false` and changes
    * nothing.
+   *
+   * Only a docked session rebuilds the station view. In flight (the damage
+   * flow commits once per damage event inside the fixed step, Phase 19 review
+   * WR-01) the panel is hidden and is rebuilt on dock anyway, so the commit
+   * publishes only the economy probe: no model builder runs, so none can throw
+   * into `router.dispatch`, and a heavy hit costs no view rebuilds.
    */
   function commitProfile(next: PlayerProfile): boolean {
     if (next === ctx.core.profile) return false;
     ctx.core.profile = next;
     onProfileChanged(ctx.core.profile);
-    renderStation();
+    if (ctx.core.state?.mode === "docked") {
+      renderStation();
+    } else {
+      syncEconomyProbe();
+    }
     return true;
   }
 

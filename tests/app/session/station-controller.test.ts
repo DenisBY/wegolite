@@ -145,6 +145,49 @@ function asTrade(value: unknown): TradePlan {
   return plan;
 }
 
+describe("commitProfile outside the station (Phase 19 review WR-01)", () => {
+  it("docked: publishes the profile and rebuilds the station view", () => {
+    const { ctx, controller, calls, profiles } = harness();
+    expect(ctx.core.state?.mode).toBe("docked");
+    const next = { ...ctx.core.profile, credits: 1234 };
+    expect(controller.commitProfile(next)).toBe(true);
+    expect(ctx.core.profile).toBe(next);
+    expect(profiles).toEqual([next]);
+    expect(calls).toContain("render");
+    expect(calls).toContain("syncEconomyProbe");
+  });
+
+  it("in flight and launching: publishes the profile and the probe, never the view", () => {
+    for (const mode of ["inFlight", "launching"] as const) {
+      const { ctx, controller, calls, profiles } = harness();
+      if (ctx.core.state === undefined) throw new Error("no flight state");
+      ctx.core.state.mode = mode;
+      // Damage-flow commits, one per event inside one step.
+      let profile = ctx.core.profile;
+      for (const credits of [1, 2, 3]) {
+        profile = { ...profile, credits };
+        expect(controller.commitProfile(profile)).toBe(true);
+      }
+      expect(ctx.core.profile).toBe(profile);
+      expect(profiles).toHaveLength(3);
+      expect(calls).toEqual([
+        "syncEconomyProbe",
+        "syncEconomyProbe",
+        "syncEconomyProbe",
+      ]);
+    }
+  });
+
+  it("a refused commit (the same profile) changes and calls nothing", () => {
+    const { ctx, controller, calls, profiles } = harness();
+    if (ctx.core.state === undefined) throw new Error("no flight state");
+    ctx.core.state.mode = "inFlight";
+    expect(controller.commitProfile(ctx.core.profile)).toBe(false);
+    expect(profiles).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("selection", () => {
   it("selects the first tradeable good with stock and moves with wrap-around", () => {
     const { ctx, controller, market } = harness();
