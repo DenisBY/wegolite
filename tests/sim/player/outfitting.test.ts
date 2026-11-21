@@ -36,13 +36,19 @@ import {
   VISIBLE_EQUIPMENT_KEYS,
   applyFit,
   applyLaserFit,
+  applyRepair,
   checkFit,
   checkLaserFit,
+  checkRepair,
   fitPrice,
   isListedForPurchase,
   laserFitKey,
   laserPriceMap,
   parseLaserFitKey,
+  parseRepairFitKey,
+  repairFitKey,
+  repairPrice,
+  repairTechLevel,
 } from "../../../src/sim/player/outfitting.js";
 import type {
   FitContext,
@@ -1284,5 +1290,56 @@ describe("isListedForPurchase (Oolite equipmentAllowed)", () => {
     );
     expect(laser).toEqual({ ok: false, reason: "insufficientCredits" });
     expect(isListedForPurchase(laser)).toBe(true);
+  });
+});
+
+describe("the repair door (tracer, D-08 to D-10)", () => {
+  const damagedProfile = (overrides: Partial<PlayerProfile> = {}) =>
+    makeProfile({
+      credits: 10_000,
+      equipment: [],
+      damagedEquipment: ["EQ_DOCK_COMP"],
+      ...overrides,
+    });
+
+  it("repairs a damaged docking computer at raw tech level 8 for 7500", () => {
+    expect(parseRepairFitKey("EQ_DOCK_COMP@repair")).toBe("EQ_DOCK_COMP");
+    const profile = damagedProfile({ equipment: ["EQ_CARGO_BAY"] });
+    const ctx = makeContext({ techLevelRaw: 8 });
+    expect(checkRepair(profile, dockComputer, ctx)).toEqual({ ok: true });
+
+    const repaired = applyRepair(profile, dockComputer, ctx);
+    expect(repaired).not.toBe(profile);
+    expect(repaired.credits).toBe(2_500);
+    expect(repaired.equipment).toEqual(["EQ_CARGO_BAY", "EQ_DOCK_COMP"]);
+    expect(repaired.damagedEquipment).toEqual([]);
+    // The input is untouched.
+    expect(profile.damagedEquipment).toEqual(["EQ_DOCK_COMP"]);
+  });
+
+  it("refuses raw tech level 7 with the same object back", () => {
+    const profile = damagedProfile();
+    const ctx = makeContext({ techLevelRaw: 7 });
+    expect(checkRepair(profile, dockComputer, ctx)).toEqual({
+      ok: false,
+      reason: "techLevel",
+    });
+    expect(applyRepair(profile, dockComputer, ctx)).toBe(profile);
+  });
+
+  it("refuses a forged profile that holds the key in both lists", () => {
+    const profile = damagedProfile({ equipment: ["EQ_DOCK_COMP"] });
+    const ctx = makeContext({ techLevelRaw: 8 });
+    expect(checkRepair(profile, dockComputer, ctx)).toEqual({
+      ok: false,
+      reason: "owned",
+    });
+    expect(applyRepair(profile, dockComputer, ctx)).toBe(profile);
+  });
+
+  it("builds the row key and prices through the module helpers", () => {
+    expect(repairFitKey("EQ_DOCK_COMP")).toBe("EQ_DOCK_COMP@repair");
+    expect(repairPrice(dockComputer)).toBe(7_500);
+    expect(repairTechLevel(9)).toBe(8);
   });
 });

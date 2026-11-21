@@ -849,6 +849,8 @@ function fitReason(reason: FitRefusal, item: Equipment): string {
       return "Not available";
     case "maxInstances":
       return "Maximum reached";
+    case "notDamaged":
+      return "Not damaged";
   }
 }
 

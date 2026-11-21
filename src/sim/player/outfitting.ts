@@ -14,6 +14,13 @@
  * `FACINGS` allow-list. `checkFit` and `applyFit` still refuse every laser, and
  * every other record stays `notOffered` on both paths.
  *
+ * Repair (Phase 19, D-08..D-10) is the third door: `checkRepair` and
+ * `applyRepair` accept only a key of `REPAIRABLE_EQUIPMENT_KEYS` (the one
+ * damageable set) that is in `profile.damagedEquipment`, at half the catalogue
+ * price and one raw tech level lower, applied at once with no clock advance. A
+ * damaged item cannot be bought again (`canPurchase` refuses `damaged`); only
+ * the repair row is offered for it, as in Oolite.
+ *
  * F3 lists an item only when it could be fitted here and now, as Oolite's
  * `equipmentAllowed` does (`isListedForPurchase`): an item above the system's
  * tech level, already fitted or with no room to add it is not shown. Only an
@@ -90,7 +97,7 @@ export type VisibleEquipmentKey = (typeof VISIBLE_EQUIPMENT_KEYS)[number];
  * The five keys that live in `profile.equipment` and are bought exactly once.
  * Missiles and berths are integer counts, never duplicate keys.
  */
-const SINGLE_INSTANCE_KEYS: ReadonlySet<string> = new Set([
+export const SINGLE_INSTANCE_KEYS: ReadonlySet<string> = new Set([
   "EQ_CARGO_BAY",
   "EQ_DOCK_COMP",
   "EQ_GAL_DRIVE",
@@ -168,7 +175,8 @@ export type FitRefusal =
   | "insufficientCredits"
   | "fullFuel"
   | "invalidPrice"
-  | "invalidCondition";
+  | "invalidCondition"
+  | "notDamaged";
 
 export type FitCheck =
   { readonly ok: true } | { readonly ok: false; readonly reason: FitRefusal };
@@ -191,6 +199,7 @@ const LISTED_REFUSALS: Readonly<Record<FitRefusal, boolean>> = Object.freeze({
   fullFuel: false,
   invalidPrice: false,
   invalidCondition: false,
+  notDamaged: false,
 });
 
 /**
@@ -715,4 +724,155 @@ export function applyLaserFit(
   const laserMounts: Record<Facing, MountKey> = { ...profile.laserMounts };
   laserMounts[facing] = item.key;
   return { ...profile, credits, laserMounts };
+}
+
+/**
+ * The keys the repair door mends (Phase 19, D-03): the very
+ * `DAMAGEABLE_EQUIPMENT_KEYS` array, not a second literal, so every key the
+ * roll can damage, the commit can record and the save can hold is a key this
+ * door repairs. `tests/guards/damageable-equipment.test.ts` pins the set.
+ */
+export const REPAIRABLE_EQUIPMENT_KEYS = DAMAGEABLE_EQUIPMENT_KEYS;
+
+export type RepairableKey = DamageableKey;
+
+/** Whether `value` is a repairable key (by membership, never `in`). */
+export function isRepairableKey(value: unknown): value is RepairableKey {
+  return isDamageableKey(value);
+}
+
+/** The literal second part of a composite repair row key. */
+const REPAIR_ROW_SUFFIX = "repair";
+
+/** One F3 row key for the repair of `key` (`<key>@repair`). */
+export function repairFitKey(key: RepairableKey): string {
+  return `${key}${LASER_FIT_SEPARATOR}${REPAIR_ROW_SUFFIX}`;
+}
+
+/**
+ * Parse a composite repair row key through the allow-list, or `null`.
+ *
+ * A row key is a plain string, so a forged one (`EQ_ECM@repair`, a bare key,
+ * `EQ_DOCK_COMP@fore`, a laser, `__proto__@repair`) must not reach the money
+ * path. Anything but exactly `<REPAIRABLE key>@repair` is refused.
+ */
+export function parseRepairFitKey(value: string): RepairableKey | null {
+  const parts = value.split(LASER_FIT_SEPARATOR);
+  if (parts.length !== 2) return null;
+  const [key, suffix] = parts;
+  if (!isRepairableKey(key) || suffix !== REPAIR_ROW_SUFFIX) return null;
+  return key;
+}
+
+/**
+ * The raw tech level at which a damaged item is offered for repair: one lower
+ * than buying it requires, unless that requirement is 0
+ * (`PlayerEntity.m:8270-8271`).
+ */
+export function repairTechLevel(techLevel: number): number {
+  return techLevel > 0 ? techLevel - 1 : 0;
+}
+
+/**
+ * The repair price in integer decicredits: half the catalogue price, rounded
+ * up (`tryBuyingItem` halves in a double and truncates the credit balance,
+ * `PlayerEntity.m:9115-9118`, so rounding the charge up matches the balance
+ * truncation; the four compiled prices are even and halve exactly). An invalid
+ * catalogue price returns `0`; `checkRepair` refuses before a caller can act on
+ * that zero.
+ *
+ * Oolite applies the halving and the docked station's `equipmentPriceFactor` in
+ * both orders with the same product: `tryBuyingItem` halves, applies the script
+ * adjustment, then multiplies by the factor (`PlayerEntity.m:9115-9132`), while
+ * the F3 listing multiplies by the factor first and halves after
+ * (`:8395-8405`). Wegolite applies no station price factor to any purchase
+ * today, so a factor added later multiplies in the same place as for a
+ * purchase.
+ */
+export function repairPrice(item: Equipment): number {
+  return isValidPrice(item.price) ? Math.ceil(item.price / 2) : 0;
+}
+
+/**
+ * Whether the damaged `item` may be repaired right now, and if not, the one
+ * fixed reason (D-08, D-09).
+ *
+ * The order: the allow-list (`notOffered`), key and prices valid
+ * (`invalidPrice`), the key is damaged (`notDamaged`), it is not also installed
+ * (`owned`, so a forged profile holding it in both lists is refused), the raw
+ * tech level reaches `repairTechLevel` (`techLevel`) and the credits cover the
+ * repair price (`insufficientCredits`, last, so `isListedForPurchase` keeps the
+ * row listed).
+ */
+export function checkRepair(
+  profile: PlayerProfile,
+  item: Equipment,
+  ctx: FitContext,
+): FitCheck {
+  // 1. The repairable set is the money-path boundary (T-19-08).
+  if (!isRepairableKey(item.key)) return { ok: false, reason: "notOffered" };
+
+  // 2. Key and both prices, before any arithmetic can use them (T-19-09).
+  if (
+    !isValidKey(item.key) ||
+    !isValidPrice(item.price) ||
+    !isValidPrice(repairPrice(item))
+  ) {
+    return { ok: false, reason: "invalidPrice" };
+  }
+
+  // 3. Only a damaged item has a repair row; an installed one is `owned`.
+  if (!profile.damagedEquipment.includes(item.key)) {
+    return { ok: false, reason: "notDamaged" };
+  }
+  if (profile.equipment.includes(item.key)) {
+    return { ok: false, reason: "owned" };
+  }
+
+  // 4. Raw tech level one lower than buying; equality is allowed.
+  if (
+    !Number.isSafeInteger(item.techLevel) ||
+    item.techLevel < 0 ||
+    !Number.isSafeInteger(ctx.techLevelRaw) ||
+    ctx.techLevelRaw < repairTechLevel(item.techLevel)
+  ) {
+    return { ok: false, reason: "techLevel" };
+  }
+
+  // 5. Affordability, last.
+  if (!isSafeCredits(profile.credits) || profile.credits < repairPrice(item)) {
+    return { ok: false, reason: "insufficientCredits" };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Repair `item`, applying it at once (D-10).
+ *
+ * `checkRepair` is re-run first, so a forged key, an undamaged key or a stale
+ * context is refused here too, and a refusal returns the **same** profile
+ * object. A success charges `repairPrice(item)`, removes the key from
+ * `damagedEquipment` and appends it to the end of `equipment` (Oolite re-adds
+ * the repaired item last). It takes no time input and never advances the clock.
+ */
+export function applyRepair(
+  profile: PlayerProfile,
+  item: Equipment,
+  ctx: FitContext,
+): PlayerProfile {
+  const check = checkRepair(profile, item, ctx);
+  if (!check.ok) return profile;
+
+  const credits = profile.credits - repairPrice(item);
+  if (!isSafeCredits(credits)) return profile;
+
+  return {
+    ...profile,
+    credits,
+    equipment: [...profile.equipment, item.key],
+    damagedEquipment: profile.damagedEquipment.filter(
+      (key) => key !== item.key,
+    ),
+  };
 }
