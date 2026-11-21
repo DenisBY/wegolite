@@ -36,11 +36,14 @@ import {
   MAX_MISSILES,
   applyFit,
   applyLaserFit,
+  applyRepair,
   checkFit,
   checkLaserFit,
+  checkRepair,
   isLaserFitKey,
   laserPriceMap,
   parseLaserFitKey,
+  parseRepairFitKey,
 } from "../../sim/player/outfitting.js";
 import type {
   FitContext,
@@ -449,7 +452,14 @@ export function createStationController(
     // A composite row key (`EQ_WEAPON_BEAM_LASER@aft`) parses through both
     // laser allow-lists; the row lookup below is the first gate, this the second.
     const laser = parseLaserFitKey(key);
-    const item = catalogue.find((entry) => entry.key === (laser?.key ?? key));
+    // A repair row key (`EQ_DOCK_COMP@repair`) parses through the repair
+    // allow-list and is routed to `confirmRepair` only, never to `checkFit` or
+    // `applyFit` (T-19-20). The item is read from the live catalogue by the
+    // parsed key, never from row state (D-08).
+    const repairKey = parseRepairFitKey(key);
+    const item = catalogue.find(
+      (entry) => entry.key === (laser?.key ?? repairKey ?? key),
+    );
     const row = model?.rows.find((entry) => entry.key === key);
     if (item === undefined || row === undefined) {
       ctx.station.stationPending = null;
@@ -486,6 +496,10 @@ export function createStationController(
       confirmLaserFit(item, laser);
       return;
     }
+    if (repairKey !== null) {
+      confirmRepair(item, key, indexBefore);
+      return;
+    }
     const check = checkFit(ctx.core.profile, item, fitCtx);
     if (!check.ok) {
       ctx.station.stationPending = null;
@@ -510,6 +524,56 @@ export function createStationController(
     commitProfile(next);
     autosave();
     // Clamp by position: a removed last row leaves the cursor on the new last row.
+    const after = outfittingModel();
+    if (
+      after !== undefined &&
+      !after.rows.some((entry) => entry.key === ctx.station.stationSelection)
+    ) {
+      const fallback = after.rows[Math.min(indexBefore, after.rows.length - 1)];
+      ctx.station.stationSelection = fallback?.key ?? "";
+    }
+    renderStation();
+  }
+
+  /**
+   * The second confirm of a repair (D-08 to D-10): re-check with `checkRepair`,
+   * apply with `applyRepair`, record, commit, autosave and clamp the cursor by
+   * position as `confirmFit` does. `applyRepair` returns the same profile on a
+   * refusal, so an identity result means the state moved under the prompt: a
+   * notice and no commit. The repair takes no time input and never touches the
+   * clock; the item counts again at once (D-10).
+   */
+  function confirmRepair(
+    item: Equipment,
+    rowKey: string,
+    indexBefore: number,
+  ): void {
+    const fitCtx = fitContext();
+    const refuse = (): void => {
+      ctx.station.stationPending = null;
+      ctx.station.stationNotice = "That repair is no longer available";
+      renderStation();
+    };
+    if (fitCtx === undefined) {
+      refuse();
+      return;
+    }
+    if (!checkRepair(ctx.core.profile, item, fitCtx).ok) {
+      refuse();
+      return;
+    }
+    const next = applyRepair(ctx.core.profile, item, fitCtx);
+    if (next === ctx.core.profile) {
+      refuse();
+      return;
+    }
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+    ctx.station.lastTrade = { kind: "repair", key: rowKey, amount: 1 };
+    commitProfile(next);
+    autosave();
+    // Clamp by position: the repair row is gone, so the cursor lands on the
+    // row now at that place.
     const after = outfittingModel();
     if (
       after !== undefined &&
@@ -705,7 +769,7 @@ export function createStationController(
           entry.key === (pendingFit?.key ?? ctx.station.stationSelection),
       );
       if (pendingFit !== null && row !== undefined) {
-        confirmText = `Buy ${row.name} for ${formatDecicredits(row.cost)}? [Y/N]`;
+        confirmText = `${row.verb} ${row.name} for ${formatDecicredits(row.cost)}? [Y/N]`;
       }
     }
 

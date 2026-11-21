@@ -24,7 +24,13 @@ import type { Equipment } from "../../src/content/types.js";
 import { formatDecicredits, newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import {
+  REPAIRABLE_EQUIPMENT_KEYS,
+  repairFitKey,
+} from "../../src/sim/player/outfitting.js";
+import {
   OUTFITTING_EMPTY_TEXT,
+  REPAIR_DETAIL_TEMPLATE,
+  REPAIR_LABEL_TEMPLATE,
   buildOutfittingModel,
 } from "../../src/ui/station-model.js";
 import { commodityUnits, commoditiesFixture } from "../helpers/commodities.js";
@@ -322,6 +328,168 @@ describe("detail pane", () => {
       build(makeProfile(), laveTechLevelRaw, "EQ_PASSENGER_BERTH_REMOVAL")
         .detail,
     ).toBeNull();
+  });
+});
+
+/** One value of the vendored `descriptions.plist`, or `undefined`. */
+function plistValue(key: string): string | undefined {
+  const plist = readFileSync(
+    join(process.cwd(), "third_party/oolite/Config/descriptions.plist"),
+    "utf8",
+  );
+  let value: string | undefined;
+  for (const line of plist.split("\n")) {
+    const match = /^\s*"([^"]+)"\s*=\s*"(.*)";/.exec(line);
+    if (match?.[1] === key) value = match[2];
+  }
+  return value;
+}
+
+/** The raw tech levels of the galaxy-0 systems the repair cases use. */
+const TIBEDIED_RAW = 8;
+const LELEER_RAW = 7;
+const RIINUS_RAW = 9;
+
+describe("the repair row (Phase 19, D-07 to D-09)", () => {
+  const rich = (overrides: Partial<PlayerProfile> = {}) =>
+    makeProfile({ credits: 1_000_000, ...overrides });
+
+  it("replaces the purchase row at the same position, priced at half", () => {
+    const sound = build(rich(), RIINUS_RAW);
+    const damaged = build(
+      rich({ damagedEquipment: ["EQ_DOCK_COMP"] }),
+      RIINUS_RAW,
+    );
+    const soundKeys = sound.rows.map((entry) => entry.key);
+    const damagedKeys = damaged.rows.map((entry) => entry.key);
+    expect(soundKeys).toContain("EQ_DOCK_COMP");
+    expect(damagedKeys).not.toContain("EQ_DOCK_COMP");
+    expect(damagedKeys.indexOf("EQ_DOCK_COMP@repair")).toBe(
+      soundKeys.indexOf("EQ_DOCK_COMP"),
+    );
+    expect(damagedKeys).toHaveLength(soundKeys.length);
+
+    const repair = row(damaged, "EQ_DOCK_COMP@repair");
+    expect(repair.label).toBe("Repair: Docking Computers");
+    expect(repair.name).toBe("Docking Computers");
+    expect(repair.cost).toBe(7_500);
+    expect(repair.priceText).toBe("750.0 ₢");
+    expect(repair.verb).toBe("Repair");
+    expect(repair.owned).toBe(false);
+    expect(repair.multiCount).toBeNull();
+    expect(repair.confirmable).toBe(true);
+    expect(repair.reason).toBe("");
+  });
+
+  it("gives every other row the Buy verb", () => {
+    const model = build(rich({ fuel: 34 }), RIINUS_RAW);
+    for (const entry of model.rows) expect(entry.verb).toBe("Buy");
+  });
+
+  it("lists the repair at Tibedied (raw 8) where the item itself is not for sale", () => {
+    const sound = build(rich(), TIBEDIED_RAW);
+    expect(sound.rows.map((entry) => entry.key)).not.toContain("EQ_DOCK_COMP");
+    const damaged = build(
+      rich({ damagedEquipment: ["EQ_DOCK_COMP"] }),
+      TIBEDIED_RAW,
+    );
+    expect(damaged.rows.map((entry) => entry.key)).toContain(
+      "EQ_DOCK_COMP@repair",
+    );
+  });
+
+  it("lists neither row at Leleer (raw 7) and no repair at Lave (raw 4)", () => {
+    for (const raw of [LELEER_RAW, laveTechLevelRaw]) {
+      const keys = build(
+        rich({ damagedEquipment: ["EQ_DOCK_COMP"] }),
+        raw,
+      ).rows.map((entry) => entry.key);
+      expect(keys).not.toContain("EQ_DOCK_COMP");
+      expect(keys).not.toContain("EQ_DOCK_COMP@repair");
+    }
+  });
+
+  it("lists a damaged Galactic Hyperdrive at Riinus (raw 9) for 2500.0 credits", () => {
+    const model = build(
+      rich({ damagedEquipment: ["EQ_GAL_DRIVE"] }),
+      RIINUS_RAW,
+    );
+    const repair = row(model, "EQ_GAL_DRIVE@repair");
+    expect(repair.label).toBe("Repair: Galactic Hyperdrive");
+    expect(repair.priceText).toBe("2500.0 ₢");
+    // One level lower: the drive (TL 10) is repairable at raw 9, not at raw 8.
+    expect(
+      build(
+        rich({ damagedEquipment: ["EQ_GAL_DRIVE"] }),
+        TIBEDIED_RAW,
+      ).rows.map((entry) => entry.key),
+    ).not.toContain("EQ_GAL_DRIVE@repair");
+  });
+
+  it("keeps an unaffordable repair listed, dimmed and not confirmable", () => {
+    const model = build(
+      makeProfile({ credits: 7_499, damagedEquipment: ["EQ_DOCK_COMP"] }),
+      TIBEDIED_RAW,
+    );
+    const repair = row(model, "EQ_DOCK_COMP@repair");
+    expect(repair.enabled).toBe(false);
+    expect(repair.dimmed).toBe(true);
+    expect(repair.reason).toBe("Not enough credits");
+    expect(repair.confirmable).toBe(false);
+    // Exactly the price is enough.
+    const exact = build(
+      makeProfile({ credits: 7_500, damagedEquipment: ["EQ_DOCK_COMP"] }),
+      TIBEDIED_RAW,
+    );
+    expect(row(exact, "EQ_DOCK_COMP@repair").confirmable).toBe(true);
+  });
+
+  it("lists no repair row for an undamaged item or a key outside the repairable set", () => {
+    const model = build(
+      rich({ damagedEquipment: ["EQ_CARGO_BAY", "EQ_ECM"] }),
+      RIINUS_RAW,
+    );
+    expect(model.rows.some((entry) => entry.key.endsWith("@repair"))).toBe(
+      false,
+    );
+  });
+
+  it("pins the label and detail templates to the vendored descriptions.plist", () => {
+    expect(plistValue("equip-repair-@")).toBe(REPAIR_LABEL_TEMPLATE);
+    expect(plistValue("upgradeinfo-@-price-is-for-repairing")).toBe(
+      REPAIR_DETAIL_TEMPLATE,
+    );
+    // The label is the template applied to Oolite's wrapped name, trimmed
+    // (`PlayerEntity.m:8377`), for every repairable item.
+    for (const key of REPAIRABLE_EQUIPMENT_KEYS) {
+      const item = catalogue.find((entry) => entry.key === key);
+      if (item === undefined) throw new Error(`no ${key}`);
+      const rendered = REPAIR_LABEL_TEMPLATE.replace(
+        "%@",
+        () => ` ${item.name} `,
+      ).trim();
+      const model = build(
+        makeProfile({ credits: 10_000_000, damagedEquipment: [key] }),
+        15,
+      );
+      expect(row(model, repairFitKey(key)).label).toBe(rendered);
+      expect(rendered).toBe(`Repair: ${item.name}`);
+    }
+  });
+
+  it("shows the item description followed by the repair note for the selected repair row", () => {
+    const item = catalogue.find((entry) => entry.key === "EQ_DOCK_COMP");
+    if (item === undefined) throw new Error("no EQ_DOCK_COMP");
+    const model = build(
+      rich({ damagedEquipment: ["EQ_DOCK_COMP"] }),
+      TIBEDIED_RAW,
+      "EQ_DOCK_COMP@repair",
+    );
+    expect(model.detail).toEqual({
+      title: "Docking Computers",
+      description: `${item.description} (Price is for repairing the existing system).`,
+      priceText: "750.0 ₢",
+    });
   });
 });
 

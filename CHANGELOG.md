@@ -10,6 +10,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The page footer links the changelog, so you can see what changed in each
   release.
+- The status screen (F5) lists damaged equipment first, marked "(damaged)", in
+  the order it was damaged. Oolite writes "(N/A)" there, which reads as not for
+  sale.
+- The outfitting screen (F3) offers "Repair: <item>" for a damaged item, at half
+  the item's price, at a station one tech level below the one that sells it. The
+  repair is fitted at once. An unaffordable repair is listed and says "Not
+  enough credits". (Equipment starts being damaged in combat with a later
+  change in this release.)
 
 ### Changed
 
