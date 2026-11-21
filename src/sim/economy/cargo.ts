@@ -135,7 +135,7 @@ export function holdPods(
   );
   const unknown = Object.keys(cargo)
     .filter((key) => !known.has(key))
-    .sort();
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const pods: HoldPod[] = [];
   const load = (commodity: string, unit: CommodityUnit): void => {
     const quantity = cargo[commodity];
