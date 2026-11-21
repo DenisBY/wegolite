@@ -17,7 +17,7 @@
 
 import { readFileSync, readdirSync } from "node:fs";
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   profileFromSave,
@@ -57,6 +57,7 @@ import {
 } from "../../src/sim/economy/market.js";
 import { CLOCK_START, initFlightState } from "../../src/sim/flight/state.js";
 import { DAMAGEABLE_EQUIPMENT_KEYS } from "../../src/sim/player/outfitting.js";
+import { applyEquipmentDamaged } from "../../src/sim/player/damage.js";
 import { newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import { loadEquipment } from "../../src/content/equipment.js";
@@ -854,5 +855,289 @@ describe("the damaged-equipment list (SAVE-09)", () => {
         allow,
       ),
     ).toBe(true);
+  });
+});
+
+/**
+ * The damaged-list contract at every boundary (SAVE-09, D-11, D-03).
+ *
+ * Every forged case runs the same bytes through the reader (`parseSave`, which
+ * must say `corrupt`) and the writer gate (`isEncodedSaveValid`, which must say
+ * no), so a forged snapshot never replaces a good blob. The lists are the
+ * production `equipmentAllowLists` over the compiled catalogue, except in the
+ * bound cases, which swap in synthetic keys (the production damageable set has
+ * four keys, so the bound of 16 is headroom).
+ */
+describe("the damaged-list contract (SAVE-09, D-11)", () => {
+  let production: SaveAllowLists;
+  beforeAll(async () => {
+    production = {
+      ...ALLOW,
+      ...equipmentAllowLists(await loadEquipment()),
+    };
+  });
+
+  /** The same bytes are corrupt on read and refused on write. */
+  function expectRefused(
+    blob: Record<string, unknown>,
+    allow: SaveAllowLists = production,
+  ): void {
+    const raw = JSON.stringify(blob);
+    expect(parseSave(raw, allow)).toEqual({ ok: false, reason: "corrupt" });
+    expect(isEncodedSaveValid(raw, allow)).toBe(false);
+  }
+
+  /** The same bytes are read and written. */
+  function expectAccepted(
+    blob: Record<string, unknown>,
+    allow: SaveAllowLists = production,
+  ): void {
+    const raw = JSON.stringify(blob);
+    expect(parseSave(raw, allow).ok).toBe(true);
+    expect(isEncodedSaveValid(raw, allow)).toBe(true);
+  }
+
+  const synthetic = (prefix: string, count: number): string[] =>
+    Array.from({ length: count }, (_, index) => `${prefix}${String(index)}`);
+
+  it("the controls are accepted under the production lists (so no refusal below is vacuous)", () => {
+    expectAccepted(validV5());
+    expectAccepted(validV5({ damagedEquipment: ["EQ_DOCK_COMP"] }));
+    expectAccepted(
+      validV5({
+        equipment: ["EQ_CARGO_BAY"],
+        damagedEquipment: ["EQ_DOCK_COMP", "EQ_GAL_DRIVE"],
+      }),
+    );
+  });
+
+  it("the D-03 rows are real: EQ_ECM and EQ_WEAPON_PULSE_LASER are catalogue keys with damageProbability above 0 outside the damageable set", async () => {
+    const items = await loadEquipment();
+    for (const key of ["EQ_ECM", "EQ_WEAPON_PULSE_LASER"]) {
+      const item = items.find((entry) => entry.key === key);
+      expect(item?.damageProbability).toBeGreaterThan(0);
+      expect(
+        (DAMAGEABLE_EQUIPMENT_KEYS as readonly string[]).includes(key),
+      ).toBe(false);
+      expect(production.damageableEquipment.has(key)).toBe(false);
+      expect(production.equipment.has(key)).toBe(false);
+    }
+  });
+
+  describe("a forged damagedEquipment is corrupt on read and refused on write", () => {
+    const forged: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
+      [
+        "17 keys",
+        {
+          damagedEquipment: synthetic(
+            "EQ_FORGED_",
+            MAX_SAVE_DAMAGED_EQUIPMENT + 1,
+          ),
+        },
+      ],
+      [
+        "a key in both equipment and damagedEquipment",
+        { equipment: ["EQ_DOCK_COMP"], damagedEquipment: ["EQ_DOCK_COMP"] },
+      ],
+      [
+        "a key twice in damagedEquipment",
+        { damagedEquipment: ["EQ_DOCK_COMP", "EQ_DOCK_COMP"] },
+      ],
+      [
+        "EQ_DOCK_COMP_DAMAGED in damagedEquipment",
+        { damagedEquipment: ["EQ_DOCK_COMP_DAMAGED"] },
+      ],
+      [
+        "EQ_DOCK_COMP_DAMAGED in equipment",
+        { equipment: ["EQ_DOCK_COMP_DAMAGED"] },
+      ],
+      [
+        "a non-damageable catalogue key (EQ_CARGO_BAY) in damagedEquipment",
+        { damagedEquipment: ["EQ_CARGO_BAY"] },
+      ],
+      ["EQ_ECM in damagedEquipment (D-03)", { damagedEquipment: ["EQ_ECM"] }],
+      ["EQ_ECM in equipment (D-03)", { equipment: ["EQ_ECM"] }],
+      [
+        "EQ_WEAPON_PULSE_LASER in damagedEquipment (D-03)",
+        { damagedEquipment: ["EQ_WEAPON_PULSE_LASER"] },
+      ],
+      [
+        "EQ_WEAPON_PULSE_LASER in equipment (D-03)",
+        { equipment: ["EQ_WEAPON_PULSE_LASER"] },
+      ],
+      ["an unknown key", { damagedEquipment: ["EQ_UNKNOWN"] }],
+      ["an empty string", { damagedEquipment: [""] }],
+      ["a 65-character key", { damagedEquipment: ["E".repeat(65)] }],
+      ["a non-string entry", { damagedEquipment: [1] }],
+      ["null", { damagedEquipment: null }],
+      ["a string instead of an array", { damagedEquipment: "EQ_DOCK_COMP" }],
+      ["an object instead of an array", { damagedEquipment: {} }],
+    ];
+
+    it.each(forged)("%s", (_name, overrides) => {
+      expectRefused(validV5(overrides));
+    });
+
+    it("damagedEquipment missing", () => {
+      const blob = validV5();
+      delete blob.damagedEquipment;
+      expectRefused(blob);
+    });
+  });
+
+  describe("the bounds, over synthetic lists", () => {
+    const damageKeys = synthetic("EQ_SYNTH_D", MAX_SAVE_DAMAGED_EQUIPMENT + 1);
+    const equipmentKeys = synthetic("EQ_SYNTH_E", MAX_SAVE_EQUIPMENT + 1);
+    const wide = (): SaveAllowLists => ({
+      ...production,
+      equipment: new Set(equipmentKeys),
+      damageableEquipment: new Set(damageKeys),
+    });
+
+    it("16 distinct damaged keys are accepted and 17 are corrupt (the schema bound)", () => {
+      expect(damageKeys).toHaveLength(17);
+      expectAccepted(
+        validV5({
+          damagedEquipment: damageKeys.slice(0, MAX_SAVE_DAMAGED_EQUIPMENT),
+        }),
+        wide(),
+      );
+      expectRefused(validV5({ damagedEquipment: damageKeys }), wide());
+    });
+
+    it("equipment plus damagedEquipment of 64 is valid and 65 is corrupt", () => {
+      const at = (total: number): Record<string, unknown> =>
+        validV5({
+          equipment: equipmentKeys.slice(0, total - MAX_SAVE_DAMAGED_EQUIPMENT),
+          damagedEquipment: damageKeys.slice(0, MAX_SAVE_DAMAGED_EQUIPMENT),
+        });
+      expectAccepted(at(MAX_SAVE_EQUIPMENT), wide());
+      expectRefused(at(MAX_SAVE_EQUIPMENT + 1), wide());
+    });
+
+    it("a blob of exactly MAX_SAVE_CHARS characters is parsed and one more character is unreadable", () => {
+      const base = JSON.stringify(validV5());
+      expect(base.length).toBeLessThan(MAX_SAVE_CHARS);
+      // JSON.parse tolerates trailing whitespace, so the padded blob is the
+      // same save at exactly the cap.
+      const exact = `${base}${" ".repeat(MAX_SAVE_CHARS - base.length)}`;
+      expect(exact.length).toBe(MAX_SAVE_CHARS);
+      const at = parseSave(exact, production);
+      expect(at.ok).toBe(true);
+      if (at.ok) expect(at.save.damagedEquipment).toEqual([]);
+      expect(isEncodedSaveValid(exact, production)).toBe(true);
+
+      const over = `${exact} `;
+      expect(over.length).toBe(MAX_SAVE_CHARS + 1);
+      expect(parseSave(over, production)).toEqual({
+        ok: false,
+        reason: "unreadable",
+      });
+      expect(isEncodedSaveValid(over, production)).toBe(false);
+    });
+  });
+
+  describe("the version boundary", () => {
+    it.each([0, -1, 1, 2, 3, 4, 4.5])(
+      "version %s is corrupt on read and refused on write",
+      (version) => {
+        expectRefused(validV5({ version }));
+        expectRefused(validV5({ version, damagedEquipment: ["EQ_DOCK_COMP"] }));
+      },
+    );
+
+    it("the current version is read and written, and the next one is future-version", () => {
+      expectAccepted(validV5({ version: SAVE_VERSION }));
+      const future = JSON.stringify(validV5({ version: SAVE_VERSION + 1 }));
+      expect(parseSave(future, production)).toEqual({
+        ok: false,
+        reason: "future-version",
+      });
+      expect(isEncodedSaveValid(future, production)).toBe(false);
+    });
+
+    it("a current-version blob relabelled as version 4 is corrupt, and a v5 blob with an extra key is corrupt", () => {
+      expectRefused({ ...validV5(), version: 4 });
+      expectRefused(validV5({ unexpected: true }));
+    });
+
+    it("every checked-in save older than SAVE_VERSION stays corrupt under the production lists", () => {
+      const older = goldens().filter((golden) => golden.version < SAVE_VERSION);
+      expect(older.length).toBeGreaterThan(0);
+      for (const golden of older) {
+        const raw = readGolden(golden.name);
+        expect(parseSave(raw, production)).toEqual({
+          ok: false,
+          reason: "corrupt",
+        });
+        expect(isEncodedSaveValid(raw, production)).toBe(false);
+      }
+    });
+  });
+
+  describe("durability at the existing triggers (D-11, Pitfall 13)", () => {
+    const installed: PlayerProfile = {
+      ...newProfile(),
+      equipment: ["EQ_DOCK_COMP"],
+    };
+
+    it("the profile before the damage carries the key as installed (non-vacuous)", () => {
+      const inputs = snapshot(installed);
+      expect(inputs.equipment).toEqual(["EQ_DOCK_COMP"]);
+      expect(inputs.damagedEquipment).toEqual([]);
+    });
+
+    it("the next docked snapshot after applyEquipmentDamaged carries the damaged key, and the bytes round-trip", () => {
+      const damaged = applyEquipmentDamaged(installed, "EQ_DOCK_COMP");
+      expect(damaged).not.toBe(installed);
+      const inputs = snapshot(damaged);
+      expect(inputs.mode).toBe("docked");
+      expect(inputs.equipment).toEqual([]);
+      expect(inputs.damagedEquipment).toEqual(["EQ_DOCK_COMP"]);
+
+      const encoded = encodeSave(inputs);
+      expect(isEncodedSaveValid(encoded, production)).toBe(true);
+      const parsed = parseSave(encoded, production);
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+      expect(profileFromSave(parsed.save).damagedEquipment).toEqual([
+        "EQ_DOCK_COMP",
+      ]);
+      expect(encodeSave(snapshot(profileFromSave(parsed.save)))).toBe(encoded);
+    });
+
+    it("the in-flight snapshot a hyperspace-arrival autosave writes carries the damaged key too", () => {
+      const state = initFlightState(lave.layout);
+      state.mode = "inFlight";
+      const damaged = applyEquipmentDamaged(installed, "EQ_DOCK_COMP");
+      const inputs = snapshotForSave(
+        state,
+        damaged,
+        lave.system,
+        { key: "coriolis-station" },
+        laveMarket,
+        catalogue,
+        { epoch: 0, anchorNextEntityId: undefined },
+        "g0-s1",
+      );
+      expect(inputs.mode).toBe("inFlight");
+      expect(inputs.damagedEquipment).toEqual(["EQ_DOCK_COMP"]);
+      expect(inputs.equipment).toEqual([]);
+
+      const encoded = encodeSave(inputs);
+      expect(isEncodedSaveValid(encoded, production)).toBe(true);
+      const parsed = parseSave(encoded, production);
+      expect(parsed.ok).toBe(true);
+      if (!parsed.ok) return;
+      expect(parsed.save.mode).toBe("inFlight");
+      expect(parsed.save.damagedEquipment).toEqual(["EQ_DOCK_COMP"]);
+    });
+
+    it("the damage step only edits the profile: a refused key leaves the same profile", () => {
+      expect(applyEquipmentDamaged(installed, "EQ_ECM")).toBe(installed);
+      expect(applyEquipmentDamaged(newProfile(), "EQ_DOCK_COMP")).toEqual(
+        newProfile(),
+      );
+    });
   });
 });
