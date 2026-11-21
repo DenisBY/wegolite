@@ -236,6 +236,9 @@ export function profileFromSave(save: SaveV4): PlayerProfile {
   return {
     credits: save.credits,
     equipment,
+    // A v4 save cannot record damage, so its restored profile has none; 19-08
+    // replaces this reader with the v5 one.
+    damagedEquipment: [],
     cargo,
     fuel: save.fuel ?? NEW_GAME_FUEL,
     missiles: effectiveCount(save.missiles, hasMissileAlias, NEW_GAME_MISSILES),

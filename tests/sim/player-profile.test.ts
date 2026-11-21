@@ -73,6 +73,7 @@ describe("newProfile", () => {
     expect(profile).toEqual({
       credits: 1000,
       equipment: [],
+      damagedEquipment: [],
       cargo: {},
       fuel: 70,
       missiles: 3,

@@ -25,12 +25,13 @@
  *
  * `outfitting.ts` is the one home of the two keys (the F3 visible list and the
  * single-instance list), and it is pinned, not exempt: the pins live in
- * `OUTFITTING_KEY_PINS`, 2 per key (`VISIBLE_EQUIPMENT_KEYS` and
- * `SINGLE_INSTANCE_KEYS`), so a re-export or alias added there (for example
- * `export const GAL_DRIVE_KEY = "EQ_GAL_DRIVE"`) moves the count and fails.
- * Raise a pin only for a new list entry that is not a consumer (plan 19-03
- * raises both to 3 with its `DAMAGEABLE_EQUIPMENT_KEYS`); a consumer is not a
- * reason to raise it, it takes the todo's damaged-item clause with it.
+ * `OUTFITTING_KEY_PINS`, 3 per key (`VISIBLE_EQUIPMENT_KEYS`,
+ * `SINGLE_INSTANCE_KEYS` and `DAMAGEABLE_EQUIPMENT_KEYS`), so a re-export or
+ * alias added there (for example `export const GAL_DRIVE_KEY =
+ * "EQ_GAL_DRIVE"`) moves the count and fails. Raise a pin only for a new list
+ * entry that is not a consumer (plan 19-03 raised both from 2 to 3 with its
+ * `DAMAGEABLE_EQUIPMENT_KEYS`); a consumer is not a reason to raise it, it
+ * takes the todo's damaged-item clause with it.
  *
  * It keys on spelling, so it is green on the current tree and each trigger has
  * a synthetic input that fails. It is a limited tripwire, not a proof: a
@@ -56,12 +57,13 @@ const OUTFITTING = "src/sim/player/outfitting.ts";
 /**
  * The non-comment token count of each key in `OUTFITTING`, measured at
  * `0d922a2`: `outfitting.ts:78, 96` (`EQ_GAL_DRIVE`) and `:80, 98` (the ANA),
- * the visible list and the single-instance list. 19-03 raises both to 3 in the
- * commit that adds `DAMAGEABLE_EQUIPMENT_KEYS`.
+ * the visible list and the single-instance list. 19-03 raised both from 2 to 3
+ * in the commit that added `DAMAGEABLE_EQUIPMENT_KEYS`, the third occurrence of
+ * each key.
  */
 const OUTFITTING_KEY_PINS = {
-  EQ_GAL_DRIVE: 2,
-  EQ_ADVANCED_NAVIGATIONAL_ARRAY: 2,
+  EQ_GAL_DRIVE: 3,
+  EQ_ADVANCED_NAVIGATIONAL_ARRAY: 3,
 } as const;
 
 type PinnedKey = keyof typeof OUTFITTING_KEY_PINS;
@@ -256,8 +258,8 @@ describe("damaged equipment's in-use clauses wait for their consumers (tripwire)
           withFile(tree, OUTFITTING, `${outfitting}\n${alias}\n`),
         );
         expect(found, key).toHaveLength(1);
-        expect(found[0]).toContain(`${OUTFITTING}: ${key} appears 3 times`);
-        expect(found[0]).toContain("pinned at 2");
+        expect(found[0]).toContain(`${OUTFITTING}: ${key} appears 4 times`);
+        expect(found[0]).toContain("pinned at 3");
         expect(found[0]).toContain(TODO);
         // The message says when raising the pin is right and when it is not.
         expect(found[0]).toContain(
@@ -274,7 +276,7 @@ describe("damaged equipment's in-use clauses wait for their consumers (tripwire)
         withFile(tree, OUTFITTING, outfitting.replace('"EQ_GAL_DRIVE",', "")),
       );
       expect(found).toHaveLength(1);
-      expect(found[0]).toContain("EQ_GAL_DRIVE appears 1 times");
+      expect(found[0]).toContain("EQ_GAL_DRIVE appears 2 times");
     });
 
     it("passes on the alias lines inside comments in outfitting.ts", () => {
@@ -308,8 +310,8 @@ describe("damaged equipment's in-use clauses wait for their consumers (tripwire)
       const found = inUseViolations(
         withFile(tree, "src/ui/outfitting.ts", outfitting),
       );
-      // The copy has no pin: each of its four key lines fails.
-      expect(found).toHaveLength(4);
+      // The copy has no pin: each of its six key lines fails.
+      expect(found).toHaveLength(6);
       expect(
         found.every((line) => line.startsWith("src/ui/outfitting.ts:")),
       ).toBe(true);

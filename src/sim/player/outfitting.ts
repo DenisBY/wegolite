@@ -98,6 +98,30 @@ const SINGLE_INSTANCE_KEYS: ReadonlySet<string> = new Set([
   "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
 ]);
 
+/**
+ * The one damageable set (Phase 19, D-03): Oolite's `canBeDamaged`
+ * (`damage_probability` above 0, never a missile or mine;
+ * `OOEquipmentType.m:247, 504-520`) applied to the only keys a profile can hold
+ * in `equipment` (`SINGLE_INSTANCE_KEYS`). Lasers live in `laserMounts`, never
+ * in `equipment`, as in Oolite, so no laser is damageable. The commit
+ * (`applyEquipmentDamaged`), the repair door (19-05) and the save allow-list
+ * (19-08) all read this one array. It is the only `src` file besides the F3
+ * lists that the in-use tripwire (19-15) lets name the drive and ANA keys.
+ */
+export const DAMAGEABLE_EQUIPMENT_KEYS = Object.freeze([
+  "EQ_DOCK_COMP",
+  "EQ_GAL_DRIVE",
+  "EQ_ADVANCED_COMPASS",
+  "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+] as const);
+
+export type DamageableKey = (typeof DAMAGEABLE_EQUIPMENT_KEYS)[number];
+
+/** Whether `value` is a damageable key (by membership, never `in`). */
+export function isDamageableKey(value: unknown): value is DamageableKey {
+  return DAMAGEABLE_EQUIPMENT_KEYS.some((key) => key === value);
+}
+
 /** Player-facing copy that overrides the catalogue description in the F3 detail. */
 export const REMOVAL_DESCRIPTIONS: ReadonlyMap<string, string> = new Map([
   [

@@ -53,6 +53,13 @@ export interface EquipmentRecord {
 export interface PlayerProfile {
   readonly credits: number;
   readonly equipment: readonly string[];
+  /**
+   * Damaged equipment in damage order (Phase 19, SAVE-09, D-11). Disjoint from
+   * `equipment`: a damaged item is removed from there and kept only here, never
+   * as Oolite's suffixed damaged key. A damaged item does not count as
+   * installed, because every installed-set consumer reads `equipment`.
+   */
+  readonly damagedEquipment: readonly string[];
   /** Commodity key → units held; a null-prototype map in practice. */
   readonly cargo: Cargo;
   /** Fuel in tenths of a light year (0..70). */
@@ -81,6 +88,7 @@ export function newProfile(): PlayerProfile {
   return {
     credits: NEW_GAME_CREDITS,
     equipment: [],
+    damagedEquipment: [],
     cargo: emptyCargo(),
     fuel: NEW_GAME_FUEL,
     missiles: NEW_GAME_MISSILES,
