@@ -669,8 +669,27 @@ export function createDamageFlow(
         break;
       }
       case "cargoDestroyed": {
-        commitProfile(
-          applyCargoDestroyed(ctx.core.profile, event.commodity, event.amount),
+        // descriptions.plist:896; PlayerEntity.m:6105-6113: Oolite prints the
+        // message for the pod it removes, so a refused loss (no such goods
+        // held, or more than held) prints nothing.
+        if (
+          !commitProfile(
+            applyCargoDestroyed(
+              ctx.core.profile,
+              event.commodity,
+              event.amount,
+            ),
+          )
+        ) {
+          return;
+        }
+        const name =
+          ctx.core.commodities?.find((record) => record.key === event.commodity)
+            ?.name ?? event.commodity;
+        messages.clearPrevious();
+        messages.enqueue(
+          formatDamageMessage(CARGO_DESTROYED_TEMPLATE, name),
+          4.5,
         );
         break;
       }

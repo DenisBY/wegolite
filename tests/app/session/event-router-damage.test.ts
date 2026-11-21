@@ -18,17 +18,22 @@ import { describe, expect, it } from "vitest";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import {
+  CARGO_DESTROYED_TEMPLATE,
+  EQUIPMENT_DAMAGED_TEMPLATE,
   EVENT_KIND_SUBSCRIBER,
   createDamageFlow,
   createEventRouter,
   createHudMessages,
+  formatDamageMessage,
 } from "../../../src/app/session/event-router.js";
 import { CommoditySchema } from "../../../src/content/schemas/commodity.js";
 import { EquipmentSchema } from "../../../src/content/schemas/equipment.js";
+import { setCargo } from "../../../src/sim/economy/cargo.js";
 import type { SimEvent } from "../../../src/sim/events.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { newProfile } from "../../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../../src/sim/player/profile.js";
+import { withoutComments } from "../../guards/source-scan.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const lave = laveFixture();
@@ -119,5 +124,127 @@ describe("the damage subscriber: equipmentDamaged", () => {
     expect(commits).toEqual([]);
     expect(ctx.core.profile).toBe(before);
     expect(log).toEqual([]);
+  });
+});
+
+/** A hold with `gold` units of gold (a null-prototype map, as the sim builds). */
+function holding(gold: number): PlayerProfile {
+  const base = newProfile();
+  return { ...base, cargo: setCargo(base.cargo, "gold", gold) };
+}
+
+describe("the damage subscriber: cargoDestroyed", () => {
+  it("commits once and prints the commodity name for 4.5 s after one clearPrevious", () => {
+    const { ctx, log, commits, router } = harness(holding(2700));
+    router.dispatch({
+      kind: "cargoDestroyed",
+      commodity: "gold",
+      amount: 1000,
+    });
+    expect(commits).toHaveLength(1);
+    expect(ctx.core.profile.cargo.gold).toBe(1700);
+    expect(log).toEqual(["clearPrevious", "enqueue Gold destroyed. for 4.5"]);
+  });
+
+  it("prints nothing when no such goods are held", () => {
+    const { ctx, log, commits, router } = harness(newProfile());
+    const before = ctx.core.profile;
+    router.dispatch({ kind: "cargoDestroyed", commodity: "gold", amount: 1 });
+    expect(commits).toEqual([]);
+    expect(ctx.core.profile).toBe(before);
+    expect(log).toEqual([]);
+  });
+
+  it("prints nothing when more is destroyed than is held", () => {
+    const { ctx, log, commits, router } = harness(holding(999));
+    const before = ctx.core.profile;
+    router.dispatch({
+      kind: "cargoDestroyed",
+      commodity: "gold",
+      amount: 1000,
+    });
+    expect(commits).toEqual([]);
+    expect(ctx.core.profile).toBe(before);
+    expect(ctx.core.profile.cargo.gold).toBe(999);
+    expect(log).toEqual([]);
+  });
+
+  it("falls back to the key for an unknown name, never an empty string", () => {
+    const { ctx, log, router } = harness(fitted(DOCK_COMP));
+    ctx.core.equipmentCatalogue = [];
+    router.dispatch(DOCK_DAMAGED);
+    expect(log).toEqual([
+      "clearPrevious",
+      `enqueue ${DOCK_COMP} damaged. for 4.5`,
+    ]);
+    const held = harness(holding(5));
+    held.ctx.core.commodities = [];
+    held.router.dispatch({
+      kind: "cargoDestroyed",
+      commodity: "gold",
+      amount: 5,
+    });
+    expect(held.log).toEqual([
+      "clearPrevious",
+      "enqueue gold destroyed. for 4.5",
+    ]);
+  });
+});
+
+describe("the damage message templates", () => {
+  const plist = readFileSync(
+    "third_party/oolite/Config/descriptions.plist",
+    "utf8",
+  );
+  const plistValue = (key: string): string => {
+    const match = new RegExp(`"${key}"\\s*=\\s*"([^"]*)";`).exec(plist);
+    if (match?.[1] === undefined) throw new Error(`${key} not in the plist`);
+    return match[1];
+  };
+
+  it("equal the vendored descriptions.plist values", () => {
+    expect(EQUIPMENT_DAMAGED_TEMPLATE).toBe(plistValue("@-damaged"));
+    expect(CARGO_DESTROYED_TEMPLATE).toBe(plistValue("@-destroyed"));
+  });
+
+  it("fill the name into the template", () => {
+    expect(
+      formatDamageMessage(EQUIPMENT_DAMAGED_TEMPLATE, "Docking Computers"),
+    ).toBe("Docking Computers damaged.");
+    expect(formatDamageMessage(CARGO_DESTROYED_TEMPLATE, "Gold")).toBe(
+      "Gold destroyed.",
+    );
+  });
+});
+
+describe("the damage subscriber source (D-11, T-19-17)", () => {
+  const source = withoutComments(
+    readFileSync("src/app/session/event-router.ts", "utf8"),
+  );
+
+  /** The brace-balanced body of `function name(`. */
+  function body(name: string): string {
+    const start = source.indexOf(`function ${name}(`);
+    if (start < 0) throw new Error(`function ${name} not found`);
+    const open = source.indexOf("{", source.indexOf(")", start));
+    let depth = 0;
+    for (let index = open; index < source.length; index += 1) {
+      if (source[index] === "{") depth += 1;
+      if (source[index] === "}") {
+        depth -= 1;
+        if (depth === 0) return source.slice(open, index + 1);
+      }
+    }
+    throw new Error(`function ${name} has no closing brace`);
+  }
+
+  it("createDamageFlow writes no save", () => {
+    expect(body("createDamageFlow")).not.toMatch(/autosave/i);
+  });
+
+  it("createHudMessages has no damage arm", () => {
+    const hud = body("createHudMessages");
+    expect(hud).not.toContain("equipmentDamaged");
+    expect(hud).not.toContain("cargoDestroyed");
   });
 });
