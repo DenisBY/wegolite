@@ -47,6 +47,7 @@ const EXPECTED_ECONOMY_FILES = [
 const PLAYER_FILES = [
   path.join(SIM_DIR, "player", "profile.ts"),
   path.join(SIM_DIR, "player", "outfitting.ts"),
+  path.join(SIM_DIR, "player", "damage.ts"),
 ] as const;
 
 interface Violation {

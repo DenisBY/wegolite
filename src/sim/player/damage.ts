@@ -17,6 +17,7 @@
  * identity.
  */
 
+import { setCargo } from "../economy/cargo.js";
 import { isDamageableKey } from "./outfitting.js";
 import type { PlayerProfile } from "./profile.js";
 
@@ -39,5 +40,31 @@ export function applyEquipmentDamaged(
     ...profile,
     equipment: profile.equipment.filter((held) => held !== key),
     damagedEquipment: [...profile.damagedEquipment, key],
+  };
+}
+
+/**
+ * Lower the held quantity of `commodity` by `amount` (a destroyed pod, D-04),
+ * dropping an entry that reaches zero.
+ *
+ * The commodity is read as an own property of the cargo map, so an inherited
+ * name (`toString`, `__proto__`) is never "held". Refuses (same object) an
+ * unknown commodity, an amount that is not a positive safe integer, or one
+ * larger than the held quantity.
+ */
+export function applyCargoDestroyed(
+  profile: PlayerProfile,
+  commodity: string,
+  amount: number,
+): PlayerProfile {
+  if (!Number.isSafeInteger(amount) || amount <= 0) return profile;
+  if (!Object.prototype.hasOwnProperty.call(profile.cargo, commodity)) {
+    return profile;
+  }
+  const held = profile.cargo[commodity];
+  if (held === undefined || amount > held) return profile;
+  return {
+    ...profile,
+    cargo: setCargo(profile.cargo, commodity, held - amount),
   };
 }

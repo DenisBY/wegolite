@@ -13,12 +13,19 @@
 import { describe, expect, it } from "vitest";
 
 import { emptyCargo, setCargo } from "../../../src/sim/economy/cargo.js";
-import { applyEquipmentDamaged } from "../../../src/sim/player/damage.js";
+import {
+  applyCargoDestroyed,
+  applyEquipmentDamaged,
+} from "../../../src/sim/player/damage.js";
 import {
   DAMAGEABLE_EQUIPMENT_KEYS,
   isDamageableKey,
 } from "../../../src/sim/player/outfitting.js";
-import { newProfile } from "../../../src/sim/player/profile.js";
+import {
+  MAX_EQUIPMENT_KEYS,
+  newProfile,
+  purchase,
+} from "../../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../../src/sim/player/profile.js";
 
 function profileWith(overrides: Partial<PlayerProfile> = {}): PlayerProfile {
@@ -151,5 +158,87 @@ describe("applyEquipmentDamaged", () => {
     for (const key of ["__proto__", "toString", ""]) {
       expect(applyEquipmentDamaged(profile, key), key).toBe(profile);
     }
+  });
+});
+describe("applyCargoDestroyed (D-04)", () => {
+  const cargo = setCargo(setCargo(emptyCargo(), "food", 3), "gold", 2700);
+  const held = profileWith({ cargo });
+
+  it("lowers the held quantity", () => {
+    expect(applyCargoDestroyed(held, "food", 1).cargo).toEqual({
+      food: 2,
+      gold: 2700,
+    });
+    expect(applyCargoDestroyed(held, "gold", 1000).cargo).toEqual({
+      food: 3,
+      gold: 1700,
+    });
+  });
+
+  it("drops an entry that reaches zero", () => {
+    const next = applyCargoDestroyed(held, "food", 3);
+    expect(next.cargo).toEqual({ gold: 2700 });
+    expect(Object.keys(next.cargo)).toEqual(["gold"]);
+  });
+
+  it("never mutates its input", () => {
+    applyCargoDestroyed(held, "food", 3);
+    expect(held.cargo).toEqual({ food: 3, gold: 2700 });
+  });
+
+  it("returns the same object for a bad commodity or amount", () => {
+    const refusals: [string, number][] = [
+      ["gold", 2701],
+      ["food", 0],
+      ["food", -1],
+      ["food", 1.5],
+      ["food", Number.NaN],
+      ["food", Number.POSITIVE_INFINITY],
+      ["food", Number.MAX_SAFE_INTEGER + 2],
+      ["alien_items", 1],
+      ["__proto__", 1],
+      ["toString", 1],
+    ];
+    for (const [commodity, amount] of refusals) {
+      expect(
+        applyCargoDestroyed(held, commodity, amount),
+        `${commodity} ${String(amount)}`,
+      ).toBe(held);
+    }
+  });
+});
+
+describe("purchase counts both lists against the 64-key bound (T-19-05)", () => {
+  const item = { key: "EQ_DOCK_COMP", price: 100, techLevel: 1 };
+  const keys = (count: number, prefix: string): string[] =>
+    Array.from({ length: count }, (_, index) => `${prefix}${String(index)}`);
+
+  it("refuses a fifth item with 60 installed and 4 damaged keys", () => {
+    const profile = profileWith({
+      credits: 10_000,
+      equipment: keys(60, "K"),
+      damagedEquipment: keys(4, "D"),
+    });
+    expect(MAX_EQUIPMENT_KEYS).toBe(64);
+    expect(purchase(profile, item)).toBe(profile);
+  });
+
+  it("refuses to buy a key that is damaged, so the lists stay disjoint", () => {
+    const profile = profileWith({
+      credits: 10_000,
+      damagedEquipment: ["EQ_DOCK_COMP"],
+    });
+    expect(purchase(profile, item)).toBe(profile);
+  });
+
+  it("buys with 59 installed and 4 damaged keys", () => {
+    const profile = profileWith({
+      credits: 10_000,
+      equipment: keys(59, "K"),
+      damagedEquipment: keys(4, "D"),
+    });
+    const next = purchase(profile, item);
+    expect(next).not.toBe(profile);
+    expect(next.equipment).toHaveLength(60);
   });
 });

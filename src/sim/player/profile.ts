@@ -219,7 +219,17 @@ export function purchase(
 ): PlayerProfile {
   if (!isValidKey(item.key) || !isValidPrice(item.price)) return profile;
   if (profile.equipment.includes(item.key)) return profile;
-  if (profile.equipment.length >= MAX_EQUIPMENT_KEYS) return profile;
+  // A damaged key stays out of `equipment` until it is repaired (19-05), so the
+  // two lists remain disjoint.
+  if (profile.damagedEquipment.includes(item.key)) return profile;
+  // Installed and damaged keys together stay within the save's key bound
+  // (Phase 19, T-19-05), so a damaged item still occupies one slot.
+  if (
+    profile.equipment.length + profile.damagedEquipment.length >=
+    MAX_EQUIPMENT_KEYS
+  ) {
+    return profile;
+  }
   if (!isSafeCredits(profile.credits) || profile.credits < item.price) {
     return profile;
   }
