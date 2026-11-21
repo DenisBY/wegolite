@@ -12,6 +12,13 @@ files:
   - tests/e2e/hud.spec.ts
   - tests/e2e/scene.spec.ts
   - tests/e2e/probe-shape.spec.ts
+  - tests/e2e/core-loop.spec.ts
+  - tests/e2e/budget.spec.ts
+  - tests/e2e/save-load.spec.ts
+  - tests/e2e/station-tabs.spec.ts
+  - tests/e2e/throttle.spec.ts
+  - tests/e2e/settings.spec.ts
+  - tests/e2e/station.spec.ts
   - tests/e2e/helpers/probe.ts
 ---
 
@@ -92,3 +99,45 @@ test timeout.
   budget and apply the Rule above. The specs that passed on run 44796363344 with their own launch waits
   (`station.spec.ts:847`, `save-load.spec.ts:721`, the `SLOW`-constant specs) were left unchanged and are the first to
   check.
+
+## Status (2026-11-21, quick task 261121-bjl)
+
+- **The run.** Main CI run 44812771006 at 20a9942: shard 2 took 16.4 min against about 10 min for the others.
+  `hyperspace.spec.ts:196` and `:614` timed out in `waitForMode` (60 s) right after the first launch; 261120-ryc missed
+  them because that file passed on run 44796363344. `core-loop.spec.ts:269` timed out in the 180 s arrival wait after
+  the 15 s countdown, a frame-bound wait (at most 5 fixed steps of 1/120 s per rendered frame on SwiftShader, so at
+  least 360 rendered frames) that `hyperspace.spec.ts` and the autosave trigger matrix already give 360 s.
+- **The fix.** Every wait that spans an unskipped launch in real time now uses `FIRST_LAUNCH_WAIT_MS`, with the governing
+  budget written as its non-launch part plus one constant per launch. Test-only: no product code, launch sequence, skip
+  key, `launchSeen` seeding or assertion changed; no timeout was lowered.
+  - `hyperspace.spec.ts`: `waitForMode` 180 s; the chart-target test 1,140 s + 180 s = 1,320 s; the blocked-refusal
+    test gains 540 s + 180 s = 720 s; the file-level 600 s stays for the non-launching arrow-key test;
+  - `core-loop.spec.ts`: the Diso arrival wait `scaled(360 s)` (was 180 s); file budget `scaled(1,320 s + 180 s)` =
+    1,500 s (the non-launch part rises by the same 180 s);
+  - `autosave.spec.ts`: `waitForMode` 180 s; the tainted-dock test gains 540 s + 180 s = 720 s; the trigger matrix
+    1,140 s + 180 s = 1,320 s; file-level 600 s stays;
+  - `budget.spec.ts`: `waitForMode` 180 s; file budget 240 s + 180 s = 420 s (three tests, one launch each);
+  - `save-load.spec.ts`: `waitForMode` 180 s; the F2-in-flight and in-flight Load tests gain 300 s + 180 s = 480 s each;
+  - `station-tabs.spec.ts` (found by the planner's sweep): `waitForMode` 180 s; the Launch-tab, in-flight chart and
+    header-balance tests gain 120 s + 180 s = 300 s each;
+  - `throttle.spec.ts`: `waitForMode` 180 s; file budget 540 s + 180 s = 720 s;
+  - `settings.spec.ts` (Show FPS toggle) and `station.spec.ts:857`: both launches wait 180 s, because the launch after the
+    reload also plays in full (`launchSeen` only enables the skip key); budgets 120 s + 2 x 180 s = 480 s and
+    60 s + 2 x 180 s = 420 s.
+- **Waits left unchanged, and why.**
+  - probe-shape (except the in-flight call 261120-ryc changed), combat, laser-shots, statics, npc-flight, tick-hook and
+    traffic `SLOW` = 30 s waits: they boot with `?test=1&clock=manual` and step the launch with `advanceTicks`; the
+    in-flight wait only waits for a frame to publish the probe (tick-hook's `?clock=manual&traffic=1` case does not launch);
+  - `engine.spec.ts:119` (90 s): ends when the sim launch starts after the 1.5 s pre-roll, not when the launch view ends;
+  - `docking.spec.ts:252` (60 s): the 2 s departure wait after `waitForMode` inFlight returned; the relaunch at line 358
+    is skipped with the x key;
+  - autosave `launchAndAwaitCommit` (90 s), the autosave launching waits, `save-load.spec.ts:398` `waitForCommitted(3)`,
+    the `station.spec.ts` save wait and the New-game commit wait: the pre-launch anchor is written on the fixed step that
+    ends the 1.5 s pre-roll (quick 261118-os8), before the launch view plays;
+  - `hyperspace.spec.ts:375` (60 s): the arrival-save commit wait after the jump, no launch;
+  - `save-load.spec.ts:717-721`, `hyperspace-failure.spec.ts:117`, `autosave.spec.ts:661`: Continue or Load straight into
+    flight, no launch.
+- **Remote result.** The nine changed specs, Chromium, committed snapshot 191639a: 70 passed, 0 failed, 8.1 min (script
+  elapsed 491 s). Local lint, typecheck and the full unit suite (269 files) passed before the last spec commit.
+- **The watch continues.** After the next sharded CI run, re-measure each launch-spanning test's share of its budget per
+  shard and apply the Rule above.
