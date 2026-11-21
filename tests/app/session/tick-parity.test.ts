@@ -32,9 +32,12 @@ import type { RedrawGate } from "../../../src/app/redraw-gate.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import {
+  EQUIPMENT_DAMAGED_TEMPLATE,
+  createDamageFlow,
   createEventRouter,
   createHudMessages,
   createHyperspaceFlow,
+  formatDamageMessage,
 } from "../../../src/app/session/event-router.js";
 import { createHyperspaceController } from "../../../src/app/session/hyperspace-controller.js";
 import type { HyperspaceControllerDeps } from "../../../src/app/session/hyperspace-controller.js";
@@ -49,13 +52,15 @@ import {
 } from "../../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import type { WorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import { parseEquipment } from "../../../src/content/equipment.js";
 import { ExplosionCatalogueSchema } from "../../../src/content/schemas/explosion.js";
 import { DebrisCatalogueSchema } from "../../../src/content/schemas/ship-debris.js";
-import type { NpcShip, System } from "../../../src/content/types.js";
+import type { Equipment, NpcShip, System } from "../../../src/content/types.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { Command } from "../../../src/sim/commands.js";
+import type { PlayerProfile } from "../../../src/sim/player/profile.js";
 import {
   arrivalMarketSeed,
   generateMarket,
@@ -88,6 +93,15 @@ import { runTickScript } from "../../helpers/tick-script.js";
 
 const lave = laveFixture();
 const catalogue = commoditiesFixture();
+/** The real compiled equipment catalogue, loaded as the boot loads it. */
+const equipmentCatalogue: readonly Equipment[] = parseEquipment(
+  JSON.parse(
+    readFileSync(
+      new URL("../../../src/content/generated/equipment.json", import.meta.url),
+      "utf8",
+    ),
+  ) as unknown,
+);
 const LEESTI_ID = "g0-s55";
 
 const galaxy = JSON.parse(
@@ -129,11 +143,18 @@ interface Session {
  * `hudRouting` wires the real HUD message subscriber (`createHudMessages`)
  * behind a recorder, so the routed event kinds and the message queue can be
  * read; every other session keeps the quiet stub.
+ * `damage` (plan 19-13, CBT-08) loads the real equipment catalogue, lets the
+ * probe publisher's `commitProfile` replace `ctx.core.profile` (the identity
+ * check of the station controller's `commitProfile`), and wires the real
+ * `createDamageFlow` behind the same recorder as `hudRouting` (each kind it is
+ * handed is pushed to `routed`), with the session's own message queue. With it
+ * false every session is byte-identical to before.
  */
 function session(
   search: string,
   populated = false,
   hudRouting = false,
+  damage = false,
 ): Session {
   const ctx = createSessionState({
     system: lave.system,
@@ -228,6 +249,24 @@ function session(
   const messages = createMessageQueue();
   const quiet = (): void => undefined;
   const routed: string[] = [];
+  // The commit the damage session runs: the station controller's identity
+  // check (a refused operation returns the same profile and commits nothing),
+  // without its station render, which this twin has no station for.
+  const commitProfile = (next: PlayerProfile): boolean => {
+    if (!damage || next === ctx.core.profile) return false;
+    ctx.core.profile = next;
+    return true;
+  };
+  if (damage) ctx.core.equipmentCatalogue = equipmentCatalogue;
+  const damageFlow = damage
+    ? (() => {
+        const real = createDamageFlow(ctx, { commitProfile, messages });
+        return (event: Parameters<typeof real>[0]): void => {
+          routed.push(event.kind);
+          real(event);
+        };
+      })()
+    : quiet;
   const hudMessages = hudRouting
     ? (() => {
         const real = createHudMessages({ messages }, ctx);
@@ -273,7 +312,7 @@ function session(
     onPreRollStart: () => undefined,
     router: createEventRouter(ctx, {
       stationFlow: quiet,
-      damageFlow: quiet,
+      damageFlow,
       hudMessages,
       dockFeedback: quiet,
       hyperspaceFlow: createHyperspaceFlow(ctx, {
@@ -317,7 +356,7 @@ function session(
     saveProbe,
     redrawGate: gate,
     messages,
-    commitProfile: () => false,
+    commitProfile,
     swapSystem: () => Promise.resolve(),
     disposeSystem: () => undefined,
     advanceTicks: (n) => driver.advanceTicks(n),
@@ -933,6 +972,248 @@ describe("the debris twin (plan 16-06, WORLD-17, D16-09)", () => {
       expect(world.store.nextId).toBe(nextId);
     },
   );
+});
+
+// --- the CBT-08 fight (plan 19-13) -------------------------------------------
+// BEGIN-SCAN-COPY: the plan's scan copies the code between this marker and
+// the closing marker, so the pinned literals come from the code the twin runs.
+
+/** The four F3 items the fight grants through the hook while docked (D-03). */
+const DAMAGE_ITEMS = [
+  "EQ_DOCK_COMP",
+  "EQ_GAL_DRIVE",
+  "EQ_ADVANCED_COMPASS",
+  "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+] as const;
+
+/** What one CBT-08 fight measured. */
+interface DamageFight {
+  /** The result of each `grantEquipment`, in `DAMAGE_ITEMS` order. */
+  readonly granted: readonly boolean[];
+  readonly spawnTick: number;
+  /** The tick the scanner lost the ship, or -1 when the bound ran out. */
+  readonly killTick: number;
+  /** The damaged list after the kill tick, in the order it was damaged. */
+  readonly damagedAtKill: readonly string[];
+  readonly equipmentAtKill: readonly string[];
+  readonly debris: ReturnType<typeof debrisCounts>;
+  readonly entities: number;
+  /** The first `equipmentDamaged` the router handed `damageFlow`. */
+  readonly first:
+    | {
+        readonly tickOffset: number;
+        readonly key: string;
+        readonly expectedMessage: string;
+        readonly shownMessage: string;
+      }
+    | undefined;
+  readonly damageKinds: readonly string[];
+  readonly saveAttemptsBefore: number;
+  readonly saveAttemptsAtKill: number;
+  readonly damagedAt60: readonly string[];
+  readonly hash60: string;
+  readonly sessionHash60: string;
+}
+
+/**
+ * The 15-04 sequence with the four F3 items granted while docked and
+ * `delay` extra ticks between the cooled laser and the spawn: fire is held from
+ * the spawn, the loop steps one tick at a time (so the tick of the first damage
+ * is seen) and ident is engaged 360 ticks after the spawn, as the kill twin
+ * does. Returns what was measured; asserts nothing.
+ */
+function runDamageFight(delay: number): DamageFight {
+  const s = session("?test=1&clock=manual&traffic=1", true, true, true);
+  const state = s.ctx.core.state;
+  const combat = s.ctx.core.combat;
+  if (state === undefined || combat === undefined) throw new Error("no state");
+  s.publisher.bindTestHook(state);
+  const hook = s.probe.test;
+  if (hook === undefined) throw new Error("no hook");
+  const world = (): ReturnType<typeof liveWorldOf> => liveWorldOf(s);
+
+  // Docked: grant the four items through the hook (the only hook shortcut; the
+  // damage itself comes from the shooter's hits through the ledger).
+  const granted = DAMAGE_ITEMS.map((key) => hook.grantEquipment(key));
+
+  s.pending.push(launch);
+  s.driver.advanceTicks(1);
+  s.driver.advanceTicks(300);
+  hook.setSpeed(0);
+  s.held.fire = true;
+  s.driver.advanceTicks(30);
+  s.held.fire = false;
+  s.driver.advanceTicks(60);
+  s.driver.advanceTicks(delay);
+
+  s.held.fire = true;
+  hook.spawnTestShooter();
+  const spawnTick = state.tick;
+  const saveAttemptsBefore = s.ctx.save.saveAttempts;
+  const before = npcContacts(world()).length;
+  const bound = spawnTick + 1500;
+  let killTick = -1;
+  let first: DamageFight["first"];
+  while (state.tick < bound) {
+    if (state.tick - spawnTick === 360) s.pending.push({ kind: "ident" });
+    const damagedBefore = s.routed.filter(
+      (kind) => kind === "equipmentDamaged",
+    ).length;
+    s.driver.advanceTicks(1);
+    if (
+      first === undefined &&
+      s.routed.filter((kind) => kind === "equipmentDamaged").length >
+        damagedBefore
+    ) {
+      const key = s.ctx.core.profile.damagedEquipment[0] ?? "";
+      const name =
+        equipmentCatalogue.find((record) => record.key === key)?.name ?? key;
+      first = {
+        tickOffset: state.tick - spawnTick,
+        key,
+        expectedMessage: formatDamageMessage(EQUIPMENT_DAMAGED_TEMPLATE, name),
+        shownMessage: s.messages.current(state.flightTime),
+      };
+    }
+    if (npcContacts(world()).length === before - 1) {
+      killTick = state.tick;
+      break;
+    }
+  }
+  if (killTick === -1) {
+    return {
+      granted,
+      spawnTick,
+      killTick,
+      damagedAtKill: s.ctx.core.profile.damagedEquipment,
+      equipmentAtKill: s.ctx.core.profile.equipment,
+      debris: debrisCounts(world()),
+      entities: -1,
+      first,
+      damageKinds: s.routed.filter((kind) => kind === "equipmentDamaged"),
+      saveAttemptsBefore,
+      saveAttemptsAtKill: s.ctx.save.saveAttempts,
+      damagedAt60: s.ctx.core.profile.damagedEquipment,
+      hash60: "",
+      sessionHash60: "",
+    };
+  }
+  s.publisher.updateProbe();
+  const damagedAtKill = s.ctx.core.profile.damagedEquipment;
+  const equipmentAtKill = s.ctx.core.profile.equipment;
+  const debris = debrisCounts(world());
+  const entities = s.probe.sim?.entities ?? -1;
+  const saveAttemptsAtKill = s.ctx.save.saveAttempts;
+  s.held.fire = false;
+  s.driver.advanceTicks(60);
+  return {
+    granted,
+    spawnTick,
+    killTick,
+    damagedAtKill,
+    equipmentAtKill,
+    debris,
+    entities,
+    first,
+    damageKinds: s.routed.filter((kind) => kind === "equipmentDamaged"),
+    saveAttemptsBefore,
+    saveAttemptsAtKill,
+    damagedAt60: s.ctx.core.profile.damagedEquipment,
+    hash60: hook.worldHash(),
+    sessionHash60: sessionHash(s),
+  };
+}
+// END-SCAN-COPY
+
+/**
+ * The CBT-08 twin's pins (plan 19-13, CBT-08, ROADMAP criterion 5), measured
+ * through the real driver, router and probe publisher by the plan's scan over
+ * the spawn delays 0 to 240 (one `SCAN-ROW` per delay, the full table in
+ * 19-13-SUMMARY.md) and equal to the browser spec's `TWIN_DAMAGE_*` literals in
+ * tests/e2e/combat.spec.ts. Every literal is what the chosen scan row printed,
+ * none is derived to fit.
+ *
+ * The chosen delay is the smallest one whose row shows a kill, at least one
+ * debris piece and exactly one damaged item: delay 1 (delay 0 damages nothing).
+ * Its row: `kill=672 damaged=EQ_GAL_DRIVE debris=0/0/1 entities=13
+ * hash60=5028fc8f first=613:EQ_GAL_DRIVE` (the first-damage offset is a
+ * seventh literal the same row printed, so the browser can meet the damage on
+ * its own tick). The kill offset equals the 15-04 twin's: the damage roll
+ * draws from its own stream and changes no combat value.
+ *
+ * Which item the shooter's hits damage, and when, depends on the
+ * `internalDamageSeed` formula and the `damage` stream (plan 19-02): a later
+ * change to either re-rolls `DAMAGED_AT_KILL` and the hash. A re-pin then
+ * follows the Phase 18 standing approval: the cause measured, Node equal to the
+ * browser, the cause in the commit.
+ */
+/** The ticks held between the cooled laser and the shooter's spawn. */
+const DAMAGE_SPAWN_DELAY = 1;
+/** The kill tick relative to the spawn. */
+const DAMAGE_KILL_OFFSET = 672;
+/**
+ * The tick of the first damage relative to the spawn (the scan row's
+ * `first=613:EQ_GAL_DRIVE`): the HUD shows the message on that tick.
+ */
+const DAMAGE_FIRST_OFFSET = 613;
+/** The damaged list after the kill tick (the one item, EQ_GAL_DRIVE). */
+const DAMAGED_AT_KILL = ["EQ_GAL_DRIVE"] as const;
+/** The debris live on the kill tick: the one wreck, no pod, no plate. */
+const DAMAGE_DEBRIS_AT_KILL = { pods: 0, plates: 0, wrecks: 1 } as const;
+const DAMAGE_ENTITIES_AT_KILL = 13;
+/** The world hash 60 ticks after the kill, fire released. */
+const DAMAGE_HASH_60_AFTER_KILL = "5028fc8f";
+
+describe("the CBT-08 twin (plan 19-13, CBT-08)", () => {
+  it("a hook-spawned fight destroys the shooter into its debris and leaves the player a damaged item", () => {
+    const fight = runDamageFight(DAMAGE_SPAWN_DELAY);
+
+    // The four F3 items were granted through the hook while docked.
+    expect(fight.granted).toEqual([true, true, true, true]);
+
+    // The kill landed before the bound (the vacuity guard) and at the pinned
+    // offset from the spawn.
+    expect(fight.killTick, "the kill landed before the bound").toBeGreaterThan(
+      -1,
+    );
+    expect(fight.killTick - fight.spawnTick).toBe(DAMAGE_KILL_OFFSET);
+
+    // The player's ship leaves with a damaged item: the profile's list (the
+    // world hash never covers it), and none of those keys stays installed.
+    expect(fight.damagedAtKill).toEqual(DAMAGED_AT_KILL);
+    expect(fight.damagedAtKill.length).toBeGreaterThanOrEqual(1);
+    for (const key of fight.damagedAtKill) {
+      expect(fight.equipmentAtKill).not.toContain(key);
+    }
+    expect([...fight.equipmentAtKill, ...fight.damagedAtKill].sort()).toEqual(
+      [...DAMAGE_ITEMS].sort(),
+    );
+
+    // The enemy ship is destroyed with its debris, not vacuously.
+    expect(fight.debris).toEqual(DAMAGE_DEBRIS_AT_KILL);
+    expect(
+      fight.debris.pods + fight.debris.plates + fight.debris.wrecks,
+    ).toBeGreaterThanOrEqual(1);
+    expect(fight.entities).toBe(DAMAGE_ENTITIES_AT_KILL);
+
+    // The damage arrived the way it does in play: the router handed the event to
+    // damageFlow, and on that tick the HUD showed "<name> damaged.".
+    expect(fight.damageKinds).toContain("equipmentDamaged");
+    if (fight.first === undefined) throw new Error("no damage event");
+    expect(fight.first.key).toBe(DAMAGED_AT_KILL[0]);
+    expect(fight.first.expectedMessage).toMatch(/ damaged\.$/);
+    expect(fight.first.shownMessage).toBe(fight.first.expectedMessage);
+    expect(fight.first.tickOffset).toBe(DAMAGE_FIRST_OFFSET);
+
+    // D-11: damage reaches the profile without any save attempt.
+    expect(fight.saveAttemptsAtKill).toBe(fight.saveAttemptsBefore);
+
+    // 60 ticks after the kill: the damaged list is unchanged (asserted on the
+    // profile, separately from the hash) and the hash is the pinned one.
+    expect(fight.damagedAt60).toEqual(DAMAGED_AT_KILL);
+    expect(fight.hash60).toBe(DAMAGE_HASH_60_AFTER_KILL);
+    expect(fight.hash60).toBe(fight.sessionHash60);
+  });
 });
 
 describe("the sim hook reads live objects (G-8)", () => {
