@@ -492,8 +492,10 @@ test("the High-quality toggle rebuilds the planet, persists and resets", async (
 test("the Show FPS toggle shows a live counter in flight and docked, persists and resets", async ({
   page,
 }) => {
-  // The old 180 s non-launch budget plus the first-launch wait (quick 261120-ryc).
-  test.setTimeout(180_000 + FIRST_LAUNCH_WAIT_MS);
+  // The old 120 s non-launch budget plus two launch waits, because the launch
+  // after the reload also plays in full (launchSeen only enables the skip key;
+  // quick 261121-bjl).
+  test.setTimeout(120_000 + 2 * FIRST_LAUNCH_WAIT_MS);
   const errors: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") errors.push(message.text());
@@ -543,7 +545,7 @@ test("the Show FPS toggle shows a live counter in flight and docked, persists an
       );
     },
     undefined,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
   await page.keyboard.press("KeyP");
   await expect(page.locator("#pause")).toBeVisible();

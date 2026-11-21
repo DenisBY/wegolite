@@ -857,6 +857,9 @@ test("station F-keys are inert in flight", async ({ page }) => {
 test("the whole station computer is keyboard-only, and every accepted action writes once", async ({
   page,
 }) => {
+  // The old 180 s file budget minus two 60 s launch waits plus two launch waits
+  // (quick 261121-bjl).
+  test.setTimeout(60_000 + 2 * FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await bootToHome(page);
 
@@ -1020,7 +1023,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   await page.waitForFunction(
     () => window.__wegolite?.mode === "inFlight",
     undefined,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
   await page.waitForFunction(
     (expected) => (window.__wegolite?.save?.committed ?? 0) === expected,
@@ -1056,7 +1059,7 @@ test("the whole station computer is keyboard-only, and every accepted action wri
   await page.waitForFunction(
     () => window.__wegolite?.mode === "inFlight",
     undefined,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
   const granted = await page.evaluate(() => {
     const hook = window.__wegolite?.test;
