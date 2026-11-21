@@ -58,7 +58,7 @@ describe("DAMAGEABLE_EQUIPMENT_KEYS (D-03, the one damageable set)", () => {
   });
 
   it("isDamageableKey rejects inherited names, junk and every laser key", () => {
-    for (const value of [
+    const values: readonly unknown[] = [
       "__proto__",
       "toString",
       "constructor",
@@ -74,9 +74,10 @@ describe("DAMAGEABLE_EQUIPMENT_KEYS (D-03, the one damageable set)", () => {
       "EQ_WEAPON_MINING_LASER",
       "EQ_WEAPON_MILITARY_LASER",
       "EQ_WEAPON_NONE",
-    ]) {
-      expect(isDamageableKey(value), String(value)).toBe(false);
-    }
+    ];
+    values.forEach((value, index) => {
+      expect(isDamageableKey(value), `case ${String(index)}`).toBe(false);
+    });
   });
 });
 
