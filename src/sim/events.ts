@@ -182,7 +182,21 @@ export type SimEvent =
   | { kind: "energyLow"; id: EntityId }
   // A diagnostic kind, not a reserved presentation kind (FOUND-15, D-04):
   // `stepWorld` emits it once per contained AI fault. See the comment below.
-  | { kind: "aiFaulted"; id: EntityId; site: AiFaultSite };
+  | { kind: "aiFaulted"; id: EntityId; site: AiFaultSite }
+  /**
+   * Phase 19, CBT-08: the player's internal-damage roll took one installed item
+   * out of service. `key` is the catalogue equipment key. Carries no entity id
+   * and no UI text; the app owns the wording and the profile update. Not a
+   * reserved kind.
+   */
+  | { kind: "equipmentDamaged"; key: string }
+  /**
+   * Phase 19, CBT-08: the player's internal-damage roll destroyed one cargo pod.
+   * `commodity` is the commodity key and `amount` the quantity the pod held. No
+   * entity id and no UI text; the app owns the wording and the profile update.
+   * Not a reserved kind.
+   */
+  | { kind: "cargoDestroyed"; commodity: string; amount: number };
 
 /**
  * The 15 presentation and audio kinds reserved ahead of their producers so the

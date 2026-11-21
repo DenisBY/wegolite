@@ -197,9 +197,21 @@ describe("worldSeedFor and forkSeed vectors (D-02, D-04)", () => {
       ai: 2,
       combat: 3,
       cargo: 4,
+      damage: 5,
     });
     expect(Object.isFrozen(RNG_PURPOSE_CODES)).toBe(true);
     expect([...ENTITY_RNG_PURPOSES]).toEqual(["ai", "combat"]);
+  });
+
+  it("forks the stateless damage purpose (code 5) apart from every other stream (Phase 19)", () => {
+    const world = worldSeedFor(LAVE_MARKET_SEED, 1);
+    const damage = forkSeed(world, 100, "damage");
+    expect(damage).toBe(mix32(mix32(world, 100), 5));
+    for (const other of ["ai", "combat", "cargo", "world"] as const) {
+      expect(damage).not.toBe(forkSeed(world, 100, other));
+    }
+    // "damage" is forked per player-damage tick and never stored: not an entity purpose.
+    expect([...ENTITY_RNG_PURPOSES]).not.toContain("damage");
   });
 
   it("forks the stateless cargo purpose (code 4) apart from the stored streams (plan 15-03)", () => {
