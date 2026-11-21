@@ -4,6 +4,8 @@
 
 Wegolite is a browser-based, faithful reimplementation of Oolite's core single-player loop: fly a Cobra Mk III out of a Coriolis station, dock manually, trade commodities between star systems, and hyperspace across the eight galaxies. Desktop web only. No combat, NPC traffic, or expansion packs (OXPs) in v1.
 
+**Fidelity rule.** Oolite's behaviour, data and text are the default. Diverge only where the result is clearly better (clarity, correctness, an upstream bug), the reviewer models agree in plan or code review, and a `FIDELITY.md` row records the reason. Never diverge silently (owner decision 2026-11-21, PROJECT.md Key Decisions).
+
 Read `.planning/PROJECT.md` for the authoritative scope, constraints, and decisions. Read `.planning/REQUIREMENTS.md` and `.planning/ROADMAP.md` before starting work on a phase.
 
 ## Codebase memory

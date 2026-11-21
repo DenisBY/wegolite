@@ -50,8 +50,8 @@ Not in this phase: player death (Phase 20), hull wear and `EQ_RENOVATION`, NPC e
 ### Saves (carried from the roadmap)
 - **D-11:** Schema v5 adds `damagedEquipment`. A damaged item lives only there. It is removed from `equipment` and is never the `_DAMAGED` suffix key, which the validator keeps rejecting. There is no migration: v1-v4 saves go through the existing unreadable path. The worst case (every damageable item damaged, at maximum lengths) has a size test under `MAX_SAVE_CHARS` (65,536). The damage becomes durable at the existing autosave triggers (dock, hyperspace arrival); there is no new write on damage. The same applies to cargo lost to D-04. — **Reversibility:** one-way — older saves are rejected, which is accepted for the alpha.
 
-### Divergence policy (owner, 2026-11-21)
-- **D-12:** Where something can be done better than in Oolite, and the reviewer models (fable/opus/sonnet plan or code review) agree, the phase may diverge from Oolite. Each such divergence gets a FIDELITY.md row with the reason and the reviewers' agreement noted in the plan or SUMMARY. D-07's "(damaged)" and the space in "Repair: X" are the first two instances. This is not a licence for silent changes: without the row and the reviewers' agreement, Oolite's behaviour stands.
+### Divergence policy
+- **D-12:** The project-wide fidelity rule applies (AGENTS.md "Fidelity rule"; PROJECT.md Key Decisions row "Diverge from Oolite where it is clearly better and the reviewer models agree", 2026-11-21). A divergence needs a concrete benefit, the reviewer models' agreement and a FIDELITY.md row. D-07's "(damaged)" and the space in "Repair: X" are its first instances.
 
 ### Claude's Discretion
 - The seeded stream and how it is keyed. It must be deterministic at 30, 60 and 144 Hz, with its own draws so existing streams and goldens do not shift.
