@@ -188,8 +188,8 @@ export function routeDamage(
  * player's. The remainder lowers energy (`[super takeScrapeDamage:]`,
  * `ShipEntity.m:11651`), which floors at 0 (the player's death is Phase 20).
  * Unlike `routeDamage` (`takeEnergyDamage`, 5599-5700) the scrape never heats
- * the cabin. The internal-damage loop (5746-5752) is Phase 19's and is not
- * ported.
+ * the cabin. The internal-damage loop (5746-5752) is the ledger's roll
+ * (`./ledger.ts`, `./internal-damage.ts`).
  *
  * Divergence: Oolite turns a negative amount positive (5710-5713); this kernel
  * treats a non-positive or non-finite amount as no damage. No caller can reach

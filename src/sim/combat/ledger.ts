@@ -27,6 +27,19 @@
  * rule, no heat, CBT-18), and the energy floors at 0 until the player's death
  * in Phase 20 (D-13).
  *
+ * A hit that gets past the shield also rolls the player's internal damage
+ * (CBT-08, Phase 19, `./internal-damage.ts`) when the app supplies the facts
+ * (`CombatOptions.internalDamage`) and a world exists. Oolite rolls the gate
+ * loop only in the `else` of `energy <= 0.0` for a laser hit
+ * (`PlayerEntity.m:5683-5697`) and always for a scrape
+ * (`PlayerEntity.m:5746-5752`), on the damage that got past the shield
+ * (`DamageResult.applied`). One stream (`internalDamageSeed(worldSeed, tick)`)
+ * and one work copy serve every player record of the call, in ledger order, so
+ * a later record cannot damage what an earlier one already took. Until the
+ * player can die (Phase 20) a scrape that empties the bank still rolls while a
+ * laser hit that empties it does not, where Oolite's player is already dead:
+ * Phase 20 must keep both gates.
+ *
  * A static target (`../world/statics.ts`) is one of two kinds (Phase 18,
  * CBT-17). The main station only absorbs a hit (A6): the record posts
  * `shipHit` with `shield: false` and writes and collects nothing, so it is
@@ -67,6 +80,8 @@ import type { SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { rotate, sub, vec } from "../math.js";
 import type { Vec3 } from "../math.js";
+import { createRngState, rngNext } from "../rng.js";
+import type { RngState } from "../rng.js";
 import { NO_ENTITY, PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
 import {
@@ -75,6 +90,15 @@ import {
   staticTargetById,
 } from "../world/statics.js";
 import type { World } from "../world/world.js";
+import {
+  internalDamageSeed,
+  internalDamageWork,
+  rollInternalDamage,
+} from "./internal-damage.js";
+import type {
+  InternalDamageFacts,
+  InternalDamageWork,
+} from "./internal-damage.js";
 import { routeDamage, routeScrapeDamage } from "./shields.js";
 import type { PlayerCombatState } from "./state.js";
 
@@ -122,7 +146,10 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  *   combat state; `routeDamage` with the offset from the player to the
  *   shooter and the player's forward; `shipHit` with `shield`) and is never
  *   lethal. A `"scrape"` record takes `routeScrapeDamage` instead, which does
- *   not heat the cabin (CBT-18).
+ *   not heat the cabin (CBT-18). With `internalDamage` and a world, each
+ *   player record then rolls internal damage on `DamageResult.applied` (a laser
+ *   record only while the energy is still above 0, a scrape always); its
+ *   `equipmentDamaged` / `cargoDestroyed` events follow its own `shipHit`.
  * - Any other target is skipped when the world is missing or was not stepped.
  * - A buoy subentity (`buoySubentityTargetById`) is skipped when its buoy is
  *   destroyed or its energy is not above 0. Otherwise it writes
@@ -153,8 +180,13 @@ export function applyLedger(
   combat: PlayerCombatState | undefined,
   records: readonly HitRecord[],
   events: SimEvent[],
+  internalDamage?: InternalDamageFacts,
 ): LethalHit[] {
   const lethal = new Map<EntityId, EntityId>();
+  // One work copy and one stream for the whole call, created at the first
+  // player record that rolls (Pitfall 6).
+  let damageWork: InternalDamageWork | undefined;
+  let damageRng: RngState | undefined;
   for (const record of records) {
     if (!Number.isFinite(record.amount) || !(record.amount > 0)) continue;
     if (record.target === PLAYER_ID) {
@@ -176,6 +208,23 @@ export function applyLedger(
         amount: record.amount,
         shield: result.shieldAbsorbed,
       });
+      if (
+        internalDamage !== undefined &&
+        world !== undefined &&
+        (record.kind === "scrape" || combat.energy > 0)
+      ) {
+        damageWork ??= internalDamageWork(internalDamage);
+        damageRng ??= createRngState(
+          internalDamageSeed(world.worldSeed, player.tick),
+        );
+        const rng = damageRng;
+        rollInternalDamage(
+          result.applied,
+          damageWork,
+          () => rngNext(rng),
+          events,
+        );
+      }
       continue;
     }
     if (world === undefined || !worldStepped) continue;

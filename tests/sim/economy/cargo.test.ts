@@ -9,14 +9,17 @@
  * 499 kg of gold without consuming a pod.
  */
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import type { Commodity } from "../../../src/content/types.js";
+import type { InternalDamageFacts } from "../../../src/sim/combat/internal-damage.js";
 import {
   BASE_CAPACITY_PODS,
   CARGO_BAY_PODS,
   capacityPodsFor,
   emptyCargo,
+  holdPods,
   holdPodsUsed,
   maxAdditional,
   otherPodsFor,
@@ -129,5 +132,125 @@ describe("emptyCargo and setCargo", () => {
   it("omits a zero entry instead of keeping a ghost row", () => {
     const cargo = setCargo(emptyCargo(), "food", 2);
     expect(setCargo(cargo, "food", 0)).toEqual({});
+  });
+});
+
+/**
+ * Oolite's in-flight pod list (CBT-08, D-04, plan 19-04): `holdPods` follows
+ * `loadCargoPodsForType:fromManifest:` (`PlayerEntity.m:299-357`).
+ */
+describe("holdPods", () => {
+  it("lists tonnes first by sortOrder, with full pods before the dregs pod", () => {
+    expect(
+      holdPods({ food: 2, gold: 2700, gem_stones: 1_200_000 }, commodities),
+    ).toEqual([
+      { commodity: "food", amount: 1 },
+      { commodity: "food", amount: 1 },
+      { commodity: "gold", amount: 1000 },
+      { commodity: "gold", amount: 1000 },
+      { commodity: "gold", amount: 201 },
+      { commodity: "gem_stones", amount: 700_001 },
+    ]);
+  });
+
+  it("keeps the safe in the manifest and makes no empty pod (kg)", () => {
+    expect(holdPods({ gold: 499 }, commodities)).toEqual([]);
+    expect(holdPods({ gold: 500 }, commodities)).toEqual([
+      { commodity: "gold", amount: 1 },
+    ]);
+    expect(holdPods({ gold: 1499 }, commodities)).toEqual([
+      { commodity: "gold", amount: 1000 },
+    ]);
+    expect(holdPods({ gold: 1500 }, commodities)).toEqual([
+      { commodity: "gold", amount: 1000 },
+      { commodity: "gold", amount: 1 },
+    ]);
+  });
+
+  it("keeps the safe in the manifest and makes no empty pod (g)", () => {
+    expect(holdPods({ gem_stones: 499_999 }, commodities)).toEqual([]);
+    expect(holdPods({ gem_stones: 500_000 }, commodities)).toEqual([
+      { commodity: "gem_stones", amount: 1 },
+    ]);
+    expect(holdPods({ gem_stones: 1_499_999 }, commodities)).toEqual([
+      { commodity: "gem_stones", amount: 1_000_000 },
+    ]);
+    expect(holdPods({ gem_stones: 1_500_000 }, commodities)).toEqual([
+      { commodity: "gem_stones", amount: 1_000_000 },
+      { commodity: "gem_stones", amount: 1 },
+    ]);
+  });
+
+  it("does not depend on the input order of the commodity list", () => {
+    const hold = { gem_stones: 600_000, food: 1, gold: 700, furs: 2 };
+    const expected = holdPods(hold, commodities);
+    expect(holdPods(hold, [...commodities].reverse())).toEqual(expected);
+    expect(expected.map((pod) => pod.commodity)).toEqual([
+      "food",
+      "furs",
+      "furs",
+      "gold",
+      "gem_stones",
+    ]);
+  });
+
+  it("counts an unknown key as tonnes after the known ones, and skips invalid quantities", () => {
+    const hold = { zzz: 2, food: 1, aaa: 1, furs: -3, gold: 1.5, slaves: NaN };
+    expect(holdPods(hold, commodities)).toEqual([
+      { commodity: "food", amount: 1 },
+      { commodity: "aaa", amount: 1 },
+      { commodity: "zzz", amount: 1 },
+      { commodity: "zzz", amount: 1 },
+    ]);
+  });
+
+  it("does not mutate its inputs and is assignable to the roll's pods", () => {
+    const hold = Object.freeze({ food: 3, gold: 2000 });
+    const list = Object.freeze([...commodities]);
+    const pods: InternalDamageFacts["pods"] = holdPods(hold, list);
+    expect(pods).toHaveLength(holdPodsUsed(hold, units));
+    expect(hold).toEqual({ food: 3, gold: 2000 });
+  });
+
+  const holdArb = fc.record({
+    food: fc.integer({ min: 0, max: 12 }),
+    furs: fc.integer({ min: 0, max: 12 }),
+    gold: fc.integer({ min: 0, max: 4000 }),
+    platinum: fc.integer({ min: 0, max: 4000 }),
+    gem_stones: fc.integer({ min: 0, max: 3_000_000 }),
+  });
+
+  function multiset(
+    pods: readonly { commodity: string; amount: number }[],
+  ): string[] {
+    return pods.map((pod) => `${pod.commodity}:${pod.amount}`).sort();
+  }
+
+  it("is as long as holdPodsUsed for any valid hold", () => {
+    fc.assert(
+      fc.property(holdArb, (hold) => {
+        expect(holdPods(hold, commodities)).toHaveLength(
+          holdPodsUsed(hold, units),
+        );
+      }),
+      { seed: 20261931, numRuns: 300 },
+    );
+  });
+
+  it("matches the re-derived list when one pod leaves the hold", () => {
+    fc.assert(
+      fc.property(holdArb, fc.nat(), (hold, pick) => {
+        const pods = holdPods(hold, commodities);
+        if (pods.length === 0) return;
+        const index = pick % pods.length;
+        const pod = pods[index];
+        if (pod === undefined) return;
+        const held: Record<string, number> = { ...hold };
+        held[pod.commodity] = (held[pod.commodity] ?? 0) - pod.amount;
+        const rest = pods.filter((_, i) => i !== index);
+        expect(multiset(holdPods(held, commodities))).toEqual(multiset(rest));
+      }),
+      { seed: 20261932, numRuns: 300 },
+    );
   });
 });
