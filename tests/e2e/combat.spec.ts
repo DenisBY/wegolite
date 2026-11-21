@@ -101,6 +101,26 @@ const TWIN_ENERGY_AFTER_SHOOTING = 222.18333333333135;
 const TWIN_HASH_60_AFTER_KILL = "f6927215";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
+/**
+ * The CBT-08 twin's pins (tests/app/session/tick-parity.test.ts, plan 19-13),
+ * each printed by that plan's scan row for the chosen spawn delay and equal to
+ * the Node literal of the same name (`DAMAGE_*`, `DAMAGED_AT_KILL`). Never edit
+ * these to make the browser pass: a difference is a divergence to report.
+ */
+const TWIN_DAMAGE_SPAWN_DELAY = 1;
+const TWIN_DAMAGE_FIRST_OFFSET = 613;
+const TWIN_DAMAGE_KILL_OFFSET = 672;
+const TWIN_DAMAGED_AT_KILL = ["EQ_GAL_DRIVE"];
+const TWIN_DAMAGE_DEBRIS_AT_KILL = { pods: 0, plates: 0, wrecks: 1 };
+const TWIN_DAMAGE_ENTITIES_AT_KILL = 13;
+const TWIN_DAMAGE_HASH_60_AFTER_KILL = "5028fc8f";
+/** The four F3 items the CBT-08 fight grants through the hook while docked. */
+const DAMAGE_ITEMS = [
+  "EQ_DOCK_COMP",
+  "EQ_GAL_DRIVE",
+  "EQ_ADVANCED_COMPASS",
+  "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+];
 /** The Cobra's shield dial divisor: the baseline shield level, 128. */
 const SHIELD_DIAL_MAX = 128;
 /** The Cobra's maximum energy (the bank dial's divisor), 256. */
@@ -146,6 +166,20 @@ const debrisRecords = JSON.parse(
     "utf8",
   ),
 ) as readonly DebrisRecord[];
+
+/** One committed equipment record (src/content/generated/equipment.json). */
+interface EquipmentRecord {
+  readonly key: string;
+  readonly name: string;
+}
+
+/** The equipment records, read once from the committed catalogue. */
+const equipmentRecords = JSON.parse(
+  readFileSync(
+    join(process.cwd(), "src", "content", "generated", "equipment.json"),
+    "utf8",
+  ),
+) as readonly EquipmentRecord[];
 
 /** The URL path the browser requests for a public asset path. */
 function urlPath(asset: string): string {
@@ -529,6 +563,219 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     afterKill.calls,
     "draw-call budget after the kill",
   ).toBeLessThanOrEqual(DRAW_CALL_BUDGET);
+
+  expect(errors).toEqual([]);
+});
+
+test("CBT-08 end to end: the shooter dies with its debris and the player keeps a damaged item", async ({
+  page,
+  baseURL,
+}) => {
+  const errors = collectErrors(page);
+  const origin = new URL(baseURL ?? "http://127.0.0.1:4173").origin;
+  const finished = new Set<string>();
+  page.on("requestfinished", (request) => {
+    const url = new URL(request.url());
+    if (url.origin === origin) finished.add(url.pathname);
+  });
+
+  await page.goto(COMBAT_URL);
+  await waitForReady(page);
+  await startNewGame(page);
+  await page.waitForFunction(
+    () =>
+      window.__wegolite?.mode === "docked" &&
+      window.__wegolite.sim !== undefined,
+    undefined,
+    { timeout: SLOW },
+  );
+
+  // Docked: the four F3 items are granted through the hook (the only hook
+  // shortcut of this fight; the damage itself comes from the shooter's hits
+  // through the ledger, the roll and the commit).
+  for (const key of DAMAGE_ITEMS) {
+    expect(
+      await page.evaluate(
+        (item) => window.__wegolite?.test?.grantEquipment(item),
+        key,
+      ),
+      `the hook granted ${key}`,
+    ).toBe(true);
+  }
+  expect(
+    await page.evaluate(() => window.__wegolite?.economy?.damagedEquipment),
+    "nothing is damaged before the fight",
+  ).toEqual([]);
+
+  // The twin's sequence: launch, park, heat and cool the fore laser, then the
+  // twin's spawn delay.
+  await page.click('button[data-action="launch"]');
+  await waitForFrames(page, 1);
+  await advance(page, 1);
+  await advance(page, LAUNCH_TICKS);
+  await page.waitForFunction(
+    () => window.__wegolite?.mode === "inFlight",
+    undefined,
+    { timeout: SLOW },
+  );
+  await page.evaluate(() => window.__wegolite?.test?.setSpeed(0));
+  await page.keyboard.down("KeyA");
+  await advance(page, 30);
+  await page.keyboard.up("KeyA");
+  await waitForFrames(page, 1);
+  await advance(page, 60);
+  await advance(page, TWIN_DAMAGE_SPAWN_DELAY);
+
+  // Fire is held from the spawn, as in the twin; the shooter carries no cargo.
+  expect(
+    await page.evaluate(() => window.__wegolite?.combat?.fwdShield),
+    "the shield before the shooter appears",
+  ).toBe(128);
+  await page.keyboard.down("KeyA");
+  expect(
+    await page.evaluate(() => window.__wegolite?.test?.spawnTestShooter()),
+    "the hook spawned the shooter",
+  ).toBe(true);
+  const spawnTick = await simTick(page);
+  expect(spawnTick, "the spawn tick was published").toBeGreaterThan(0);
+  const contactsWithShooter = await shipContacts(page);
+
+  // Ident is engaged 360 ticks after the spawn, as in the twin.
+  await advance(page, SHOOTING_TICKS);
+  await page.keyboard.press("KeyR");
+  await advance(page, 2);
+  await page.waitForFunction(
+    () =>
+      (window.__wegolite?.hud.messageRows ?? []).some((row) =>
+        row.startsWith("Ident system locked onto"),
+      ),
+    undefined,
+    { timeout: SLOW },
+  );
+  expect(
+    await page.evaluate(() => window.__wegolite?.economy?.damagedEquipment),
+    "nothing is damaged before the twin's first damage tick",
+  ).toEqual([]);
+
+  // One tick at a time, in the page, until the profile first holds a damaged
+  // item (the commit refreshes the economy probe synchronously): the tick the
+  // twin saw the first damage on.
+  const damageTick = await page.evaluate(
+    (limit) => {
+      const probe = window.__wegolite;
+      for (let i = 0; i < limit; i += 1) {
+        const tick = probe?.test?.advanceTicks(1) ?? -1;
+        if ((probe?.economy?.damagedEquipment ?? []).length > 0) return tick;
+      }
+      return -1;
+    },
+    TWIN_DAMAGE_KILL_OFFSET - 1 - (SHOOTING_TICKS + 2),
+  );
+  expect(
+    damageTick - spawnTick,
+    "the first damage landed on the twin's tick",
+  ).toBe(TWIN_DAMAGE_FIRST_OFFSET);
+  await waitForFrames(page, SETTLE_FRAMES);
+  const firstDamaged = await page.evaluate(
+    () => window.__wegolite?.economy?.damagedEquipment[0],
+  );
+  expect(firstDamaged, "the first damaged item is the twin's").toBe(
+    TWIN_DAMAGED_AT_KILL[0],
+  );
+  const damagedName =
+    equipmentRecords.find((record) => record.key === firstDamaged)?.name ?? "";
+  expect(damagedName, "the damaged item is in the catalogue").not.toBe("");
+  expect(
+    await page.evaluate(() => window.__wegolite?.hud.messageRows ?? []),
+    "the HUD shows the damage message on the damage tick",
+  ).toContain(`${damagedName} damaged.`);
+
+  // The held laser destroys the shooter on the twin's tick (the chunks stop one
+  // tick short of the kill and then step one tick, as the first test does).
+  let contacts = contactsWithShooter;
+  let ticksSinceSpawn = damageTick - spawnTick;
+  while (
+    contacts >= contactsWithShooter &&
+    ticksSinceSpawn < KILL_BOUND_TICKS
+  ) {
+    const lastBeforeKill = TWIN_DAMAGE_KILL_OFFSET - 1;
+    const chunk =
+      ticksSinceSpawn < lastBeforeKill
+        ? Math.min(KILL_CHUNK_TICKS, lastBeforeKill - ticksSinceSpawn)
+        : ticksSinceSpawn === lastBeforeKill
+          ? 1
+          : KILL_CHUNK_TICKS;
+    await advance(page, chunk);
+    ticksSinceSpawn += chunk;
+    contacts = await shipContacts(page);
+  }
+  await page.keyboard.up("KeyA");
+  expect(contacts, "the scanner lost exactly the destroyed shooter").toBe(
+    contactsWithShooter - 1,
+  );
+  const killTick = await simTick(page);
+  expect(killTick - spawnTick, "the kill landed on the twin's tick").toBe(
+    TWIN_DAMAGE_KILL_OFFSET,
+  );
+  expect(ticksSinceSpawn, "the spec's own tick count agrees").toBe(
+    TWIN_DAMAGE_KILL_OFFSET,
+  );
+  await waitForFrames(page, SETTLE_FRAMES);
+
+  // The enemy is destroyed with its debris (not vacuously) and the player's
+  // ship leaves the fight with the twin's damaged list.
+  expect(
+    await page.evaluate(() => window.__wegolite?.economy?.damagedEquipment),
+    "the damaged list on the kill tick",
+  ).toEqual(TWIN_DAMAGED_AT_KILL);
+  expect(
+    await page.evaluate(() => window.__wegolite?.sim?.entities),
+    "live entities on the kill tick (the twin's count, debris included)",
+  ).toBe(TWIN_DAMAGE_ENTITIES_AT_KILL);
+  const debris = TWIN_DAMAGE_DEBRIS_AT_KILL;
+  expect(
+    debris.pods + debris.plates + debris.wrecks,
+    "the twin's kill releases at least one debris piece",
+  ).toBeGreaterThanOrEqual(1);
+
+  expect(
+    await page.evaluate(
+      (n) => window.__wegolite?.test?.advanceTicks(n),
+      AFTER_KILL_TICKS,
+    ),
+    "the tick 60 after the kill",
+  ).toBe(killTick + AFTER_KILL_TICKS);
+  // The debris models the counts imply were requested after the kill and
+  // arrived: a pod model when pods > 0, the plate model when plates > 0 and a
+  // wreck model when wrecks > 0.
+  const debrisModels = [
+    ...(debris.pods > 0 ? [POD_GLB] : []),
+    ...(debris.plates > 0 ? [PLATE_GLB] : []),
+  ];
+  await expect
+    .poll(() => debrisModels.filter((path) => !finished.has(path)), {
+      timeout: SLOW,
+    })
+    .toEqual([]);
+  if (debris.wrecks > 0) {
+    await expect
+      .poll(() => WRECK_GLBS.some((path) => finished.has(path)), {
+        timeout: SLOW,
+      })
+      .toBe(true);
+  }
+  await waitForFrames(page, SETTLE_FRAMES * 10);
+
+  // 60 ticks after the kill the damaged list is unchanged (the world hash never
+  // covers it) and the hash is the twin's literal.
+  expect(
+    await page.evaluate(() => window.__wegolite?.economy?.damagedEquipment),
+    "the damaged list 60 ticks after the kill",
+  ).toEqual(TWIN_DAMAGED_AT_KILL);
+  expect(
+    await page.evaluate(() => window.__wegolite?.test?.worldHash()),
+    "worldHash() 60 ticks after the kill equals the CBT-08 twin's literal",
+  ).toBe(TWIN_DAMAGE_HASH_60_AFTER_KILL);
 
   expect(errors).toEqual([]);
 });
