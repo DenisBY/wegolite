@@ -54,6 +54,22 @@ describe("podsFor", () => {
     expect(podsFor("g", 1_499_999)).toBe(1);
     expect(podsFor("g", 1_500_000)).toBe(2);
   });
+
+  it("is NaN for an invalid quantity, and so is a hold that holds one", () => {
+    expect(podsFor("t", -1)).toBeNaN();
+    expect(podsFor("kg", 1.5)).toBeNaN();
+    expect(podsFor("g", Number.NaN)).toBeNaN();
+    expect(holdPodsUsed({ food: 1, furs: -2 }, units)).toBeNaN();
+  });
+
+  it("counts a key with no known unit as tonnes", () => {
+    expect(holdPodsUsed({ mystery: 3 }, units)).toBe(3);
+  });
+
+  it("gives a tonne good the free pods, never negative", () => {
+    expect(maxAdditional("t", 0, 5, 20)).toBe(15);
+    expect(maxAdditional("t", 0, 25, 20)).toBe(0);
+  });
 });
 
 describe("otherPodsFor", () => {
@@ -202,6 +218,19 @@ describe("holdPods", () => {
       { commodity: "zzz", amount: 1 },
       { commodity: "zzz", amount: 1 },
     ]);
+  });
+
+  it("breaks a sortOrder tie by key and orders unknown keys by key", () => {
+    const tied = [
+      { key: "beta", unit: "t" as const, sortOrder: 1 },
+      { key: "alpha", unit: "t" as const, sortOrder: 1 },
+      { key: "alpha", unit: "t" as const, sortOrder: 1 },
+    ];
+    expect(
+      holdPods({ beta: 1, alpha: 1, zzz: 1, mmm: 1, aaa: 1 }, tied).map(
+        (pod) => pod.commodity,
+      ),
+    ).toEqual(["alpha", "beta", "aaa", "mmm", "zzz"]);
   });
 
   it("does not mutate its inputs and is assignable to the roll's pods", () => {
