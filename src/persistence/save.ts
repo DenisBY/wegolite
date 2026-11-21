@@ -22,25 +22,26 @@
  *    build does not know, so a forged value can never reach `findShip` or the
  *    equipment catalogue.
  *
- * An oversized, unparseable or unrecognised blob is `unreadable`, never
- * `corrupt`: only a provably v1/v2/v3-shaped-but-invalid blob may be backed up
- * and cleared by New game (T-04-47).
+ * An older numeric version, or a current-version blob that breaks a schema or
+ * semantic rule, is `corrupt`: it is backed up once and cleared by New game
+ * (T-04-47). There is no migration since Phase 19 (D-11). An oversized,
+ * unparseable or unrecognised blob stays `unreadable`: it is never backed up,
+ * cleared or overwritten.
  *
  * The save carries no docked pose, no timestamp and no host data: a docked pose
- * is derived from the layout on restore. A v2 in-flight save additionally
- * carries the sanitized flight pose and the market snapshot (D-13).
+ * is derived from the layout on restore. An in-flight save additionally carries
+ * the sanitized flight pose and the market snapshot (D-13).
  *
- * Schema v3 (Phase 11, SAVE-07) adds exactly two leg-anchor fields to v2: the
- * lifecycle `epoch` and the anchor world's `nextEntityId`. No entity, combat,
- * law or cargo cost-basis field exists in the save (Key Decision 2026-11-13):
- * the world is rebuilt from the market seed and the epoch, never stored.
+ * The two leg-anchor fields (Phase 11, SAVE-07) are the lifecycle `epoch` and
+ * the anchor world's `nextEntityId`. No entity, combat, law or cargo cost-basis
+ * field exists in the save (Key Decision 2026-11-13): the world is rebuilt from
+ * the market seed and the epoch, never stored.
  */
 
 import { z } from "zod";
 
 import type { CommodityUnit } from "../content/types.js";
 import {
-  DEFAULT_LASER_MOUNTS,
   FACINGS,
   LASER_KEYS,
   NO_LASER,
@@ -52,7 +53,7 @@ import {
   emptyCargo,
   holdPodsUsed,
 } from "../sim/economy/cargo.js";
-import { MARKET_LIMIT, marketSeedForSystem } from "../sim/economy/market.js";
+import { MARKET_LIMIT } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
 import { CLOCK_START } from "../sim/flight/state.js";
 
@@ -153,7 +154,7 @@ export const MAX_SAVE_RATE = 10;
 export const MAX_SAVE_MARKET_GOODS = 17;
 
 /**
- * The largest epoch a v3 save may carry. These are exactly the epochs from which
+ * The largest epoch a save may carry. These are exactly the epochs from which
  * `WorldLifecycle.begin` can still bump and that `resetForRestore` accepts.
  * 0xffffffff, and every other value outside the bound, makes the blob corrupt
  * (D-04).
@@ -163,8 +164,8 @@ export const MAX_SAVE_EPOCH = 0xfffffffe;
 /**
  * The counter of a world in which nothing has spawned yet. It equals the sim's
  * first dynamic id; that module may not be imported outside `src/sim` (per-world
- * id scope), so a test pins the equality. A v1 or v2 migration writes this value
- * (D-02), and so does a docked save (D-05).
+ * id scope), so a test pins the equality. A docked save writes this value
+ * (D-05).
  */
 export const FRESH_WORLD_NEXT_ENTITY_ID = 101;
 
@@ -177,39 +178,6 @@ export const MAX_SAVE_NEXT_ENTITY_ID = 0x1_0000_0000;
 export const CargoEntrySchema = z.strictObject({
   key: z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS),
   quantity: z.number().int().min(1).max(MAX_SAVE_CARGO_QUANTITY),
-});
-
-/**
- * The historical v1 schema (D-14).
- *
- * Its version stays `z.literal(1)` rather than following `SAVE_VERSION`: this
- * is the migration input, so it must describe exactly what Phase 4/5 wrote.
- */
-export const SaveV1Schema = z.strictObject({
-  version: z.literal(1),
-  mode: z.literal("docked"),
-  clockSeconds: z
-    .number()
-    .int()
-    .min(CLOCK_START)
-    .max(CLOCK_START + MAX_SAVE_CLOCK_DELTA),
-  credits: z.number().int().min(0).max(MAX_SAVE_CREDITS),
-  equipment: z
-    .array(z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS))
-    .max(MAX_SAVE_EQUIPMENT),
-  system: z.strictObject({
-    id: z.string().min(1).max(MAX_SAVE_SYSTEM_ID_CHARS),
-  }),
-  station: z.strictObject({
-    key: z.string().min(1).max(MAX_SAVE_STATION_KEY_CHARS),
-  }),
-  // Additive optional fields on the existing v1 blob (D-19): a Phase 4 save
-  // stays readable and no version bump invents a migration Phase 6 owns.
-  cargo: z.array(CargoEntrySchema).max(MAX_SAVE_CARGO_ENTRIES).optional(),
-  fuel: z.number().int().min(0).max(MAX_SAVE_FUEL).optional(),
-  missiles: z.number().int().min(0).max(MAX_SAVE_MISSILES).optional(),
-  passengerBerths: z.number().int().min(0).max(MAX_SAVE_BERTHS).optional(),
-  marketSeed: z.number().int().min(0).max(0xffffffff).optional(),
 });
 
 /** One persisted market good (D-13): key, decicredit price and shelf stock. */
@@ -265,15 +233,36 @@ export const FlightPoseSchema = z.strictObject({
 });
 
 /**
- * The historical v2 schema (D-13, D-15).
- *
- * What Phases 6 to 10 wrote, and the input of the v2 -> v3 migration, so its
- * version is `z.literal(2)`. One strict object: every v1 field plus `mode`, an
- * optional committed target, exactly one seed encoding (`market` or
- * `marketSeed`) and, for `inFlight`, a flight pose.
+ * One mount occupant: a laser key or the empty mount (CBT-05). A strict enum, so
+ * a forged string never reaches the combat code.
  */
-export const SaveV2Schema = z.strictObject({
-  version: z.literal(2),
+const MountKeySchema = z.enum([...LASER_KEYS, NO_LASER]);
+
+/**
+ * The laser fitted to each of the four facings (Phase 13, CBT-05). A strict
+ * object: an extra or a missing facing is corrupt.
+ */
+export const LaserMountsSchema = z.strictObject({
+  fore: MountKeySchema,
+  aft: MountKeySchema,
+  port: MountKeySchema,
+  starboard: MountKeySchema,
+});
+
+/**
+ * The current v4 schema (Phase 13, CBT-05), listing every key explicitly.
+ *
+ * One strict object: an unknown key is corrupt. `mode`, an optional committed
+ * target, exactly one seed encoding (`market` or `marketSeed`, enforced by the
+ * semantic validator) and, for `inFlight`, a flight pose; the two leg-anchor
+ * fields `epoch` (0..`MAX_SAVE_EPOCH`) and `nextEntityId`
+ * (`FRESH_WORLD_NEXT_ENTITY_ID`..`MAX_SAVE_NEXT_ENTITY_ID`), which are the only
+ * world state a save carries (no entity field exists); and the required
+ * `laserMounts`. Laser keys live there and never in `equipment` (the semantic
+ * validator refuses a laser key there as double encoding).
+ */
+export const SaveV4Schema = z.strictObject({
+  version: z.literal(SAVE_VERSION),
   mode: z.enum(["docked", "inFlight"]),
   clockSeconds: z
     .number()
@@ -294,69 +283,22 @@ export const SaveV2Schema = z.strictObject({
   fuel: z.number().int().min(0).max(MAX_SAVE_FUEL).optional(),
   missiles: z.number().int().min(0).max(MAX_SAVE_MISSILES).optional(),
   passengerBerths: z.number().int().min(0).max(MAX_SAVE_BERTHS).optional(),
-  // Exactly one seed encoding: migration writes `marketSeed`, the canonical
-  // writer writes `market.seed`. The validator rejects both and neither.
+  // Exactly one seed encoding: the canonical writer writes `market.seed`, a
+  // seed-only save writes `marketSeed`. The validator rejects both and neither.
   marketSeed: z.number().int().min(0).max(0xffffffff).optional(),
   market: MarketSchema.optional(),
   targetSystem: z.string().min(1).max(MAX_SAVE_SYSTEM_ID_CHARS).optional(),
   // Required iff `mode === "inFlight"`; a docked save derives its pose.
   flight: FlightPoseSchema.optional(),
-});
-
-/**
- * The historical v3 schema (Phase 11, SAVE-07; D-01, D-03, D-04).
- *
- * What Phase 11 and 12 wrote, and the input of the v3 -> v4 migration, so its
- * version is `z.literal(3)`. Every v2 field plus exactly two required
- * leg-anchor fields: the lifecycle `epoch` (0..`MAX_SAVE_EPOCH`) and the anchor
- * world's `nextEntityId` (`FRESH_WORLD_NEXT_ENTITY_ID`..
- * `MAX_SAVE_NEXT_ENTITY_ID`). No other key is allowed, and no entity field
- * exists: a save never carries world state.
- */
-export const SaveV3Schema = z.strictObject({
-  ...SaveV2Schema.shape,
-  version: z.literal(3),
   epoch: z.number().int().min(0).max(MAX_SAVE_EPOCH),
   nextEntityId: z
     .number()
     .int()
     .min(FRESH_WORLD_NEXT_ENTITY_ID)
     .max(MAX_SAVE_NEXT_ENTITY_ID),
-});
-
-/**
- * One mount occupant: a laser key or the empty mount (CBT-05). A strict enum, so
- * a forged string never reaches the combat code.
- */
-const MountKeySchema = z.enum([...LASER_KEYS, NO_LASER]);
-
-/**
- * The laser fitted to each of the four facings (Phase 13, CBT-05). A strict
- * object: an extra or a missing facing is corrupt.
- */
-export const LaserMountsSchema = z.strictObject({
-  fore: MountKeySchema,
-  aft: MountKeySchema,
-  port: MountKeySchema,
-  starboard: MountKeySchema,
-});
-
-/**
- * The current v4 schema (Phase 13, CBT-05).
- *
- * Every v3 field plus exactly one required field: `laserMounts`. Laser keys live
- * here and never in `equipment` (the semantic validator refuses a laser key
- * there as double encoding).
- */
-export const SaveV4Schema = z.strictObject({
-  ...SaveV3Schema.shape,
-  version: z.literal(SAVE_VERSION),
   laserMounts: LaserMountsSchema,
 });
 
-export type SaveV1 = z.infer<typeof SaveV1Schema>;
-export type SaveV2 = z.infer<typeof SaveV2Schema>;
-export type SaveV3 = z.infer<typeof SaveV3Schema>;
 export type SaveV4 = z.infer<typeof SaveV4Schema>;
 export type SaveCargoEntry = z.infer<typeof CargoEntrySchema>;
 
@@ -406,7 +348,7 @@ export interface SaveInputs {
   readonly mode: "docked" | "inFlight";
   /** The committed hyperspace target, when one is selected (D-12). */
   readonly targetSystem?: string;
-  /** The seed-only encoding; used by a v1 migration and as a fallback. */
+  /** The seed-only encoding, used when no market snapshot is supplied. */
   readonly marketSeed?: number;
   /** The canonical market snapshot; wins over `marketSeed` when present. */
   readonly market?: Market;
@@ -462,57 +404,6 @@ function sniffVersion(raw: string): number | null {
   if (match === null) return null;
   const value = Number(match[1]);
   return Number.isSafeInteger(value) ? value : null;
-}
-
-/**
- * The one ordered v1 → v2 migration (D-14).
- *
- * Pure and total: it never touches IndexedDB, a clock or the content loader,
- * and it never mutates its input. A v1 blob has no market snapshot, so the
- * migrated object carries exactly one seed (`marketSeed`); the session may
- * generate the market from it before the first v2 write.
- */
-export function migrateV1ToV2(v1: SaveV1): SaveV2 {
-  return {
-    ...v1,
-    version: 2,
-    mode: "docked",
-    marketSeed: v1.marketSeed ?? marketSeedForSystem(v1.system.id),
-    // No `market` and no `flight`: a v1 save is always docked and has no snapshot.
-  };
-}
-
-/**
- * The one ordered v2 → v3 migration (D-02, D-03).
- *
- * Pure and total, and it never mutates its input. The values equal what the
- * session did before Phase 11 (epoch 0, ids from 101), so an old save loads into
- * the same world it always did.
- */
-export function migrateV2ToV3(v2: SaveV2): SaveV3 {
-  return {
-    ...v2,
-    version: 3,
-    epoch: 0,
-    nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
-  };
-}
-
-/**
- * The one ordered v3 → v4 migration (Phase 13, CBT-05).
- *
- * Pure and total, and it never mutates its input. Every v3 save was written
- * before any laser existed to buy, so the player flew the stock Cobra: the
- * migrated mounts are exactly what a new game starts with (a pulse laser on the
- * fore mount, nothing elsewhere), a fresh copy so no two saves share an object.
- * Credits and every other field are carried unchanged.
- */
-export function migrateV3ToV4(v3: SaveV3): SaveV4 {
-  return {
-    ...v3,
-    version: SAVE_VERSION,
-    laserMounts: { ...DEFAULT_LASER_MOUNTS },
-  };
 }
 
 /**

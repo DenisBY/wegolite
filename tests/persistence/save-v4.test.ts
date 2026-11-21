@@ -39,11 +39,9 @@ import {
   MAX_SAVE_STATION_KEY_CHARS,
   MAX_SAVE_SYSTEM_ID_CHARS,
   SAVE_VERSION,
-  SaveV3Schema,
   SaveV4Schema,
   encodeSave,
   isEncodedSaveValid,
-  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
 import type { SaveAllowLists, SaveInputs } from "../../src/persistence/save.js";
@@ -246,45 +244,6 @@ describe("every historical save older than SAVE_VERSION is corrupt (D-11)", () =
       }
     });
   }
-});
-
-describe("the v3 to v4 step (defaults, no value gained or lost)", () => {
-  it("a migrated v3 save carries the same mounts a new game starts with", () => {
-    const v3 = SaveV3Schema.parse(
-      JSON.parse(readGolden("v3-from-v1-phase5.json")),
-    );
-    const migrated = migrateV3ToV4(v3);
-    expect(migrated.laserMounts).toStrictEqual(newProfile().laserMounts);
-    expect(migrated.laserMounts).toStrictEqual(STOCK_MOUNTS);
-    // Credits and every other field are unchanged.
-    expect(migrated.credits).toBe(v3.credits);
-    expect(migrated.equipment).toStrictEqual(v3.equipment);
-  });
-
-  it("migrateV3ToV4 never mutates its input, is deterministic and writes fresh mounts", () => {
-    const frozen = SaveV3Schema.parse(
-      JSON.parse(readGolden("v3-from-v1-phase4.json")),
-    );
-    const before = JSON.stringify(frozen);
-    const first = migrateV3ToV4(frozen);
-    const second = migrateV3ToV4(frozen);
-    expect(JSON.stringify(frozen)).toBe(before);
-    expect(first).toStrictEqual(second);
-    expect(first).not.toBe(second);
-    expect(first.laserMounts).not.toBe(second.laserMounts);
-    expect(first.laserMounts).not.toBe(DEFAULT_LASER_MOUNTS);
-    // The shared default is never handed out: mutating a copy cannot leak.
-    expect(Object.isFrozen(DEFAULT_LASER_MOUNTS)).toBe(true);
-  });
-
-  it("v3 stays frozen as version literal 3 and v4 is its own strict schema", () => {
-    const v3 = JSON.parse(readGolden("v3-from-v1-phase4.json")) as unknown;
-    const v4 = JSON.parse(readGolden("v4-from-v1-phase4.json")) as unknown;
-    expect(SaveV3Schema.safeParse(v3).success).toBe(true);
-    expect(SaveV3Schema.safeParse(v4).success).toBe(false);
-    expect(SaveV4Schema.safeParse(v4).success).toBe(true);
-    expect(SaveV4Schema.safeParse(v3).success).toBe(false);
-  });
 });
 
 /** A valid docked v4 blob as a plain record, for the edge tables. */

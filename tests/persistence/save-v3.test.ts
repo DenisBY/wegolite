@@ -44,17 +44,16 @@ import {
   SAVE_VERSION,
   encodeSave,
   isEncodedSaveValid,
-  migrateV2ToV3,
   parseSave,
 } from "../../src/persistence/save.js";
-import type { SaveAllowLists, SaveV2 } from "../../src/persistence/save.js";
+import type { SaveAllowLists } from "../../src/persistence/save.js";
 import {
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
 import { identity, vec } from "../../src/sim/math.js";
 import { newProfile } from "../../src/sim/player/profile.js";
-import { initFlightState, CLOCK_START } from "../../src/sim/flight/state.js";
+import { initFlightState } from "../../src/sim/flight/state.js";
 import { worldSeedFor } from "../../src/sim/rng.js";
 import { FIRST_DYNAMIC_ID } from "../../src/sim/world/ids.js";
 import { serializeWorldSection } from "../../src/sim/world/serialize.js";
@@ -360,28 +359,6 @@ describe("regenerated inert world (SAVE-08, Phase 12)", () => {
     expect(serializeWorldSection(on.restored.world)).toBe(
       serializeWorldSection(writer.world),
     );
-  });
-});
-
-describe("migration to v3 (D-02, D-03)", () => {
-  const v2: SaveV2 = {
-    version: 2,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 10,
-    credits: 100,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-    marketSeed: 1234,
-  };
-
-  it("migrateV2ToV3 never mutates its input and is deterministic", () => {
-    const frozen: SaveV2 = JSON.parse(JSON.stringify(v2)) as SaveV2;
-    const first = migrateV2ToV3(frozen);
-    const second = migrateV2ToV3(frozen);
-    expect(frozen).toStrictEqual(v2);
-    expect(first).toStrictEqual(second);
-    expect(first).not.toBe(second);
   });
 });
 

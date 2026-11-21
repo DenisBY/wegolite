@@ -18,27 +18,18 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { CLOCK_START } from "../../src/sim/flight/state.js";
 import {
   MAX_SAVE_CHARS,
   MAX_SAVE_POSITION_MAGNITUDE,
   SAVE_VERSION,
-  SaveV1Schema,
-  SaveV2Schema,
-  SaveV3Schema,
   encodeSave,
   isEncodedSaveValid,
-  migrateV1ToV2,
-  migrateV2ToV3,
   parseSave,
 } from "../../src/persistence/save.js";
 import type {
   SaveAllowLists,
   SaveFlightPose,
-  SaveV1,
-  SaveV2,
 } from "../../src/persistence/save.js";
-import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
   MARKET_GOODS,
   currentSave,
@@ -60,33 +51,6 @@ function raw(value: unknown): string {
 /** What the parser returns for a blob it accepts: the blob itself, parsed. */
 function accepted(save: Record<string, unknown>) {
   return { ok: true, save: JSON.parse(raw(save)) as unknown };
-}
-
-function validV1(overrides: Record<string, unknown> = {}): SaveV1 {
-  return {
-    version: 1,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-    ...overrides,
-  };
-}
-
-function validV2(overrides: Record<string, unknown> = {}): SaveV2 {
-  return {
-    version: 2,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-    marketSeed: SEED,
-    ...overrides,
-  };
 }
 
 /** The 17 market goods in sortOrder shape, with safe prices and stock. */
@@ -118,65 +82,6 @@ function flightPose(overrides: Record<string, unknown> = {}): SaveFlightPose {
     ...overrides,
   };
 }
-
-describe("v1 → v2 migration", () => {
-  it("maps every v1 field to a v2 docked object with no market and no pose", () => {
-    const v1 = validV1({
-      equipment: ["EQ_DOCK_COMP"],
-      cargo: [
-        { key: "food", quantity: 2 },
-        { key: "gold", quantity: 499 },
-      ],
-      fuel: 40,
-      missiles: 1,
-      passengerBerths: 1,
-      marketSeed: SEED,
-    });
-    const v2 = migrateV1ToV2(v1);
-
-    expect(v2.version).toBe(2);
-    expect(v2.mode).toBe("docked");
-    expect(v2.clockSeconds).toBe(v1.clockSeconds);
-    expect(v2.credits).toBe(v1.credits);
-    expect(v2.equipment).toEqual(v1.equipment);
-    expect(v2.cargo).toEqual(v1.cargo);
-    expect(v2.fuel).toBe(v1.fuel);
-    expect(v2.missiles).toBe(v1.missiles);
-    expect(v2.passengerBerths).toBe(v1.passengerBerths);
-    expect(v2.system).toEqual(v1.system);
-    expect(v2.station).toEqual(v1.station);
-    expect(v2.marketSeed).toBe(SEED);
-    expect(v2.market).toBeUndefined();
-    expect(v2.flight).toBeUndefined();
-  });
-
-  it("derives the seed when the v1 blob carried none", () => {
-    const v2 = migrateV1ToV2(validV1());
-    expect(v2.marketSeed).toBe(marketSeedForSystem("g0-s7"));
-  });
-
-  it("is pure: it neither mutates its input nor performs I/O", () => {
-    const v1 = validV1({ marketSeed: SEED });
-    const before = JSON.parse(raw(v1)) as unknown;
-    const first = migrateV1ToV2(v1);
-    const second = migrateV1ToV2(v1);
-    expect(v1).toEqual(before);
-    expect(second).toEqual(first);
-    expect(JSON.parse(raw(v1))).toEqual(before);
-  });
-
-  it("the historical schema accepts exactly version 1, and v2 exactly 2", () => {
-    expect(SaveV1Schema.safeParse(validV1()).success).toBe(true);
-    expect(SaveV1Schema.safeParse(validV2()).success).toBe(false);
-    expect(SaveV2Schema.safeParse(validV2()).success).toBe(true);
-    // v3 is its own strict schema: neither historical schema accepts it, and it
-    // accepts neither historical object.
-    const v3 = migrateV2ToV3(validV2());
-    expect(SaveV3Schema.safeParse(v3).success).toBe(true);
-    expect(SaveV3Schema.safeParse(validV2()).success).toBe(false);
-    expect(SaveV2Schema.safeParse(v3).success).toBe(false);
-  });
-});
 
 describe("the accept path", () => {
   it("accepts a minimal docked object carrying one seed", () => {
