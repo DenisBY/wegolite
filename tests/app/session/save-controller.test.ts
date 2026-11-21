@@ -78,6 +78,7 @@ const ALLOW = saveAllowLists({
  */
 function expectedInputs(overrides: Partial<SaveInputs>): SaveInputs {
   const { marketSeed: _seed, ...rest } = saveInputs(overrides);
+  void _seed;
   return rest;
 }
 
