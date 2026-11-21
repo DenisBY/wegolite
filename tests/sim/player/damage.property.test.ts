@@ -73,10 +73,17 @@ function contextAt(techLevelRaw: number): FitContext {
 
 type Operation =
   | { readonly kind: "buy"; readonly key: string; readonly filler: number }
-  | { readonly kind: "damage"; readonly key: string }
+  | {
+      readonly kind: "damage";
+      readonly key: string;
+      /** When set and a damageable key is installed, damage that key instead. */
+      readonly aimAtInstalled: boolean;
+    }
   | {
       readonly kind: "repair";
       readonly key: string;
+      /** When set and something is damaged, repair the oldest damaged key instead. */
+      readonly aimAtDamaged: boolean;
       readonly techLevelRaw: number;
       readonly credits: number;
     }
@@ -96,10 +103,12 @@ const operation: fc.Arbitrary<Operation> = fc.oneof(
   fc.record({
     kind: fc.constant("damage" as const),
     key: fc.constantFrom<string>(...DAMAGE_TARGETS),
+    aimAtInstalled: fc.boolean(),
   }),
   fc.record({
     kind: fc.constant("repair" as const),
     key: fc.constantFrom<string>(...DAMAGE_TARGETS),
+    aimAtDamaged: fc.boolean(),
     techLevelRaw: fc.integer({ min: 0, max: 15 }),
     // Credits straddle the four repair prices (3250 to 25000).
     credits: fc.integer({ min: 0, max: 30_000 }),
@@ -208,7 +217,25 @@ describe("equipment and damagedEquipment stay disjoint and bounded (fast-check)"
         fc.array(operation, { minLength: 1, maxLength: 40 }),
         (operations) => {
           let profile = start();
-          for (const op of operations) {
+          for (const drawn of operations) {
+            // Aim half the repairs at a key that is really damaged, so accepted
+            // repairs are common enough for the non-vacuity check below.
+            const damaged = profile.damagedEquipment[0];
+            const installed = profile.equipment.find((key) =>
+              DAMAGEABLE_EQUIPMENT_KEYS.some(
+                (damageable) => damageable === key,
+              ),
+            );
+            const op: Operation =
+              drawn.kind === "repair" &&
+              drawn.aimAtDamaged &&
+              damaged !== undefined
+                ? { ...drawn, key: damaged }
+                : drawn.kind === "damage" &&
+                    drawn.aimAtInstalled &&
+                    installed !== undefined
+                  ? { ...drawn, key: installed }
+                  : drawn;
             const next = apply(profile, op);
             if (op.kind === "repair") {
               assertRepair(profile, op, next);
@@ -228,10 +255,10 @@ describe("equipment and damagedEquipment stay disjoint and bounded (fast-check)"
           }
         },
       ),
-      { numRuns: 300 },
+      { seed: 20261905, numRuns: 300 },
     );
     // Not vacuous: the generator reaches accepted repairs.
-    expect(repairs).toBeGreaterThan(0);
+    expect(repairs).toBeGreaterThanOrEqual(10);
   });
 
   it("the repair door is total over arbitrary keys and record fields", () => {

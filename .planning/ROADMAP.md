@@ -388,7 +388,7 @@ Plans:
 **Pitfalls to address**: 13 (equipment damage has no place in the save, F3 or the profile: atomic profile update test), 18 (the save schema: v5 is now an owner decision, with no migration because the game is alpha, and a worst-case size test), 22 (closed sets: router table, probe shape, HUD)
 **Decisions to settle**: which items can be damaged; whether the cargo-pod-loss branch that opens Oolite's `takeInternalDamage` roll is ported or recorded as a divergence (the requirements name equipment only, and the branch also shifts the odds of the equipment branch while the hold is full); the F3 repair row's copy; `ship_trade_in_factor` stays unpersisted (the research's lean)
 **Todos**: `2026-11-11-cargo-purchase-cost-basis-tracking.md` needs its own ordered bump after v5 and stays unscheduled
-**Plans**: 7/15 plans executed in 8 waves (owner answers of 2026-11-21 applied: D-05 factor 95, D-11 old saves `corrupt`, D-07/D-12 "Repair: X" is Oolite's own text; the save work is split in three after the plan check; the D-06 in-use tripwire moved out of 19-03 into 19-15 at the second plan check; the cross-AI review `19-REVIEWS.md` applied: 19-12 before 19-11, the internal-damage loop cap recorded as a divergence, the in-use tripwire pins its counts in `outfitting.ts`)
+**Plans**: 9/15 plans executed in 8 waves (owner answers of 2026-11-21 applied: D-05 factor 95, D-11 old saves `corrupt`, D-07/D-12 "Repair: X" is Oolite's own text; the save work is split in three after the plan check; the D-06 in-use tripwire moved out of 19-03 into 19-15 at the second plan check; the cross-AI review `19-REVIEWS.md` applied: 19-12 before 19-11, the internal-damage loop cap recorded as a divergence, the in-use tripwire pins its counts in `outfitting.ts`)
 
 Plans:
 **Wave 1**
@@ -403,8 +403,8 @@ Plans:
 - [x] 19-07-PLAN.md — SAVE-09 (D-11): every save fixture follows the current version (browser fixtures and app tests on the shared builders, future versions at `SAVE_VERSION + 1`), SAVE-09 and criterion 4 worded for the corrupt path
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 19-05-PLAN.md — CBT-12 (D-08, D-09, D-10): the F3 repair door (half price, one tech level lower, at once) and the damaged-purchase refusal
-- [ ] 19-08-PLAN.md — SAVE-09 (D-11): save schema v5 with `damagedEquipment`, v4 corrupt like every older save, the worst case under the cap, the D-11 decision row
+- [x] 19-05-PLAN.md — CBT-12 (D-08, D-09, D-10): the F3 repair door (half price, one tech level lower, at once) and the damaged-purchase refusal
+- [x] 19-08-PLAN.md — SAVE-09 (D-11): save schema v5 with `damagedEquipment`, v4 corrupt like every older save, the worst case under the cap, the D-11 decision row
 
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 19-09-PLAN.md — SAVE-09: the damaged-list save contract at every boundary, `economy.damagedEquipment` on the probe, a damaged item still damaged after Continue and Load in the browser
@@ -494,7 +494,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
-| 19. Equipment Damage and Repair | v2.3 | 7/15 | In Progress | - |
+| 19. Equipment Damage and Repair | v2.3 | 9/15 | In Progress | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
 
 ## Backlog
