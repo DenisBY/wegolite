@@ -1136,7 +1136,9 @@ function runDamageFight(delay: number): DamageFight {
  * The chosen delay is the smallest one whose row shows a kill, at least one
  * debris piece and exactly one damaged item: delay 1 (delay 0 damages nothing).
  * Its row: `kill=672 damaged=EQ_GAL_DRIVE debris=0/0/1 entities=13
- * hash60=5028fc8f`. The kill offset equals the 15-04 twin's: the damage roll
+ * hash60=5028fc8f first=613:EQ_GAL_DRIVE` (the first-damage offset is a
+ * seventh literal the same row printed, so the browser can meet the damage on
+ * its own tick). The kill offset equals the 15-04 twin's: the damage roll
  * draws from its own stream and changes no combat value.
  *
  * Which item the shooter's hits damage, and when, depends on the
@@ -1149,6 +1151,11 @@ function runDamageFight(delay: number): DamageFight {
 const DAMAGE_SPAWN_DELAY = 1;
 /** The kill tick relative to the spawn. */
 const DAMAGE_KILL_OFFSET = 672;
+/**
+ * The tick of the first damage relative to the spawn (the scan row's
+ * `first=613:EQ_GAL_DRIVE`): the HUD shows the message on that tick.
+ */
+const DAMAGE_FIRST_OFFSET = 613;
 /** The damaged list after the kill tick (the one item, EQ_GAL_DRIVE). */
 const DAMAGED_AT_KILL = ["EQ_GAL_DRIVE"] as const;
 /** The debris live on the kill tick: the one wreck, no pod, no plate. */
@@ -1196,7 +1203,7 @@ describe("the CBT-08 twin (plan 19-13, CBT-08)", () => {
     expect(fight.first.key).toBe(DAMAGED_AT_KILL[0]);
     expect(fight.first.expectedMessage).toMatch(/ damaged\.$/);
     expect(fight.first.shownMessage).toBe(fight.first.expectedMessage);
-    expect(fight.first.tickOffset).toBeLessThanOrEqual(DAMAGE_KILL_OFFSET);
+    expect(fight.first.tickOffset).toBe(DAMAGE_FIRST_OFFSET);
 
     // D-11: damage reaches the profile without any save attempt.
     expect(fight.saveAttemptsAtKill).toBe(fight.saveAttemptsBefore);
