@@ -25,10 +25,7 @@ import type { SaveController } from "../../../src/app/session/save-controller.js
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import { snapshotForSave } from "../../../src/persistence/autosave.js";
 import { encodeSave } from "../../../src/persistence/save.js";
-import type {
-  SaveAllowLists,
-  SaveInputs,
-} from "../../../src/persistence/save.js";
+import type { SaveInputs } from "../../../src/persistence/save.js";
 import type {
   SaveReadResult,
   SaveStatus,
@@ -55,6 +52,7 @@ import {
   commodityUnits,
 } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { saveAllowLists, saveInputs } from "../../helpers/save-builders.js";
 
 const lave = laveFixture();
 const { system, layout, stationDef } = lave;
@@ -62,7 +60,7 @@ const catalogue = commoditiesFixture();
 const MARKET_SEED = 0x12345678;
 const market = generateMarket(system, catalogue, MARKET_SEED);
 
-const ALLOW: SaveAllowLists = {
+const ALLOW = saveAllowLists({
   equipment: new Set(["EQ_DOCK_COMP"]),
   systems: new Set([system.id]),
   stations: new Set(["coriolis-station"]),
@@ -71,8 +69,18 @@ const ALLOW: SaveAllowLists = {
       .filter((commodity) => commodity.tradeable)
       .map((commodity) => [commodity.key, commodity.unit]),
   ),
-  marketGoods: new Set(catalogue.map((commodity) => commodity.key)),
-};
+});
+
+/**
+ * The inputs the controller is expected to build, from the shared builder. The
+ * controller supplies the market snapshot, never the seed-only encoding the
+ * builder defaults to, so the seed is dropped from the expectation.
+ */
+function expectedInputs(overrides: Partial<SaveInputs>): SaveInputs {
+  const { marketSeed: _seed, ...rest } = saveInputs(overrides);
+  void _seed;
+  return rest;
+}
 
 /** A promise the test resolves by hand, to hold an `await` open. */
 function deferred<T>() {
@@ -401,23 +409,25 @@ describe("buildSnapshotInputs", () => {
     };
     ctx.core.hyperspaceTargetId = "g0-s3";
 
-    expect(controller.buildSnapshotInputs()).toEqual({
-      clockSeconds: Math.floor(state.clockSeconds),
-      credits: 777,
-      equipment: [],
-      cargo: [{ key: "food", quantity: 3 }],
-      fuel: ctx.core.profile.fuel,
-      missiles: ctx.core.profile.missiles,
-      passengerBerths: ctx.core.profile.passengerBerths,
-      laserMounts: DEFAULT_LASER_MOUNTS,
-      mode: "docked",
-      targetSystem: "g0-s3",
-      market,
-      systemId: system.id,
-      stationKey: "coriolis-station",
-      epoch: 0,
-      nextEntityId: 101,
-    });
+    expect(controller.buildSnapshotInputs()).toEqual(
+      expectedInputs({
+        clockSeconds: Math.floor(state.clockSeconds),
+        credits: 777,
+        equipment: [],
+        cargo: [{ key: "food", quantity: 3 }],
+        fuel: ctx.core.profile.fuel,
+        missiles: ctx.core.profile.missiles,
+        passengerBerths: ctx.core.profile.passengerBerths,
+        laserMounts: DEFAULT_LASER_MOUNTS,
+        mode: "docked",
+        targetSystem: "g0-s3",
+        market,
+        systemId: system.id,
+        stationKey: "coriolis-station",
+        epoch: 0,
+        nextEntityId: 101,
+      }),
+    );
   });
 
   it("returns the in-flight SaveInputs with the pose the persistence layer saves", () => {
@@ -426,35 +436,37 @@ describe("buildSnapshotInputs", () => {
     ctx.core.state = state;
     ctx.core.profile = { ...newProfile(), credits: 321 };
 
-    expect(controller.buildSnapshotInputs()).toEqual({
-      clockSeconds: Math.floor(state.clockSeconds),
-      credits: 321,
-      equipment: [],
-      cargo: [],
-      fuel: ctx.core.profile.fuel,
-      missiles: ctx.core.profile.missiles,
-      passengerBerths: ctx.core.profile.passengerBerths,
-      laserMounts: DEFAULT_LASER_MOUNTS,
-      mode: "inFlight",
-      market,
-      flight: {
-        position: [1200.5, -40.25, 8000.75],
-        orientation: [
-          state.orientation.w,
-          state.orientation.x,
-          state.orientation.y,
-          state.orientation.z,
-        ],
-        speed: 123.5,
-        pitchRate: 0.25,
-        rollRate: -0.125,
-        torus: false,
-      },
-      systemId: system.id,
-      stationKey: "coriolis-station",
-      epoch: 0,
-      nextEntityId: 101,
-    });
+    expect(controller.buildSnapshotInputs()).toEqual(
+      expectedInputs({
+        clockSeconds: Math.floor(state.clockSeconds),
+        credits: 321,
+        equipment: [],
+        cargo: [],
+        fuel: ctx.core.profile.fuel,
+        missiles: ctx.core.profile.missiles,
+        passengerBerths: ctx.core.profile.passengerBerths,
+        laserMounts: DEFAULT_LASER_MOUNTS,
+        mode: "inFlight",
+        market,
+        flight: {
+          position: [1200.5, -40.25, 8000.75],
+          orientation: [
+            state.orientation.w,
+            state.orientation.x,
+            state.orientation.y,
+            state.orientation.z,
+          ],
+          speed: 123.5,
+          pitchRate: 0.25,
+          rollRate: -0.125,
+          torus: false,
+        },
+        systemId: system.id,
+        stationKey: "coriolis-station",
+        epoch: 0,
+        nextEntityId: 101,
+      }),
+    );
   });
 
   it("returns nothing until the state, station, market and catalogue exist", () => {

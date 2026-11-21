@@ -29,8 +29,11 @@ import {
   profileFromSave,
   snapshotForSave,
 } from "../../../src/persistence/autosave.js";
-import { encodeSave, parseSave } from "../../../src/persistence/save.js";
-import type { SaveAllowLists } from "../../../src/persistence/save.js";
+import {
+  SAVE_VERSION,
+  encodeSave,
+  parseSave,
+} from "../../../src/persistence/save.js";
 import type { Command } from "../../../src/sim/commands.js";
 import {
   generateMarket,
@@ -47,6 +50,7 @@ import {
   commodityUnits,
 } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { saveAllowLists } from "../../helpers/save-builders.js";
 
 const { system, layout } = laveFixture();
 const catalogue = commoditiesFixture();
@@ -460,7 +464,7 @@ function moveTo(h: ReturnType<typeof outfittingHarness>, key: string): void {
   throw new Error(`the cursor never reached "${key}"`);
 }
 
-const SAVE_ALLOW: SaveAllowLists = {
+const SAVE_ALLOW = saveAllowLists({
   equipment: new Set(["EQ_DOCK_COMP"]),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
@@ -469,8 +473,7 @@ const SAVE_ALLOW: SaveAllowLists = {
       .filter((commodity) => commodity.tradeable)
       .map((commodity) => [commodity.key, commodity.unit]),
   ),
-  marketGoods: new Set(catalogue.map((commodity) => commodity.key)),
-};
+});
 
 describe("laser purchase at F3", () => {
   it("in normal play, buying a beam laser for the aft mount charges 10,000 decicredits and survives a save", () => {
@@ -540,7 +543,7 @@ describe("laser purchase at F3", () => {
     const parsed = parseSave(encoded, SAVE_ALLOW);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(parsed.save.version).toBe(4);
+    expect(parsed.save.version).toBe(SAVE_VERSION);
     const restored = profileFromSave(parsed.save);
     expect(restored.laserMounts).toEqual(after.laserMounts);
     expect(restored.credits).toBe(after.credits);

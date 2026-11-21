@@ -22,7 +22,6 @@ import {
 import type { SaveWorldCounters } from "../../src/persistence/autosave.js";
 import { MemorySaveStore } from "../../src/persistence/memory-store.js";
 import { parseSave } from "../../src/persistence/save.js";
-import type { SaveAllowLists } from "../../src/persistence/save.js";
 import { generateMarket } from "../../src/sim/economy/market.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
 import { completeLaunch } from "../../src/sim/flight/launch.js";
@@ -36,19 +35,19 @@ import { newProfile } from "../../src/sim/player/profile.js";
 import { DT } from "../../src/sim/time.js";
 import { commoditiesFixture } from "../helpers/commodities.js";
 import { laveFixture } from "../helpers/lave.js";
+import { saveAllowLists } from "../helpers/save-builders.js";
 
 const lave = laveFixture();
 const { layout, config } = lave;
 const COMMODITIES = commoditiesFixture();
 const MARKET = generateMarket(lave.system, COMMODITIES, 0x12345678);
 
-const ALLOW: SaveAllowLists = {
+const ALLOW = saveAllowLists({
   equipment: new Set(["EQ_DOCK_COMP"]),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
   commodities: new Map([["food", "t"]]),
-  marketGoods: new Set(COMMODITIES.map((commodity) => commodity.key)),
-};
+});
 
 const NO_WORLD: SaveWorldCounters = {
   epoch: 0,
