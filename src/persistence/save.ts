@@ -72,8 +72,11 @@ export const SAVE_VERSION = 5 as const;
 /**
  * The largest raw blob the parser will even attempt to parse (D-15, T-06-04).
  *
- * This is a true upper bound on what `encodeSave` can produce, including
- * worst-case JSON escaping. The v5 worst case is:
+ * It sits above the schema-maxima bound: what `encodeSave` produces when every
+ * field is at its schema bound at once, with worst-case JSON escaping. That
+ * bound is not a save that parses (see below), so it overstates the largest
+ * valid save; it is the figure the limit is sized against. The v5 schema
+ * maxima are:
  *
  * - equipment, 64 keys of 64 characters: 64 × 64 × 6 = 24,576 characters
  *   (a control character encodes to six characters, `\u00XX`);
@@ -86,11 +89,15 @@ export const SAVE_VERSION = 5 as const;
  * - the v5 `damagedEquipment` list, 16 keys of 64 characters:
  *   16 × (64 × 6 + 3) = 6,192 characters.
  *
- * Measured by tests/persistence/save-v5.test.ts: 46,796 characters, comfortably
- * under 65,536 while remaining a hard resource bound checked before
- * `JSON.parse`. That schema bound is not a save that parses (the combined
- * 64-key rule rejects 64 equipment plus 16 damaged keys). The version sniff copies at most
- * `MAX_VERSION_SNIFF_CHARS` characters, never the whole stored string.
+ * Measured by tests/persistence/save-v5.test.ts: 46,796 characters at the
+ * schema maxima, comfortably under 65,536 while remaining a hard resource bound
+ * checked before `JSON.parse`. No parseable save reaches it: the combined
+ * 64-key rule rejects 64 equipment plus 16 damaged keys. With the 64 combined
+ * keys that rule allows, the same worst case measures 40,605 characters (64
+ * equipment, none damaged) or 40,604 (48 plus 16), and the allow-lists cut a
+ * real save far lower still. Size the limit against the schema-maxima figure, not the
+ * reachable one. The version sniff copies at most `MAX_VERSION_SNIFF_CHARS`
+ * characters, never the whole stored string.
  */
 export const MAX_SAVE_CHARS = 65_536;
 
