@@ -179,6 +179,7 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | NPC ship and buoy drift: a ship's Newtonian velocity (from a ram or a blast) moves it every tick and, when its thrust is not zero, is braked by `5 x thrust x dt`; a buoy brakes by its own thrust 100 (CBT-18, D-02)                                                                                                                                                                                                                              | `src/sim/world/drift.ts:111`                      | `src/Core/Entities/ShipEntity.m:5817-5824`              | divergence: the drift runs as one pass after the whole steering loop (`src/sim/world/step.ts:143-144`), not inside each ship's own update, so a later ship's steering in the same tick reads an earlier ship's position before that ship's drift (plan 18-17). PROJECT.md: "Drift beside the engine speed (Phase 18, D-02)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | E-151   |
 | The player's drift braking at its edges: the thrust factor after a torus disengage, and a drift too small for float32 (CBT-18, D-02)                                                                                                                                                                                                                                                                                                               | `src/sim/flight/drift.ts:57`                      | `src/Core/Entities/PlayerEntity.m:3387-3405`            | divergence: Oolite brakes with `hyperspeedFactor` for as long as `flightSpeed > maxFlightSpeed`, while Wegolite resets `torus.factor` to 1 on a disengage (`src/sim/flight/torus.ts:188`) as the speed still ramps down, so those ticks brake by factor 1; and a drift whose float32 magnitude is 0 becomes the zero vector, where Oolite would keep it unbraked (plan 18-10, review L428 and L174). PROJECT.md: "Drift beside the engine speed (Phase 18, D-02)"                                                                                                                                                                                                                                                                                                                                                                                                          | E-138   |
 | Scrape damage to the player with a negative amount (CBT-18)                                                                                                                                                                                                                                                                                                                                                                                        | `src/sim/combat/shields.ts:205`                   | `src/Core/Entities/PlayerEntity.m:5710-5713`            | divergence: Oolite turns a negative amount positive and logs it; `routeScrapeDamage` treats a non-positive or non-finite amount as no damage. No caller reaches the difference, because the collision response deals scrape damage only above the 0.05 floor (plan 18-16; the oracle fixture `scrape-negative-amount-made-positive` is held to this rule). PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                                              | E-152   |
+| The laser hit's internal-damage loop: while the energy stays above 0 after the hit, one gate draw per 32 points that passed the shield and one `takeInternalDamage` for each draw that passes (CBT-08)                                                                                                                                                                                                                                             | `src/sim/combat/ledger.ts:221`                    | `src/Core/Entities/PlayerEntity.m:5683-5698`            | divergence: the draws come from the stateless per-tick stream `internalDamageSeed(worldSeed, tick)`, where Oolite's come from its one global `ranrot_rand`, so what a hit breaks never depends on earlier draws of the session and nothing is stored, hashed or saved. PROJECT.md: "Roll the player's internal damage on a stateless per-tick stream (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                | E-154   |
 
 ## Excerpts
 
@@ -2570,6 +2571,27 @@ OOINLINE BOOL EntityInRange(HPVector p1, Entity* e2, float range)
             if ([se isShip] && [se canCollide] && doOctreesCollide(prime, (ShipEntity*)se))
                 return (ShipEntity*)se;
         }
+```
+
+### E-154 src/Core/Entities/PlayerEntity.m:5683-5698
+
+```objc
+    if (energy <= 0.0) // use normal ship temperature calculations for heat damage
+    {
+        if ([other isShip]) {
+            [(ShipEntity*)other noteTargetDestroyed:self];
+        }
+
+        [self getDestroyedBy:other damageType:damageType];
+    } else {
+        while (amount > 0.0) {
+            internal_damage = ((ranrot_rand() & PLAYER_INTERNAL_DAMAGE_FACTOR) < amount); // base chance of damage to systems
+            if (internal_damage) {
+                [self takeInternalDamage];
+            }
+            amount -= (PLAYER_INTERNAL_DAMAGE_FACTOR + 1);
+        }
+    }
 ```
 
 ## Constants ledger
