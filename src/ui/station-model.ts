@@ -38,12 +38,17 @@ import {
   VISIBLE_EQUIPMENT_KEYS,
   checkFit,
   checkLaserFit,
+  checkRepair,
   fitPrice,
   isLaserFitKey,
   isListedForPurchase,
+  isRepairableKey,
   laserFitKey,
   laserFitPrice,
   laserPriceMap,
+  parseRepairFitKey,
+  repairFitKey,
+  repairPrice,
 } from "../sim/player/outfitting.js";
 import type {
   FitContext,
@@ -781,6 +786,11 @@ export interface OutfittingRow {
   /** The current count for a multi-instance row, otherwise null. */
   readonly multiCount: number | null;
   readonly confirmable: boolean;
+  /**
+   * The verb of the `[Y/N]` prompt: `Buy` on every purchase, removal and
+   * facing row, `Repair` on a damaged item's repair row (Phase 19, D-08).
+   */
+  readonly verb: "Buy" | "Repair";
 }
 
 export interface OutfittingDetail {
@@ -816,6 +826,33 @@ export interface OutfittingModel {
  * `tests/ui/station-outfitting.test.ts` pins it to the vendored plist.
  */
 export const OUTFITTING_EMPTY_TEXT = "No equipment available for purchase.";
+
+/**
+ * The F3 repair row (Phase 19, D-07). `descriptions.plist` `equip-repair-@`
+ * (vendored copy, line 1846) applied to the item name Oolite wraps as
+ * `" %@ "` (`PlayerEntity.m:8377`) renders `" Repair: Docking Computers "`;
+ * the label is that rendered text trimmed, which is Oolite's own row, not a
+ * divergence. `tests/ui/station-outfitting.test.ts` pins both to the plist.
+ */
+export const REPAIR_LABEL_TEMPLATE = " Repair:%@";
+
+/**
+ * The F3 detail of a repair row: `descriptions.plist`
+ * `upgradeinfo-@-price-is-for-repairing` (line 1847) applied to the item's
+ * description.
+ */
+export const REPAIR_DETAIL_TEMPLATE =
+  "%@ (Price is for repairing the existing system).";
+
+/** Fill one `%@` slot of an Oolite template (a function replacer: no `$` patterns). */
+function fillTemplate(templateText: string, value: string): string {
+  return templateText.replace("%@", () => value);
+}
+
+/** `Repair: <name>`: the template applied to Oolite's wrapped name, trimmed. */
+function repairLabel(name: string): string {
+  return fillTemplate(REPAIR_LABEL_TEMPLATE, ` ${name} `).trim();
+}
 
 const REMOVAL_KEYS: ReadonlySet<string> = new Set([
   "EQ_PASSENGER_BERTH_REMOVAL",
@@ -963,6 +1000,30 @@ export function buildOutfittingModel(
       );
     }
 
+    // A damaged repairable item replaces its purchase row with the repair row,
+    // at the same position (`PlayerEntity.m:8403-8411`). Below the repair tech
+    // level, or with the item not damaged, `checkRepair` hides it as usual.
+    if (isRepairableKey(key) && profile.damagedEquipment.includes(key)) {
+      const repair = checkRepair(profile, item, ctx);
+      if (!isListedForPurchase(repair)) continue;
+      const repairCost = repairPrice(item);
+      rows.push({
+        key: repairFitKey(key),
+        label: repairLabel(item.name),
+        name: item.name,
+        cost: repairCost,
+        priceText: formatDecicredits(repairCost),
+        enabled: repair.ok,
+        dimmed: !repair.ok,
+        reason: repair.ok ? "" : fitReason(repair.reason, item),
+        owned: false,
+        multiCount: null,
+        confirmable: repair.ok,
+        verb: "Repair",
+      });
+      continue;
+    }
+
     const check = checkFit(profile, item, ctx);
     if (!isListedForPurchase(check)) continue;
     const cost = fitPrice(profile, item, ctx);
@@ -980,6 +1041,7 @@ export function buildOutfittingModel(
       owned: isOwned(item, profile),
       multiCount: multiCount(item, profile),
       confirmable: enabled,
+      verb: "Buy",
     });
   }
 
@@ -1022,13 +1084,16 @@ export function buildOutfittingModel(
       owned: false,
       multiCount: null,
       confirmable: firstOk,
+      verb: "Buy",
     });
   }
 
   const selected = rows.find((row) => row.key === selectedKey);
   let detail: OutfittingDetail | null = null;
   if (selected !== undefined) {
-    const item = byKey.get(selected.key);
+    // A repair row's key is `<key>@repair`: parse it back to the item.
+    const repairKey = parseRepairFitKey(selected.key);
+    const item = byKey.get(repairKey ?? selected.key);
     if (item === undefined) {
       throw new StationModelError(
         `Wegolite: the equipment catalogue has no entry with key "${selectedKey}".`,
@@ -1039,7 +1104,10 @@ export function buildOutfittingModel(
       : undefined;
     detail = {
       title: item.name,
-      description: override ?? item.description,
+      description:
+        repairKey === null
+          ? (override ?? item.description)
+          : fillTemplate(REPAIR_DETAIL_TEMPLATE, item.description),
       priceText: selected.priceText,
     };
   }
@@ -1090,6 +1158,7 @@ function buildFacingModel(
       owned: false,
       multiCount: null,
       confirmable: check.ok,
+      verb: "Buy",
     };
   });
   const selected = rows.find((row) => row.key === selectedKey) ?? rows[0];

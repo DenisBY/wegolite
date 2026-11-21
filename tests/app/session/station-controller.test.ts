@@ -21,7 +21,7 @@ import type { SessionState } from "../../../src/app/session/context.js";
 import { createStationController } from "../../../src/app/session/station-controller.js";
 import type { StationController } from "../../../src/app/session/station-controller.js";
 import { parseEquipment } from "../../../src/content/equipment.js";
-import type { Equipment } from "../../../src/content/types.js";
+import type { Equipment, System } from "../../../src/content/types.js";
 import type { ActionId } from "../../../src/input/actions.js";
 import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
@@ -769,6 +769,151 @@ describe("F3 lists only what can be fitted (quick task 261118-emk)", () => {
       expect(h.ctx.station.stationNotice).toBe("");
       expect(h.ctx.station.stationPending).toBeNull();
       expect(h.ctx.station.stationSelection).toBe("");
+      expect(h.ctx.core.profile).toBe(before);
+    }
+    expect(h.profiles).toEqual([]);
+    expect(h.calls).not.toContain("autosave");
+  });
+});
+
+/** One real galaxy-0 system record by id (Tibedied `g0-s0` is raw tech level 8). */
+function galaxyZeroSystem(id: string): System {
+  const systems = JSON.parse(
+    readFileSync(
+      new URL(
+        "../../../src/content/generated/systems/g0.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as System[];
+  const found = systems.find((candidate) => candidate.id === id);
+  if (found === undefined) throw new Error(`no galaxy-0 system "${id}"`);
+  return found;
+}
+
+/** An F3 harness docked at `systemId` with `damaged` damaged and none installed. */
+function repairHarness(
+  credits: number,
+  systemId: string,
+  damaged: readonly string[],
+) {
+  const h = outfittingHarness(credits);
+  h.ctx.core.system = galaxyZeroSystem(systemId);
+  h.ctx.core.profile = { ...h.ctx.core.profile, damagedEquipment: damaged };
+  h.controller.ensureOutfittingSelection();
+  return h;
+}
+
+describe("repairing damaged equipment at F3 (Phase 19, D-08 to D-10)", () => {
+  it("repairs a damaged docking computer at Tibedied for 750.0 credits in two presses, one commit, one autosave", () => {
+    const h = repairHarness(10_000, "g0-s0", ["EQ_DOCK_COMP"]);
+    const before = h.ctx.core.profile;
+    const rows = h.controller.outfittingModel()?.rows ?? [];
+    expect(rows.map((row) => row.key)).toContain("EQ_DOCK_COMP@repair");
+    expect(rows.map((row) => row.key)).not.toContain("EQ_DOCK_COMP");
+    const repairRow = rows.find((row) => row.key === "EQ_DOCK_COMP@repair");
+    expect(repairRow?.label).toBe("Repair: Docking Computers");
+    expect(repairRow?.priceText).toBe("750.0 ₢");
+    expect(repairRow?.verb).toBe("Repair");
+
+    moveTo(h, "EQ_DOCK_COMP@repair");
+    press(h, "stationConfirm");
+    expect(h.ctx.station.stationPending).toEqual({
+      kind: "fit",
+      key: "EQ_DOCK_COMP@repair",
+    });
+    expect(h.ctx.core.profile).toBe(before);
+    expect(h.views[h.views.length - 1]?.confirmText).toBe(
+      "Repair Docking Computers for 750.0 ₢? [Y/N]",
+    );
+
+    press(h, "stationConfirm");
+    const after = h.ctx.core.profile;
+    expect(after.credits).toBe(2_500);
+    expect(after.equipment.at(-1)).toBe("EQ_DOCK_COMP");
+    expect(after.damagedEquipment).toEqual([]);
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.ctx.station.stationNotice).toBe("");
+    expect(h.ctx.station.lastTrade).toEqual({
+      kind: "repair",
+      key: "EQ_DOCK_COMP@repair",
+      amount: 1,
+    });
+    expect(h.profiles).toEqual([after]);
+    expect(h.calls.filter((call) => call === "autosave")).toEqual(["autosave"]);
+    // D-10: fitted at once, so the next step's equipment set holds it again.
+    expect(h.controller.equipmentSet().has("EQ_DOCK_COMP")).toBe(true);
+    // The repair row is gone and the cursor clamped onto a row that exists.
+    const rowsAfter = h.controller.outfittingModel()?.rows ?? [];
+    expect(rowsAfter.map((row) => row.key)).not.toContain(
+      "EQ_DOCK_COMP@repair",
+    );
+    expect(rowsAfter.map((row) => row.key)).toContain(
+      h.ctx.station.stationSelection,
+    );
+  });
+
+  it("keeps the Buy verb on an ordinary purchase prompt", () => {
+    const h = outfittingHarness(50_000);
+    moveTo(h, "EQ_MISSILE");
+    press(h, "stationConfirm");
+    expect(h.views[h.views.length - 1]?.confirmText).toMatch(
+      /^Buy Missile for .* ₢\? \[Y\/N\]$/,
+    );
+  });
+
+  it("charges the price of the catalogue record read at the second Y, never a row's", () => {
+    const h = repairHarness(20_000, "g0-s0", ["EQ_DOCK_COMP"]);
+    moveTo(h, "EQ_DOCK_COMP@repair");
+    press(h, "stationConfirm");
+    expect(h.views[h.views.length - 1]?.confirmText).toBe(
+      "Repair Docking Computers for 750.0 ₢? [Y/N]",
+    );
+
+    // The catalogue is replaced between the two presses: the price is only as
+    // trustworthy as the lookup (cross-AI review, Fable 19-05).
+    h.ctx.core.equipmentCatalogue = equipmentCatalogue.map((record) =>
+      record.key === "EQ_DOCK_COMP" ? { ...record, price: 16_000 } : record,
+    );
+    press(h, "stationConfirm");
+
+    expect(h.ctx.core.profile.credits).toBe(20_000 - 8_000);
+    expect(h.ctx.core.profile.damagedEquipment).toEqual([]);
+  });
+
+  it("a repair never reaches the purchase path (T-19-20)", () => {
+    const h = repairHarness(10_000, "g0-s0", ["EQ_DOCK_COMP"]);
+    moveTo(h, "EQ_DOCK_COMP@repair");
+    press(h, "stationConfirm");
+    // Stale state under the prompt: the item is repaired elsewhere, so the
+    // second Y finds nothing to repair and must not buy a second copy.
+    h.ctx.core.profile = {
+      ...h.ctx.core.profile,
+      equipment: ["EQ_DOCK_COMP"],
+      damagedEquipment: [],
+    };
+    const stale = h.ctx.core.profile;
+    press(h, "stationConfirm");
+    expect(h.ctx.core.profile).toBe(stale);
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.profiles).toEqual([]);
+    expect(h.calls).not.toContain("autosave");
+  });
+
+  it("a forged repair selection shows Not offered and changes nothing", () => {
+    const h = repairHarness(10_000, "g0-s0", ["EQ_DOCK_COMP"]);
+    const before = h.ctx.core.profile;
+    for (const forged of [
+      "EQ_ECM@repair",
+      "EQ_DOCK_COMP@fore",
+      "EQ_CARGO_BAY@repair",
+    ]) {
+      h.ctx.station.stationSelection = forged;
+      h.ctx.station.stationPending = null;
+      press(h, "stationConfirm");
+      expect(h.ctx.station.stationNotice).toBe("Not offered");
+      expect(h.ctx.station.stationPending).toBeNull();
       expect(h.ctx.core.profile).toBe(before);
     }
     expect(h.profiles).toEqual([]);

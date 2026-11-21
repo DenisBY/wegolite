@@ -184,9 +184,9 @@ export interface WegoliteEconomyMarketRow {
 
 /** The last accepted profile change, for the keyboard-loop proof. */
 export interface WegoliteLastTradeProbe {
-  readonly kind: "buy" | "sell" | "fit" | "removal";
+  readonly kind: "buy" | "sell" | "fit" | "removal" | "repair";
   readonly key: string;
-  /** Units for a trade; 1 for a fit or a removal. */
+  /** Units for a trade; 1 for a fit, a removal or a repair (key `<key>@repair`). */
   readonly amount: number;
 }
 
