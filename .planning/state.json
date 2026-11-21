@@ -61,7 +61,7 @@
     {
       "number": "19",
       "name": "Equipment Damage and Repair",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "20",
@@ -74,5 +74,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 5 of 6 · 67% · executing"
   },
-  "updated_at": "2026-11-21T12:14:02.848Z"
+  "updated_at": "2026-11-21T14:00:42.202Z"
 }

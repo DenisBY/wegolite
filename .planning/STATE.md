@@ -4,18 +4,18 @@ milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 19
 current_phase_name: Equipment Damage and Repair
-current_plan: Not started
+current_plan: 2
 status: executing
-stopped_at: Phase 19 context gathered
-last_updated: "2026-11-21T12:14:02.818Z"
-last_activity: 2026-11-20
-last_activity_desc: Phase 18 complete, transitioned to Phase 19
-state_head: bba4068af1af55cc4c7561aeaa5e0db6a94d9143
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-11-21T14:00:45.589Z"
+last_activity: 2026-11-21
+last_activity_desc: Phase 19 execution started
+state_head: dad7cab50c0ce9fde45a42adbe1f1555660c2655
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 65
-  completed_plans: 50
+  completed_plans: 51
   percent: 67
 ---
 
@@ -30,11 +30,11 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 19 (Equipment Damage and Repair) — READY TO EXECUTE
-Current Plan: Not started
+Phase: 19 (Equipment Damage and Repair) — EXECUTING
+Current Plan: 2
 Total Plans in Phase: 15
 Status: Ready to execute
-Last activity: 2026-11-20 — Phase 18 complete, transitioned to Phase 19
+Last activity: 2026-11-21 — Phase 19 execution started
 
 
 ## Performance Metrics
@@ -236,6 +236,7 @@ Last activity: 2026-11-20 — Phase 18 complete, transitioned to Phase 19
 | Phase 18 P21 | 31min | 3 tasks | 16 files |
 | Phase 18 P19 | 40 min | 3 tasks | 12 files |
 | Phase 18 P12 | 25min | 2 tasks | 10 files |
+| Phase 19 P01 | 35min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -606,6 +607,7 @@ Recent decisions affecting current work:
 - [Phase 18]: 18-19: the explosion blast pushes live NPC ships (hull-table mass), the live buoys (live mass) and the in-flight player (accumulated, added to drift after the kills) as well as debris; pods, plates, a dying buoy (subentity first, then NAV_BUOY_HULL_MASS) and a detaching buoy subentity are sources. The in-range test is the C's float compare, the magnitude stays double (all 11 18-03 fixtures pass, no pin moved). The station is no receiver and a launching player is not pushed (recorded divergences); a burnt-out wreck gets no blast (new recorded divergence).
 - [Phase 18]: Phase 18 close: FIDELITY gained the five rows the walk found missing (E-151 to E-153; static hulls, octree composition, NPC drift pass order, player drift edges, negative scrape); verify-full green at 5b3cc96 (exit=0 elapsed=869s) and QUAL-11 21/21 unchanged
 - Phase 18 UAT (2026-11-20): all 3 items passed; seven divergence todos opened for later discussion (no fix decided) (E-131, E-135, E-147, E-150, E-138, D-08, E-126), E-151/E-152/E-133 accepted, collisions-on acceptance variant deferred, traffic-off raw ident key accepted.
+- [Phase 19]: 19-01: damage probability is 0 for a missile or mine (authored is_external_store, else _MISSILE/_MINE suffix; explicit no overrides the suffix), else authored damage_probability, else 1; malformed values fail the build with SCHEMA
 
 ### Pending Todos
 
@@ -748,9 +750,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-21T08:39:09.352Z
-Stopped at: Phase 19 context gathered
-Resume file: .planning/phases/19-equipment-damage-and-repair/19-CONTEXT.md
+Last session: 2026-11-21T14:00:44.888Z
+Stopped at: Completed 19-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 
