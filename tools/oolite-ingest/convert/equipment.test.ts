@@ -15,6 +15,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { parseEquipment } from "../../../src/content/equipment.js";
 import { EquipmentSchema } from "../../../src/content/schemas/equipment.js";
 import type { Equipment } from "../../../src/content/schemas/equipment.js";
 import { isContentError } from "../content-error.js";
@@ -191,6 +192,38 @@ describe("equipment catalogue", () => {
     expect(EquipmentSchema.safeParse({ ...first, extra: true }).success).toBe(
       false,
     );
+  });
+});
+
+describe("equipment damage probability tracer (D-03)", () => {
+  it("loads EQ_DOCK_COMP at 1 and EQ_CARGO_BAY at 0 from the regenerated file", () => {
+    const loaded = parseEquipment(
+      JSON.parse(
+        readFileSync(
+          new URL(
+            "../../../src/content/generated/equipment.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ) as unknown,
+    );
+    const probability = (key: string): number | undefined =>
+      loaded.find((record) => record.key === key)?.damageProbability;
+    expect(probability("EQ_DOCK_COMP")).toBe(1);
+    expect(probability("EQ_CARGO_BAY")).toBe(0);
+  });
+
+  it("refuses a record without, with a negative, or with a non-finite probability", () => {
+    const first = equipment[0];
+    if (first === undefined) throw new Error("no equipment emitted");
+    const { damageProbability: _omitted, ...without } = first;
+    expect(EquipmentSchema.safeParse(without).success).toBe(false);
+    for (const damageProbability of [-1, Number.NaN, Infinity]) {
+      expect(
+        EquipmentSchema.safeParse({ ...first, damageProbability }).success,
+      ).toBe(false);
+    }
   });
 });
 

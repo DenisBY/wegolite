@@ -24,6 +24,11 @@ export const EquipmentSchema = z.strictObject({
   techLevel: z.number().int(),
   price: z.number().int(),
   priceUnit: z.literal("decicredits"),
+  // Oolite's per-item damage probability (D-03): `OOEquipmentType.m:247` reads
+  // the authored `damage_probability` (default 1.0, 0 for a missile or mine)
+  // and `:504-520` makes a missile or mine never damageable. Zod 4 rejects NaN
+  // and Infinity, so no `.finite()`.
+  damageProbability: z.number().min(0),
   conditions: EquipmentConditionsSchema,
   // Authored `purchase_sort_order` when the entry declares one.
   sortHint: z.number().int().optional(),

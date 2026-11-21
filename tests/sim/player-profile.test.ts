@@ -53,6 +53,7 @@ const dockComputer: Equipment = {
   techLevel: 9,
   price: 15000,
   priceUnit: "decicredits",
+  damageProbability: 1,
   conditions: {},
 };
 

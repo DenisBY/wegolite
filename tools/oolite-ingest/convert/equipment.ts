@@ -177,6 +177,67 @@ function conditionsToJson(conditions: Record<string, unknown>): PlistJson {
   return object;
 }
 
+/**
+ * Read the authored `is_external_store` flag, or `undefined` when the entry
+ * does not declare it. Oolite's `oo_boolForKey` accepts more spellings than
+ * this (for example `on` or any non-zero number); this build refuses them until
+ * a vendored record needs one, so nothing is guessed.
+ */
+function externalStoreOf(tuple: EquipmentTuple): boolean | undefined {
+  const entry = getEntry(tuple.conditions, "is_external_store");
+  if (entry === undefined) return undefined;
+  const value = entry.value;
+  switch (value.kind) {
+    case "bool":
+      return value.value;
+    case "integer":
+      if (value.value === 1) return true;
+      if (value.value === 0) return false;
+      break;
+    case "string": {
+      const text = value.value.toLowerCase();
+      if (text === "yes" || text === "true") return true;
+      if (text === "no" || text === "false") return false;
+      break;
+    }
+    default:
+      break;
+  }
+  throw contentError("SCHEMA", FILE, `${tuple.key}.is_external_store`, {
+    excerpt:
+      "is_external_store must be yes, no, true, false, 1 or 0 (Oolite's oo_boolForKey accepts more spellings, for example on or any non-zero number, which this build refuses until a vendored record needs one)",
+  });
+}
+
+/**
+ * Oolite's damage probability for one record (D-03). A record is a missile or
+ * mine when its authored `is_external_store` says so, else when its key ends
+ * `_MISSILE` or `_MINE` (`OOEquipmentType.m:198-200, 223`: an explicit `no`
+ * overrides the suffix). A missile or mine gives 0 (`:504-510`); anything else
+ * the authored `damage_probability`, else 1.0 (`:210, 247`). A non-number or
+ * negative authored value fails the build; it never becomes a guessed value.
+ */
+function damageProbabilityOf(tuple: EquipmentTuple): number {
+  const authored = externalStoreOf(tuple);
+  const isMissileOrMine =
+    authored ?? (tuple.key.endsWith("_MISSILE") || tuple.key.endsWith("_MINE"));
+  if (isMissileOrMine) return 0;
+
+  const entry = getEntry(tuple.conditions, "damage_probability");
+  if (entry === undefined) return 1;
+  const value = entry.value;
+  if (
+    (value.kind === "integer" || value.kind === "real") &&
+    Number.isFinite(value.value) &&
+    value.value >= 0
+  ) {
+    return value.value;
+  }
+  throw contentError("SCHEMA", FILE, `${tuple.key}.damage_probability`, {
+    excerpt: "damage_probability must be a finite number >= 0",
+  });
+}
+
 function project(tuple: EquipmentTuple): Equipment {
   const conditionsJson = plistToJson(tuple.conditions);
   const sortEntry = getEntry(tuple.conditions, "purchase_sort_order");
@@ -191,6 +252,7 @@ function project(tuple: EquipmentTuple): Equipment {
     techLevel: tuple.techLevel,
     price: tuple.price,
     priceUnit: "decicredits" as const,
+    damageProbability: damageProbabilityOf(tuple),
     conditions: conditionsJson,
     ...(sortHint === undefined ? {} : { sortHint }),
   };
@@ -253,6 +315,7 @@ export function emitEquipment(parsed: PlistValue): EmittedEquipment {
       techLevel: record.techLevel,
       price: record.price,
       priceUnit: record.priceUnit,
+      damageProbability: record.damageProbability,
       conditions: conditionsToJson(record.conditions),
     };
     if (record.sortHint !== undefined) item.sortHint = record.sortHint;
