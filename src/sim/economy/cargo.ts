@@ -17,7 +17,7 @@
  * stays visible to the save validator instead of being silently fixed.
  */
 
-import type { CommodityUnit } from "../../content/types.js";
+import type { Commodity, CommodityUnit } from "../../content/types.js";
 
 export const KILOGRAMS_PER_POD = 1000;
 export const MAX_KILOGRAMS_IN_SAFE = 499;
@@ -94,6 +94,74 @@ export function holdPodsUsed(
   units: ReadonlyMap<string, CommodityUnit>,
 ): number {
   return sumPods(cargo, units);
+}
+
+/** One cargo pod of the player's hold: a commodity and its amount in its unit. */
+export interface HoldPod {
+  readonly commodity: string;
+  readonly amount: number;
+}
+
+type PodCommodity = Pick<Commodity, "key" | "unit" | "sortOrder">;
+
+/**
+ * Oolite's in-flight `cargo` array for a hold (CBT-08, D-04): the pods the
+ * player's internal-damage roll indexes (`PlayerEntity.m:6105-6113`).
+ *
+ * `loadCargoPods` (`PlayerEntity.m:410-418`) walks the manifest's goods and
+ * `loadCargoPodsForType:fromManifest:` (`:299-357`) turns each into pods: one
+ * 1 t pod per tonne for `t`; for `kg` and `g` the safe 499 kg / 499,999 g stays
+ * in the manifest and the rest is split into full 1000 kg / 1,000,000 g pods
+ * with a last pod for the dregs (an exact multiple makes no empty pod, `:338`).
+ * The pod count therefore equals `podsFor` (`floor((500 + q) / 1000)`), and the
+ * list is as long as `holdPodsUsed`. Re-deriving it from the hold after a pod is
+ * lost gives the same multiset as Oolite's remaining pod objects.
+ *
+ * The order is deterministic: commodities in ascending `sortOrder` (ties by
+ * key), then a key the list does not know as tonnes (the conservative rule of
+ * `sumPods`). An invalid quantity (not a safe non-negative integer) makes no
+ * pod. Pure; never mutates its inputs. The caller passes a validated hold: the
+ * list is as long as the hold is heavy.
+ */
+export function holdPods(
+  cargo: Cargo,
+  commodities: readonly PodCommodity[],
+): HoldPod[] {
+  const known = new Map<string, PodCommodity>();
+  for (const commodity of commodities) known.set(commodity.key, commodity);
+  const ordered = [...known.values()].sort(
+    (a, b) =>
+      a.sortOrder - b.sortOrder || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  );
+  const unknown = Object.keys(cargo)
+    .filter((key) => !known.has(key))
+    .sort();
+  const pods: HoldPod[] = [];
+  const load = (commodity: string, unit: CommodityUnit): void => {
+    const quantity = cargo[commodity];
+    if (
+      quantity === undefined ||
+      !Number.isSafeInteger(quantity) ||
+      quantity <= 0
+    ) {
+      return;
+    }
+    const rule = podRule(unit);
+    if (rule === undefined) {
+      for (let i = 0; i < quantity; i += 1) pods.push({ commodity, amount: 1 });
+      return;
+    }
+    // The safe keeps up to `rule.safe` in the manifest; the rest goes into pods.
+    let rest = quantity <= rule.safe ? 0 : quantity - rule.safe;
+    while (rest > 0) {
+      const amount = Math.min(rest, rule.podSize);
+      pods.push({ commodity, amount });
+      rest -= amount;
+    }
+  };
+  for (const commodity of ordered) load(commodity.key, commodity.unit);
+  for (const key of unknown) load(key, "t");
+  return pods;
 }
 
 /**
