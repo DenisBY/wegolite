@@ -85,6 +85,7 @@ async function booted(traffic: boolean) {
   const log: string[] = [];
   const router = createEventRouter(ctx, {
     stationFlow: () => undefined,
+    damageFlow: () => undefined,
     hudMessages: createHudMessages(
       {
         messages: {

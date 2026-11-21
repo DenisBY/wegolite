@@ -125,20 +125,23 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
     specKey: "viper",
     killer: 100,
   },
+  equipmentDamaged: { kind: "equipmentDamaged", key: "EQ_DOCK_COMP" },
+  cargoDestroyed: { kind: "cargoDestroyed", commodity: "food", amount: 1 },
 };
 
 describe("the pinned subscriber order and routing table", () => {
-  it("dispatches in the order stationFlow, worldLifecycle, hudMessages, dockFeedback, hyperspaceFlow", () => {
+  it("dispatches in the order stationFlow, worldLifecycle, damageFlow, hudMessages, dockFeedback, hyperspaceFlow", () => {
     expect([...EVENT_SUBSCRIBER_ORDER]).toEqual([
       "stationFlow",
       "worldLifecycle",
+      "damageFlow",
       "hudMessages",
       "dockFeedback",
       "hyperspaceFlow",
     ]);
   });
 
-  it("maps each of the 22 routed kinds to exactly one subscriber tuple", () => {
+  it("maps each of the 24 routed kinds to exactly one subscriber tuple", () => {
     expect(EVENT_KIND_SUBSCRIBER).toEqual({
       launched: ["stationFlow", "worldLifecycle"],
       launchComplete: ["stationFlow"],
@@ -162,12 +165,14 @@ describe("the pinned subscriber order and routing table", () => {
       identOff: ["hudMessages"],
       laserFired: ["dockFeedback"],
       shipDestroyed: ["dockFeedback"],
+      equipmentDamaged: ["damageFlow"],
+      cargoDestroyed: ["damageFlow"],
     });
-    expect(ROUTED_EVENT_KINDS).toHaveLength(22);
+    expect(ROUTED_EVENT_KINDS).toHaveLength(24);
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
-    // Twenty kinds have one subscriber; launched and docked have the ordered
+    // Twenty-two kinds have one subscriber; launched and docked have the ordered
     // pair (plan 08-15), so the world lifecycle runs after the station flow.
     const pair = ["launched", "docked"];
     for (const kind of ROUTED_EVENT_KINDS) {
@@ -192,7 +197,7 @@ describe("the pinned subscriber order and routing table", () => {
     }
   });
 
-  it("offers each of the 22 kinds to exactly the subscribers its table entry names", () => {
+  it("offers each of the 24 kinds to exactly the subscribers its table entry names", () => {
     for (const kind of ROUTED_EVENT_KINDS) {
       const ctx = createSessionState({
         system: lave.system,
@@ -206,6 +211,7 @@ describe("the pinned subscriber order and routing table", () => {
       const router = createEventRouter(ctx, {
         stationFlow: record("stationFlow"),
         worldLifecycle: record("worldLifecycle"),
+        damageFlow: record("damageFlow"),
         hudMessages: record("hudMessages"),
         dockFeedback: record("dockFeedback"),
         hyperspaceFlow: record("hyperspaceFlow"),
@@ -229,6 +235,7 @@ describe("the pinned subscriber order and routing table", () => {
     };
     createEventRouter(ctx, {
       stationFlow: record("stationFlow"),
+      damageFlow: record("damageFlow"),
       hudMessages: record("hudMessages"),
       dockFeedback: record("dockFeedback"),
       hyperspaceFlow: record("hyperspaceFlow"),
@@ -341,6 +348,9 @@ function harness(): Harness {
         ctx.runtime.input?.setContext(ctx.chart.contextBeforeChart);
       },
     }),
+    damageFlow: (event) => {
+      log.push(`damageFlow ${event.kind}`);
+    },
     hudMessages: createHudMessages({ messages }, ctx),
     dockFeedback: createDockFeedbackFlow(ctx, { messages }),
     hyperspaceFlow: createHyperspaceFlow(ctx, {
@@ -606,6 +616,7 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       const messages = createMessageQueue();
       const router = createEventRouter(ctx, {
         stationFlow: () => undefined,
+        damageFlow: () => undefined,
         hudMessages: createHudMessages({ messages }, ctx),
         dockFeedback: () => undefined,
         hyperspaceFlow: () => undefined,

@@ -178,6 +178,7 @@ function tracer(options: { readonly traffic?: boolean } = {}): Tracer {
     onPreRollStart: () => undefined,
     router: createEventRouter(ctx, {
       stationFlow: quiet,
+      damageFlow: quiet,
       hudMessages: quiet,
       dockFeedback: quiet,
       hyperspaceFlow: quiet,
@@ -1368,6 +1369,7 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
     const events: SimEvent[] = [];
     const real = createEventRouter(ctx, {
       stationFlow: quiet,
+      damageFlow: quiet,
       hudMessages: quiet,
       dockFeedback: quiet,
       hyperspaceFlow: createHyperspaceFlow(ctx, {
