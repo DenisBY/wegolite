@@ -180,6 +180,22 @@ The Wegolite cell is a `src/` path and a line. For a build-time mechanic it is t
 | The player's drift braking at its edges: the thrust factor after a torus disengage, and a drift too small for float32 (CBT-18, D-02)                                                                                                                                                                                                                                                                                                               | `src/sim/flight/drift.ts:57`                      | `src/Core/Entities/PlayerEntity.m:3387-3405`            | divergence: Oolite brakes with `hyperspeedFactor` for as long as `flightSpeed > maxFlightSpeed`, while Wegolite resets `torus.factor` to 1 on a disengage (`src/sim/flight/torus.ts:188`) as the speed still ramps down, so those ticks brake by factor 1; and a drift whose float32 magnitude is 0 becomes the zero vector, where Oolite would keep it unbraked (plan 18-10, review L428 and L174). PROJECT.md: "Drift beside the engine speed (Phase 18, D-02)"                                                                                                                                                                                                                                                                                                                                                                                                          | E-138   |
 | Scrape damage to the player with a negative amount (CBT-18)                                                                                                                                                                                                                                                                                                                                                                                        | `src/sim/combat/shields.ts:205`                   | `src/Core/Entities/PlayerEntity.m:5710-5713`            | divergence: Oolite turns a negative amount positive and logs it; `routeScrapeDamage` treats a non-positive or non-finite amount as no damage. No caller reaches the difference, because the collision response deals scrape damage only above the 0.05 floor (plan 18-16; the oracle fixture `scrape-negative-amount-made-positive` is held to this rule). PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                                              | E-152   |
 | The laser hit's internal-damage loop: while the energy stays above 0 after the hit, one gate draw per 32 points that passed the shield and one `takeInternalDamage` for each draw that passes (CBT-08)                                                                                                                                                                                                                                             | `src/sim/combat/ledger.ts:221`                    | `src/Core/Entities/PlayerEntity.m:5683-5698`            | divergence: the draws come from the stateless per-tick stream `internalDamageSeed(worldSeed, tick)`, where Oolite's come from its one global `ranrot_rand`, so what a hit breaks never depends on earlier draws of the session and nothing is stored, hashed or saved. PROJECT.md: "Roll the player's internal damage on a stateless per-tick stream (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                | E-154   |
+| The collision scrape's internal-damage loop, always, whatever energy is left (CBT-08, CBT-18)                                                                                                                                                                                                                                                                                                                                                      | `src/sim/combat/ledger.ts:221`                    | `src/Core/Entities/PlayerEntity.m:5746-5752`            | divergence: the draws come from the stateless per-tick stream, as in E-154. PROJECT.md: "Roll the player's internal damage on a stateless per-tick stream (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | E-155   |
+| `takeInternalDamage`'s count and die: `n_considered` = (hold capacity + 21) x 95 / 100 (38 for the 20 t hold, 53 with the cargo bay), the die, the cargo branch over Oolite's pod list (`holdPods`) and the HUD message `%@ destroyed.` (CBT-08, D-04)                                                                                                                                                                                             | `src/sim/combat/internal-damage.ts:169`           | `src/Core/Entities/PlayerEntity.m:6097-6116`            | divergence: the die is `floor(u * n)` on the stateless per-tick stream (E-154), where Oolite's is `ranrot_rand() % n`; the pod list, the count and the odds are Oolite's. PROJECT.md: "Roll the player's internal damage on a stateless per-tick stream (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | E-156   |
+| The damageable count and odds, the reversed die, then the weighted pick over `profile.equipment` in insertion order with a strict `>` (CBT-08)                                                                                                                                                                                                                                                                                                     | `src/sim/combat/internal-damage.ts:200`           | `src/Core/Entities/PlayerEntity.m:6123-6142`            | divergence: the pick draw comes from the stateless per-tick stream (E-154), and the sums run in float64 where Oolite's are `GLfloat` (every compiled probability is 0 or 1, so the sums are exact). PROJECT.md: "Roll the player's internal damage on a stateless per-tick stream (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-157   |
+| The damaged item leaves the installed list and the HUD shows `%@ damaged.` for 4.5 s after clearing the previous message, only for an item really damaged (CBT-08, D-07). Representation: the damaged key is held in `damagedEquipment` (save v5) instead of an `_DAMAGED` key in the installed list, the message is `createDamageFlow` in `src/app/session/event-router.ts`, and Wegolite has no scripts, so no `equipmentDamaged` script event   | `src/sim/player/damage.ts:32`                     | `src/Core/Entities/PlayerEntity.m:6154-6171`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-158   |
+| The cosmetic branch of `takeInternalDamage` and `ship_trade_in_factor` (95 for a new commander) (CBT-08, D-05)                                                                                                                                                                                                                                                                                                                                     | `src/sim/combat/internal-damage.ts:56`            | `src/Core/Entities/PlayerEntity.m:6179-6184`            | divergence: the branch is not ported and the factor is the constant 95 (`SHIP_TRADE_IN_FACTOR`), so the odds are exact for a new ship; hull wear is a later piece of work (todo `2026-11-21-hull-wear-renovation-and-fuel-price.md`, tripwire `tests/guards/hull-wear-tripwire.test.ts`). PROJECT.md: "Keep Oolite's new-ship trade-in factor 95 as a constant and do not port hull wear (Phase 19, D-05)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                            | E-159   |
+| The damage probability and `canBeDamaged`: a missile or mine is never damageable, any other item has its authored `damage_probability` (default 1.0), compiled by `tools/oolite-ingest/convert/equipment.ts` (`damageProbabilityOf`) (CBT-08, D-03)                                                                                                                                                                                                | `src/content/schemas/equipment.ts:31`             | `src/Core/OOEquipmentType.m:503-521`                    | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-160   |
+| The repair price: half the catalogue price (CBT-12, D-08). Representation: `ceil` reproduces the credit truncation, and the four compiled prices are even                                                                                                                                                                                                                                                                                          | `src/sim/player/outfitting.ts:794`                | `src/Core/Entities/PlayerEntity.m:9115-9119`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-161   |
+| A damaged item is offered for repair one tech level lower than buying it, unless that level is 0 (CBT-12, D-09). The unported bargain tech days are the todo `2026-11-18-outfitting-bargain-tech-days.md`                                                                                                                                                                                                                                          | `src/sim/player/outfitting.ts:774`                | `src/Core/Entities/PlayerEntity.m:8270-8272`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-162   |
+| The F3 repair row: ` Repair:%@` applied to the wrapped name (E-170), shown trimmed as `Repair: X`, at half price, with Oolite's repair time (CBT-12, D-07, D-08)                                                                                                                                                                                                                                                                                   | `src/ui/station-model.ts:856`                     | `src/Core/Entities/PlayerEntity.m:8403-8410`            | divergence: no repair time is charged (`repairTime`, else 600 + price, lines 8407-8410), as no F3 purchase charges install time; the row text and the half price are Oolite's, and the orange repair colour (line 8411) is row E-166. PROJECT.md: "Apply purchases immediately with no install delay". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | E-163   |
+| The F3 detail of a repair row: `%@ (Price is for repairing the existing system).` (CBT-12, D-07)                                                                                                                                                                                                                                                                                                                                                   | `src/ui/station-model.ts:863`                     | `src/Core/Entities/PlayerEntity.m:8568-8572`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-164   |
+| F5's text for a damaged item; the damaged-first order is E-168 and the order within the group is E-169 (CBT-12, D-07)                                                                                                                                                                                                                                                                                                                              | `src/ui/station-model.ts:128`                     | `src/Core/Entities/PlayerEntity.m:7200-7212`            | divergence: F5 writes `<name> (damaged)` where Oolite writes `%@ (N/A)` (`descriptions.plist` 1584), because the owner found that `N/A` reads as not for sale. PROJECT.md: "List damaged equipment first in F5, marked (damaged), in damage order (Phase 19, D-07)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-165   |
+| The F3 repair row's colour: Oolite draws a repair row (as the renovation row, line 8390) in `kGuiEquipmentRepairColor`, default orange (CBT-12, D-07)                                                                                                                                                                                                                                                                                              | `src/ui/station.ts:300`                           | `src/Core/Entities/PlayerEntity.m:8411-8411`            | divergence: Wegolite draws the repair row in the station palette like every F3 row (`renderOutfitting` sets only `selected` and `dimmed`); porting is one row class and one CSS rule, with the palette todo `2026-11-11-terminal-color-palette-setting.md`. PROJECT.md: "Keep Wegolite's station and chart colours instead of Oolite's GUI palette (owner decision 2026-11-18, quick 261118-cyo)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                     | E-166   |
+| The internal-damage loop's iteration count, `MAX_INTERNAL_DAMAGE_ROLLS` (CBT-08); Oolite's laser loop at lines 5691-5697 is uncapped too (E-154)                                                                                                                                                                                                                                                                                                   | `src/sim/combat/internal-damage.ts:79`            | `src/Core/Entities/PlayerEntity.m:5746-5752`            | divergence: at most 256 iterations where Oolite's loop is uncapped; the count is Oolite's up to 8,192 points past the shield, only a scrape above that reaches the cap, and that hit destroys Oolite's player (bank at most 256) in the same call; the cap keeps the roll total, since from 1e18 up `amount - 32 === amount` in float64. PROJECT.md: "Cap the player's internal-damage loop at 256 iterations (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                       | E-167   |
+| F5 lists the damaged items before the working ones (CBT-12, D-07). Oolite's `prioritiseDamaged` GUI setting, default on (line 7154), is not ported: Wegolite always uses the default                                                                                                                                                                                                                                                               | `src/ui/station-model.ts:604`                     | `src/Core/Entities/PlayerEntity.m:7238-7240`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-168   |
+| The order within F5's damaged group (CBT-12, D-07)                                                                                                                                                                                                                                                                                                                                                                                                 | `src/ui/station-model.ts:604`                     | `src/Core/Entities/PlayerEntity.m:7156-7156`            | divergence: the damaged items are listed in damage order (`profile.damagedEquipment`) instead of Oolite's reverse catalogue order (`reverseEquipmentEnumerator`), consistent with the installed list's purchase order. PROJECT.md: "List damaged equipment first in F5, marked (damaged), in damage order (Phase 19, D-07)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | E-169   |
+| The F3 row text: Oolite wraps the item name as `%@` (line 8377) before applying ` Repair:%@` (line 8405, E-163), so its rendered row is `Repair: Docking Computers`; Wegolite draws it trimmed, `Repair: Docking Computers` (CBT-12, D-07)                                                                                                                                                                                                         | `src/ui/station-model.ts:873`                     | `src/Core/Entities/PlayerEntity.m:8377-8377`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-170   |
 
 ## Excerpts
 
@@ -2594,6 +2610,223 @@ OOINLINE BOOL EntityInRange(HPVector p1, Entity* e2, float range)
     }
 ```
 
+### E-155 src/Core/Entities/PlayerEntity.m:5746-5752
+
+```objc
+    while (amount > 0.0) {
+        internal_damage = ((ranrot_rand() & PLAYER_INTERNAL_DAMAGE_FACTOR) < amount); // base chance of damage to systems
+        if (internal_damage) {
+            [self takeInternalDamage];
+        }
+        amount -= (PLAYER_INTERNAL_DAMAGE_FACTOR + 1);
+    }
+```
+
+### E-156 src/Core/Entities/PlayerEntity.m:6097-6116
+
+```objc
+- (BOOL)takeInternalDamage
+{
+    unsigned n_cargo = [self maxAvailableCargoSpace];
+    unsigned n_mass = [self mass] / 10000;
+    unsigned n_considered = (n_cargo + n_mass) * ship_trade_in_factor / 100; // a lower value of n_considered means more vulnerable to damage.
+    unsigned damage_to = n_considered ? (ranrot_rand() % n_considered) : 0; // n_considered can be 0 for small ships.
+    BOOL result = NO;
+    // cargo damage
+    if (damage_to < [cargo count]) {
+        ShipEntity* pod = (ShipEntity*)[cargo objectAtIndex:damage_to];
+        NSString* cargo_desc = [UNIVERSE displayNameForCommodity:[pod commodityType]];
+        if (!cargo_desc)
+            return NO;
+        [UNIVERSE clearPreviousMessage];
+        [UNIVERSE addMessage:[NSString stringWithFormat:DESC(@"@-destroyed"), cargo_desc] forCount:4.5];
+        [cargo removeObject:pod];
+        return YES;
+    } else {
+        damage_to = n_considered - (damage_to + 1); // reverse the die-roll
+    }
+```
+
+### E-157 src/Core/Entities/PlayerEntity.m:6123-6142
+
+```objc
+    while ((system_key = [eqEnum nextObject]) != nil) {
+        eqType = [OOEquipmentType equipmentTypeWithIdentifier:system_key];
+        if ([eqType canBeDamaged]) {
+            damageableCounter++;
+            damageableOdds += [eqType damageProbability];
+        }
+    }
+
+    if (damage_to < damageableCounter) {
+        GLfloat target = randf() * damageableOdds;
+        GLfloat accumulator = 0.0;
+        eqEnum = [self equipmentEnumerator];
+        while ((system_key = [eqEnum nextObject]) != nil) {
+            eqType = [OOEquipmentType equipmentTypeWithIdentifier:system_key];
+            accumulator += [eqType damageProbability];
+            if (accumulator > target) {
+                [system_key retain];
+                break;
+            }
+        }
+```
+
+### E-158 src/Core/Entities/PlayerEntity.m:6154-6171
+
+```objc
+        // set the following so removeEquipment works on the right entity
+        [self setScriptTarget:self];
+        [UNIVERSE clearPreviousMessage];
+        [self removeEquipmentItem:system_key];
+
+        NSString* damagedKey = [NSString stringWithFormat:@"%@_DAMAGED", system_key];
+        [self addEquipmentItem:damagedKey withValidation:NO inContext:@"damage"]; // for possible future repair.
+        [self doScriptEvent:OOJSID("equipmentDamaged") withArgument:system_key];
+
+        if (![self hasEquipmentItem:system_name] && [self hasEquipmentItem:damagedKey]) {
+            /*
+                    Display "foo damaged" message only if no script has
+                    repaired or removed the equipment item. (If a script does
+                    either of those and wants a message, it can write it
+                    itself.)
+            */
+            [UNIVERSE addMessage:[NSString stringWithFormat:DESC(@"@-damaged"), system_name] forCount:4.5];
+        }
+```
+
+### E-159 src/Core/Entities/PlayerEntity.m:6179-6184
+
+```objc
+    // cosmetic damage
+    if (((damage_to & 7) == 7) && (ship_trade_in_factor > 75)) {
+        ship_trade_in_factor--;
+        result = YES;
+    }
+    return result;
+```
+
+### E-160 src/Core/OOEquipmentType.m:503-521
+
+```objc
+
+- (GLfloat)damageProbability
+{
+    if ([self isMissileOrMine])
+        return 0.0;
+
+    return _damageProbability;
+}
+
+- (BOOL)canBeDamaged
+{
+    if ([self isMissileOrMine])
+        return NO;
+
+    if ([self damageProbability] > 0.0) {
+        return YES;
+    }
+
+    return NO;
+```
+
+### E-161 src/Core/Entities/PlayerEntity.m:9115-9119
+
+```objc
+    // repairs cost 50%
+    if ([self hasEquipmentItem:eqKeyDamaged]) {
+        price /= 2.0;
+        isRepair = YES;
+    }
+```
+
+### E-162 src/Core/Entities/PlayerEntity.m:8270-8272
+
+```objc
+            // if you have a damaged system you can get it repaired at a tech level one less than that required to buy it
+            if (minTechLevel != 0 && [self hasEquipmentItem:[eqType damagedIdentifier]])
+                minTechLevel--;
+```
+
+### E-163 src/Core/Entities/PlayerEntity.m:8403-8410
+
+```objc
+                // is this item damaged?
+                if ([self hasEquipmentItem:eq_key_damaged]) {
+                    desc = [NSString stringWithFormat:DESC(@"equip-repair-@"), desc];
+                    price /= 2.0;
+                    installTime = [eqInfo repairTime];
+                    if (installTime == 0) {
+                        installTime = 600 + price;
+                    }
+```
+
+### E-164 src/Core/Entities/PlayerEntity.m:8568-8572
+
+```objc
+            NSString* desc = [[OOEquipmentType equipmentTypeWithIdentifier:eqKey] descriptiveText];
+            NSString* eq_key_damaged = [NSString stringWithFormat:@"%@_DAMAGED", eqKey];
+            int weight = [[OOEquipmentType equipmentTypeWithIdentifier:eqKey] requiredCargoSpace];
+            if ([self hasEquipmentItem:eq_key_damaged]) {
+                desc = [NSString stringWithFormat:DESC(@"upgradeinfo-@-price-is-for-repairing"), desc];
+```
+
+### E-165 src/Core/Entities/PlayerEntity.m:7200-7212
+
+```objc
+            } else {
+                // Check for damaged version
+                if ([self hasEquipmentItem:[[eqType identifier] stringByAppendingString:@"_DAMAGED"]]) {
+                    desc = [NSString stringWithFormat:DESC(@"equipment-@-not-available"), [eqType name]];
+
+                    if (prioritiseDamaged) {
+                        [quip1 addObject:[NSArray arrayWithObjects:desc, [NSNumber numberWithBool:NO], [eqType displayColor], nil]];
+                    } else {
+                        // just add in to the normal array
+                        [quip2 addObject:[NSArray arrayWithObjects:desc, [NSNumber numberWithBool:NO], [eqType displayColor], nil]];
+                    }
+                }
+            }
+```
+
+### E-166 src/Core/Entities/PlayerEntity.m:8411-8411
+
+```objc
+                    [gui setColor:[gui colorFromSetting:kGuiEquipmentRepairColor defaultValue:[OOColor orangeColor]] forRow:row];
+```
+
+### E-167 src/Core/Entities/PlayerEntity.m:5746-5752
+
+```objc
+    while (amount > 0.0) {
+        internal_damage = ((ranrot_rand() & PLAYER_INTERNAL_DAMAGE_FACTOR) < amount); // base chance of damage to systems
+        if (internal_damage) {
+            [self takeInternalDamage];
+        }
+        amount -= (PLAYER_INTERNAL_DAMAGE_FACTOR + 1);
+    }
+```
+
+### E-168 src/Core/Entities/PlayerEntity.m:7238-7240
+
+```objc
+    // list damaged first, then working
+    [quip1 addObjectsFromArray:quip2];
+    return quip1;
+```
+
+### E-169 src/Core/Entities/PlayerEntity.m:7156-7156
+
+```objc
+    for (eqTypeEnum = [OOEquipmentType reverseEquipmentEnumerator]; (eqType = [eqTypeEnum nextObject]);) {
+```
+
+### E-170 src/Core/Entities/PlayerEntity.m:8377-8377
+
+```objc
+                NSString* desc = [NSString stringWithFormat:@" %@ ", [eqInfo name]];
+```
+
 ## Constants ledger
 
 Each constant below is the value Wegolite compiles, its unit (a mass is Oolite's float32 mass in its own units; a length is in metres), the Oolite lines it follows, and the test that pins it.
@@ -2642,6 +2875,14 @@ Each constant below is the value Wegolite compiles, its unit (a mass is Oolite's
 | Chart blob factor, blob floor, GUI width, chart width at maximum zoom                                                                                                                                            | 0.0017 per km of planet radius, 0.5 GUI units, 480 GUI units, 64 chart-x units (zoom 4 is the galactic chart)                                                                                                                                                          | `GuiDisplayGen.m:1789-1792`, `GuiDisplayGen.h:39`, `PlayerEntity.h:94-97`                                         | `tests/ui/chart-model.test.ts`                                                                                                                                      |
 | HUD geometry: one hud.plist unit in design px; scanner, compass, aegis, status light; bar width and surround; message area and rows                                                                              | 2.25 (1080 / 480); scanner 288 x 64 at (0, 68); compass size 28 at (132, 32); aegis 24 x 24 at (-132, 32); status light 8 x 8 at (-108, 32); bars 80 wide, surround 2 out; message area 252 x 140 at (128, -60), rows of 14 (all `y_origin = -1` but the message area) | `Resources/Config/hud.plist:19-59`, `67-198`, `368-380`, `HeadUpDisplay.h:57`, `src/SDL/MyOpenGLView.m:498-505`   | `tests/ui/hud-model.test.ts`, `tests/hud/projection.test.ts`, `tests/hud/clock-lines.test.ts`                                                                       |
 | HUD text capital height per Oolite font cell (`drawCharacterQuad` lifts the quad 1/8 cell, `HeadUpDisplay.m:3607`); placement in the cell; the cell of each text                                                 | 0.5625 (36 of 64 texture rows; Oolite 1280x720 caps 8-9, 11 and 12-13 px in 10, 12 and 14-unit cells); centred 2/3 up the cell; legends at their hud.plist cells, E1-E4 12, readouts 10, W 2 blips; narrower than Oolite (owner 2026-11-18); messages sized by width   | `HeadUpDisplay.m:3599-3619`, `2019-2021`, `4127`; `Resources/Textures/oolite-font.png`; `hud.plist:244-350`       | `tests/hud/cap-text.test.ts`                                                                                                                                        |
+| Internal-damage gate: `PLAYER_INTERNAL_DAMAGE_FACTOR`                                                                                                                                                            | 31: a gate draw passes when `ranrot_rand() & 31` is below the amount left, and each iteration takes 32 off the amount                                                                                                                                                  | `PlayerEntity.h:331`, `PlayerEntity.m:5691-5697`, `5746-5752`                                                     | `tests/sim/combat/internal-damage.test.ts`                                                                                                                          |
+| New-ship trade-in factor `SHIP_TRADE_IN_FACTOR` (E-159)                                                                                                                                                          | 95, a constant; Oolite moves it in four places and Wegolite ports none (hull wear is the todo `2026-11-21-hull-wear-renovation-and-fuel-price.md`)                                                                                                                     | `PlayerEntity.m:1739`, load default `:1063`                                                                       | `tests/sim/combat/internal-damage.test.ts`, `tests/guards/hull-wear-tripwire.test.ts`                                                                               |
+| Mass term of the damage count `PLAYER_MASS_DAMAGE_TERM`                                                                                                                                                          | 21 = floor(214,737.6875 / 10,000), the Cobra Mk III mass over 10,000                                                                                                                                                                                                   | `PlayerEntity.m:6100`                                                                                             | `tests/sim/combat/internal-damage.test.ts`                                                                                                                          |
+| Damage count `n_considered` (hold capacity, with the mass term and the factor 95)                                                                                                                                | 38 for the 20 t hold, 53 with the cargo bay: floor((capacity + 21) x 95 / 100)                                                                                                                                                                                         | `PlayerEntity.m:6099-6101`                                                                                        | `tests/sim/combat/internal-damage.test.ts`                                                                                                                          |
+| Repair price and repair tech level (E-161, E-162)                                                                                                                                                                | 50 % of the catalogue price, rounded up (7,500 decicredits for the docking computer); the item's tech level minus 1, unless it is 0                                                                                                                                    | `PlayerEntity.m:9115-9119`, `8270-8272`                                                                           | `tests/sim/player/outfitting.test.ts`                                                                                                                               |
+| HUD damage messages `%@ damaged.` and `%@ destroyed.`                                                                                                                                                            | 4.5 s each, after clearing the previous message                                                                                                                                                                                                                        | `PlayerEntity.m:6110-6111`, `6164-6171`                                                                           | `tests/app/session/event-router-damage.test.ts`                                                                                                                     |
+| Internal-damage loop cap `MAX_INTERNAL_DAMAGE_ROLLS` (E-167)                                                                                                                                                     | 256 iterations; Oolite has no cap, its loops are uncapped, so this is a recorded divergence                                                                                                                                                                            | `PlayerEntity.m:5691-5697`, `5746-5752` (uncapped)                                                                | `tests/sim/combat/internal-damage.test.ts`                                                                                                                          |
+| Damage stream purpose code `damage` (E-154)                                                                                                                                                                      | 5, a Wegolite constant with no Oolite counterpart: `internalDamageSeed(worldSeed, tick)` forks the world seed with it, and no existing purpose code changed                                                                                                            | none (Oolite uses its one global `ranrot_rand`)                                                                   | `tests/sim/rng.test.ts`                                                                                                                                             |
 
 Reading of ROADMAP Phase 10 criterion 2: "reproduce Oolite's mass within a stated tolerance" is read as Oolite's algorithm run on the pinned meshes, re-derived independently in float64 within a relative 1e-6, plus the community VariableMasslock table to the whole tonne, because no Oolite runtime is available to observe the mass. Owner answer on this reading: accepted, 2026-11-14 (plan 10-03), on condition that it is easy to change later. It is revisable: a real-Oolite check (for example a tiny out-of-repo test script logging `ship.mass` of the Coriolis station and the buoy to Latest.log) is a deferred follow-up task after the phase, and if it disagrees only the `CORIOLIS_STATION_MASS` constant, its test pins and this paragraph change. The real-Oolite check ran in quick task 261117-jji on 2026-11-17 and agreed for every measured mass, so no constant, pin or paragraph changed.
 
@@ -2803,3 +3044,8 @@ These are gaps the table cannot close on its own. Each one is stated so a review
 - **Coriolis and buoy layout radii (resolved in quick task 261117-k1l).** Quick task 261117-jji measured the Coriolis station at 779.3702392578125 m and the buoys at 59.13554763793945 m, against Wegolite's own 500 and 10; the layout now uses the measured values, compiled from the meshes (E-89) and pinned in `src/sim/world/layout.ts:71-73`. These radii never fed the dock collision (that is the hull SAT of `dock-port.json`); they feed NPC proximity and avoidance, the STATION_AEGIS shell, the witchpoint arrival safety, the torus nearest-surface distance and the scanner rim. The buoy decision todo `.planning/todos/pending/2026-11-14-make-buoys-block-hyperspace-like-oolite.md` can use the measured buoy masses (698,691.1875, blockage radius 264.3 m).
 - **Outfitting list presentation (E-108).** List membership follows Oolite's `equipmentAllowed` (`src/Core/Entities/PlayerEntity.m:8293-8302`): F3 lists an item only when the station offers it, the raw tech level allows it and it can be added now. Oolite draws an item the commander cannot afford in its normal option colour (`PlayerEntity.m:8381-8384`, the item's `displayColor` or `equipment_option_color`) with no marker, and refuses it only when the purchase is tried (`PlayerEntity.m:9134`); Wegolite dims the row and shows "Not enough credits" (owner decision 2026-11-18, quick task 261118-emk). Showing the normal colour would be a one-line change to the row's `dimmed` flag in `src/ui/station-model.ts`. Wegolite's integrity refusals (an invalid price or a malformed condition) hide the row, as a failing condition does in Oolite. Oolite's bargain tech days (`PlayerEntity.m:8274-8285`), which on some days offer an item up to two tech levels above the system's, are not modelled; see the todo `.planning/todos/pending/2026-11-18-outfitting-bargain-tech-days.md`.
 - **HUD alpha (open).** Oolite draws the HUD dials at `overall_alpha` 0.75 (`Resources/Config/hud.plist:392` at 7437f22), the aegis glyph at 0.5 x 0.75 (`src/Core/HeadUpDisplay.m:1645`), the crosshair arms fading from 0.75 at the inner end to 0.25 at the outer end (`Resources/Config/crosshairs.plist:45-51`, the `OTHER` set the pulse laser uses; each segment is alpha, x, y, alpha, x, y as `OOCrosshairs.m:142-147` reads it) and the scanner lollipop tails at one third alpha (`src/Core/HeadUpDisplay.m:1339`), while Wegolite draws them opaque. Not changed (owner decision 2026-11-18, quick 261118-n7z); tracked in `.planning/todos/pending/2026-11-17-ui-flight-hud-differences-from-oolite.md`.
+- **Phase 19: damaged-equipment clauses that are not applicable today (CBT-08, D-06).** Oolite's autopilot disengage when the docking computer is damaged, the galactic jump that aborts or refuses with a damaged drive, and the advanced navigational array clause need an in-use state Wegolite does not have (Shift+C docks instantly, no galactic jump exists). The todo `.planning/todos/pending/2026-11-21-damaged-equipment-in-use.md` holds them, and `tests/guards/damaged-equipment-in-use.test.ts` fails, naming the todo, on the first consumer.
+- **Phase 19: hull wear is not ported (E-159, D-05).** `ship_trade_in_factor` is the constant 95, so the cosmetic branch of `takeInternalDamage` (`PlayerEntity.m:6179-6184`), the per-jump wear (`:6868-6871`), `EQ_RENOVATION` (`:9279-9289`) and the fuel-price effect (`:11420-11422`) are absent. The todo `.planning/todos/pending/2026-11-21-hull-wear-renovation-and-fuel-price.md` holds the work, and `tests/guards/hull-wear-tripwire.test.ts` fails on the first consumer.
+- **Phase 19: the misjump caller of `takeInternalDamage` is not ported.** `PlayerEntity.m:6796` calls it on a misjump; Wegolite has no misjump, so no jump damages equipment.
+- **Phase 19: the F3 repair row's colour is not drawn (E-166).** Oolite draws a repair row, and the renovation row, in `kGuiEquipmentRepairColor`, default orange (`PlayerEntity.m:8390, 8411`); Wegolite keeps its own station palette, so the repair row looks like every other F3 row. The divergence and its reason are row E-166. Porting it is one row class and one CSS rule, and belongs with the palette todo `.planning/todos/pending/2026-11-11-terminal-color-palette-setting.md`.
+- **Phase 19: Oolite's `_DAMAGED` key and script event are represented, not copied (E-158).** The damaged key lives in `damagedEquipment` (save v5), never as an `_DAMAGED` key in the installed list, and Wegolite has no scripts, so the `equipmentDamaged` script event does not exist. The phase code review re-checks the stream and the 256-iteration cap (E-154 to E-157, E-167) against the reviewers' agreement recorded in `19-REVIEWS.md`.
