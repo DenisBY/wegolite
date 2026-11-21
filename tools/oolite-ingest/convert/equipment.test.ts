@@ -218,7 +218,8 @@ describe("equipment damage probability tracer (D-03)", () => {
   it("refuses a record without, with a negative, or with a non-finite probability", () => {
     const first = equipment[0];
     if (first === undefined) throw new Error("no equipment emitted");
-    const { damageProbability: _omitted, ...without } = first;
+    const without: Record<string, unknown> = { ...first };
+    delete without.damageProbability;
     expect(EquipmentSchema.safeParse(without).success).toBe(false);
     for (const damageProbability of [-1, Number.NaN, Infinity]) {
       expect(
