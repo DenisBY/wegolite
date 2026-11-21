@@ -17,11 +17,17 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { DT, MAX_STEPS_PER_FRAME } from "../../src/sim/time.js";
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 import { readRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
 
-test.setTimeout(600_000);
+// The old 540 s non-launch budget plus the first-launch wait (quick
+// 261121-bjl).
+test.setTimeout(540_000 + FIRST_LAUNCH_WAIT_MS);
 
 /** Two animation frames: the fixed-step bound is checked per rendered frame. */
 const FRAME_SAMPLE = 2;
@@ -46,7 +52,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 

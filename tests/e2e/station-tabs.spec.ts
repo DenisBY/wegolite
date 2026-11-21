@@ -15,7 +15,11 @@ import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
 import { chartScreenPoint, systemByName } from "./helpers/chart.js";
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 
 test.setTimeout(180_000);
 
@@ -71,7 +75,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
   await page.waitForFunction(
     (expected) => window.__wegolite?.mode === expected,
     mode,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
@@ -388,6 +392,9 @@ test("overlay-to-overlay navigation restores the input context", async ({
 });
 
 test("the Launch tab launches only from Home", async ({ page }) => {
+  // The old 120 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl).
+  test.setTimeout(120_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await boot(page);
 
@@ -650,6 +657,9 @@ test("sub-tabs mirror the real Oolite sub-pages and stay in sync with the keys",
 test("in flight the chart opens without the station strip", async ({
   page,
 }) => {
+  // The old 120 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl).
+  test.setTimeout(120_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await boot(page);
 
@@ -935,6 +945,9 @@ test("the chart and Save/Load footers stay in flow and never cover content", asy
 test("the chart and Save/Load headers show the live balance, not the key label", async ({
   page,
 }) => {
+  // The old 120 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl).
+  test.setTimeout(120_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await boot(page);
 

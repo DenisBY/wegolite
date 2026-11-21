@@ -16,7 +16,11 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 import {
   AUTOSAVE_KEY,
   SAVE_DB,
@@ -120,7 +124,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
@@ -248,6 +252,9 @@ test("F2 opens the Save/Load screen only while docked and closes on Return/Escap
 });
 
 test("F2 is inert while paused and in flight", async ({ page }) => {
+  // The old 300 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl).
+  test.setTimeout(300_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await boot(page);
   await startNewGame(page);
@@ -639,6 +646,9 @@ test("an in-session Load restores the saved docked session without reloading", a
 test("an in-session Load of an in-flight save returns to flight with the station hidden", async ({
   page,
 }) => {
+  // The old 300 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl).
+  test.setTimeout(300_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   // `?test=1` is needed for the dock-mouth pose seam that puts a real message
   // in the queue before the Load (G-8). Without a mutation the hook is inert.

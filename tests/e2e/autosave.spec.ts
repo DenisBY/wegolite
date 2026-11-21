@@ -34,7 +34,11 @@ import {
   sub,
   vec,
 } from "../../src/sim/math.js";
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 import { chartScreenPoint, systemByName } from "./helpers/chart.js";
 import {
   AUTOSAVE_KEY,
@@ -46,7 +50,8 @@ import {
 
 // The in-flight tests run at the SwiftShader sim rate (about 0.15 to 0.3 of wall
 // time), so the budget is 600 s rather than 360 s. See hyperspace.spec.ts. The
-// trigger matrix, which flies away and jumps, sets its own 1,200 s budget.
+// trigger matrix, which flies away and jumps, sets its own budget (1,140 s plus
+// the first-launch wait).
 test.setTimeout(600_000);
 
 const DISO_ID = systemByName("Diso").id;
@@ -90,7 +95,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
@@ -317,6 +322,9 @@ test("a launch reloads to the station at the pre-launch clock, not +600 s", asyn
 test("a tainted manual dock reaches the trigger but skips the write: Continue still restores the pre-launch clock", async ({
   page,
 }) => {
+  // The old 540 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl).
+  test.setTimeout(540_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await boot(page, "/?test=1");
   await startNewGame(page);
@@ -447,7 +455,9 @@ test("the autosave trigger matrix writes exactly one revision per trigger and ne
   // at-least-360-frame countdown, at no more than 5 fixed steps of 1/120 s per
   // rendered frame) used 75 % of 600 s on CI (450 s, run 44125946218), above
   // the owner's 60 % rule. The file-level 600 s budget stays for the other tests.
-  test.setTimeout(1_200_000);
+  // The old 1,140 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl).
+  test.setTimeout(1_140_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await boot(page);
   await startNewGame(page);

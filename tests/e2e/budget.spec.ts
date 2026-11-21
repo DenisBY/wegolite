@@ -40,10 +40,17 @@ import type { Page } from "@playwright/test";
 import { systemByName } from "./helpers/chart.js";
 import { dockedSaveAt } from "./helpers/save-fixtures.js";
 import { writeRaw } from "./helpers/save-store.js";
-import { getProbe, press, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  press,
+  waitForReady,
+} from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
-test.setTimeout(300_000);
+// The old 240 s non-launch budget plus the first-launch wait (quick
+// 261121-bjl).
+test.setTimeout(240_000 + FIRST_LAUNCH_WAIT_MS);
 
 /** Draw calls per rendered frame (STACK.md lines 442-443, research target). */
 const DRAW_CALL_BUDGET = 50;
@@ -165,7 +172,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
