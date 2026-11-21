@@ -120,6 +120,13 @@ export function legalityText(
   return legalityExport === 0 ? LEGALITY_EXPORT : LEGALITY_NEITHER;
 }
 
+/**
+ * The F5 mark of a damaged item (Phase 19, D-07): ` (damaged)` where Oolite
+ * writes ` (N/A)`. A recorded divergence; `tests/ui/station-status.test.ts`
+ * pins it against `descriptions.plist` `equipment-@-not-available`.
+ */
+export const DAMAGED_STATUS_SUFFIX = " (damaged)";
+
 function equipmentName(
   byKey: ReadonlyMap<string, Equipment>,
   key: string,
@@ -585,9 +592,21 @@ export function buildStatusModel(
     { label: "Rating", value: formatRating(labels.rating[0] ?? "", 0) },
   ];
 
-  const equipment: string[] = profile.equipment.map((key) =>
-    equipmentName(equipmentByKey, key),
-  );
+  // Damaged items come first, as in Oolite (`PlayerEntity.m:7238-7240`, its
+  // `prioritiseDamaged` setting, default on, is not ported). Two recorded F5
+  // divergences (Phase 19, D-07, D-12; FIDELITY E-165 and E-169, quoting the
+  // F5 Key Decisions row): Oolite writes `%@ (N/A)` (`descriptions.plist`
+  // 1584), which the owner found reads as "not for sale", so Wegolite writes
+  // `<name> (damaged)`; and Oolite orders the damaged group by
+  // `reverseEquipmentEnumerator` (reverse catalogue order, `:7156, 7200-7212`),
+  // where Wegolite lists it in damage order, like the installed list.
+  const equipment: string[] = [
+    ...profile.damagedEquipment.map(
+      (key) =>
+        `${equipmentByKey.get(key)?.name ?? key}${DAMAGED_STATUS_SUFFIX}`,
+    ),
+    ...profile.equipment.map((key) => equipmentName(equipmentByKey, key)),
+  ];
   if (profile.missiles > 0) equipment.push(`Missile ×${profile.missiles}`);
   if (profile.passengerBerths > 0) {
     equipment.push(`Passenger Berth ×${profile.passengerBerths}`);

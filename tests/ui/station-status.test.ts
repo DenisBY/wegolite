@@ -13,6 +13,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -28,6 +29,7 @@ import {
   newProfile,
 } from "../../src/sim/player/profile.js";
 import {
+  DAMAGED_STATUS_SUFFIX,
   buildHomeModel,
   buildStatusModel,
   formatRating,
@@ -175,6 +177,86 @@ describe("buildStatusModel page 1", () => {
       "Passenger Berth ×2",
       "Forward Pulse Laser",
     ]);
+  });
+
+  it("lists damaged equipment first, marked (damaged), in damage order", () => {
+    const profile = {
+      ...newProfile(),
+      equipment: ["EQ_CARGO_BAY"],
+      damagedEquipment: ["EQ_ADVANCED_COMPASS", "EQ_DOCK_COMP"],
+      passengerBerths: 1,
+    };
+    const model = buildStatusModel(
+      profile,
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+    );
+
+    expect(model.equipment).toEqual([
+      "Advanced Space Compass (damaged)",
+      "Docking Computers (damaged)",
+      "Large Cargo Bay",
+      "Missile ×3",
+      "Passenger Berth ×1",
+      "Forward Pulse Laser",
+    ]);
+    // The damage order is the profile's, not a catalogue order either way.
+    const reversed = buildStatusModel(
+      { ...profile, damagedEquipment: ["EQ_DOCK_COMP", "EQ_ADVANCED_COMPASS"] },
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+    );
+    expect(reversed.equipment.slice(0, 2)).toEqual([
+      "Docking Computers (damaged)",
+      "Advanced Space Compass (damaged)",
+    ]);
+  });
+
+  it("falls back to the key for a damaged item the catalogue does not know", () => {
+    const model = buildStatusModel(
+      { ...newProfile(), damagedEquipment: ["EQ_NOT_IN_CATALOGUE"] },
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+    );
+    expect(model.equipment[0]).toBe("EQ_NOT_IN_CATALOGUE (damaged)");
+  });
+
+  it("writes (damaged) where Oolite writes (N/A): the recorded F5 divergence", () => {
+    expect(DAMAGED_STATUS_SUFFIX).toBe(" (damaged)");
+    const plist = readFileSync(
+      join(process.cwd(), "third_party/oolite/Config/descriptions.plist"),
+      "utf8",
+    );
+    let oolite: string | undefined;
+    for (const line of plist.split("\n")) {
+      const match = /^\s*"([^"]+)"\s*=\s*"(.*)";/.exec(line);
+      if (match?.[1] === "equipment-@-not-available") oolite = match[2];
+    }
+    // Oolite's template, pinned so a vendored change surfaces here.
+    expect(oolite).toBe("%@ (N/A)");
+    const model = buildStatusModel(
+      { ...newProfile(), damagedEquipment: ["EQ_DOCK_COMP"] },
+      system,
+      labels,
+      catalogue,
+      commodities,
+      1,
+    );
+    const first = model.equipment[0] ?? "";
+    // The F5 text differs from Oolite's rendering of the same item, and never
+    // reads "(N/A)" (it reads as "not for sale", owner decision, D-12).
+    expect(first).not.toBe((oolite ?? "").replace("%@", "Docking Computers"));
+    expect(first).not.toContain("(N/A)");
+    expect(first).toBe("Docking Computers (damaged)");
   });
 
   it("omits the equipment list only when equipment, missiles, berths and lasers are all absent", () => {
