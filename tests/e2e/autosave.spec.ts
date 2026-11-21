@@ -13,6 +13,9 @@
  * the simulation probe with a generous bound (Pitfall 15).
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
@@ -20,7 +23,7 @@ import {
   CLOCK_START,
   NEW_GAME_CLOCK_SECONDS,
 } from "../../src/sim/flight/state.js";
-import { MAX_SAVE_CHARS } from "../../src/persistence/save.js";
+import { MAX_SAVE_CHARS, SAVE_VERSION } from "../../src/persistence/save.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
   add,
@@ -1242,42 +1245,56 @@ test("a tainted ?test=1 profile is never autosaved", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("a Phase 4 blob without the new fields still restores and offers Continue", async ({
+test("an older save is corrupt: backed up once, not offered, and New game recovers saving", async ({
   page,
 }) => {
+  // D-11: no migration. A save written by an older release (here the checked-in
+  // Phase 4 blob, a real version-1 save) is positively this build's family but
+  // not readable, so it is `corrupt` and never `unreadable`, which would lock
+  // saving for the whole session.
+  const older = readFileSync(
+    join(process.cwd(), "tests", "golden", "save", "v1-phase4.json"),
+    "utf8",
+  );
   const errors = collectErrors(page);
   await boot(page);
-
-  const oldBlob = JSON.stringify({
-    version: 1,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-  });
-  await writeRaw(page, oldBlob);
+  await writeRaw(page, older);
 
   await page.reload();
   await waitForReady(page);
-  await expect(page.locator("#title-continue")).toBeVisible();
+  await expect(page.locator("#title-continue")).toBeHidden();
   const booted = await getProbe(page);
-  expect(booted.save?.status).toBe("valid");
-  expect(booted.save?.continueVisible).toBe(true);
+  expect(booted.save?.status).toBe("corrupt");
+  expect(booted.save?.continueVisible).toBe(false);
+  expect(booted.save?.unavailable).toBe(false);
+  // Backed up once, byte for byte; the original is left until New game.
+  expect(await readRaw(page, CORRUPT_KEY)).toBe(older);
+  expect(await readRaw(page)).toBe(older);
 
-  await continueGame(page);
-  const probe = await getProbe(page);
-  expect(probe.economy?.credits).toBe(1000);
-  expect(probe.economy?.cargo).toEqual({});
-  expect(probe.economy?.fuel).toBe(70);
-  expect(probe.economy?.missiles).toBe(3);
-  expect(probe.economy?.passengerBerths).toBe(0);
-  expect(probe.economy?.capacityPods).toBe(20);
-  // The missing seed defaults to the system's deterministic seed, never a
-  // random or clock value.
-  expect(probe.economy?.marketSeed).toBe(marketSeedForSystem("g0-s7"));
-  await expect(page.locator('[data-field="credits"]')).toHaveText("100.0 ₢");
+  // New game on a corrupt save asks first, then clears it.
+  await page.click("#title-start");
+  await expect(page.locator("#title-confirm")).toBeVisible();
+  await page.click("#title-confirm-accept");
+  await page.waitForFunction(
+    () => window.__wegolite?.save?.status === "absent",
+    undefined,
+    { timeout: 60_000 },
+  );
+  await expect(page.locator("#docked")).toBeVisible();
+  expect(await readRaw(page)).toBeNull();
+  expect(await readRaw(page, CORRUPT_KEY)).toBe(older);
+
+  // Saving works again: the next autosave trigger commits a current-version blob.
+  const committedBefore = (await getProbe(page)).save?.committed ?? 0;
+  await launchAndAwaitCommit(page);
+  const after = await getProbe(page);
+  expect(after.save?.committed ?? 0).toBeGreaterThan(committedBefore);
+  const written = await readRaw(page);
+  expect(written).not.toBeNull();
+  const version = (JSON.parse(written ?? "{}") as Record<string, unknown>)[
+    "version"
+  ];
+  expect(version).toBe(SAVE_VERSION);
   expect(errors).toEqual([]);
 });
 

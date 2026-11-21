@@ -2,16 +2,19 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The save schema v4 contract (Phase 13, CBT-05; plan 13-06).
+ * The save schema v4 contract (Phase 13, CBT-05; plan 13-06) and the historical
+ * classification (Phase 19, D-11).
  *
  * v4 adds exactly one required field to v3: `laserMounts`, the laser fitted to
- * each of the four facings. The v3 to v4 bump is one ordered step in the chain
- * v1 -> v2 -> v3 -> v4. Expected values come from the Cobra's stock fit
- * (`forward_weapon_type = WEAPON_PULSE_LASER`, no other facing) and from the
- * decisions, never from running the code twice.
+ * each of the four facings. Since Phase 19 there is no migration: every
+ * checked-in historical save older than `SAVE_VERSION` is `corrupt`, and the
+ * goldens in `tests/golden/save/` are the real saves that prove it. Expected
+ * values come from the Cobra's stock fit (`forward_weapon_type =
+ * WEAPON_PULSE_LASER`, no other facing) and from the decisions, never from
+ * running the code twice.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -36,15 +39,9 @@ import {
   MAX_SAVE_STATION_KEY_CHARS,
   MAX_SAVE_SYSTEM_ID_CHARS,
   SAVE_VERSION,
-  SaveV1Schema,
-  SaveV2Schema,
-  SaveV3Schema,
   SaveV4Schema,
   encodeSave,
   isEncodedSaveValid,
-  migrateV1ToV2,
-  migrateV2ToV3,
-  migrateV3ToV4,
   parseSave,
 } from "../../src/persistence/save.js";
 import type { SaveAllowLists, SaveInputs } from "../../src/persistence/save.js";
@@ -190,24 +187,6 @@ const GOLDEN_ALLOW: SaveAllowLists = {
   ]),
 };
 
-/** The three v4 golden pairs: the inputs of the ordered chain and its output. */
-const GOLDEN_CHAINS = [
-  {
-    label: "Phase 4 v1 blob",
-    v1: "v1-phase4.json",
-    v2: "v2-from-v1-phase4.json",
-    v3: "v3-from-v1-phase4.json",
-    v4: "v4-from-v1-phase4.json",
-  },
-  {
-    label: "Phase 5 v1 blob with every optional field",
-    v1: "v1-phase5.json",
-    v2: "v2-from-v1-phase5.json",
-    v3: "v3-from-v1-phase5.json",
-    v4: "v4-from-v1-phase5.json",
-  },
-] as const;
-
 const STOCK_MOUNTS = {
   fore: "EQ_WEAPON_PULSE_LASER",
   aft: "EQ_WEAPON_NONE",
@@ -215,145 +194,56 @@ const STOCK_MOUNTS = {
   starboard: "EQ_WEAPON_NONE",
 } as const;
 
-// The three v4 goldens were generated ONCE, deliberately, from the migration
-// chain (v3 golden -> migrateV3ToV4) and reviewed by hand against the rule:
-// version 4, `laserMounts` = fore pulse and EQ_WEAPON_NONE elsewhere, and every
-// other field byte-for-byte as in the v3 golden. They are regression snapshots:
-// if one changes, reconcile the migration first, never the file.
-describe("the ordered chain v1 -> v2 -> v3 -> v4 against the checked-in goldens", () => {
-  for (const chain of GOLDEN_CHAINS) {
-    describe(chain.label, () => {
-      it("step v3 -> v4: the v3 golden migrates to the v4 golden", () => {
-        const v3 = SaveV3Schema.parse(JSON.parse(readGolden(chain.v3)));
-        expect(migrateV3ToV4(v3)).toStrictEqual(
-          JSON.parse(readGolden(chain.v4)),
-        );
-      });
+/** The directory of the checked-in historical saves, read and never edited. */
+const GOLDEN_DIR = new URL("../golden/save/", import.meta.url);
 
-      it("chain v1 -> v4: parseSave of the v1 blob is the v4 golden", () => {
-        const result = parseSave(readGolden(chain.v1), GOLDEN_ALLOW);
+/** Every checked-in golden with the `version` it carries. */
+function goldens(): ReadonlyArray<{
+  readonly name: string;
+  readonly version: number;
+}> {
+  return readdirSync(GOLDEN_DIR)
+    .filter((name) => name.endsWith(".json"))
+    .sort()
+    .map((name) => {
+      const parsed = JSON.parse(readGolden(name)) as Record<string, unknown>;
+      const version = parsed["version"];
+      if (typeof version !== "number") {
+        throw new Error(`golden ${name} has no numeric version`);
+      }
+      return { name, version };
+    });
+}
+
+// The eleven goldens are REGRESSION snapshots of real saves (the v1 shapes of
+// Phases 4 and 5, the captured v2 writer blob, and the v2 to v4 steps generated
+// once while the chain existed). They are read, never regenerated: with the
+// chain gone they are the rejection fixtures, and each blob stays byte for byte
+// what an older release wrote.
+describe("every historical save older than SAVE_VERSION is corrupt (D-11)", () => {
+  const all = goldens();
+
+  it("reads every golden, none is newer than the current version, and at least one is older (not vacuous)", () => {
+    expect(all.length).toBe(11);
+    expect(all.every((golden) => golden.version <= SAVE_VERSION)).toBe(true);
+    expect(
+      all.filter((golden) => golden.version < SAVE_VERSION).length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
+  for (const golden of all) {
+    const older = golden.version < SAVE_VERSION;
+    it(`${golden.name} (version ${String(golden.version)}) is ${older ? "corrupt, never unreadable" : "accepted"}`, () => {
+      const result = parseSave(readGolden(golden.name), GOLDEN_ALLOW);
+      if (older) {
+        expect(result).toEqual({ ok: false, reason: "corrupt" });
+      } else {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
-        expect(result.save.version).toBe(4);
-        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
-        // The chain is exactly the four ordered steps, none skipped.
-        const v1 = SaveV1Schema.parse(JSON.parse(readGolden(chain.v1)));
-        expect(result.save).toStrictEqual(
-          migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(v1))),
-        );
-      });
-
-      it("a v2 save loads: parseSave of the v2 golden is the v4 golden", () => {
-        const result = parseSave(readGolden(chain.v2), GOLDEN_ALLOW);
-        expect(result.ok).toBe(true);
-        if (!result.ok) return;
-        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
-        const v2 = SaveV2Schema.parse(JSON.parse(readGolden(chain.v2)));
-        expect(result.save).toStrictEqual(migrateV3ToV4(migrateV2ToV3(v2)));
-      });
-
-      it("a v3 save loads: parseSave of the v3 golden is the v4 golden", () => {
-        const result = parseSave(readGolden(chain.v3), GOLDEN_ALLOW);
-        expect(result.ok).toBe(true);
-        if (!result.ok) return;
-        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
-      });
-
-      it("the v4 golden itself parses as a v4 save", () => {
-        const result = parseSave(readGolden(chain.v4), GOLDEN_ALLOW);
-        expect(result.ok).toBe(true);
-        if (!result.ok) return;
-        expect(result.save).toStrictEqual(JSON.parse(readGolden(chain.v4)));
-        expect(result.save.laserMounts).toStrictEqual(STOCK_MOUNTS);
-      });
+        expect(result.save).toStrictEqual(JSON.parse(readGolden(golden.name)));
+      }
     });
   }
-
-  describe("captured v2 in-flight writer blob", () => {
-    const v2Name = "v2-phase10-inflight.json";
-    const v3Name = "v3-from-v2-phase10-inflight.json";
-    const v4Name = "v4-from-v2-phase10-inflight.json";
-
-    it("step v3 -> v4: the v3 golden migrates to the v4 golden", () => {
-      const v3 = SaveV3Schema.parse(JSON.parse(readGolden(v3Name)));
-      expect(migrateV3ToV4(v3)).toStrictEqual(JSON.parse(readGolden(v4Name)));
-    });
-
-    it("a v2 in-flight save loads: parseSave of the captured blob is the v4 golden", () => {
-      const result = parseSave(readGolden(v2Name), GOLDEN_ALLOW);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.save.version).toBe(4);
-      expect(result.save.mode).toBe("inFlight");
-      expect(result.save.laserMounts).toStrictEqual(STOCK_MOUNTS);
-      expect(result.save).toStrictEqual(JSON.parse(readGolden(v4Name)));
-    });
-
-    it("every non-laser field is carried unchanged from the v3 golden", () => {
-      const v3 = JSON.parse(readGolden(v3Name)) as Record<string, unknown>;
-      const v4 = JSON.parse(readGolden(v4Name)) as Record<string, unknown>;
-      expect(Object.keys(v4).sort()).toStrictEqual(
-        [...Object.keys(v3), "laserMounts"].sort(),
-      );
-      for (const key of Object.keys(v3)) {
-        if (key === "version") continue;
-        expect(v4[key]).toStrictEqual(v3[key]);
-      }
-      expect(v3["version"]).toBe(3);
-      expect(v4["version"]).toBe(4);
-    });
-  });
-});
-
-describe("the v3 to v4 step (defaults, no value gained or lost)", () => {
-  it("a migrated v3 save carries the same mounts a new game starts with", () => {
-    const v3 = SaveV3Schema.parse(
-      JSON.parse(readGolden("v3-from-v1-phase5.json")),
-    );
-    const migrated = migrateV3ToV4(v3);
-    expect(migrated.laserMounts).toStrictEqual(newProfile().laserMounts);
-    expect(migrated.laserMounts).toStrictEqual(STOCK_MOUNTS);
-    // Credits and every other field are unchanged.
-    expect(migrated.credits).toBe(v3.credits);
-    expect(migrated.equipment).toStrictEqual(v3.equipment);
-  });
-
-  it("restoring a migrated save gives the new-game mounts", () => {
-    const result = parseSave(
-      readGolden("v3-from-v2-phase10-inflight.json"),
-      GOLDEN_ALLOW,
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(profileFromSave(result.save).laserMounts).toStrictEqual(
-      newProfile().laserMounts,
-    );
-  });
-
-  it("migrateV3ToV4 never mutates its input, is deterministic and writes fresh mounts", () => {
-    const frozen = SaveV3Schema.parse(
-      JSON.parse(readGolden("v3-from-v1-phase4.json")),
-    );
-    const before = JSON.stringify(frozen);
-    const first = migrateV3ToV4(frozen);
-    const second = migrateV3ToV4(frozen);
-    expect(JSON.stringify(frozen)).toBe(before);
-    expect(first).toStrictEqual(second);
-    expect(first).not.toBe(second);
-    expect(first.laserMounts).not.toBe(second.laserMounts);
-    expect(first.laserMounts).not.toBe(DEFAULT_LASER_MOUNTS);
-    // The shared default is never handed out: mutating a copy cannot leak.
-    expect(Object.isFrozen(DEFAULT_LASER_MOUNTS)).toBe(true);
-  });
-
-  it("v3 stays frozen as version literal 3 and v4 is its own strict schema", () => {
-    const v3 = JSON.parse(readGolden("v3-from-v1-phase4.json")) as unknown;
-    const v4 = JSON.parse(readGolden("v4-from-v1-phase4.json")) as unknown;
-    expect(SaveV3Schema.safeParse(v3).success).toBe(true);
-    expect(SaveV3Schema.safeParse(v4).success).toBe(false);
-    expect(SaveV4Schema.safeParse(v4).success).toBe(true);
-    expect(SaveV4Schema.safeParse(v3).success).toBe(false);
-  });
 });
 
 /** A valid docked v4 blob as a plain record, for the edge tables. */
@@ -440,10 +330,22 @@ describe("v4 refusals (T-13-10, T-13-11): a forged mount is corrupt", () => {
     expect(parseOf(blob)).toEqual({ ok: false, reason: "corrupt" });
   });
 
-  it("a v3 blob carrying laserMounts is corrupt (v3 is frozen)", () => {
+  it("a blob that carries every current field under version 3 is corrupt (no silent re-labelling)", () => {
     expect(parseOf(validV4({ version: 3 }))).toEqual({
       ok: false,
       reason: "corrupt",
+    });
+  });
+
+  it("the boundary: version 3 is corrupt, SAVE_VERSION parses, SAVE_VERSION + 1 is future-version", () => {
+    expect(parseOf(validV4({ version: 3 }))).toEqual({
+      ok: false,
+      reason: "corrupt",
+    });
+    expect(parseOf(validV4({ version: SAVE_VERSION })).ok).toBe(true);
+    expect(parseOf(validV4({ version: SAVE_VERSION + 1 }))).toEqual({
+      ok: false,
+      reason: "future-version",
     });
   });
 

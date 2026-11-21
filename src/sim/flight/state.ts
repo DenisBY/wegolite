@@ -95,9 +95,9 @@ export interface FlightPose {
 
 /**
  * Oolite's `PLAYER_SHIP_CLOCK_START` (PlayerEntity.h): the floor the save
- * schemas accept for a saved clock (`src/persistence/save.ts`, `SaveV1Schema`
- * onwards), not the new-game start (see `NEW_GAME_CLOCK_SECONDS`). Oolite uses
- * it only as the fallback when a save carries no clock.
+ * schema accepts for a saved clock (`src/persistence/save.ts`), not the
+ * new-game start (see `NEW_GAME_CLOCK_SECONDS`). Oolite uses it only as the
+ * fallback when a save carries no clock.
  */
 export const CLOCK_START = 2_084_004 * 86_400;
 
