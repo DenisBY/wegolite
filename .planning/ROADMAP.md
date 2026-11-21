@@ -388,13 +388,13 @@ Plans:
 **Pitfalls to address**: 13 (equipment damage has no place in the save, F3 or the profile: atomic profile update test), 18 (the save schema: v5 is now an owner decision, with no migration because the game is alpha, and a worst-case size test), 22 (closed sets: router table, probe shape, HUD)
 **Decisions to settle**: which items can be damaged; whether the cargo-pod-loss branch that opens Oolite's `takeInternalDamage` roll is ported or recorded as a divergence (the requirements name equipment only, and the branch also shifts the odds of the equipment branch while the hold is full); the F3 repair row's copy; `ship_trade_in_factor` stays unpersisted (the research's lean)
 **Todos**: `2026-11-11-cargo-purchase-cost-basis-tracking.md` needs its own ordered bump after v5 and stays unscheduled
-**Plans**: 15 plans in 8 waves (owner answers of 2026-11-21 applied: D-05 factor 95, D-11 old saves `corrupt`, D-07/D-12 "Repair: X" is Oolite's own text; the save work is split in three after the plan check; the D-06 in-use tripwire moved out of 19-03 into 19-15 at the second plan check)
+**Plans**: 15 plans in 8 waves (owner answers of 2026-11-21 applied: D-05 factor 95, D-11 old saves `corrupt`, D-07/D-12 "Repair: X" is Oolite's own text; the save work is split in three after the plan check; the D-06 in-use tripwire moved out of 19-03 into 19-15 at the second plan check; the cross-AI review `19-REVIEWS.md` applied: 19-12 before 19-11, the internal-damage loop cap recorded as a divergence, the in-use tripwire pins its counts in `outfitting.ts`)
 
 Plans:
 **Wave 1**
 - [ ] 19-01-PLAN.md — CBT-08, CBT-12 (D-03): Oolite's per-item damage probability compiled into the equipment catalogue behind the strict schema, the golden and the drift gate
 - [ ] 19-02-PLAN.md — CBT-08 (D-01, D-02, D-04, D-05): the internal-damage roll as a pure module on its own stateless per-tick stream, the two damage events, the stream and factor-95 decisions, the hull-wear todo and tripwire
-- [ ] 19-06-PLAN.md — SAVE-09 (D-11): the save migration chain retired: only the current version is read, every older save is corrupt (Node and browser), the save suites on shared current-version builders
+- [ ] 19-06-PLAN.md — SAVE-09 (D-11): the save migration chain retired: only the current version is read, every older save is corrupt (Node and browser), the save suites on shared current-version builders, the dead alias tolerance deferred as a todo with its tripwire
 - [ ] 19-15-PLAN.md — CBT-08, CBT-12 (D-06): the in-use clauses Wegolite cannot exercise yet (autopilot, galactic jump, ANA) recorded in a todo, with a tripwire on their first consumer
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -411,16 +411,16 @@ Plans:
 - [ ] 19-10-PLAN.md — CBT-08, CBT-12 (D-01, D-07): the `damageFlow` subscriber's atomic commit, the router rows and Oolite's HUD messages
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 19-11-PLAN.md — CBT-08 (D-01, D-03): the per-step internal-damage facts from the live profile, so hits damage equipment in play
+- [ ] 19-12-PLAN.md — CBT-12 (D-07 to D-10): F3 "Repair: X" rows through the station controller, F5 "(damaged)" first, the `?test=1` grant limited to the F3 set, the repair and F5 decision rows (before 19-11, so damage goes live only once it is shown and repairable)
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 19-12-PLAN.md — CBT-12 (D-07 to D-10): F3 "Repair: X" rows through the station controller, F5 "(damaged)" first, the repair decision row
+- [ ] 19-11-PLAN.md — CBT-08 (D-01, D-03): the per-step internal-damage facts from the live profile, so hits damage equipment in play
 
 **Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 19-13-PLAN.md — CBT-08 (criterion 5): the hook-spawned fight in the Node twin and the browser: the enemy dies with its debris, the player leaves with a damaged item
 
 **Wave 8** *(blocked on Wave 7 completion)*
-- [ ] 19-14-PLAN.md — phase close (D-05, D-07, D-12): FIDELITY rows E-154 to E-165, the reviewers' agreement recorded on every new divergence row, the station-palette decision row (the F3 repair row's colour), the divergence-rule outcome corrected for "Repair: X", `verify-full` (automatic phase gate)
+- [ ] 19-14-PLAN.md — phase close (D-05, D-07, D-12): FIDELITY rows E-154 to E-170, the reviewers' agreement recorded on every new divergence row, the station-palette decision row (the F3 repair row's colour), the divergence-rule outcome corrected for "Repair: X", `verify-full` (automatic phase gate)
 **UI hint**: yes
 
 ### Phase 20: Player Death and Game Over
