@@ -84,6 +84,7 @@ const equipment = compileEquipment(parseOpenStep(source, PLIST));
 interface EquipmentFixtureEntry {
   readonly techLevel: number;
   readonly price: number;
+  readonly damageProbability: number;
 }
 
 interface EquipmentFixture {
@@ -227,9 +228,99 @@ describe("equipment damage probability tracer (D-03)", () => {
   });
 });
 
+describe("equipment damage probability rule (D-03)", () => {
+  /** One synthetic entry; `extra` is the body of its conditions dictionary. */
+  function compileOne(key: string, extra: string): Equipment {
+    const [record] = compileEquipment(
+      parseOpenStep(
+        `(
+          ( 1, 2, "Foo", "${key}", "A synthetic item.", { ${extra} } )
+        )`,
+        "synthetic.plist",
+      ),
+    );
+    if (record === undefined) throw new Error("no equipment emitted");
+    return record;
+  }
+
+  it("keeps the four F3 damageable items at 1 and the seven authored zeros at 0", () => {
+    for (const key of [
+      "EQ_DOCK_COMP",
+      "EQ_GAL_DRIVE",
+      "EQ_ADVANCED_COMPASS",
+      "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+    ]) {
+      expect(require(key).damageProbability).toBe(1);
+    }
+    const zeros = [
+      "EQ_MISSILE",
+      "EQ_CARGO_BAY",
+      "EQ_TRUMBLE",
+      "EQ_PASSENGER_BERTH",
+      "EQ_HARDENED_MISSILE",
+      "EQ_QC_MINE",
+      "EQ_OOLITE_TUTORIAL_CONTROLS",
+    ];
+    for (const key of zeros) expect(require(key).damageProbability).toBe(0);
+    expect(
+      equipment
+        .filter((record) => record.damageProbability === 0)
+        .map((record) => record.key)
+        .sort(),
+    ).toEqual([...zeros].sort());
+    // Lasers are never in `profile.equipment`; Oolite's data leaves them at 1.
+    for (const record of equipment.filter((item) =>
+      item.key.startsWith("EQ_WEAPON_"),
+    )) {
+      expect(record.damageProbability).toBe(1);
+    }
+  });
+
+  it("treats a _MISSILE or _MINE key as a missile or mine unless is_external_store says no", () => {
+    expect(
+      compileOne("EQ_FOO_MISSILE", "damage_probability = 0.5;")
+        .damageProbability,
+    ).toBe(0);
+    expect(
+      compileOne("EQ_FOO_MISSILE", "is_external_store = no;").damageProbability,
+    ).toBe(1);
+    expect(compileOne("EQ_FOO_MINE", "").damageProbability).toBe(0);
+    expect(
+      compileOne("EQ_FOO", "is_external_store = yes;").damageProbability,
+    ).toBe(0);
+    expect(
+      compileOne("EQ_FOO", 'is_external_store = "TRUE";').damageProbability,
+    ).toBe(0);
+    expect(
+      compileOne("EQ_FOO", "is_external_store = 0;").damageProbability,
+    ).toBe(1);
+  });
+
+  it("uses the authored damage_probability, else 1", () => {
+    expect(
+      compileOne("EQ_FOO", "damage_probability = 0.25;").damageProbability,
+    ).toBe(0.25);
+    expect(compileOne("EQ_FOO", "").damageProbability).toBe(1);
+  });
+
+  it("fails closed with SCHEMA naming the entry on a malformed value", () => {
+    for (const [extra, construct] of [
+      ['damage_probability = "high";', "EQ_FOO.damage_probability"],
+      ["damage_probability = -1;", "EQ_FOO.damage_probability"],
+      ["is_external_store = maybe;", "EQ_FOO.is_external_store"],
+      ["is_external_store = 2;", "EQ_FOO.is_external_store"],
+    ] as const) {
+      const error = capture(() => compileOne("EQ_FOO", extra));
+      expect(error.code).toBe("SCHEMA");
+      expect(error.construct).toBe(construct);
+      expect(error.message).toMatch(/EQ_FOO/);
+    }
+  });
+});
+
 describe("equipment golden fixture", () => {
-  it("pins all 41 tech-level and price pairs", () => {
-    expect(equipmentFixture.version).toBe(1);
+  it("pins all 41 tech-level, price and damage-probability triples", () => {
+    expect(equipmentFixture.version).toBe(2);
     const fixtureKeys = Object.keys(equipmentFixture.entries).sort();
     expect(fixtureKeys).toHaveLength(41);
     expect(equipment.map((record) => record.key).sort()).toEqual(fixtureKeys);
@@ -241,6 +332,7 @@ describe("equipment golden fixture", () => {
       const record = require(key);
       expect(record.techLevel).toBe(expected.techLevel);
       expect(record.price).toBe(expected.price);
+      expect(record.damageProbability).toBe(expected.damageProbability);
       expect(record.priceUnit).toBe("decicredits");
     }
 
