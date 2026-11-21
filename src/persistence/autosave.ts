@@ -34,7 +34,7 @@ import type {
   SaveAllowLists,
   SaveCargoEntry,
   SaveInputs,
-  SaveV4,
+  SaveV5,
 } from "./save.js";
 import type { SaveStore, WriteResult } from "./store.js";
 
@@ -114,13 +114,14 @@ export function snapshotForSave(
   const mode = state.mode === "inFlight" ? "inFlight" : "docked";
 
   return {
-    // `SaveV4Schema.clockSeconds` is an integer; flight advances the clock by
+    // `SaveV5Schema.clockSeconds` is an integer; flight advances the clock by
     // `DT` (1/120), so a snapshot taken after any flight is fractional. Floor
     // it at the writer boundary: the save contract must never depend on how
     // long the player flew.
     clockSeconds: Math.floor(state.clockSeconds),
     credits: profile.credits,
     equipment: [...profile.equipment],
+    damagedEquipment: [...profile.damagedEquipment],
     cargo,
     fuel: profile.fuel,
     missiles: profile.missiles,
@@ -212,7 +213,7 @@ function effectiveCount(
  * counts and removed from the equipment list; the dump is canonical from then
  * on.
  */
-export function profileFromSave(save: SaveV4): PlayerProfile {
+export function profileFromSave(save: SaveV5): PlayerProfile {
   const equipment: string[] = [];
   let hasBerthAlias = false;
   let hasMissileAlias = false;
@@ -236,9 +237,8 @@ export function profileFromSave(save: SaveV4): PlayerProfile {
   return {
     credits: save.credits,
     equipment,
-    // A v4 save cannot record damage, so its restored profile has none; 19-08
-    // replaces this reader with the v5 one.
-    damagedEquipment: [],
+    // Damage order is kept (SAVE-09): the list is copied, never re-sorted.
+    damagedEquipment: [...save.damagedEquipment],
     cargo,
     fuel: save.fuel ?? NEW_GAME_FUEL,
     missiles: effectiveCount(save.missiles, hasMissileAlias, NEW_GAME_MISSILES),
@@ -262,9 +262,9 @@ export function profileFromSave(save: SaveV4): PlayerProfile {
  * `mode === "launching"`, so this preserves the saved producer exactly.
  */
 export function restoreFromSave(
-  save: SaveV4,
+  save: SaveV5,
   layout: SystemLayout,
-  profileFactory: (save: SaveV4) => PlayerProfile,
+  profileFactory: (save: SaveV5) => PlayerProfile,
 ): RestoredGame {
   const state = initFlightState(layout);
   state.clockSeconds = save.clockSeconds;

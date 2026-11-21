@@ -13,10 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Breaking:** a save written by an older release (save format 1 to 3) is no
-  longer loaded. It is kept as a backup, Continue is not offered for it, and
-  New game starts a fresh commander with saving working again. Saves are no
-  longer migrated between formats.
+- **Breaking:** saves now use format 5, which records damaged equipment. A save
+  written by an older release (save format 1 to 4) is no longer loaded. It is
+  kept as a backup, Continue is not offered for it, and New game starts a fresh
+  commander with saving working again. Saves are no longer migrated between
+  formats.
 
 ## [0.7.0] - 2026-11-20
 

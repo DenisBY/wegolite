@@ -509,6 +509,7 @@ describe("encodeSave", () => {
       "cargo",
       "clockSeconds",
       "credits",
+      "damagedEquipment",
       "epoch",
       "equipment",
       "fuel",

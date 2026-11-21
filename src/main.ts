@@ -41,8 +41,8 @@ import { loadEquipment } from "./content/equipment.js";
 import { loadShipCatalogue } from "./content/ships.js";
 import { LAZY_GALAXY_COUNT, galaxy0 } from "./content/systems.js";
 import { createIndexedDbSaveStore } from "./persistence/idb-store.js";
-import { parseSave } from "./persistence/save.js";
-import type { SaveAllowLists, SaveV4 } from "./persistence/save.js";
+import { equipmentAllowLists, parseSave } from "./persistence/save.js";
+import type { SaveAllowLists, SaveV5 } from "./persistence/save.js";
 import type { SaveStatus } from "./persistence/store.js";
 import { createAssetCache } from "./render/asset-cache.js";
 import { applyViewport } from "./render/viewport.js";
@@ -174,9 +174,10 @@ if (!boot.ok) {
   // carry a dock subentity. A forged key can therefore never reach `findShip`.
   const saveStore = createIndexedDbSaveStore();
   let saveStatus: SaveStatus;
-  let bootSave: SaveV4 | undefined;
+  let bootSave: SaveV5 | undefined;
   let allowLists: SaveAllowLists = {
     equipment: new Set(),
+    damageableEquipment: new Set(),
     systems: new Set(),
     stations: new Set(),
     commodities: new Map(),
@@ -189,7 +190,9 @@ if (!boot.ok) {
       loadCommodities(),
     ]);
     allowLists = {
-      equipment: new Set(equipment.map((item) => item.key)),
+      // D-03: the keys play can put in a profile (the F3 set plus the read-mode
+      // aliases), and the one damageable set; never every catalogue key.
+      ...equipmentAllowLists(equipment),
       systems: new Set(galaxy0().map((system) => system.id)),
       stations: new Set(
         catalogue
@@ -224,8 +227,9 @@ if (!boot.ok) {
       } else if (parsed.reason === "corrupt") {
         saveStatus = "corrupt";
         // Exactly once, best effort, before the title: the copy is never read
-        // back and a failure must not block boot. `corrupt` is only returned
-        // for a provably v1-shaped blob, so the copy is bounded by the parser.
+        // back and a failure must not block boot. An older save version, or a
+        // current-version blob that breaks a schema or semantic rule, is
+        // `corrupt`; the copy is bounded by `boundCorruptBackup`.
         await saveStore.backupCorrupt(read.raw).catch(() => undefined);
       } else if (parsed.reason === "unreadable") {
         // Oversized, unparseable or unknown-shape blob: this build cannot

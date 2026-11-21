@@ -33,11 +33,12 @@ import {
   MAX_SAVE_EPOCH,
   MAX_SAVE_EQUIPMENT,
   MAX_SAVE_NEXT_ENTITY_ID,
+  SAVE_VERSION,
 } from "../../src/persistence/save.js";
 import type {
   SaveAllowLists,
   SaveInputs,
-  SaveV4,
+  SaveV5,
 } from "../../src/persistence/save.js";
 import {
   PlayerController,
@@ -93,6 +94,7 @@ const MARKET_GOODS = new Set(COMMODITIES.map((commodity) => commodity.key));
 
 const ALLOW: SaveAllowLists = {
   equipment: new Set(["EQ_DOCK_COMP"]),
+  damageableEquipment: new Set(["EQ_DOCK_COMP"]),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
   commodities: new Map([
@@ -145,6 +147,7 @@ const MAX_EQUIPMENT = maximumEquipment();
 
 const MAX_ALLOW: SaveAllowLists = {
   equipment: new Set(MAX_EQUIPMENT),
+  damageableEquipment: new Set(),
   systems: new Set(["g0-s7"]),
   stations: new Set(["coriolis-station"]),
   commodities: ALLOW.commodities,
@@ -350,8 +353,8 @@ describe("canonical snapshot and Phase 4 defaults", () => {
   });
 
   it("defaults a field-less Phase 4 blob to an empty hold and a fresh ship", () => {
-    const save: SaveV4 = {
-      version: 4,
+    const save: SaveV5 = {
+      version: SAVE_VERSION,
       laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
@@ -359,6 +362,7 @@ describe("canonical snapshot and Phase 4 defaults", () => {
       clockSeconds: CLOCK_START + 600,
       credits: 1000,
       equipment: [],
+      damagedEquipment: [],
       system: { id: "g0-s7" },
       station: { key: "coriolis-station" },
       marketSeed: SEED,
@@ -372,11 +376,12 @@ describe("canonical snapshot and Phase 4 defaults", () => {
     expect(profile.missiles).toBe(3);
     expect(profile.passengerBerths).toBe(0);
     expect(profile.equipment).toEqual([]);
+    expect(profile.damagedEquipment).toEqual([]);
   });
 
   it("folds one legacy alias into its count and drops it", () => {
-    const save: SaveV4 = {
-      version: 4,
+    const save: SaveV5 = {
+      version: SAVE_VERSION,
       laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
@@ -384,6 +389,7 @@ describe("canonical snapshot and Phase 4 defaults", () => {
       clockSeconds: CLOCK_START + 600,
       credits: 1000,
       equipment: ["EQ_DOCK_COMP", "EQ_MISSILE", "EQ_PASSENGER_BERTH"],
+      damagedEquipment: [],
       system: { id: "g0-s7" },
       station: { key: "coriolis-station" },
       marketSeed: SEED,
@@ -391,13 +397,14 @@ describe("canonical snapshot and Phase 4 defaults", () => {
     const profile = profileFromSave(save);
 
     expect(profile.equipment).toEqual(["EQ_DOCK_COMP"]);
+    expect(profile.damagedEquipment).toEqual([]);
     expect(profile.missiles).toBe(1);
     expect(profile.passengerBerths).toBe(1);
   });
 
   it("adds the alias to an explicit zero rather than replacing it", () => {
-    const save: SaveV4 = {
-      version: 4,
+    const save: SaveV5 = {
+      version: SAVE_VERSION,
       laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
@@ -405,6 +412,7 @@ describe("canonical snapshot and Phase 4 defaults", () => {
       clockSeconds: CLOCK_START + 600,
       credits: 1000,
       equipment: ["EQ_MISSILE", "EQ_PASSENGER_BERTH"],
+      damagedEquipment: [],
       missiles: 0,
       passengerBerths: 0,
       system: { id: "g0-s7" },
@@ -416,6 +424,7 @@ describe("canonical snapshot and Phase 4 defaults", () => {
     // The same rule the validator measures: never `max(count, 1)`.
     expect(profile.missiles).toBe(1);
     expect(profile.passengerBerths).toBe(1);
+    expect(profile.damagedEquipment).toEqual([]);
   });
 });
 
@@ -424,6 +433,7 @@ describe("writer bounds", () => {
     clockSeconds: CLOCK_START + MAX_SAVE_CLOCK_DELTA,
     credits: MAX_SAVE_CREDITS,
     equipment: MAX_EQUIPMENT,
+    damagedEquipment: [],
     cargo: [],
     fuel: 70,
     missiles: 3,
@@ -618,8 +628,8 @@ describe("revision ordering", () => {
 
 describe("restoreFromSave", () => {
   it("restores docked mode at the saved clock with a market snapshot", () => {
-    const save: SaveV4 = {
-      version: 4,
+    const save: SaveV5 = {
+      version: SAVE_VERSION,
       laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
@@ -627,6 +637,7 @@ describe("restoreFromSave", () => {
       clockSeconds: CLOCK_START + 660,
       credits: 5000,
       equipment: ["EQ_DOCK_COMP"],
+      damagedEquipment: [],
       system: { id: "g0-s7" },
       station: { key: "coriolis-station" },
       market: MARKET_SNAPSHOT,
@@ -641,13 +652,14 @@ describe("restoreFromSave", () => {
     expect(restored.state.position).toEqual(initFlightState(layout).position);
     expect(restored.profile.credits).toBe(5000);
     expect(restored.profile.equipment).toEqual(["EQ_DOCK_COMP"]);
+    expect(restored.profile.damagedEquipment).toEqual([]);
     expect(restored.market).toEqual(MARKET);
     expect(restored.marketSeed).toBeUndefined();
   });
 
   it("returns the persisted market seed when the blob carries one", () => {
-    const save: SaveV4 = {
-      version: 4,
+    const save: SaveV5 = {
+      version: SAVE_VERSION,
       laserMounts: DEFAULT_LASER_MOUNTS,
       epoch: 0,
       nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
@@ -655,6 +667,7 @@ describe("restoreFromSave", () => {
       clockSeconds: CLOCK_START + 660,
       credits: 5000,
       equipment: [],
+      damagedEquipment: [],
       marketSeed: SEED,
       system: { id: "g0-s7" },
       station: { key: "coriolis-station" },
@@ -663,6 +676,7 @@ describe("restoreFromSave", () => {
     const restored = restoreFromSave(save, layout, profileFromSave);
     expect(restored.marketSeed).toBe(SEED);
     expect(restored.market).toBeUndefined();
+    expect(restored.profile.damagedEquipment).toEqual([]);
   });
 });
 
