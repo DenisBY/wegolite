@@ -16,8 +16,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The outfitting screen (F3) offers "Repair: <item>" for a damaged item, at half
   the item's price, at a station one tech level below the one that sells it. The
   repair is fitted at once. An unaffordable repair is listed and says "Not
-  enough credits". (Equipment starts being damaged in combat with a later
-  change in this release.)
+  enough credits".
+- A hit that gets through your shields (a collision, or a test pilot's laser)
+  can now damage an installed item or destroy a cargo pod, as in Oolite, with
+  the HUD message (for example "Docking Computers damaged."). A damaged item
+  stops working (a damaged docking computer no longer docks you) until you
+  repair it at F3.
 
 ### Changed
 
