@@ -7,10 +7,10 @@ current_phase_name: Equipment Damage and Repair
 current_plan: Not started
 status: planning
 stopped_at: Phase 18 complete, ready to plan Phase 19
-last_updated: "2026-11-20T19:30:20.113Z"
+last_updated: "2026-11-21T07:54:24.969Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 18 complete, transitioned to Phase 19
-state_head: 8edca56af762dd0da19548675b96a3fbfed821b2
+state_head: 41550f676dc7f30ff86fafba6e3d404d7fc302ad
 progress:
   total_phases: 6
   completed_phases: 4
@@ -711,6 +711,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261119-i9g | NPC laser shots use the ship's shipdata laser_color (Viper fires magenta), weapon colour as fallback | 2026-11-19 | df27cca | [261119-i9g-npc-laser-shots-use-the-ship-s-laser-col](./quick/261119-i9g-npc-laser-shots-use-the-ship-s-laser-col/) |
 | 60 | Make codebase-memory guidance conditional; list recommended agent tooling in README | 2026-11-19 | 70f9370 | — |
 | 61 | Raise the e2e waits that span the first launch (FIRST_LAUNCH_WAIT_MS) so the sharded GitHub Chromium run passes | 2026-11-20 | 8edca56 | — |
+| 62 | Give the remaining first-launch e2e waits FIRST_LAUNCH_WAIT_MS and widen the core-loop arrival wait | 2026-11-21 | 41550f6 | — |
 
 ## Deferred Items
 
