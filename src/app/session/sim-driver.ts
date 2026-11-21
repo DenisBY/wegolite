@@ -36,6 +36,7 @@
 
 import type { System } from "../../content/types.js";
 import type { KeyboardInputSource } from "../../input/keyboard.js";
+import type { InternalDamageFacts } from "../../sim/combat/internal-damage.js";
 import type { Command } from "../../sim/commands.js";
 import type {
   PlayerController,
@@ -51,7 +52,7 @@ import { mapHyperspaceBeginEdges } from "../hyperspace-commands.js";
 import type { LaunchSequence } from "../launch-sequence.js";
 import type { SessionState } from "./context.js";
 import type { EventRouter } from "./event-router.js";
-import { buildStepOptions } from "./step-options.js";
+import { buildStepOptions, internalDamageFactsFor } from "./step-options.js";
 
 /** What the driver calls outside the session context. */
 export interface SimDriverDeps {
@@ -132,6 +133,39 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
   } = deps;
 
   /**
+   * The player's internal-damage facts for the step (CBT-08, D-01, D-03), cached
+   * on the session core and rebuilt only when the profile, the equipment
+   * catalogue or the commodities object changes (the `equipmentSet()` pattern;
+   * the step runs at 120 Hz). Undefined until both catalogues are loaded, so no
+   * roll happens and no probability is ever guessed.
+   */
+  function internalDamageFacts(): InternalDamageFacts | undefined {
+    const { profile, equipmentCatalogue, commodities } = ctx.core;
+    if (equipmentCatalogue === undefined || commodities === undefined) {
+      return undefined;
+    }
+    const key = ctx.core.internalDamageKey;
+    if (
+      key === undefined ||
+      key.profile !== profile ||
+      key.catalogue !== equipmentCatalogue ||
+      key.commodities !== commodities
+    ) {
+      ctx.core.internalDamageKey = {
+        profile,
+        catalogue: equipmentCatalogue,
+        commodities,
+      };
+      ctx.core.internalDamageCache = internalDamageFactsFor(
+        profile,
+        equipmentCatalogue,
+        commodities,
+      );
+    }
+    return ctx.core.internalDamageCache;
+  }
+
+  /**
    * One fixed step. A jump can commit mid-frame, so the state, the layout, the
    * config and the system are read live for every step after a swap (never a
    * frame-captured origin).
@@ -156,6 +190,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
     const intent = controller.update(flightView(liveState), frameInput);
     // Ownership travels beside the command, never inside it: one read-only
     // set per step, derived from the profile (T-04-19).
+    const internalDamage = internalDamageFacts();
     const stepOptions = buildStepOptions({
       fuel: ctx.core.profile.fuel,
       system: ctx.core.system,
@@ -185,6 +220,9 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       ...(ctx.core.npcTraffic?.debris === undefined
         ? {}
         : { debris: ctx.core.npcTraffic.debris }),
+      // The player's internal-damage facts (CBT-08), present only with both
+      // catalogues loaded; omitted otherwise (no roll).
+      ...(internalDamage === undefined ? {} : { internalDamage }),
     });
     // The one integration point (D-14): the world is read live on every step,
     // so a launch in one step creates the world the next step runs.
