@@ -18,7 +18,11 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
-import { getProbe, waitForReady } from "./helpers/probe.js";
+import {
+  FIRST_LAUNCH_WAIT_MS,
+  getProbe,
+  waitForReady,
+} from "./helpers/probe.js";
 import { chartScreenPoint, systemByName } from "./helpers/chart.js";
 import { readRaw } from "./helpers/save-store.js";
 import { startNewGame } from "./helpers/title.js";
@@ -56,7 +60,7 @@ async function waitForMode(page: Page, mode: string): Promise<void> {
       );
     },
     mode,
-    { timeout: 60_000 },
+    { timeout: FIRST_LAUNCH_WAIT_MS },
   );
 }
 
@@ -200,7 +204,9 @@ test("chart target, countdown, abort, refusal, arrival and reload", async ({
   // at-least-360-frame countdown, at no more than 5 fixed steps of 1/120 s per
   // rendered frame) used 71 % of 600 s on CI (426 s), above the owner's 60 %
   // rule. The file-level 600 s budget stays for the other tests.
-  test.setTimeout(1_200_000);
+  // The old 1,140 s non-launch budget plus the first-launch wait (quick
+  // 261121-bjl; CI run 44812771006 timed out at the 60 s launch wait).
+  test.setTimeout(1_140_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await page.goto("/");
   await waitForReady(page);
@@ -614,6 +620,9 @@ test("chart arrow keys select the system drawn in the pressed direction", async 
 test("a jump completed beside the station is refused as blocked", async ({
   page,
 }) => {
+  // The old 600 s file budget's 540 s non-launch part plus the first-launch
+  // wait (quick 261121-bjl).
+  test.setTimeout(540_000 + FIRST_LAUNCH_WAIT_MS);
   const errors = collectErrors(page);
   await page.goto("/");
   await waitForReady(page);

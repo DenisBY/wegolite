@@ -92,9 +92,9 @@ function scaled(milliseconds: number): number {
 /** The bound for one UI or probe wait, before scaling. */
 const UI_WAIT = scaled(30_000);
 
-// The old 1,140 s non-launch budget plus the first-launch wait (quick
-// 261120-ryc).
-test.setTimeout(scaled(1_140_000 + FIRST_LAUNCH_WAIT_MS));
+// The 1,140 s non-launch budget plus 180 s for the widened arrival wait (quick
+// 261121-bjl), plus the first-launch wait (quick 261120-ryc).
+test.setTimeout(scaled(1_320_000 + FIRST_LAUNCH_WAIT_MS));
 
 async function waitReady(page: Page): Promise<void> {
   await page.waitForFunction(
@@ -319,7 +319,10 @@ test("new game to launch to trade to hyperspace to dock to save and reload", asy
   await page.waitForFunction(
     (id) => window.__wegolite?.systemId === id,
     DISO_ID,
-    { timeout: scaled(180_000) },
+    // Frame-bound: the 15 s countdown needs at least 360 rendered frames; 360 s
+    // as in hyperspace.spec.ts and the autosave trigger matrix (quick
+    // 261121-bjl, CI run 44812771006).
+    { timeout: scaled(360_000) },
   );
   await waitForCommitted(page, 3);
 
