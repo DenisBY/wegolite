@@ -36,13 +36,19 @@ import {
   VISIBLE_EQUIPMENT_KEYS,
   applyFit,
   applyLaserFit,
+  applyRepair,
   checkFit,
   checkLaserFit,
+  checkRepair,
   fitPrice,
   isListedForPurchase,
   laserFitKey,
   laserPriceMap,
   parseLaserFitKey,
+  parseRepairFitKey,
+  repairFitKey,
+  repairPrice,
+  repairTechLevel,
 } from "../../../src/sim/player/outfitting.js";
 import type {
   FitContext,
@@ -1284,5 +1290,263 @@ describe("isListedForPurchase (Oolite equipmentAllowed)", () => {
     );
     expect(laser).toEqual({ ok: false, reason: "insufficientCredits" });
     expect(isListedForPurchase(laser)).toBe(true);
+  });
+});
+
+describe("the repair door (tracer, D-08 to D-10)", () => {
+  const damagedProfile = (overrides: Partial<PlayerProfile> = {}) =>
+    makeProfile({
+      credits: 10_000,
+      equipment: [],
+      damagedEquipment: ["EQ_DOCK_COMP"],
+      ...overrides,
+    });
+
+  it("repairs a damaged docking computer at raw tech level 8 for 7500", () => {
+    expect(parseRepairFitKey("EQ_DOCK_COMP@repair")).toBe("EQ_DOCK_COMP");
+    const profile = damagedProfile({ equipment: ["EQ_CARGO_BAY"] });
+    const ctx = makeContext({ techLevelRaw: 8 });
+    expect(checkRepair(profile, dockComputer, ctx)).toEqual({ ok: true });
+
+    const repaired = applyRepair(profile, dockComputer, ctx);
+    expect(repaired).not.toBe(profile);
+    expect(repaired.credits).toBe(2_500);
+    expect(repaired.equipment).toEqual(["EQ_CARGO_BAY", "EQ_DOCK_COMP"]);
+    expect(repaired.damagedEquipment).toEqual([]);
+    // The input is untouched.
+    expect(profile.damagedEquipment).toEqual(["EQ_DOCK_COMP"]);
+  });
+
+  it("refuses raw tech level 7 with the same object back", () => {
+    const profile = damagedProfile();
+    const ctx = makeContext({ techLevelRaw: 7 });
+    expect(checkRepair(profile, dockComputer, ctx)).toEqual({
+      ok: false,
+      reason: "techLevel",
+    });
+    expect(applyRepair(profile, dockComputer, ctx)).toBe(profile);
+  });
+
+  it("refuses a forged profile that holds the key in both lists", () => {
+    const profile = damagedProfile({ equipment: ["EQ_DOCK_COMP"] });
+    const ctx = makeContext({ techLevelRaw: 8 });
+    expect(checkRepair(profile, dockComputer, ctx)).toEqual({
+      ok: false,
+      reason: "owned",
+    });
+    expect(applyRepair(profile, dockComputer, ctx)).toBe(profile);
+  });
+
+  it("builds the row key and prices through the module helpers", () => {
+    expect(repairFitKey("EQ_DOCK_COMP")).toBe("EQ_DOCK_COMP@repair");
+    expect(repairPrice(dockComputer)).toBe(7_500);
+    expect(repairTechLevel(9)).toBe(8);
+  });
+});
+
+describe("the repair door (refusals, boundaries, prices)", () => {
+  const damaged = (keys: string[], credits = 1_000_000) =>
+    makeProfile({ credits, equipment: [], damagedEquipment: keys });
+  const ctxAt = (techLevelRaw: number) => makeContext({ techLevelRaw });
+
+  it("parses only exactly <REPAIRABLE key>@repair", () => {
+    for (const forged of [
+      "EQ_ECM@repair",
+      "EQ_CARGO_BAY@repair",
+      "EQ_WEAPON_PULSE_LASER@repair",
+      "EQ_DOCK_COMP",
+      "EQ_DOCK_COMP@fore",
+      "EQ_DOCK_COMP@repair@repair",
+      "@repair",
+      "repair",
+      "",
+      "__proto__@repair",
+      "constructor@repair",
+      "eq_dock_comp@repair",
+      "EQ_DOCK_COMP@Repair",
+    ]) {
+      expect(parseRepairFitKey(forged), forged).toBeNull();
+    }
+    for (const key of [
+      "EQ_DOCK_COMP",
+      "EQ_GAL_DRIVE",
+      "EQ_ADVANCED_COMPASS",
+      "EQ_ADVANCED_NAVIGATIONAL_ARRAY",
+    ] as const) {
+      expect(parseRepairFitKey(`${key}@repair`)).toBe(key);
+    }
+  });
+
+  it("refuses a key outside the allow-list as notOffered, even when forged damaged", () => {
+    const profile = damaged(["EQ_ECM", "EQ_CARGO_BAY", "EQ_MISSILE"]);
+    for (const key of [
+      "EQ_ECM",
+      "EQ_CARGO_BAY",
+      "EQ_MISSILE",
+      "EQ_WEAPON_PULSE_LASER",
+      "EQ_FUEL",
+    ]) {
+      const check = checkRepair(profile, item(key), ctxAt(15));
+      expect(check, key).toEqual({ ok: false, reason: "notOffered" });
+      expect(applyRepair(profile, item(key), ctxAt(15)), key).toBe(profile);
+    }
+  });
+
+  it("refuses an undamaged allow-listed key as notDamaged", () => {
+    const profile = damaged([]);
+    const check = checkRepair(profile, dockComputer, ctxAt(15));
+    expect(check).toEqual({ ok: false, reason: "notDamaged" });
+    expect(isListedForPurchase(check)).toBe(false);
+    expect(applyRepair(profile, dockComputer, ctxAt(15))).toBe(profile);
+    // An installed (not damaged) key is also notDamaged: the repair row is
+    // never offered for a working item.
+    const installed = makeProfile({ equipment: ["EQ_DOCK_COMP"] });
+    expect(checkRepair(installed, dockComputer, ctxAt(15))).toEqual({
+      ok: false,
+      reason: "notDamaged",
+    });
+  });
+
+  it("offers a repair one raw tech level below the buying requirement", () => {
+    const cases: readonly [Equipment, number][] = [
+      [dockComputer, 8],
+      [galDrive, 9],
+      [compass, 6],
+      [array, 5],
+    ];
+    for (const [record, raw] of cases) {
+      const profile = damaged([record.key]);
+      expect(checkRepair(profile, record, ctxAt(raw)), record.key).toEqual({
+        ok: true,
+      });
+      expect(checkRepair(profile, record, ctxAt(raw - 1)), record.key).toEqual({
+        ok: false,
+        reason: "techLevel",
+      });
+      expect(repairTechLevel(record.techLevel), record.key).toBe(raw);
+    }
+  });
+
+  it("keeps a tech requirement of 0 at 0 and refuses a malformed level", () => {
+    expect(repairTechLevel(0)).toBe(0);
+    const free = { ...dockComputer, techLevel: 0 };
+    const profile = damaged(["EQ_DOCK_COMP"]);
+    expect(checkRepair(profile, free, ctxAt(0))).toEqual({ ok: true });
+    for (const techLevel of [Number.NaN, 1.5, -1, Infinity]) {
+      expect(
+        checkRepair(profile, { ...dockComputer, techLevel }, ctxAt(15)),
+        String(techLevel),
+      ).toEqual({ ok: false, reason: "techLevel" });
+    }
+    for (const raw of [Number.NaN, 8.5, Infinity]) {
+      expect(
+        checkRepair(profile, dockComputer, ctxAt(raw)),
+        String(raw),
+      ).toEqual({ ok: false, reason: "techLevel" });
+    }
+  });
+
+  it("charges the exact credits boundary and keeps an unaffordable row listed", () => {
+    const exact = damaged(["EQ_DOCK_COMP"], 7_500);
+    const repaired = applyRepair(exact, dockComputer, ctxAt(8));
+    expect(repaired.credits).toBe(0);
+    expect(repaired.equipment).toEqual(["EQ_DOCK_COMP"]);
+
+    const short = damaged(["EQ_DOCK_COMP"], 7_499);
+    const check = checkRepair(short, dockComputer, ctxAt(8));
+    expect(check).toEqual({ ok: false, reason: "insufficientCredits" });
+    expect(isListedForPurchase(check)).toBe(true);
+    expect(applyRepair(short, dockComputer, ctxAt(8))).toBe(short);
+  });
+
+  it("reports the tech gate before the credits shortfall", () => {
+    const broke = damaged(["EQ_DOCK_COMP"], 0);
+    expect(checkRepair(broke, dockComputer, ctxAt(7))).toEqual({
+      ok: false,
+      reason: "techLevel",
+    });
+  });
+
+  it("refuses unsafe credits", () => {
+    for (const credits of [Number.NaN, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      const profile = damaged(["EQ_DOCK_COMP"], credits);
+      expect(
+        checkRepair(profile, dockComputer, ctxAt(8)),
+        String(credits),
+      ).toEqual({ ok: false, reason: "insufficientCredits" });
+      expect(applyRepair(profile, dockComputer, ctxAt(8))).toBe(profile);
+    }
+  });
+
+  it("prices the four compiled items at half the catalogue price", () => {
+    expect(repairPrice(dockComputer)).toBe(7_500);
+    expect(repairPrice(galDrive)).toBe(25_000);
+    expect(repairPrice(compass)).toBe(3_250);
+    expect(repairPrice(array)).toBe(11_250);
+  });
+
+  it("rounds an odd price up and repairs it for that amount", () => {
+    const odd = { ...dockComputer, price: 15_001 };
+    expect(repairPrice(odd)).toBe(7_501);
+    const profile = damaged(["EQ_DOCK_COMP"], 7_501);
+    const repaired = applyRepair(profile, odd, ctxAt(8));
+    expect(repaired.credits).toBe(0);
+    const short = damaged(["EQ_DOCK_COMP"], 7_500);
+    expect(applyRepair(short, odd, ctxAt(8))).toBe(short);
+  });
+
+  it("refuses NaN, fractional, zero and oversized prices as invalidPrice", () => {
+    const profile = damaged(["EQ_DOCK_COMP"]);
+    for (const price of [Number.NaN, 1.5, 0, -2, 1e9 + 1, Infinity]) {
+      const forged = { ...dockComputer, price };
+      expect(repairPrice(forged), String(price)).toBe(0);
+      expect(checkRepair(profile, forged, ctxAt(15)), String(price)).toEqual({
+        ok: false,
+        reason: "invalidPrice",
+      });
+      expect(applyRepair(profile, forged, ctxAt(15))).toBe(profile);
+    }
+  });
+
+  it("leaves every field but credits, equipment and damagedEquipment alone", () => {
+    const profile = makeProfile({
+      credits: 50_000,
+      equipment: ["EQ_CARGO_BAY"],
+      damagedEquipment: ["EQ_GAL_DRIVE", "EQ_DOCK_COMP"],
+      fuel: 33,
+      missiles: 2,
+      passengerBerths: 3,
+    });
+    const repaired = applyRepair(profile, dockComputer, ctxAt(8));
+    const { credits, equipment, damagedEquipment } = repaired;
+    expect({
+      ...repaired,
+      credits: 0,
+      equipment: [],
+      damagedEquipment: [],
+    }).toEqual({ ...profile, credits: 0, equipment: [], damagedEquipment: [] });
+    expect(repaired.cargo).toBe(profile.cargo);
+    expect(repaired.laserMounts).toBe(profile.laserMounts);
+    expect(credits).toBe(42_500);
+    expect(equipment).toEqual(["EQ_CARGO_BAY", "EQ_DOCK_COMP"]);
+    // The other damaged item keeps its place.
+    expect(damagedEquipment).toEqual(["EQ_GAL_DRIVE"]);
+  });
+
+  it("repairs a second item after the first, each appended last", () => {
+    let profile = damaged(["EQ_DOCK_COMP", "EQ_GAL_DRIVE"]);
+    profile = applyRepair(profile, galDrive, ctxAt(9));
+    profile = applyRepair(profile, dockComputer, ctxAt(9));
+    expect(profile.equipment).toEqual(["EQ_GAL_DRIVE", "EQ_DOCK_COMP"]);
+    expect(profile.damagedEquipment).toEqual([]);
+    expect(profile.credits).toBe(1_000_000 - 25_000 - 7_500);
+  });
+
+  it("never offers the purchase row for a damaged item", () => {
+    const profile = damaged(["EQ_DOCK_COMP"]);
+    const check = checkFit(profile, dockComputer, ctxAt(11));
+    expect(check).toEqual({ ok: false, reason: "damaged" });
+    expect(isListedForPurchase(check)).toBe(false);
+    expect(applyFit(profile, dockComputer, ctxAt(11))).toBe(profile);
   });
 });
