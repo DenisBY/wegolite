@@ -193,10 +193,20 @@ export function resolveInternalDamage(
   // the `>= 0` is written out: a plain `-1 < 4` would damage an item where
   // Oolite damages none.
   const reversed = considered - (die + 1);
-  const damageable = work.items.length;
+  // `damageableCounter` and `damageableOdds` (`:6119-6126`) count only an item
+  // that `canBeDamaged` (`OOEquipmentType.m:512-520`: probability above 0; a
+  // missile or mine never reaches `profile.equipment`), so a zero-probability
+  // item such as `EQ_CARGO_BAY` adds neither a slot nor odds. The pick loop
+  // below still walks every item, as the C's does, and a 0 adds nothing to it.
+  let damageable = 0;
+  let odds = 0;
+  for (const item of work.items) {
+    if (item.damageProbability > 0) {
+      damageable += 1;
+      odds += item.damageProbability;
+    }
+  }
   if (reversed >= 0 && reversed < damageable) {
-    let odds = 0;
-    for (const item of work.items) odds += item.damageProbability;
     const target = draw() * odds;
     let accumulator = 0;
     for (let i = 0; i < work.items.length; i += 1) {

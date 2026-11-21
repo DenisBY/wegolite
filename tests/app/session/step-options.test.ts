@@ -21,7 +21,13 @@ import type { StepOptionsInput } from "../../../src/app/session/step-options.js"
 import { parseEquipment } from "../../../src/content/equipment.js";
 import { holdPods } from "../../../src/sim/economy/cargo.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
+import {
+  consideredCount,
+  internalDamageWork,
+  rollInternalDamage,
+} from "../../../src/sim/combat/internal-damage.js";
 import type { InternalDamageFacts } from "../../../src/sim/combat/internal-damage.js";
+import type { SimEvent } from "../../../src/sim/events.js";
 import { DAMAGEABLE_EQUIPMENT_KEYS } from "../../../src/sim/player/outfitting.js";
 import { newProfile } from "../../../src/sim/player/profile.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
@@ -68,7 +74,7 @@ describe("internalDamageFactsFor", () => {
     ]);
   });
 
-  it("gives a key the catalogue lacks probability 0 and keeps zero-probability keys listed", () => {
+  it("gives a key the catalogue lacks probability 0 and keeps zero-probability keys listed (they add no slot)", () => {
     const facts = internalDamageFactsFor(
       holding(["EQ_NOT_IN_THE_CATALOGUE", "EQ_CARGO_BAY"]),
       catalogue,
@@ -137,6 +143,47 @@ describe("internalDamageFactsFor", () => {
     expect([...damageable].sort()).toEqual(
       [...DAMAGEABLE_EQUIPMENT_KEYS].sort(),
     );
+  });
+
+  it("CR-01: the compiled bay is no damageable slot, so bay + docking computer is one slot", () => {
+    // Hand-derived from PlayerEntity.m:6099-6137: capacity 35, considered
+    // (35 + 21) * 95 / 100 = 53. Gate draw 0 passes at amount 32. A die of 51
+    // reverses to 53 - 52 = 1, and Oolite's damageableCounter is 1 (the bay's
+    // canBeDamaged is NO), so 1 < 1 fails: no pick draw, nothing damaged.
+    const roll = (equipment: readonly string[], die: number) => {
+      const facts = internalDamageFactsFor(
+        holding(equipment),
+        catalogue,
+        commodities,
+      );
+      expect(facts.capacityPods).toBe(35);
+      expect(consideredCount(facts.capacityPods)).toBe(53);
+      const queue = [0, (die + 0.5) / 53, 0.5];
+      let draws = 0;
+      const events: SimEvent[] = [];
+      rollInternalDamage(
+        32,
+        internalDamageWork(facts),
+        () => {
+          const value = queue[draws];
+          if (value === undefined) throw new Error("draw queue exhausted");
+          draws += 1;
+          return value;
+        },
+        events,
+      );
+      return { draws, events };
+    };
+    expect(roll(["EQ_CARGO_BAY", "EQ_DOCK_COMP"], 51)).toEqual({
+      draws: 2,
+      events: [],
+    });
+    expect(roll(["EQ_CARGO_BAY", "EQ_DOCK_COMP"], 52)).toEqual({
+      draws: 3,
+      events: [{ kind: "equipmentDamaged", key: "EQ_DOCK_COMP" }],
+    });
+    // The bay alone: no slot, so even reversed 0 draws no pick.
+    expect(roll(["EQ_CARGO_BAY"], 52)).toEqual({ draws: 2, events: [] });
   });
 });
 

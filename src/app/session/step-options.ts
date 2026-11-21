@@ -96,8 +96,11 @@ export interface StepOptionsInput {
  * derived from the live profile and the loaded catalogues.
  *
  * `items` follow `profile.equipment` order (Oolite's insertion order), each with
- * its compiled `damageProbability` (0 for a key the catalogue lacks; a key with
- * probability 0 stays listed, as it takes part in Oolite's pick sum).
+ * its compiled `damageProbability` (0 for a key the catalogue lacks). A key with
+ * probability 0 stays listed, as the pick walks every installed item in
+ * Oolite (`PlayerEntity.m:6130-6137`), but it adds nothing there and the roll
+ * counts it toward neither the damageable slots nor the odds (`:6119-6126`,
+ * `canBeDamaged`), so it never changes the roll.
  * `capacityPods` is Oolite's `maxAvailableCargoSpace` (`ShipEntity.m:7198-7201`),
  * the hold's capacity and not its free space. `pods` is `holdPods` of the hold.
  * Pure; never mutates the profile or the catalogues.

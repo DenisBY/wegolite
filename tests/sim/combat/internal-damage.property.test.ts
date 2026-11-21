@@ -145,6 +145,57 @@ describe("rollInternalDamage totality", () => {
     );
   });
 
+  it("a zero-probability item changes neither the events nor the draws (CR-01)", () => {
+    // Oolite's damageableCounter and damageableOdds count only `canBeDamaged`
+    // items (PlayerEntity.m:6119-6126), so dropping every sanitised
+    // zero-probability item from the work copy must leave the roll unchanged.
+    let withZeroItems = 0;
+    let withZeroItemsAndDamage = 0;
+    fc.assert(
+      fc.property(
+        factsArb,
+        fc.array(appliedArb, { minLength: 1, maxLength: 3 }),
+        fc.integer({ min: 0, max: 0xffffffff }),
+        (facts, hits, seed) => {
+          const run = (dropZero: boolean) => {
+            const work = internalDamageWork(facts);
+            if (dropZero) {
+              work.items = work.items.filter(
+                (entry) => entry.damageProbability > 0,
+              );
+            }
+            const stream = createRngState(seed);
+            let draws = 0;
+            const draw = (): number => {
+              draws += 1;
+              return rngNext(stream);
+            };
+            const events: SimEvent[] = [];
+            for (const applied of hits) {
+              rollInternalDamage(applied, work, draw, events);
+            }
+            return { events, draws, items: work.items.length };
+          };
+          const full = run(false);
+          const dropped = run(true);
+          expect(dropped.events).toEqual(full.events);
+          expect(dropped.draws).toBe(full.draws);
+          if (full.items !== dropped.items) {
+            withZeroItems += 1;
+            if (full.events.some((e) => e.kind === "equipmentDamaged")) {
+              withZeroItemsAndDamage += 1;
+            }
+          }
+        },
+      ),
+      { seed: 20261923, numRuns: 400 },
+    );
+    // Non-vacuous: the zero-probability items were present, and damage was
+    // dealt among them, in a meaningful share of the runs.
+    expect(withZeroItems).toBeGreaterThan(50);
+    expect(withZeroItemsAndDamage).toBeGreaterThan(5);
+  });
+
   it("makes at most 256 gate passes for any amount", () => {
     fc.assert(
       fc.property(

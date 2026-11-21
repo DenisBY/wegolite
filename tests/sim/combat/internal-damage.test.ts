@@ -376,7 +376,8 @@ describe("the weighted pick (PlayerEntity.m:6132-6142)", () => {
     ]);
   });
 
-  it("a zero-probability item counts toward the slots but is never picked", () => {
+  it("a zero-probability item is walked by the pick but never picked", () => {
+    // Odds 2 (the bay adds 0), target 0: the bay's accumulator 0 is not > 0.
     expect(pick(0)).toEqual([
       { kind: "equipmentDamaged", key: "EQ_DOCK_COMP" },
     ]);
@@ -402,12 +403,58 @@ describe("the weighted pick (PlayerEntity.m:6132-6142)", () => {
     expect(events).toEqual([{ kind: "equipmentDamaged", key: "EQ_GAL_DRIVE" }]);
   });
 
-  it("odds of 0 still draw the pick and damage nothing", () => {
+  it("odds of 0 make no damageable slot, so no pick is drawn", () => {
+    // `damageableCounter` counts only `canBeDamaged` items (:6119-6126): 0
+    // here, so reversed 0 < 0 fails and the pick draw is never made.
     const work = internalDamageWork(facts([item("EQ_A", 0)]));
     const events: SimEvent[] = [];
-    const source = scripted([0, dieDraw(37, 38), 0]);
+    const source = scripted([0, dieDraw(37, 38)]);
+    rollInternalDamage(32, work, source.draw, events);
+    expect(source.consumed()).toBe(2);
+    expect(events).toEqual([]);
+    expect(work.items).toHaveLength(1);
+  });
+});
+
+describe("the damageable slots count only canBeDamaged items (PlayerEntity.m:6119-6126)", () => {
+  // The bay has compiled probability 0, so `canBeDamaged` is NO
+  // (OOEquipmentType.m:512-520). Capacity 35 with the bay: considered
+  // (35 + 21) * 95 / 100 = 53. Gate draw 0 passes at amount 32 (one
+  // iteration); no pods, so the die never names cargo.
+  const withBay = (keys: readonly InternalDamageItem[]) =>
+    internalDamageWork(facts(keys, [], 35));
+
+  it("bay + docking computer: die 52 (reversed 0) picks the docking computer", () => {
+    expect(consideredCount(35)).toBe(53);
+    const work = withBay([item("EQ_CARGO_BAY", 0), item("EQ_DOCK_COMP", 1)]);
+    const events: SimEvent[] = [];
+    // Reversed 53 - 53 = 0 < 1 slot. Pick: target 0.5 * 1; bay 0, dock 1 > 0.5.
+    const source = scripted([0, dieDraw(52, 53), 0.5]);
     rollInternalDamage(32, work, source.draw, events);
     expect(source.consumed()).toBe(3);
+    expect(events).toEqual([{ kind: "equipmentDamaged", key: "EQ_DOCK_COMP" }]);
+  });
+
+  it("bay + docking computer: die 51 (reversed 1) is not below 1 slot, so no pick", () => {
+    const work = withBay([item("EQ_CARGO_BAY", 0), item("EQ_DOCK_COMP", 1)]);
+    const events: SimEvent[] = [];
+    // Reversed 53 - 52 = 1; Oolite's 1 < 1 is false (the bay is no slot).
+    const source = scripted([0, dieDraw(51, 53)]);
+    rollInternalDamage(32, work, source.draw, events);
+    expect(source.consumed()).toBe(2);
+    expect(events).toEqual([]);
+    expect(work.items.map((entry) => entry.key)).toEqual([
+      "EQ_CARGO_BAY",
+      "EQ_DOCK_COMP",
+    ]);
+  });
+
+  it("bay only: no slot at all, so even reversed 0 draws no pick", () => {
+    const work = withBay([item("EQ_CARGO_BAY", 0)]);
+    const events: SimEvent[] = [];
+    const source = scripted([0, dieDraw(52, 53)]);
+    rollInternalDamage(32, work, source.draw, events);
+    expect(source.consumed()).toBe(2);
     expect(events).toEqual([]);
     expect(work.items).toHaveLength(1);
   });
