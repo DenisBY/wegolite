@@ -49,9 +49,9 @@ export const PLAYER_INTERNAL_DAMAGE_FACTOR = 31;
 /**
  * Oolite's `ship_trade_in_factor` of a new ship (`PlayerEntity.m:1739`, load
  * default `:1063`). A constant here and never persisted: the cosmetic branch
- * that lowers it is not ported, and `EQ_RENOVATION` (which restores it to 100)
- * and the fuel-price effect are deferred together (D-05; Key Decisions, plan
- * 19-02).
+ * that lowers it is not ported, and `EQ_RENOVATION` (which raises it) and the
+ * fuel-price effect are deferred together (D-05; Key Decisions, plan 19-02;
+ * the todo and tripwire named in the file header).
  */
 export const SHIP_TRADE_IN_FACTOR = 95;
 
