@@ -15,7 +15,7 @@ updated: 2026-11-19T11:52:57Z
 ### 1. Owner decides the D-07 shot period against criterion 1's "the rate of fire is Oolite's"
 expected: Either accept D-07 (NPC beam and military fire every 12 ticks, about 8 % faster than literal Oolite's 13 frames at 120 Hz and than the player's 13), or switch npcRechargeTicks in src/sim/npc/fire.ts to the literal counts (60, 13, 301, 13) with one twin and browser re-pin
 result: issue
-reported: "вариант 2" (owner chose option 2: switch the NPC shot period to Oolite's literal frame counts 60/13/301/13; D-07 revised)
+reported: "option 2" (translated) (owner chose option 2: switch the NPC shot period to Oolite's literal frame counts 60/13/301/13; D-07 revised)
 severity: major
 
 ### 2. Owner reconciles criterion 2's "in a hook-spawned fight ... an NPC shot to zero energy by another is destroyed" with D-03
@@ -60,7 +60,7 @@ blocked: 0
   status: resolved
   resolved_by: 17-12-PLAN.md
   resolved_at: 2026-11-19
-  reason: "User reported: вариант 2 — owner chose to switch npcRechargeTicks from round(rate x 120) (60/12/300/12) to the literal counts (60/13/301/13), revising D-07"
+  reason: "User reported: option 2 — owner chose to switch npcRechargeTicks from round(rate x 120) (60/12/300/12) to the literal counts (60/13/301/13), revising D-07"
   severity: major
   test: 1
   root_cause: "Owner decision, not a defect: D-07 used round(weapon_recharge_rate x 120); Oolite compares the accumulated double shot_time against the float weapon_recharge_rate (ShipEntity.m:9946, ShipEntity.h:345), so beam/military fire on frame 13 and mining on 301 (17-01 derivation)"

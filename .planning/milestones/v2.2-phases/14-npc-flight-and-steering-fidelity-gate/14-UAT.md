@@ -14,7 +14,7 @@ updated: 2026-11-16T03:10:00Z
 
 ### 1. Owner ratifies or overturns the panel-answered checkpoints
 expected: Plan 14-17 (acceptance, option-continue) and plan 14-19 (report accepted; oracle = dev-only differential harness with source-cited traces as per-role fallback; OOLITE_SRC mount kept; IN-02 and IN-04 stay todos) confirmed or overturned by the owner.
-result: pass - owner ratified on 2026-11-16 ("все три согласились? тогда одобрено")
+result: pass - owner ratified on 2026-11-16 ("all three agreed? then approved" (translated))
 
 ### 2. Owner resolves or waives WINDOWS.md entry 3
 expected: The vacuous stage-A assertion at tests/acceptance/detectors.test.ts:164-177 is fixed through option (c) (commit with the Detector-change-approved-by-owner trailer plus a full 20-epoch rerun) or waived explicitly. The entry blocks /gsd-ship while open.

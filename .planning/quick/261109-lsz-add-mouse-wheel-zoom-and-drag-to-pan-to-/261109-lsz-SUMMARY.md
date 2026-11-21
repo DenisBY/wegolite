@@ -143,7 +143,7 @@ status: complete
 - Cause: `clampChartCamera` clamped the whole visible window inside `0..256` (`centre ∈ [span/2, 256 - span/2]`), so the vertical range shrank with zoom and collapsed at some levels; the wide viewport letterboxes x, which kept x visibly moving.
 - Fix: the centre now clamps to `0..256` on both axes and the view may overhang an edge, so an edge can be panned to the middle. The local preset now centres exactly on the current system (Lave `x=20`, not `40`).
 - Also added `·` separators to the chart key hint so the footer commands do not run together.
-- Unit and e2e expectations were updated. They were **not re-run** at the owner's request ("не запускай автоматические тесты"); manual re-check is pending.
+- Unit and e2e expectations were updated. They were **not re-run** at the owner's request ("do not run the automated tests", translated); manual re-check is pending.
 
 ## Known Stubs
 

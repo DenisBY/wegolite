@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sketch 001: Главный экран в доках (Варианты 1 и 2) и Фоны станции (А и Б)</title>
+  <title>Sketch 001: Main screen in the docks (Variants 1 and 2) and station backgrounds (A and B)</title>
   <link rel="stylesheet" href="../themes/default.css">
   <style>
     :root {
@@ -162,7 +162,7 @@
     }
 
     /* =========================================================================
-       STATION BACKGROUNDS (ФОН А & ФОН Б)
+       STATION BACKGROUNDS (BACKGROUND A & BACKGROUND B)
        ========================================================================= */
     #station-bg-layer {
       position: absolute;
@@ -172,7 +172,7 @@
       z-index: 1;
     }
 
-    /* ФОН А: 3D Oolite demoShipMode Canvas */
+    /* BACKGROUND A: 3D Oolite demoShipMode Canvas */
     #bg-canvas-3d {
       position: absolute;
       inset: 0;
@@ -187,7 +187,7 @@
       opacity: 1;
     }
 
-    /* ФОН Б: Procedural Vector/CSS Coriolis Docking Bay Hangar */
+    /* BACKGROUND B: Procedural Vector/CSS Coriolis Docking Bay Hangar */
     #bg-svg-hangar {
       position: absolute;
       inset: 0;
@@ -376,7 +376,7 @@
     }
 
     /* =========================================================================
-       ВАРИАНТ 1: ARRIVAL REPORT & SHIP BERTH DASHBOARD
+       VARIANT 1: ARRIVAL REPORT & SHIP BERTH DASHBOARD
        ========================================================================= */
     .home-variant {
       display: none;
@@ -663,7 +663,7 @@
     }
 
     /* =========================================================================
-       ВАРИАНТ 2: INTERACTIVE HANGAR BAY OVERVIEW (SCHEMATIC + CALLOUTS)
+       VARIANT 2: INTERACTIVE HANGAR BAY OVERVIEW (SCHEMATIC + CALLOUTS)
        ========================================================================= */
     .v2-workspace {
       display: grid;
@@ -932,25 +932,25 @@
   <!-- =========================================================================
        TOP SKETCH SWITCHER: 4 COMBINATIONS (1A, 1B, 2A, 2B) + SUB-CONTROLS
        ========================================================================= -->
-  <nav id="variant-nav" aria-label="Переключатель прототипов">
+  <nav id="variant-nav" aria-label="Prototype switcher">
     <div class="sketch-nav-group">
-      <span class="sketch-nav-label">Комбинации:</span>
+      <span class="sketch-nav-label">Combinations:</span>
       <button type="button" class="sketch-btn active" data-combo="1A">
-        [1A] Вариант 1 + Фон А (3D Cobra)
+        [1A] Variant 1 + Background A (3D Cobra)
       </button>
       <button type="button" class="sketch-btn" data-combo="1B">
-        [1B] Вариант 1 + Фон Б (SVG Ангар)
+        [1B] Variant 1 + Background B (SVG Hangar)
       </button>
       <button type="button" class="sketch-btn" data-combo="2A">
-        [2A] Вариант 2 + Фон А (3D + Выноски)
+        [2A] Variant 2 + Background A (3D + Callouts)
       </button>
       <button type="button" class="sketch-btn" data-combo="2B">
-        [2B] Вариант 2 + Фон Б (Чертёж CAD)
+        [2B] Variant 2 + Background B (CAD Blueprint)
       </button>
     </div>
 
     <div class="sketch-nav-group">
-      <span class="sketch-nav-label">3D-стиль (Фон А):</span>
+      <span class="sketch-nav-label">3D style (Background A):</span>
       <button type="button" class="sketch-btn active" data-render-mode="lit-wire">
         Hangar Lit + Wire
       </button>
@@ -962,7 +962,7 @@
       </button>
       <span class="sketch-divider"></span>
       <button type="button" class="sketch-btn" id="toggle-spin-btn">
-        ⟳ Вращение: ВКЛ
+        ⟳ Rotation: ON
       </button>
     </div>
   </nav>
@@ -973,13 +973,13 @@
   <div id="prototype-stage" data-bg="A" data-layout="1" data-render="lit-wire">
 
     <!-- =======================================================================
-         BACKGROUND LAYER: ФОН А (3D Canvas) & ФОН Б (SVG Coriolis Hangar)
+         BACKGROUND LAYER: BACKGROUND A (3D Canvas) & BACKGROUND B (SVG Coriolis Hangar)
          ======================================================================= -->
     <div id="station-bg-layer" aria-hidden="true">
-      <!-- ФОН А: Реальная 3D-геометрия Cobra Mk III из Oolite (cobra3_redux.dat) -->
+      <!-- BACKGROUND A: Real 3D geometry of the Cobra Mk III from Oolite (cobra3_redux.dat) -->
       <canvas id="bg-canvas-3d"></canvas>
 
-      <!-- ФОН Б: Векторный индустриальный ангар станции Coriolis (SVG + CSS) -->
+      <!-- BACKGROUND B: Vector industrial hangar of the Coriolis station (SVG + CSS) -->
       <div id="bg-svg-hangar">
         <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
           <defs>
@@ -1108,12 +1108,12 @@
       <div id="station-screen">
 
         <!-- ===================================================================
-             ВАРИАНТ 1: ARRIVAL REPORT & SHIP BERTH DASHBOARD
+             VARIANT 1: ARRIVAL REPORT & SHIP BERTH DASHBOARD
              =================================================================== -->
         <div id="variant-1-panel" class="home-variant">
 
           <div class="sketch-annotation">
-            <strong>Архитектура Варианта 1 («Arrival Report & Ship Berth»):</strong> Вместо нынешней пустой заглушки из 3 строк объединяет каноничный для Oolite <code>GUI_SCREEN_REPORT</code> (отчёт о прибытии, автосейв, сводка системы) с быстрым управлением кораблём в доке (дозаправка в 1 клик, трюм, рыночные подсказки) и оставляет центральное окно ангара открытым для Фона А (3D Cobra Mk III) или Фона Б (SVG-ангар).
+            <strong>Architecture of Variant 1 («Arrival Report & Ship Berth»):</strong> Instead of the current empty 3-line placeholder, it combines Oolite's canonical <code>GUI_SCREEN_REPORT</code> (arrival report, autosave, system summary) with quick ship controls in the dock (one-click refuel, cargo hold, market hints), and leaves the central hangar window open for Background A (3D Cobra Mk III) or Background B (SVG hangar).
           </div>
 
           <!-- Top Arrival Banner -->
@@ -1146,7 +1146,7 @@
                   <span>Witchspace Fuel</span>
                   <strong class="fuel-readout">5.6 / 7.0 LY</strong>
                 </div>
-                <div class="telemetry-bar" title="Жёлтая метка — расход на прыжок до выбранной цели">
+                <div class="telemetry-bar" title="Yellow marker: fuel use for the jump to the selected target">
                   <div class="telemetry-fill fuel-bar-fill" style="width: 80%;"></div>
                   <div class="telemetry-marker target-fuel-marker" style="left: 74.2%;"></div>
                 </div>
@@ -1203,7 +1203,7 @@
             </div>
 
             <!-- Center Column: Open Hangar Window (Lets Background A or B breathe) -->
-            <div class="v1-hangar-window" id="v1-drag-bay" title="Потяните мышью для поворота 3D-корабля (в Фоне А)">
+            <div class="v1-hangar-window" id="v1-drag-bay" title="Drag with the mouse to rotate the 3D ship (in Background A)">
               <div class="v1-window-top">
                 <span>BAY CAM 04 // COBRA MK III</span>
                 <span id="bay-cam-mode-label">3D DEMOSHIP FEED</span>
@@ -1217,7 +1217,7 @@
                 <div class="telemetry-row" style="font-size: 0.75rem; color: var(--color-text-secondary);">
                   <span id="v1-target-status">✓ Drive range sufficient (0.4 LY reserve)</span>
                   <button type="button" class="sketch-btn cycle-target-btn" style="padding: 0.1rem 0.45rem;">
-                    ◀ Сменить маяк ▶
+                    ◀ Change beacon ▶
                   </button>
                 </div>
               </div>
@@ -1287,12 +1287,12 @@
         </div>
 
         <!-- ===================================================================
-             ВАРИАНТ 2: HANGAR BAY OVERVIEW (INTERACTIVE BLUEPRINT & CALLOUTS)
+             VARIANT 2: HANGAR BAY OVERVIEW (INTERACTIVE BLUEPRINT & CALLOUTS)
              =================================================================== -->
         <div id="variant-2-panel" class="home-variant">
 
           <div class="sketch-annotation">
-            <strong>Архитектура Варианта 2 («Hangar Bay Overview / Interactive Blueprint»):</strong> Центральное место занимает сам корабль в ангаре с 4 интерактивными узлами-выносками (Witchspace Drive, Cargo Hold, Hardpoints/Avionics, Commander & Berth Log). В комбинации <strong>2A</strong> выноски динамически привязаны к 3D-вершинам вращающейся <code>Cobra Mk III</code>; в комбинации <strong>2B</strong> поверх ангара рисуется чертёж CAD в трёх проекциях. Клик по любому узлу переключает правый инспектор отсека.
+            <strong>Architecture of Variant 2 («Hangar Bay Overview / Interactive Blueprint»):</strong> The centre is the ship itself in the hangar, with 4 interactive callout nodes (Witchspace Drive, Cargo Hold, Hardpoints/Avionics, Commander & Berth Log). In combination <strong>2A</strong> the callouts are dynamically anchored to the 3D vertices of the rotating <code>Cobra Mk III</code>; in combination <strong>2B</strong> a CAD blueprint in three projections is drawn over the hangar. Clicking any node switches the right-hand bay inspector.
           </div>
 
           <div class="v2-workspace">
@@ -1390,7 +1390,7 @@
             </div>
 
             <!-- Right Subsystem Inspector Panel -->
-            <aside class="v2-inspector" aria-label="Инспектор выбранного узла корабля">
+            <aside class="v2-inspector" aria-label="Inspector for the selected ship node">
 
               <!-- Inspector 1: Witchspace Drive & Fuel -->
               <div class="inspector-section active" data-inspector="drive">
@@ -1499,7 +1499,7 @@
                 </div>
 
                 <p class="planet-blurb">
-                  Lave — богатая аграрная система: высокий спрос на <strong>Computers</strong> и <strong>Machinery</strong>, избыток дешёвых <strong>Liquor/Wines</strong> и <strong>Food</strong> для экспорта на Zaonce.
+                  Lave is a rich agricultural system: high demand for <strong>Computers</strong> and <strong>Machinery</strong>, a surplus of cheap <strong>Liquor/Wines</strong> and <strong>Food</strong> for export to Zaonce.
                 </p>
               </div>
 
@@ -1610,12 +1610,12 @@
        FLOATING SKETCH TOOLBAR (Theme Switcher + Annotations Toggle)
        ========================================================================= -->
   <div id="sketch-tools">
-    <span class="sketch-nav-label">Палитра:</span>
+    <span class="sketch-nav-label">Palette:</span>
     <button type="button" class="sketch-btn active" data-theme-pick="default">Phosphor Green</button>
     <button type="button" class="sketch-btn" data-theme-pick="amber">Amber CRT</button>
     <button type="button" class="sketch-btn" data-theme-pick="xenon">XenonUI Cyan</button>
     <span class="sketch-divider"></span>
-    <button type="button" class="sketch-btn active" id="toggle-notes-btn">Заметки: ВКЛ</button>
+    <button type="button" class="sketch-btn active" id="toggle-notes-btn">Notes: ON</button>
   </div>
 
   <!-- =========================================================================
@@ -1682,7 +1682,7 @@
           bayCamLabel.textContent = state.bg === "A" ? "3D DEMOSHIP FEED" : "STATIC BAY VECTOR";
         }
 
-        setStatus(`Активен прототип [${combo}]: Вариант ${state.layout} + Фон ${state.bg}.`);
+        setStatus(`Active prototype [${combo}]: Variant ${state.layout} + Background ${state.bg}.`);
       }
 
       comboButtons.forEach((btn) => {
@@ -1699,7 +1699,7 @@
           if (state.bg !== "A") {
             applyCombo(state.layout + "A");
           }
-          setStatus(`Режим 3D-рендера Фона А переключён на: ${btn.textContent.trim()}.`);
+          setStatus(`Background A 3D render mode switched to: ${btn.textContent.trim()}.`);
         });
       });
 
@@ -1707,7 +1707,7 @@
       const spinBtn = document.getElementById("toggle-spin-btn");
       spinBtn.addEventListener("click", () => {
         state.spinning = !state.spinning;
-        spinBtn.textContent = state.spinning ? "⟳ Вращение: ВКЛ" : "⏸ Вращение: ПАУЗА";
+        spinBtn.textContent = state.spinning ? "⟳ Rotation: ON" : "⏸ Rotation: PAUSED";
         spinBtn.classList.toggle("active", state.spinning);
       });
 
@@ -1774,14 +1774,14 @@
       function handleRefuel() {
         const needed = Math.max(0, state.maxFuel - state.fuel);
         if (needed < 0.05) {
-          setStatus("Топливный бак уже полон (7.0 LY).");
+          setStatus("Fuel tank is already full (7.0 LY).");
           return;
         }
         const cost = needed * 2.0;
         state.fuel = state.maxFuel;
         state.credits = Math.max(0, state.credits - cost);
         updateTelemetryUI();
-        setStatus(`Дозаправка завершена: 7.0 / 7.0 LY (-${cost.toFixed(1)} Cr). Гипердрайв готов к прыжку.`);
+        setStatus(`Refuel complete: 7.0 / 7.0 LY (-${cost.toFixed(1)} Cr). Hyperdrive ready for the jump.`);
       }
 
       document.querySelectorAll(".refuel-action-btn").forEach((btn) => {
@@ -1793,7 +1793,7 @@
           state.targetIdx = (state.targetIdx + 1) % state.targets.length;
           updateTelemetryUI();
           const t = state.targets[state.targetIdx];
-          setStatus(`Цель гиперпрыжка изменена: ${t.name} (${t.dist.toFixed(1)} LY, ${t.econ}).`);
+          setStatus(`Hyperjump target changed: ${t.name} (${t.dist.toFixed(1)} LY, ${t.econ}).`);
         });
       });
 
@@ -1802,7 +1802,7 @@
           state.targetIdx = Number(btn.dataset.targetIdx);
           updateTelemetryUI();
           const t = state.targets[state.targetIdx];
-          setStatus(`Цель гиперпрыжка изменена: ${t.name} (${t.dist.toFixed(1)} LY, ${t.econ}).`);
+          setStatus(`Hyperjump target changed: ${t.name} (${t.dist.toFixed(1)} LY, ${t.econ}).`);
         });
       });
 
@@ -1832,7 +1832,7 @@
           avionics: "[SYS-03] Hardpoints & Avionics",
           commander: "[SYS-04] Arrival Report & Pilot Log"
         };
-        setStatus(`Выбран узел корабля: ${names[nodeKey]}.`);
+        setStatus(`Ship node selected: ${names[nodeKey]}.`);
       }
 
       calloutNodes.forEach((btn) => {
@@ -1848,11 +1848,11 @@
             t.setAttribute("aria-selected", t.dataset.tab === targetTab ? "true" : "false");
           });
           if (targetTab === "launch") {
-            setStatus("🚀 Запрос на расстыковку со станцией Lave... [1] Launch triggered.");
+            setStatus("🚀 Undocking request from Lave station... [1] Launch triggered.");
           } else if (targetTab !== "home") {
-            setStatus(`Переход в раздел станции [${targetTab.toUpperCase()}]. Обратите внимание: Фон ${state.bg} и рамка терминала остаются общими для всех вкладок.`);
+            setStatus(`Switching to station section [${targetTab.toUpperCase()}]. Note: Background ${state.bg} and the terminal frame stay shared across all tabs.`);
           } else {
-            setStatus(`Возврат на главный экран дока (Вариант ${state.layout} + Фон ${state.bg}).`);
+            setStatus(`Returning to the main dock screen (Variant ${state.layout} + Background ${state.bg}).`);
           }
         });
       });
@@ -1877,7 +1877,7 @@
       notesBtn.addEventListener("click", () => {
         const active = document.body.classList.toggle("show-annotations");
         notesBtn.classList.toggle("active", active);
-        notesBtn.textContent = active ? "Заметки: ВКЛ" : "Заметки: ВЫКЛ";
+        notesBtn.textContent = active ? "Notes: ON" : "Notes: OFF";
       });
 
       // -----------------------------------------------------------------------

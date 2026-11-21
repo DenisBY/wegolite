@@ -111,7 +111,7 @@ NPC ships fire lasers at the player and at each other through Oolite's NPC fire 
 <specifics>
 ## Specific Ideas
 
-- Owner: "сейчас пользы нет, но мы потом не забудем это переделать?" ("there is no benefit now, but we won't forget to redo this later?"). A deferral needs a failing guard test and not only a todo (D-13).
+- Owner: "there is no benefit now, but we won't forget to redo this later?" (translated). A deferral needs a failing guard test and not only a todo (D-13).
 - The attacking-NPC hook variant exists so the owner can watch a real dogfight in UAT.
 
 </specifics>

@@ -60,7 +60,7 @@ The discussion was held in Russian; options are translated here.
 
 ## Carry-overs from Phases 15 and 16
 
-The first question set (mutual-kill credit, `shipHit` consumer, `shipTargetLost` narrowing) was paused by the owner, who asked: "сейчас пользы нет, но мы потом не забудем это переделать?" ("no benefit now, but won't we forget to redo it later?"). Claude proposed a guard test per deferral that fails at the first consumer and names a todo.
+The first question set (mutual-kill credit, `shipHit` consumer, `shipTargetLost` narrowing) was paused by the owner, who asked: "no benefit now, but won't we forget to redo it later?" (translated). Claude proposed a guard test per deferral that fails at the first consumer and names a todo.
 
 | Option | Description | Selected |
 |--------|-------------|----------|

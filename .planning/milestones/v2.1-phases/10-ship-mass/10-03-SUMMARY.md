@@ -44,9 +44,9 @@ Owner answers: coriolis-computed, buoy-client, criterion2-accept
 
 Date of the answer: 2026-11-14. The owner (speaking Russian) answered, verbatim:
 
-1. D-04 Coriolis mass: "давай computed" -> option id `coriolis-computed` (CORIOLIS_STATION_MASS = 515,483,904; blockage tests re-pinned to 7,100 m blocks and 7,300 m does not; CHANGELOG Changed entry; ROADMAP criterion 3 and the Key Decision wording amended).
-2. Buoy mass home (D-02 against D-05): "давай на клиенте" -> option id `buoy-client` (the `buoy` entry with its mass goes into ships-client.json; this amends D-05, recorded in PROJECT.md).
-3. Roadmap criterion 2 reading: "давай accept если потом легко поменять" -> option id `criterion2-accept`. Accepted on condition that it is easy to change later.
+1. D-04 Coriolis mass: "let's go with computed" (translated) -> option id `coriolis-computed` (CORIOLIS_STATION_MASS = 515,483,904; blockage tests re-pinned to 7,100 m blocks and 7,300 m does not; CHANGELOG Changed entry; ROADMAP criterion 3 and the Key Decision wording amended).
+2. Buoy mass home (D-02 against D-05): "let's do it on the client" (translated) -> option id `buoy-client` (the `buoy` entry with its mass goes into ships-client.json; this amends D-05, recorded in PROJECT.md).
+3. Roadmap criterion 2 reading: "let's accept if it is easy to change later" (translated) -> option id `criterion2-accept`. Accepted on condition that it is easy to change later.
 
 **Buoy id for plan 10-04: `buoy-client`.** Plan 10-04 adds the `buoy` entry, with its computed mass 698,691.1875, to ships-client.json.
 
