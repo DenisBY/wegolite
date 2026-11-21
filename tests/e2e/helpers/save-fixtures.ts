@@ -36,11 +36,34 @@ export interface FixturePose {
   readonly speed: number;
 }
 
-/** A docked save at the named galaxy-0 system, with a fresh starting profile. */
-export function dockedSaveAt(systemName: string): string {
+/**
+ * What a docked fixture may carry beyond the fresh starting profile (Phase 19,
+ * SAVE-09): the installed equipment and the damaged equipment, in damage order.
+ * Both go through the production `encodeSave`, so a fixture is never a blob the
+ * writer could not have written.
+ */
+export interface DockedSaveOptions {
+  readonly equipment?: readonly string[];
+  readonly damagedEquipment?: readonly string[];
+}
+
+/**
+ * A docked save at the named galaxy-0 system, with a fresh starting profile
+ * unless `options` fits or damages equipment.
+ */
+export function dockedSaveAt(
+  systemName: string,
+  options: DockedSaveOptions = {},
+): string {
   const system = systemByName(systemName);
   return encodeSave(
     saveInputs({
+      ...(options.equipment === undefined
+        ? {}
+        : { equipment: options.equipment }),
+      ...(options.damagedEquipment === undefined
+        ? {}
+        : { damagedEquipment: options.damagedEquipment }),
       marketSeed: marketSeedForSystem(system.id),
       systemId: system.id,
       stationKey: STATION_KEY,

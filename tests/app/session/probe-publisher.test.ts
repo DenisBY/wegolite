@@ -49,11 +49,16 @@ import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { stepFlight } from "../../../src/sim/flight/step.js";
 import { identity, length, rotate, sub, vec } from "../../../src/sim/math.js";
+import {
+  generateMarket,
+  marketSeedForSystem,
+} from "../../../src/sim/economy/market.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { commoditiesFixture } from "../../helpers/commodities.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
@@ -281,6 +286,40 @@ describe("syncEconomyProbe", () => {
     publisher.syncEconomyProbe();
     expect(probe.economy).toBeUndefined();
     expect(probe.station).toBeUndefined();
+  });
+
+  it("publishes the damaged equipment as a fresh copy of the profile's list (Phase 19, T-19-14)", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.marketSeed = marketSeedForSystem(system.id);
+    ctx.core.market = generateMarket(
+      system,
+      commoditiesFixture(),
+      ctx.core.marketSeed,
+    );
+    ctx.core.profile = {
+      ...ctx.core.profile,
+      damagedEquipment: ["EQ_DOCK_COMP", "EQ_GAL_DRIVE"],
+    };
+    publisher.syncEconomyProbe();
+    const published = probe.economy?.damagedEquipment;
+    expect(published).toEqual(["EQ_DOCK_COMP", "EQ_GAL_DRIVE"]);
+    expect(published).not.toBe(ctx.core.profile.damagedEquipment);
+
+    // Mutating the probe's array leaves the profile's list untouched.
+    published?.push("EQ_FORGED");
+    published?.shift();
+    expect(ctx.core.profile.damagedEquipment).toEqual([
+      "EQ_DOCK_COMP",
+      "EQ_GAL_DRIVE",
+    ]);
+
+    // An undamaged profile publishes an empty list, again a fresh array.
+    ctx.core.profile = { ...ctx.core.profile, damagedEquipment: [] };
+    publisher.syncEconomyProbe();
+    expect(probe.economy?.damagedEquipment).toEqual([]);
+    expect(probe.economy?.damagedEquipment).not.toBe(
+      ctx.core.profile.damagedEquipment,
+    );
   });
 });
 

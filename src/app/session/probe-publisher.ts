@@ -152,6 +152,7 @@ export function createProbePublisher(
         ctx.core.profile.passengerBerths,
       ),
       lastTrade: ctx.station.lastTrade,
+      damagedEquipment: [...ctx.core.profile.damagedEquipment],
     };
     probe.station = {
       open: ctx.core.state?.mode === "docked",
