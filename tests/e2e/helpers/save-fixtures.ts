@@ -4,24 +4,22 @@
 /**
  * Save fixtures for the budget scenes (QUAL-01, T-07-15).
  *
- * Each fixture is encoded by the production `encodeSave` and written through
- * `writeRaw`, so it passes the same strict boot reader a player's save does. The
- * fixtures never use the in-page test hook, so a session started from one can
- * still save and no taint path is exercised.
+ * Each fixture is the production `encodeSave` over the shared current-version
+ * `saveInputs` builder (`tests/helpers/save-builders.ts`), passing only the
+ * fields that differ from its defaults. A fixture is written through
+ * `writeRaw`, so it passes the same strict boot reader a player's save does, and
+ * a version bump changes the builder and not this file. The fixtures never use
+ * the in-page test hook, so a session started from one can still save and no
+ * taint path is exercised.
  *
- * The fixtures are new-game anchors, so their epoch is 0 and their counter is
- * the fresh-world 101; a v4 save written this way passes the strict boot reader.
+ * The fixtures are new-game anchors: epoch 0 and the fresh-world counter.
  */
 
-import {
-  FRESH_WORLD_NEXT_ENTITY_ID,
-  encodeSave,
-} from "../../../src/persistence/save.js";
+import { encodeSave } from "../../../src/persistence/save.js";
 import type { SaveFlightPose } from "../../../src/persistence/save.js";
-import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
-import { CLOCK_START } from "../../../src/sim/flight/state.js";
 
+import { saveInputs } from "../../helpers/save-builders.js";
 import { systemByName } from "./chart.js";
 
 /**
@@ -41,22 +39,13 @@ export interface FixturePose {
 /** A docked save at the named galaxy-0 system, with a fresh starting profile. */
 export function dockedSaveAt(systemName: string): string {
   const system = systemByName(systemName);
-  return encodeSave({
-    clockSeconds: CLOCK_START,
-    credits: 1000,
-    equipment: [],
-    cargo: [],
-    fuel: 70,
-    missiles: 0,
-    passengerBerths: 0,
-    mode: "docked",
-    marketSeed: marketSeedForSystem(system.id),
-    systemId: system.id,
-    stationKey: STATION_KEY,
-    epoch: 0,
-    nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
-    laserMounts: DEFAULT_LASER_MOUNTS,
-  });
+  return encodeSave(
+    saveInputs({
+      marketSeed: marketSeedForSystem(system.id),
+      systemId: system.id,
+      stationKey: STATION_KEY,
+    }),
+  );
 }
 
 /**
@@ -77,24 +66,16 @@ export function inFlightSaveAt(
     rollRate: 0,
     torus: false,
   };
-  return encodeSave({
-    clockSeconds: CLOCK_START,
-    credits: 1000,
-    equipment: [],
-    cargo: [],
-    fuel: 70,
-    missiles: 0,
-    passengerBerths: 0,
-    mode: "inFlight",
-    ...(targetName === undefined
-      ? {}
-      : { targetSystem: systemByName(targetName).id }),
-    marketSeed: marketSeedForSystem(system.id),
-    flight,
-    systemId: system.id,
-    stationKey: STATION_KEY,
-    epoch: 0,
-    nextEntityId: FRESH_WORLD_NEXT_ENTITY_ID,
-    laserMounts: DEFAULT_LASER_MOUNTS,
-  });
+  return encodeSave(
+    saveInputs({
+      mode: "inFlight",
+      ...(targetName === undefined
+        ? {}
+        : { targetSystem: systemByName(targetName).id }),
+      marketSeed: marketSeedForSystem(system.id),
+      flight,
+      systemId: system.id,
+      stationKey: STATION_KEY,
+    }),
+  );
 }

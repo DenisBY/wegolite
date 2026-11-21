@@ -23,7 +23,11 @@ import {
   CLOCK_START,
   NEW_GAME_CLOCK_SECONDS,
 } from "../../src/sim/flight/state.js";
-import { MAX_SAVE_CHARS, SAVE_VERSION } from "../../src/persistence/save.js";
+import {
+  MAX_SAVE_CHARS,
+  SAVE_VERSION,
+  parseSave,
+} from "../../src/persistence/save.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import {
   add,
@@ -50,6 +54,11 @@ import {
   readRaw,
   writeRaw,
 } from "./helpers/save-store.js";
+import {
+  MARKET_GOODS,
+  currentSave,
+  saveAllowLists,
+} from "../helpers/save-builders.js";
 
 // The in-flight tests run at the SwiftShader sim rate (about 0.15 to 0.3 of wall
 // time), so the budget is 600 s rather than 360 s. See hyperspace.spec.ts. The
@@ -869,7 +878,7 @@ test("a New game that fails to start leaves the committed save in place", async 
 test("a future-version blob is never cleared or replaced", async ({ page }) => {
   await boot(page);
   const future = JSON.stringify({
-    version: 5,
+    version: SAVE_VERSION + 1,
     mode: "docked",
     clockSeconds: CLOCK_START + 600,
     credits: 999_999,
@@ -965,21 +974,14 @@ test("a future-version blob is never cleared or replaced", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("a v1-shaped invalid blob is backed up once and never blocks boot", async ({
+test("an invalid current-version blob is backed up once and never blocks boot", async ({
   page,
 }) => {
   await boot(page);
   // `corrupt` is reserved for a blob that is provably this build's save family
-  // but fails its schema (negative credits here).
-  const corrupt = JSON.stringify({
-    version: 1,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: -1,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-  });
+  // but fails its schema (negative credits here, in a current-version blob
+  // that is otherwise valid).
+  const corrupt = JSON.stringify(currentSave({ credits: -1 }));
   await writeRaw(page, corrupt);
 
   const errors = collectErrors(page);
@@ -1099,9 +1101,10 @@ test("an oversized future-version blob is still recognised and untouched", async
   page,
 }) => {
   await boot(page);
-  // Version 5 appears in the first bytes; the rest is padding beyond the cap.
+  // The future version appears in the first bytes; the rest is padding beyond
+  // the cap.
   const future = `${JSON.stringify({
-    version: 5,
+    version: SAVE_VERSION + 1,
     mode: "docked",
     clockSeconds: CLOCK_START + 600,
     credits: 999_999,
@@ -1141,15 +1144,9 @@ test("duplicate equipment makes an otherwise valid blob corrupt", async ({
   page,
 }) => {
   await boot(page);
-  const duplicate = JSON.stringify({
-    version: 1,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: ["EQ_DOCK_COMP", "EQ_DOCK_COMP"],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-  });
+  const duplicate = JSON.stringify(
+    currentSave({ equipment: ["EQ_DOCK_COMP", "EQ_DOCK_COMP"] }),
+  );
   await writeRaw(page, duplicate);
 
   const errors = collectErrors(page);
@@ -1162,45 +1159,41 @@ test("duplicate equipment makes an otherwise valid blob corrupt", async ({
   expect(errors).toEqual([]);
 });
 
-test("a v2 blob with an unknown market good is corrupt and backed up", async ({
+test("a blob with an unknown market good is corrupt and backed up", async ({
   page,
 }) => {
   await boot(page);
   // Exactly the 17 market goods, with one key this build does not know: the
   // shared validator rejects it and the blob is backed up before any clear.
-  const keys = [
-    "food",
-    "textiles",
-    "radioactives",
-    "slaves",
-    "liquor_wines",
-    "luxuries",
-    "narcotics",
-    "computers",
-    "machinery",
-    "alloys",
-    "firearms",
-    "furs",
-    "minerals",
-    "gold",
-    "platinum",
-    "gem_stones",
-    "alien_items",
-  ];
-  const goods = keys.map((key, index) => ({
-    key: index === keys.length - 1 ? "unobtainium" : key,
-    price: 10 + index,
-    stock: index % 128,
-  }));
-  const corrupt = JSON.stringify({
-    version: 2,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-    market: { systemId: "g0-s7", seed: marketSeedForSystem("g0-s7"), goods },
+  const goodsWithLast = (last: string) =>
+    MARKET_GOODS.map((key, index) => ({
+      key: index === MARKET_GOODS.length - 1 ? last : key,
+      price: 10 + index,
+      stock: index % 128,
+    }));
+  // One seed encoding only: the snapshot, no `marketSeed` (the reader rejects a
+  // blob that carries both before it reaches the goods), so the unknown good is
+  // the decisive defect. `undefined` drops the builder's seed on stringify.
+  const withLast = (last: string): Record<string, unknown> =>
+    currentSave({
+      marketSeed: undefined,
+      market: {
+        systemId: "g0-s7",
+        seed: marketSeedForSystem("g0-s7"),
+        goods: goodsWithLast(last),
+      },
+    });
+  const corrupt = JSON.stringify(withLast("unobtainium"));
+  const written = JSON.parse(corrupt) as { market: { goods: unknown[] } };
+  expect(written).not.toHaveProperty("marketSeed");
+  expect(written.market.goods).toHaveLength(17);
+  // The control differs only in the last good being a known key and parses ok,
+  // so the refusal below cannot come from the seed encoding or the version.
+  const control = JSON.stringify(withLast("alien_items"));
+  expect(parseSave(control, saveAllowLists()).ok).toBe(true);
+  expect(parseSave(corrupt, saveAllowLists())).toEqual({
+    ok: false,
+    reason: "corrupt",
   });
   await writeRaw(page, corrupt);
 
@@ -1298,20 +1291,13 @@ test("an older save is corrupt: backed up once, not offered, and New game recove
   expect(errors).toEqual([]);
 });
 
-test("a v1 blob with 21 t of Food at Lave is corrupt, backed up and never offered", async ({
+test("a blob with 21 t of Food at Lave is corrupt, backed up and never offered", async ({
   page,
 }) => {
   await boot(page);
-  const overCapacity = JSON.stringify({
-    version: 1,
-    mode: "docked",
-    clockSeconds: CLOCK_START + 600,
-    credits: 1000,
-    equipment: [],
-    cargo: [{ key: "food", quantity: 21 }],
-    system: { id: "g0-s7" },
-    station: { key: "coriolis-station" },
-  });
+  const overCapacity = JSON.stringify(
+    currentSave({ cargo: [{ key: "food", quantity: 21 }] }),
+  );
   await writeRaw(page, overCapacity);
 
   const errors = collectErrors(page);

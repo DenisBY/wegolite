@@ -28,6 +28,7 @@ import {
   readRaw,
   writeRaw,
 } from "./helpers/save-store.js";
+import { SAVE_VERSION } from "../../src/persistence/save.js";
 import { formatClock } from "../../src/render/hud/format.js";
 import {
   add,
@@ -331,12 +332,12 @@ test("a manual Save writes the one committed slot and the next Save asks before 
     `Autosave · Lave · ${formatClock(first.save?.lastClock ?? 0)}`,
   );
 
-  // The manual blob is a canonical v4 docked save: one market snapshot, no
-  // second seed encoding, no pose, the epoch of a new game, the fresh-world
-  // counter and the Cobra's default laser mounts.
+  // The manual blob is a canonical current-version docked save: one market
+  // snapshot, no second seed encoding, no pose, the epoch of a new game, the
+  // fresh-world counter and the Cobra's default laser mounts.
   const manualRaw = await readRaw(page);
   const blob = decode(manualRaw);
-  expect(blob.version).toBe(4);
+  expect(blob.version).toBe(SAVE_VERSION);
   expect(blob.epoch).toBe(0);
   expect(blob.nextEntityId).toBe(101);
   expect(blob.mode).toBe("docked");
@@ -495,7 +496,10 @@ test("a future or unreadable slot is refused and never overwritten", async ({
 }) => {
   const errors = collectErrors(page);
   await boot(page);
-  const futureRaw = JSON.stringify({ version: 5, future: true });
+  const futureRaw = JSON.stringify({
+    version: SAVE_VERSION + 1,
+    future: true,
+  });
   await writeRaw(page, futureRaw);
 
   await page.reload();
@@ -656,7 +660,7 @@ test("an in-session Load of an in-flight save returns to flight with the station
   await startNewGame(page);
   await waitForDocked(page);
 
-  // Produce a real v2 docked blob, then rewrite only the mode/pose fields so
+  // Produce a real current-version docked blob, then rewrite only the mode/pose fields so
   // the save exercises the in-flight branch of the same parser/restore.
   await page.keyboard.press("F2");
   // The screen opens on the next loop frame, and S is a Save only once it is
@@ -829,7 +833,10 @@ test("a failed Load shows the reason and leaves the session and bytes untouched"
   expect(await readRaw(page)).toBe(corruptRaw);
 
   // A future-version blob is refused by the same classifier and kept.
-  const futureRaw = JSON.stringify({ version: 5, future: true });
+  const futureRaw = JSON.stringify({
+    version: SAVE_VERSION + 1,
+    future: true,
+  });
   await writeRaw(page, futureRaw);
   await page.keyboard.press("KeyL");
   await page.waitForFunction(
