@@ -28,6 +28,7 @@ import {
   readRaw,
   writeRaw,
 } from "./helpers/save-store.js";
+import { dockedSaveAt } from "./helpers/save-fixtures.js";
 import { SAVE_VERSION } from "../../src/persistence/save.js";
 import { formatClock } from "../../src/render/hud/format.js";
 import {
@@ -644,6 +645,87 @@ test("an in-session Load restores the saved docked session without reloading", a
   expect(reloaded.systemId).toBe(saved.system.id);
   expect(reloaded.economy?.market).toEqual(savedMarket);
   expect(await readRaw(page)).toBe(savedRaw);
+  expect(errors).toEqual([]);
+});
+
+test("a damaged item stays damaged after Continue and after an in-session Load", async ({
+  page,
+}) => {
+  // The fixtures are production `encodeSave` blobs written with `writeRaw`, and
+  // no `?test=1` hook is used, so the session stays untainted and can save
+  // (research Pitfall 8).
+  const damagedRaw = dockedSaveAt("Lave", {
+    damagedEquipment: ["EQ_DOCK_COMP"],
+  });
+  const errors = collectErrors(page);
+  await boot(page);
+
+  // Continue from a damaged save: the damaged key comes back damaged.
+  await writeRaw(page, damagedRaw);
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForDocked(page);
+  await page.waitForFunction(
+    () => window.__wegolite?.economy?.damagedEquipment !== undefined,
+    undefined,
+    { timeout: 30_000 },
+  );
+  const continued = await getProbe(page);
+  expect(continued.save?.status).toBe("valid");
+  expect(continued.economy?.damagedEquipment).toEqual(["EQ_DOCK_COMP"]);
+  expect(decode(damagedRaw).version).toBe(SAVE_VERSION);
+
+  // Load from a different state: a session continued from a save that has the
+  // docking computer installed and undamaged, so the Load is what damages it.
+  await page.reload();
+  await waitForReady(page);
+  await writeRaw(page, dockedSaveAt("Lave", { equipment: ["EQ_DOCK_COMP"] }));
+  await page.reload();
+  await waitForReady(page);
+  await expect(page.locator("#title-continue")).toBeVisible();
+  await page.click("#title-continue");
+  await waitForDocked(page);
+  await page.waitForFunction(
+    () => window.__wegolite?.economy?.damagedEquipment !== undefined,
+    undefined,
+    { timeout: 30_000 },
+  );
+  // The asserted precondition: nothing is damaged before the Load.
+  expect((await getProbe(page)).economy?.damagedEquipment).toEqual([]);
+
+  // A test-side write, not a hook call: the session stays untainted.
+  await writeRaw(page, damagedRaw);
+  await page.evaluate(() => {
+    (window as unknown as { __loadMarker?: string }).__loadMarker = "alive";
+  });
+  await page.keyboard.press("F2");
+  // L is a Load only once the screen is open (see the note on S above).
+  await expect(page.locator("#save-load")).toBeVisible();
+  await page.keyboard.press("KeyL");
+  await page.waitForFunction(
+    () => {
+      const damaged = window.__wegolite?.economy?.damagedEquipment;
+      return (
+        window.__wegolite?.mode === "docked" &&
+        damaged !== undefined &&
+        damaged.length === 1
+      );
+    },
+    undefined,
+    { timeout: 60_000 },
+  );
+  const loaded = await getProbe(page);
+  expect(loaded.economy?.damagedEquipment).toEqual(["EQ_DOCK_COMP"]);
+  expect(loaded.save?.status).toBe("valid");
+  // Load restores, it does not rewrite; and the page never reloaded.
+  expect(await readRaw(page)).toBe(damagedRaw);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __loadMarker?: string }).__loadMarker,
+    ),
+  ).toBe("alive");
   expect(errors).toEqual([]);
 });
 

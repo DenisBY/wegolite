@@ -152,6 +152,9 @@
         "record": []
       },
       "credits": "number",
+      "damagedEquipment": {
+        "[]": []
+      },
       "fuel": "number",
       "holdPods": "number",
       "lastTrade": "null",
@@ -369,6 +372,9 @@
         "record": []
       },
       "credits": "number",
+      "damagedEquipment": {
+        "[]": []
+      },
       "fuel": "number",
       "holdPods": "number",
       "lastTrade": "null",
@@ -586,6 +592,9 @@
         "record": []
       },
       "credits": "number",
+      "damagedEquipment": {
+        "[]": []
+      },
       "fuel": "number",
       "holdPods": "number",
       "lastTrade": "null",
@@ -803,6 +812,9 @@
         "record": []
       },
       "credits": "number",
+      "damagedEquipment": {
+        "[]": []
+      },
       "fuel": "number",
       "holdPods": "number",
       "lastTrade": "null",
@@ -1020,6 +1032,9 @@
         "record": []
       },
       "credits": "number",
+      "damagedEquipment": {
+        "[]": []
+      },
       "fuel": "number",
       "holdPods": "number",
       "lastTrade": "null",
@@ -1253,6 +1268,9 @@
         "record": []
       },
       "credits": "number",
+      "damagedEquipment": {
+        "[]": []
+      },
       "fuel": "number",
       "holdPods": "number",
       "lastTrade": "null",

@@ -208,6 +208,11 @@ export interface WegoliteEconomyProbe {
   capacityPods: number;
   /** The last accepted buy/sell/fit/removal, or null before the first one. */
   lastTrade: WegoliteLastTradeProbe | null;
+  /**
+   * The damaged equipment keys in damage order (Phase 19, SAVE-09): a copy of
+   * the profile's list, never an alias, so the page cannot mutate the profile.
+   */
+  damagedEquipment: string[];
 }
 
 /**
