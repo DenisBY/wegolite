@@ -77,7 +77,7 @@ export interface PlayerProfile {
 
 /** Why a purchase would be refused; the app maps each to fixed copy. */
 export type PurchaseRefusal =
-  "techLevel" | "owned" | "invalidPrice" | "insufficientCredits";
+  "techLevel" | "owned" | "damaged" | "invalidPrice" | "insufficientCredits";
 
 export type PurchaseCheck =
   | { readonly ok: true }
@@ -174,7 +174,8 @@ function isSafeCredits(credits: number): boolean {
  * Whether `profile` may buy `item` at a system whose **raw** tech level is
  * `techLevelRaw`.
  *
- * Check order matters: the tech-level gate is reported before affordability,
+ * A key in `damagedEquipment` is refused `damaged` right after `owned`. Check
+ * order matters: the tech-level gate is reported before affordability,
  * because that is the reason a player at Lave must see even when they are also
  * short of credits (T-04-43). The price is validated before any arithmetic, so
  * a `NaN` price cannot slip through a `credits < price` comparison
@@ -194,6 +195,11 @@ export function canPurchase(
   }
   if (profile.equipment.includes(item.key)) {
     return { ok: false, reason: "owned" };
+  }
+  // A damaged item is repaired, never bought again: the repair row replaces the
+  // purchase row, as in Oolite (`PlayerEntity.m:8403-8411`).
+  if (profile.damagedEquipment.includes(item.key)) {
+    return { ok: false, reason: "damaged" };
   }
   if (!isValidKey(item.key) || !isValidPrice(item.price)) {
     return { ok: false, reason: "invalidPrice" };

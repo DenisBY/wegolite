@@ -176,6 +176,7 @@ export type FitRefusal =
   | "fullFuel"
   | "invalidPrice"
   | "invalidCondition"
+  | "damaged"
   | "notDamaged";
 
 export type FitCheck =
@@ -199,6 +200,7 @@ const LISTED_REFUSALS: Readonly<Record<FitRefusal, boolean>> = Object.freeze({
   fullFuel: false,
   invalidPrice: false,
   invalidCondition: false,
+  damaged: false,
   notDamaged: false,
 });
 

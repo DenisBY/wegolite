@@ -130,6 +130,28 @@ describe("canPurchase", () => {
     });
   });
 
+  it("refuses a damaged item as damaged, after the tech gate and before the price", () => {
+    const damaged = makeProfile({
+      credits: 0,
+      damagedEquipment: ["EQ_DOCK_COMP"],
+    });
+
+    expect(canPurchase(damaged, dockComputer, 9)).toEqual({
+      ok: false,
+      reason: "damaged",
+    });
+    // The tech gate still comes first.
+    expect(canPurchase(damaged, dockComputer, 8)).toEqual({
+      ok: false,
+      reason: "techLevel",
+    });
+    // A damaged item with an invalid price is `damaged`, not `invalidPrice`.
+    expect(canPurchase(damaged, { ...dockComputer, price: 0 }, 9)).toEqual({
+      ok: false,
+      reason: "damaged",
+    });
+  });
+
   it("accredits exactly 15000 and refuses 14999", () => {
     expect(
       canPurchase(makeProfile({ credits: 15000 }), dockComputer, 9),
@@ -185,6 +207,14 @@ describe("purchase", () => {
     const forged = { ...dockComputer, price: 0 };
     const flush = makeProfile({ credits: 15000 });
     expect(purchase(flush, forged)).toBe(flush);
+  });
+
+  it("returns the same object for a damaged key, however rich the commander is", () => {
+    const damaged = makeProfile({
+      credits: 1_000_000,
+      damagedEquipment: ["EQ_DOCK_COMP"],
+    });
+    expect(purchase(damaged, dockComputer)).toBe(damaged);
   });
 
   it("never lets credits go negative or exceed a safe integer", () => {
