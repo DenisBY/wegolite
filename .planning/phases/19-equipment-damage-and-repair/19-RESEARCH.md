@@ -481,17 +481,23 @@ Recommended v5 contract:
 | A5 | New `damageFlow` subscriber is the right router shape | Pattern 6 | Lower-churn alternative exists; either satisfies Pitfall 22 |
 | A6 | Per-bank-hit odds and the ~40 % chance of equipment damage in the existing 672-tick fight (6 points a hit: gate 6/32; 4 damageable of 41) are derived arithmetic, not measured | CBT-08 scenario | The twin must pin an actual outcome by scanning, so a wrong estimate only changes the search effort |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **D-05's factor: 95 or 100?**
+   - RESOLVED: 95 (owner, 2026-11-21); recorded in 19-CONTEXT.md D-05.
    - Known: Oolite's new-ship value is 95 (`PlayerEntity.m:1739`, `:1063`); D-05 states 100 and justifies it as exact for the new-ship state.
    - Unclear: whether the owner wants "exact odds for a new ship" (95) or "pristine/never worn" (100).
    - Recommendation: implement 95 and tell the owner at plan review; if 100 is kept, the FIDELITY row must record the odds divergence with its Key Decisions row. This is the one place the research contradicts a locked decision's premise; treat as a confirmation checkpoint.
 2. **What does "rejected through the existing unreadable path" mean?** Known: code returns `corrupt` for an unsupported numeric version; `unreadable` disables saving for the session. Recommendation: `corrupt` (Pitfall 2); confirm in plan review.
+   - RESOLVED: `corrupt` (owner, 2026-11-21); recorded in 19-CONTEXT.md D-11; SAVE-09 and ROADMAP SC4 wording updated by plan 19-07.
 3. **D-06 clauses with no in-use state** (docking-computer disengage, galactic-jump abort, ANA chart). Recommendation: plan records "not applicable in Wegolite today", adds a guard test that a damaged item behaves as not installed for the two real consumers, and leaves a pointer for the milestone that adds autopilot/galactic jump/ANA.
+   - RESOLVED: recorded as not applicable today, with a todo and guard tests, in plan 19-15 (moved out of 19-03 at plan check iteration 2).
 4. **D-07/D-12 "space in Repair: X" is not a divergence.** Oolite's rendered row has the space (name wrapper `@" %@ "`, `PlayerEntity.m:8383`). Recommendation: no FIDELITY divergence row for it; only `(damaged)` (and D-05 if 100 is kept). Confirm with reviewers per the fidelity rule.
+   - RESOLVED: not a divergence (owner, 2026-11-21); recorded in 19-CONTEXT.md D-07/D-12.
 5. **Hook-spawned CBT-08 fight scenario.** Known: the existing shooter lands 6-point hits (gate 6/32 per bank hit); with all four damageable items granted and no bay `n_considered` is 41, so per roll P(equipment) = 4/41; the existing 672-tick fight pushes about 30 hits through the bank, so about a 40 % chance of at least one equipment damage. Recommendation: in the Node twin (`tick-parity.test.ts`) grant the four items through `hook.grantEquipment` (`probe.ts` test hook), and scan the spawn tick offset (the stream is keyed by tick) for a scenario that damages exactly one item and destroys the shooter; pin that offset and the damaged key as literals in both the twin and `combat.spec.ts`. Assert the shooter kill and debris counts unchanged from the existing debris twin.
+   - RESOLVED: Node-twin scan for the spawn delay, pinned as literals, with an escalation path if no delay qualifies; plan 19-13.
 6. **Probe exposure.** The probe has no equipment field today. Recommended additive `economy.damagedEquipment: string[]` (and `lastTrade.kind` "repair"), under an explicit sanction note and a `WEGOLITE_PROBE_SHAPE_WRITE=1` fixture write on the remote machine (Pitfall 22, `probe-shape.spec.ts` header). Lower-churn alternative: assert through the F5 DOM text after docking.
+   - RESOLVED: additive `economy.damagedEquipment` under a probe-shape sanction note; plan 19-09.
 
 ## Environment Availability
 

@@ -132,7 +132,7 @@ Ordering rules:
 - The save format moves once, in Phase 19 (v4 to v5, no migration: alpha, older saves are rejected; worst-case size test). Phase 20 never writes a save on death; the unscheduled cost-basis todo would need its own bump after v5.
 - Every phase that adds a hashed or saved field extends the existing sanitiser, the snapshot parser bounds (`src/sim/world/limits.ts` only) and the closed sets (router table, probe shape, HUD). New combat code sits outside AI fault containment, so each new sim function is total on malformed input and covered by a fast-check property.
 - Bulk verification is Vitest scenarios: at least 90 % of new behavioural assertions in every phase. Browser specs stay opt-in smoke or journey checks (the NPC-fire hook route, the debris draw-call budget, death-and-reload and the game-over guard), with traffic off by default.
-- Gate choice is AGENTS.md's, per plan: pure `src/sim/` plans need `test`, `lint` and `typecheck`; browser-facing code needs `verify`; render, input and persistence changes (Phases 16, 19 and 20) end with `verify-full` on the remote test machine, run only when the owner confirms, as in earlier phases.
+- Gate choice is AGENTS.md's, per plan: pure `src/sim/` plans need `test`, `lint` and `typecheck`; browser-facing code needs `verify`; render, input and persistence changes (Phases 16, 19 and 20) end with `verify-full` on the remote test machine; from Phase 19 on it runs automatically at the phase gate, with no owner confirmation step (owner, 2026-11-21).
 
 ## Phase Details
 
@@ -388,7 +388,39 @@ Plans:
 **Pitfalls to address**: 13 (equipment damage has no place in the save, F3 or the profile: atomic profile update test), 18 (the save schema: v5 is now an owner decision, with no migration because the game is alpha, and a worst-case size test), 22 (closed sets: router table, probe shape, HUD)
 **Decisions to settle**: which items can be damaged; whether the cargo-pod-loss branch that opens Oolite's `takeInternalDamage` roll is ported or recorded as a divergence (the requirements name equipment only, and the branch also shifts the odds of the equipment branch while the hold is full); the F3 repair row's copy; `ship_trade_in_factor` stays unpersisted (the research's lean)
 **Todos**: `2026-11-11-cargo-purchase-cost-basis-tracking.md` needs its own ordered bump after v5 and stays unscheduled
-**Plans**: TBD
+**Plans**: 15 plans in 8 waves (owner answers of 2026-11-21 applied: D-05 factor 95, D-11 old saves `corrupt`, D-07/D-12 "Repair: X" is Oolite's own text; the save work is split in three after the plan check; the D-06 in-use tripwire moved out of 19-03 into 19-15 at the second plan check)
+
+Plans:
+**Wave 1**
+- [ ] 19-01-PLAN.md — CBT-08, CBT-12 (D-03): Oolite's per-item damage probability compiled into the equipment catalogue behind the strict schema, the golden and the drift gate
+- [ ] 19-02-PLAN.md — CBT-08 (D-01, D-02, D-04, D-05): the internal-damage roll as a pure module on its own stateless per-tick stream, the two damage events, the stream and factor-95 decisions, the hull-wear todo and tripwire
+- [ ] 19-06-PLAN.md — SAVE-09 (D-11): the save migration chain retired: only the current version is read, every older save is corrupt (Node and browser), the save suites on shared current-version builders
+- [ ] 19-15-PLAN.md — CBT-08, CBT-12 (D-06): the in-use clauses Wegolite cannot exercise yet (autopilot, galactic jump, ANA) recorded in a todo, with a tripwire on their first consumer
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 19-03-PLAN.md — CBT-08, CBT-12, SAVE-09 (D-04, D-06, D-11): `PlayerProfile.damagedEquipment`, the damage and cargo-loss operations, the not-installed proof
+- [ ] 19-04-PLAN.md — CBT-08 (D-01, D-04): the roll on the ledger's player branch for laser and scrape hits, Oolite's pod list, the 30/60/144 Hz cadence proof
+- [ ] 19-07-PLAN.md — SAVE-09 (D-11): every save fixture follows the current version (browser fixtures and app tests on the shared builders, future versions at `SAVE_VERSION + 1`), SAVE-09 and criterion 4 worded for the corrupt path
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 19-05-PLAN.md — CBT-12 (D-08, D-09, D-10): the F3 repair door (half price, one tech level lower, at once) and the damaged-purchase refusal
+- [ ] 19-08-PLAN.md — SAVE-09 (D-11): save schema v5 with `damagedEquipment`, v4 corrupt like every older save, the worst case under the cap, the D-11 decision row
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 19-09-PLAN.md — SAVE-09: the damaged-list save contract at every boundary, `economy.damagedEquipment` on the probe, a damaged item still damaged after Continue and Load in the browser
+- [ ] 19-10-PLAN.md — CBT-08, CBT-12 (D-01, D-07): the `damageFlow` subscriber's atomic commit, the router rows and Oolite's HUD messages
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 19-11-PLAN.md — CBT-08 (D-01, D-03): the per-step internal-damage facts from the live profile, so hits damage equipment in play
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 19-12-PLAN.md — CBT-12 (D-07 to D-10): F3 "Repair: X" rows through the station controller, F5 "(damaged)" first, the repair decision row
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 19-13-PLAN.md — CBT-08 (criterion 5): the hook-spawned fight in the Node twin and the browser: the enemy dies with its debris, the player leaves with a damaged item
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 19-14-PLAN.md — phase close (D-05, D-07, D-12): FIDELITY rows E-154 to E-165, the reviewers' agreement recorded on every new divergence row, the station-palette decision row (the F3 repair row's colour), the divergence-rule outcome corrected for "Repair: X", `verify-full` (automatic phase gate)
 **UI hint**: yes
 
 ### Phase 20: Player Death and Game Over
@@ -462,7 +494,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
-| 19. Equipment Damage and Repair | v2.3 | 0/TBD | Not started | - |
+| 19. Equipment Damage and Repair | v2.3 | 0/14 | Not started | - |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
 
 ## Backlog

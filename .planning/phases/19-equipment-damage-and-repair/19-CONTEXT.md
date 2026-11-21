@@ -38,7 +38,7 @@ Not in this phase: player death (Phase 20), hull wear and `EQ_RENOVATION`, NPC e
 ### Texts
 - **D-07:** Use Oolite's strings verbatim, with one exception:
   - HUD: `"@-damaged"` = `"%@ damaged."` (4.5 s, after clearing the previous message) and `"@-destroyed"` for cargo.
-  - F3 row: `"equip-repair-@"` with a real space, shown as `Repair: Docking Computers`. Oolite's leading space is only its own alignment, and the missing space after the colon is not copied.
+  - F3 row: `"equip-repair-@"` = `" Repair:%@"`, shown as `Repair: Docking Computers`. This is Oolite's own rendered text: Oolite wraps the name as `" %@ "` (`PlayerEntity.m` 8377), so the space after the colon comes from Oolite and is not a divergence (owner, 2026-11-21, after plan check). Only the leading alignment space is not drawn.
   - F3 detail: `"upgradeinfo-@-price-is-for-repairing"` = `"%@ (Price is for repairing the existing system)."`.
   - F5: damaged items are listed first, as `<name> (damaged)` instead of Oolite's `"equipment-@-not-available"` = `"%@ (N/A)"`, which reads as "not for sale". This is one deliberate UI divergence row in FIDELITY.md.
 
@@ -51,7 +51,7 @@ Not in this phase: player death (Phase 20), hull wear and `EQ_RENOVATION`, NPC e
 - **D-11:** Schema v5 adds `damagedEquipment`. A damaged item lives only there. It is removed from `equipment` and is never the `_DAMAGED` suffix key, which the validator keeps rejecting. There is no migration: v1-v4 saves are rejected as `corrupt` (the existing outcome for a recognised version with no schema), not `unreadable`, so autosave keeps working and the player starts a new game (owner, 2026-11-21). The worst case (every damageable item damaged, at maximum lengths) has a size test under `MAX_SAVE_CHARS` (65,536). The damage becomes durable at the existing autosave triggers (dock, hyperspace arrival); there is no new write on damage. The same applies to cargo lost to D-04. — **Reversibility:** one-way — older saves are rejected, which is accepted for the alpha.
 
 ### Divergence policy
-- **D-12:** The project-wide fidelity rule applies (AGENTS.md "Fidelity rule"; PROJECT.md Key Decisions row "Diverge from Oolite where it is clearly better and the reviewer models agree", 2026-11-21). A divergence needs a concrete benefit, the reviewer models' agreement and a FIDELITY.md row. D-07's "(damaged)" and the space in "Repair: X" are its first instances.
+- **D-12:** The project-wide fidelity rule applies (AGENTS.md "Fidelity rule"; PROJECT.md Key Decisions row "Diverge from Oolite where it is clearly better and the reviewer models agree", 2026-11-21). A divergence needs a concrete benefit, the reviewer models' agreement and a FIDELITY.md row. D-07's "(damaged)" is its first instance; the space in "Repair: X" is Oolite's own rendered text and is not a divergence (owner, 2026-11-21).
 
 ### Claude's Discretion
 - The seeded stream and how it is keyed. It must be deterministic at 30, 60 and 144 Hz, with its own draws so existing streams and goldens do not shift.
