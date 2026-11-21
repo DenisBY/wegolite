@@ -11,6 +11,12 @@
 
 import { describe, expect, it } from "vitest";
 
+import {
+  internalDamageSeed,
+  internalDamageWork,
+  rollInternalDamage,
+} from "../../../src/sim/combat/internal-damage.js";
+import type { InternalDamageFacts } from "../../../src/sim/combat/internal-damage.js";
 import { applyLedger } from "../../../src/sim/combat/ledger.js";
 import type { HitRecord } from "../../../src/sim/combat/ledger.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
@@ -18,6 +24,7 @@ import type { SimEvent } from "../../../src/sim/events.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
+import { createRngState, rngNext } from "../../../src/sim/rng.js";
 import {
   MAIN_STATION_ID,
   NO_ENTITY,
@@ -407,5 +414,219 @@ describe("applyLedger", () => {
     const { lethal } = run(world, [record(victim, PLAYER_ID, 6)]);
     expect(lethal).toEqual([{ victim, killer: PLAYER_ID }]);
     expect(energyOf(world, victim)).toBe(0);
+  });
+});
+
+/**
+ * Internal damage on the player's records (CBT-08, D-01, plan 19-04): the
+ * ledger's roll against an oracle that calls the 19-02 module directly on ONE
+ * stream (`() => rngNext(rng)` over one `RngState`, never a state per call).
+ */
+describe("applyLedger internal damage", () => {
+  const KEYS = ["k_ecm", "k_scoop", "k_pod", "k_unit"] as const;
+  const FACTS: InternalDamageFacts = {
+    items: KEYS.map((key) => ({ key, damageProbability: 1 })),
+    capacityPods: 20,
+    pods: [],
+  };
+  const FACTS_WITH_PODS: InternalDamageFacts = {
+    ...FACTS,
+    pods: [
+      { commodity: "food", amount: 1 },
+      { commodity: "food", amount: 1 },
+      { commodity: "food", amount: 1 },
+    ],
+  };
+
+  function bareCombat(shield = 0) {
+    const combat = createPlayerCombatState();
+    combat.fwdShield = shield;
+    combat.aftShield = shield;
+    return combat;
+  }
+
+  function runDamage(
+    records: readonly HitRecord[],
+    tick: number,
+    facts: InternalDamageFacts | undefined,
+    options: { world?: World | undefined; shield?: number } = {},
+  ): SimEvent[] {
+    const events: SimEvent[] = [];
+    const flight = player();
+    flight.tick = tick;
+    const world = "world" in options ? options.world : createWorld(1);
+    applyLedger(
+      world,
+      true,
+      flight,
+      bareCombat(options.shield ?? 0),
+      records,
+      events,
+      facts,
+    );
+    return events;
+  }
+
+  function hit(amount: number): SimEvent {
+    return {
+      kind: "shipHit",
+      target: PLAYER_ID,
+      source: 9,
+      amount,
+      shield: false,
+    };
+  }
+
+  /** The events of the ledger, built by hand: one stream, one work copy. */
+  function oracle(
+    tick: number,
+    facts: InternalDamageFacts,
+    applied: readonly number[],
+  ): SimEvent[][] {
+    const rng = createRngState(
+      internalDamageSeed(createWorld(1).worldSeed, tick),
+    );
+    const work = internalDamageWork(facts);
+    return applied.map((amount) => {
+      const out: SimEvent[] = [];
+      rollInternalDamage(amount, work, () => rngNext(rng), out);
+      return out;
+    });
+  }
+
+  function firstTick(
+    predicate: (tick: number) => boolean,
+    limit: number,
+  ): number {
+    for (let tick = 0; tick < limit; tick += 1) {
+      if (predicate(tick)) return tick;
+    }
+    throw new Error("vacuity guard: no tick found");
+  }
+
+  it("rolls after a laser hit that leaves energy: shipHit, then the oracle's events", () => {
+    const tick = firstTick(
+      (t) =>
+        oracle(t, FACTS, [96])[0]?.some(
+          (e) => e.kind === "equipmentDamaged",
+        ) === true,
+      200,
+    );
+    const expected = oracle(tick, FACTS, [96])[0] ?? [];
+    const events = runDamage([record(PLAYER_ID, 9, 96)], tick, FACTS);
+    expect(events).toEqual([hit(96), ...expected]);
+    expect(events[1]?.kind).toBe("equipmentDamaged");
+    expect(KEYS).toContain((events[1] as { key: string }).key);
+  });
+
+  it("draws nothing for a laser hit that empties the bank (energy <= 0)", () => {
+    // The same tick would roll for a scrape of the same size (below).
+    const tick = firstTick(
+      (t) => (oracle(t, FACTS, [320])[0]?.length ?? 0) > 0,
+      200,
+    );
+    expect(runDamage([record(PLAYER_ID, 9, 320)], tick, FACTS)).toEqual([
+      hit(320),
+    ]);
+  });
+
+  it("still rolls for a scrape that brings the energy to 0", () => {
+    const tick = firstTick(
+      (t) => (oracle(t, FACTS, [320])[0]?.length ?? 0) > 0,
+      200,
+    );
+    const expected = oracle(tick, FACTS, [320])[0] ?? [];
+    const events = runDamage(
+      [record(PLAYER_ID, 9, 320, "scrape")],
+      tick,
+      FACTS,
+    );
+    expect(events).toEqual([hit(320), ...expected]);
+    expect(expected.length).toBeGreaterThan(0);
+  });
+
+  it("draws nothing for a hit the shield absorbed entirely", () => {
+    for (let tick = 0; tick < 50; tick += 1) {
+      expect(
+        runDamage([record(PLAYER_ID, 9, 96)], tick, FACTS, { shield: 256 }),
+      ).toEqual([{ ...hit(96), shield: true }]);
+    }
+  });
+
+  it("is the pre-change output without facts or without a world", () => {
+    for (let tick = 0; tick < 50; tick += 1) {
+      expect(runDamage([record(PLAYER_ID, 9, 96)], tick, undefined)).toEqual([
+        hit(96),
+      ]);
+      expect(
+        runDamage([record(PLAYER_ID, 9, 96)], tick, FACTS, {
+          world: undefined,
+        }),
+      ).toEqual([hit(96)]);
+    }
+  });
+
+  it("shares one stream and one work copy between the records of a call", () => {
+    const one: InternalDamageFacts = {
+      items: [{ key: "k_ecm", damageProbability: 1 }],
+      capacityPods: 20,
+      pods: [],
+    };
+    let damagedTicks = 0;
+    let naiveDoubles = 0;
+    for (let tick = 0; tick < 4000; tick += 1) {
+      const [first, second] = oracle(tick, one, [96, 96]);
+      const events = runDamage(
+        [record(PLAYER_ID, 9, 96), record(PLAYER_ID, 9, 96)],
+        tick,
+        one,
+      );
+      expect(events).toEqual([
+        hit(96),
+        ...(first ?? []),
+        hit(96),
+        ...(second ?? []),
+      ]);
+      const damaged = events.filter((e) => e.kind === "equipmentDamaged");
+      expect(damaged.length).toBeLessThanOrEqual(1);
+      if (damaged.length === 1) damagedTicks += 1;
+      // A fresh work copy per record would damage the one item twice.
+      const rng = createRngState(
+        internalDamageSeed(createWorld(1).worldSeed, tick),
+      );
+      let count = 0;
+      for (let i = 0; i < 2; i += 1) {
+        const out: SimEvent[] = [];
+        rollInternalDamage(
+          96,
+          internalDamageWork(one),
+          () => rngNext(rng),
+          out,
+        );
+        count += out.filter((e) => e.kind === "equipmentDamaged").length;
+      }
+      if (count === 2) naiveDoubles += 1;
+    }
+    expect(damagedTicks).toBeGreaterThan(0);
+    expect(naiveDoubles).toBeGreaterThan(0);
+  });
+
+  it("reads the stream from where a capped first record stopped (E-167)", () => {
+    const records = [
+      record(PLAYER_ID, 9, 8224, "scrape"),
+      record(PLAYER_ID, 9, 64, "scrape"),
+    ];
+    for (let tick = 0; tick < 20; tick += 1) {
+      const [first, second] = oracle(tick, FACTS_WITH_PODS, [8224, 64]);
+      const events = runDamage(records, tick, FACTS_WITH_PODS);
+      expect(events).toEqual([
+        hit(8224),
+        ...(first ?? []),
+        hit(64),
+        ...(second ?? []),
+      ]);
+      // The capped first record uses up the damageable things.
+      expect((first ?? []).length).toBeGreaterThan(0);
+    }
   });
 });

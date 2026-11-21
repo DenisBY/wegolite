@@ -96,6 +96,7 @@ import { LASER_STATS, PLAYER_MASS_KG } from "./constants.js";
 import { firstShipHit } from "./hit.js";
 import { stepIdent, updateIdentTarget } from "./ident.js";
 import type { HitPart, HitTarget, HullTable, LaserRay } from "./hit.js";
+import type { InternalDamageFacts } from "./internal-damage.js";
 import { applyLedger } from "./ledger.js";
 import type { HitRecord } from "./ledger.js";
 import {
@@ -143,6 +144,15 @@ export interface CombatOptions {
    * QUAL-11).
    */
   readonly collisions?: boolean;
+  /**
+   * What the player's internal-damage roll reads (CBT-08, Phase 19,
+   * `./internal-damage.ts`): the installed items with their damage odds, the
+   * hold capacity and the cargo pods. Derived by the app from the validated
+   * profile and the loaded content each step, never carried in a command.
+   * Absent means no roll, which keeps the frozen acceptance harness and every
+   * existing test byte-identical.
+   */
+  readonly internalDamage?: InternalDamageFacts;
 }
 
 /** One shot queued for resolution after the world step. */
@@ -736,7 +746,9 @@ function applyPlayerPush(player: FlightState, push: BlastPush): void {
  *    is dropped on the same tick. It runs only on a tick that stepped the world,
  *    so the jump step (which skips the world) never touches an old world's ids.
  *
- * Event order: `laserFired*`, `shipHit*`, `shipDestroyed*`, `aiFaulted*` (a
+ * Event order: `laserFired*`, `shipHit*` (each player record's
+ * `equipmentDamaged*` / `cargoDestroyed*` follow its own `shipHit`),
+ * `shipDestroyed*`, `aiFaulted*` (a
  * handler that faults during the immediate drain), `entityRemoved*`, then the
  * ident events.
  *
@@ -790,6 +802,7 @@ export function resolveShots(
     combat,
     records,
     events,
+    options?.combat?.internalDamage,
   );
   if (world !== undefined && worldStepped) {
     const playerPush: BlastPush = { x: 0, y: 0, z: 0 };
