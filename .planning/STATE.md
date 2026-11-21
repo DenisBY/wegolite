@@ -7,10 +7,10 @@ current_phase_name: Equipment Damage and Repair
 current_plan: Not started
 status: planning
 stopped_at: Phase 19 context gathered
-last_updated: "2026-11-21T08:39:09.981Z"
+last_updated: "2026-11-21T08:40:33.436Z"
 last_activity: 2026-11-20
 last_activity_desc: Phase 18 complete, transitioned to Phase 19
-state_head: c42f1d02d31c22589931ed0d08b0e6a3a8b69439
+state_head: 688d4d3df5d1e3c391e091289a439e0986c85609
 progress:
   total_phases: 6
   completed_phases: 4
@@ -712,6 +712,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 60 | Make codebase-memory guidance conditional; list recommended agent tooling in README | 2026-11-19 | 70f9370 | — |
 | 61 | Raise the e2e waits that span the first launch (FIRST_LAUNCH_WAIT_MS) so the sharded GitHub Chromium run passes | 2026-11-20 | 8edca56 | — |
 | 62 | Give the remaining first-launch e2e waits FIRST_LAUNCH_WAIT_MS and widen the core-loop arrival wait | 2026-11-21 | 41550f6 | — |
+| 63 | Record the project-wide rule for diverging from Oolite (AGENTS.md, PROJECT.md, Phase 19 D-12) | 2026-11-21 | 688d4d3 | — |
 
 ## Deferred Items
 
