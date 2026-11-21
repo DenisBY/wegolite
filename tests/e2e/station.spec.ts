@@ -341,6 +341,7 @@ test("launch and redock reuse the persisted seed, prices and stock", async ({
     "capacityPods",
     "cargo",
     "credits",
+    "damagedEquipment",
     "fuel",
     "holdPods",
     "lastTrade",
