@@ -19,6 +19,7 @@ import type { SaveAllowLists, SaveInputs } from "../../src/persistence/save.js";
 import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import { CLOCK_START } from "../../src/sim/flight/state.js";
+import { DAMAGEABLE_EQUIPMENT_KEYS } from "../../src/sim/player/outfitting.js";
 
 /** The 17 commodity keys a market snapshot may carry (Alien Items included). */
 export const MARKET_GOODS: readonly string[] = [
@@ -68,6 +69,7 @@ export function saveAllowLists(
       "EQ_PASSENGER_BERTH",
       "EQ_PASSENGER_BERTH_REMOVAL",
     ]),
+    damageableEquipment: new Set(DAMAGEABLE_EQUIPMENT_KEYS),
     systems: new Set(["g0-s7"]),
     stations: new Set(["coriolis-station"]),
     commodities: new Map([
@@ -94,6 +96,7 @@ export function saveInputs(overrides: Partial<SaveInputs> = {}): SaveInputs {
     clockSeconds: CLOCK_START,
     credits: 1000,
     equipment: [],
+    damagedEquipment: [],
     cargo: [],
     fuel: 70,
     missiles: 0,

@@ -56,13 +56,18 @@ import {
 import { MARKET_LIMIT } from "../sim/economy/market.js";
 import type { Market } from "../sim/economy/market.js";
 import { CLOCK_START } from "../sim/flight/state.js";
+import {
+  DAMAGEABLE_EQUIPMENT_KEYS,
+  VISIBLE_EQUIPMENT_KEYS,
+} from "../sim/player/outfitting.js";
 
 /**
  * The schema version this build writes and the only one it reads (D-13, D-11).
- * It is 4 since Phase 13 (CBT-05). Since Phase 19 there is no migration: a blob
- * of any older version is `corrupt` (backed up once, cleared by New game).
+ * It is 5 since Phase 19 (D-11), which added the damaged-equipment list. There
+ * is no migration: a blob of any older version is `corrupt` (backed up once,
+ * cleared by New game).
  */
-export const SAVE_VERSION = 4 as const;
+export const SAVE_VERSION = 5 as const;
 
 /**
  * The largest raw blob the parser will even attempt to parse (D-15, T-06-04).
@@ -80,14 +85,21 @@ export const SAVE_VERSION = 4 as const;
  *   about 170.
  *
  * That is ≈39.1 KB, comfortably under 65,536 while remaining a hard resource
- * bound checked before `JSON.parse`. tests/persistence/save-v4.test.ts measures
- * the v4 worst case (plan 13-06). The version sniff copies at most
+ * bound checked before `JSON.parse`. tests/persistence/save-v5.test.ts measures
+ * the v5 worst case (plan 19-08). The version sniff copies at most
  * `MAX_VERSION_SNIFF_CHARS` characters, never the whole stored string.
  */
 export const MAX_SAVE_CHARS = 65_536;
 
 /** The most equipment keys one profile may carry. */
 export const MAX_SAVE_EQUIPMENT = 64;
+
+/**
+ * The most damaged-equipment keys one save may carry (Phase 19, D-11). Far above
+ * the four damageable items; the combined 64-key rule with `equipment` applies
+ * on top.
+ */
+export const MAX_SAVE_DAMAGED_EQUIPMENT = 16;
 
 /** The longest equipment key accepted. */
 export const MAX_SAVE_EQUIPMENT_KEY_CHARS = 64;
@@ -250,7 +262,7 @@ export const LaserMountsSchema = z.strictObject({
 });
 
 /**
- * The current v4 schema (Phase 13, CBT-05), listing every key explicitly.
+ * The current v5 schema (Phase 19, D-11), listing every key explicitly.
  *
  * One strict object: an unknown key is corrupt. `mode`, an optional committed
  * target, exactly one seed encoding (`market` or `marketSeed`, enforced by the
@@ -259,9 +271,11 @@ export const LaserMountsSchema = z.strictObject({
  * (`FRESH_WORLD_NEXT_ENTITY_ID`..`MAX_SAVE_NEXT_ENTITY_ID`), which are the only
  * world state a save carries (no entity field exists); and the required
  * `laserMounts`. Laser keys live there and never in `equipment` (the semantic
- * validator refuses a laser key there as double encoding).
+ * validator refuses a laser key there as double encoding); and the required
+ * `damagedEquipment` (Phase 19): the damaged items, in damage order, never as a
+ * `_DAMAGED` key and never also in `equipment`.
  */
-export const SaveV4Schema = z.strictObject({
+export const SaveV5Schema = z.strictObject({
   version: z.literal(SAVE_VERSION),
   mode: z.enum(["docked", "inFlight"]),
   clockSeconds: z
@@ -273,6 +287,9 @@ export const SaveV4Schema = z.strictObject({
   equipment: z
     .array(z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS))
     .max(MAX_SAVE_EQUIPMENT),
+  damagedEquipment: z
+    .array(z.string().min(1).max(MAX_SAVE_EQUIPMENT_KEY_CHARS))
+    .max(MAX_SAVE_DAMAGED_EQUIPMENT),
   system: z.strictObject({
     id: z.string().min(1).max(MAX_SAVE_SYSTEM_ID_CHARS),
   }),
@@ -299,12 +316,17 @@ export const SaveV4Schema = z.strictObject({
   laserMounts: LaserMountsSchema,
 });
 
-export type SaveV4 = z.infer<typeof SaveV4Schema>;
+export type SaveV5 = z.infer<typeof SaveV5Schema>;
 export type SaveCargoEntry = z.infer<typeof CargoEntrySchema>;
 
 /** The catalogue facts a boot must supply before a blob can be trusted. */
 export interface SaveAllowLists {
   readonly equipment: ReadonlySet<string>;
+  /**
+   * The keys a damaged list may hold (D-03): the one damageable set the commit
+   * and the repair door share.
+   */
+  readonly damageableEquipment: ReadonlySet<string>;
   readonly systems: ReadonlySet<string>;
   readonly stations: ReadonlySet<string>;
   /** Tradeable commodity key → unit; Alien Items is deliberately absent. */
@@ -323,7 +345,7 @@ export type SaveParseFailure =
   "corrupt" | "future-version" | "absent" | "unreadable";
 
 export type SaveParseResult =
-  | { readonly ok: true; readonly save: SaveV4 }
+  | { readonly ok: true; readonly save: SaveV5 }
   | { readonly ok: false; readonly reason: SaveParseFailure };
 
 /** A flight pose in the wire shape: tuples, not the sim's `{x,y,z}` objects. */
@@ -336,11 +358,13 @@ export interface SaveFlightPose {
   readonly torus: boolean;
 }
 
-/** The trusted values `encodeSave` projects into a `SaveV4`. */
+/** The trusted values `encodeSave` projects into a `SaveV5`. */
 export interface SaveInputs {
   readonly clockSeconds: number;
   readonly credits: number;
   readonly equipment: readonly string[];
+  /** The damaged items, in damage order (Phase 19, D-11). */
+  readonly damagedEquipment: readonly string[];
   readonly cargo: readonly SaveCargoEntry[];
   readonly fuel: number;
   readonly missiles: number;
@@ -382,6 +406,34 @@ const FORBIDDEN_EQUIPMENT: ReadonlySet<string> = new Set([
   NO_LASER,
   "EQ_WEAPON_THARGOID_LASER",
 ]);
+
+/**
+ * The two equipment allow-lists a boot builds from the catalogue (D-03).
+ *
+ * `equipment` is the catalogue keys in `VISIBLE_EQUIPMENT_KEYS` that
+ * `FORBIDDEN_EQUIPMENT` does not reject: the five F3 single-instance keys and the
+ * two read-mode aliases, the only keys play can put in a profile.
+ * `damageableEquipment` is the catalogue keys in `DAMAGEABLE_EQUIPMENT_KEYS`. So
+ * the roll never sees an installed key the repair door cannot repair, and a
+ * forged key in either field is corrupt.
+ */
+export function equipmentAllowLists(
+  catalogue: readonly { readonly key: string }[],
+): Pick<SaveAllowLists, "equipment" | "damageableEquipment"> {
+  const keys = new Set(catalogue.map((item) => item.key));
+  const visible: ReadonlySet<string> = new Set(VISIBLE_EQUIPMENT_KEYS);
+  const damageable: ReadonlySet<string> = new Set(DAMAGEABLE_EQUIPMENT_KEYS);
+  return {
+    equipment: new Set(
+      [...keys].filter(
+        (key) => visible.has(key) && !FORBIDDEN_EQUIPMENT.has(key),
+      ),
+    ),
+    damageableEquipment: new Set(
+      [...keys].filter((key) => damageable.has(key)),
+    ),
+  };
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -476,9 +528,9 @@ export function parseSave(
   if (parsed["version"] !== SAVE_VERSION) {
     return { ok: false, reason: "corrupt" };
   }
-  const current = SaveV4Schema.safeParse(parsed);
+  const current = SaveV5Schema.safeParse(parsed);
   if (!current.success) return { ok: false, reason: "corrupt" };
-  const save: SaveV4 = current.data;
+  const save: SaveV5 = current.data;
 
   // The schema proves the shape; the shared semantic validator proves the
   // referents, cargo accounting and canonical equipment. It is the same stage
@@ -515,7 +567,7 @@ export function parseSave(
  * the alias and a non-zero count together are ambiguous double-encoding.
  */
 export function validateSaveSemantics(
-  save: SaveV4,
+  save: SaveV5,
   allow: SaveAllowLists,
   mode: "read" | "write",
 ): boolean {
@@ -541,6 +593,23 @@ export function validateSaveSemantics(
       if (mode === "write") return false;
       hasMissileAlias = true;
     }
+  }
+
+  // SAVE-09: the damaged list is duplicate-free, damageable, disjoint from
+  // `equipment` and not forbidden, and the two lists share the 64-key bound.
+  const seenDamaged = new Set<string>();
+  for (const key of save.damagedEquipment) {
+    if (seenDamaged.has(key) || !allow.damageableEquipment.has(key)) {
+      return false;
+    }
+    seenDamaged.add(key);
+    if (FORBIDDEN_EQUIPMENT.has(key) || seenEquipment.has(key)) return false;
+  }
+  if (
+    save.equipment.length + save.damagedEquipment.length >
+    MAX_SAVE_EQUIPMENT
+  ) {
+    return false;
   }
 
   if (hasBerthAlias && (save.passengerBerths ?? 0) !== 0) return false;
@@ -659,7 +728,7 @@ export function isEncodedSaveValid(
   } catch {
     return false;
   }
-  const result = SaveV4Schema.safeParse(parsed);
+  const result = SaveV5Schema.safeParse(parsed);
   if (!result.success) return false;
   // The reader's referent allow-lists (see `parseSave`) apply here too, so the
   // writer can never replace a good blob with bytes the reader would classify as
@@ -692,7 +761,7 @@ export function boundCorruptBackup(raw: string): string {
 }
 
 /**
- * Project trusted values into the canonical v4 blob.
+ * Project trusted values into the canonical v5 blob.
  *
  * Exactly one seed is always emitted: the market snapshot wins when present
  * (and `marketSeed` is omitted), otherwise the seed is written. A docked save
@@ -714,12 +783,13 @@ export function encodeSave(inputs: SaveInputs): string {
           })),
         };
 
-  const save: SaveV4 = {
+  const save: SaveV5 = {
     version: SAVE_VERSION,
     mode: inputs.mode,
     clockSeconds: inputs.clockSeconds,
     credits: inputs.credits,
     equipment: [...inputs.equipment],
+    damagedEquipment: [...inputs.damagedEquipment],
     cargo: inputs.cargo.map((entry) => ({
       key: entry.key,
       quantity: entry.quantity,

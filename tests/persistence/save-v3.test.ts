@@ -88,6 +88,7 @@ const laveMarket = generateMarket(lave.system, catalogue, LAVE_SEED);
 
 const ALLOW: SaveAllowLists = {
   equipment: new Set(["EQ_DOCK_COMP"]),
+  damageableEquipment: new Set(["EQ_DOCK_COMP"]),
   systems: new Set(["g0-s7", "g0-s1"]),
   stations: new Set(["coriolis-station"]),
   commodities: new Map(

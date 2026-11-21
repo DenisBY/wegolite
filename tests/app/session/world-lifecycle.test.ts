@@ -1545,6 +1545,7 @@ function laveBlob(
 
 const SAVE_ALLOW: SaveAllowLists = {
   equipment: new Set(["EQ_DOCK_COMP"]),
+  damageableEquipment: new Set(["EQ_DOCK_COMP"]),
   systems: new Set([lave.system.id]),
   stations: new Set(["coriolis-station"]),
   commodities: new Map(
@@ -2002,11 +2003,12 @@ describe("load", () => {
 });
 
 describe("anchored save: only the epoch and the anchor counter of the world enter the save", () => {
-  /** The exact v4 allow-lists (SaveInputs and the encoded SaveV4). */
+  /** The exact v5 allow-lists (SaveInputs and the encoded SaveV5). */
   const INPUT_KEYS = [
     "cargo",
     "clockSeconds",
     "credits",
+    "damagedEquipment",
     "epoch",
     "equipment",
     "flight",
@@ -2028,6 +2030,7 @@ describe("anchored save: only the epoch and the anchor counter of the world ente
     "clockSeconds",
     "credits",
     "equipment",
+    "damagedEquipment",
     "cargo",
     "fuel",
     "missiles",
