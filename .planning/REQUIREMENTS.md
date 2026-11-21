@@ -34,7 +34,7 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Save
 
-- [ ] **SAVE-09**: Saves move to schema v5 with `damagedEquipment` with no migration (alpha: older saves are rejected as unreadable); a damaged item does not count as installed.
+- [ ] **SAVE-09**: Saves move to schema v5 with `damagedEquipment` with no migration (alpha: older saves (v1 to v4) are rejected as corrupt, backed up once and cleared by New game, so autosave keeps working (owner 2026-11-21)); a damaged item does not count as installed.
 
 ### Render and Quality
 
