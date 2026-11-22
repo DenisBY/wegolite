@@ -948,3 +948,78 @@ All three reviewers find that the plans achieve the phase goal, with overall ris
 - **Explosion scale (DIV-2):** Fable objects (4x radius → ~727 m particles, camera at 100 m; NPCs use 1x); Sonnet and Kimi accept. Open until resolved.
 - **Traffic-off explosion constant (20-04):** Sonnet says the branch is unreachable (no hulls/weapons with traffic off) and the nine-field constant should be dropped or marked defensive; the plan-checker had asked for it. Worth a decision.
 - **Single-reviewer findings worth acting on (Fable):** 20-10 Task 1 deletes a Key Decisions title still quoted by `FIDELITY.md:65` (E-45), which breaks `tests/contract/fidelity.test.ts`; game-over-guard has a wall-clock race (death 4.3 s after Continue — use a ≥5 km run-up); a 20-06 test case may be vacuous (`latchGameOver` stops the loop before `stepOnce`'s early return).
+
+---
+
+## Round 2 — targeted fidelity review (DIV-9 one flash; DIV-2 and DIV-7 updated), 2026-11-22T21:14:52Z
+
+Reviewers: Fable and Sonnet (Claude Agent subagents) and DeepSeek v4.1 Flash (`opencode-go/deepseek-v4.1-flash`, which replaces Kimi by owner request on 2026-11-22). The brief: owner decisions D-01a, D-01b and D-01c in 20-CONTEXT.md, against Oolite at pin 7437f22.
+
+### Fable (round 2)
+
+# Targeted fidelity review: Phase 20, DIV-9 / DIV-2 / DIV-7 (Fable)
+
+Read at Oolite pin `7437f22` and the working-tree plans `20-04`, `20-08`, `20-10` plus `20-CONTEXT.md` D-01..D-01c. Nothing was built or run.
+
+## Source check
+
+- `becomeLargeExplosion:` (`src/Core/Entities/ShipEntity.m:8300-8320`) adds only `OOSmallFragmentBurstEntity` (loop `:8310-8314`) and `OOBigFragmentBurstEntity` (loop `:8316-8320`), four of each for the 4.0 of `PlayerEntity.m:6208`. No `OOFlashEffectEntity`. Confirmed.
+- The flash appears in both of Oolite's ordinary ship-explosion paths: the full-detail cloud and flash pair (`ShipEntity.m:7957-7964`) and the reduced-detail path, which is exactly small burst + big burst + flash (`ShipEntity.m:7947-7952`).
+- The burst values in the plans match the source: small 100-400 m/s (`OOParticleSystem.m:249-250`), 1.5 s (`:262`), size `32 * 100 / speed` (`:265`), alpha-only update (`:277-294`); big `1 + 0.5 r` to 4x that (`:302-303`), `2r` (`:310`, `:315`), 1.0 s (`:311`), growth `(1 + t) * 2r` (`:342`). The speed draw is triangular (`:67`), which the Phase 16 layer already uses (`src/render/bodies/explosions.ts:25-26`).
+- Oolite keeps the whole universe running while dead: `PlayerEntity.m:2450-2452` (`performDeadUpdates:`), `:3112-3113` (shot time still advances), the fade driven by `shotTime` (`:3566-3590`).
+
+## Concerns
+
+1. **Wrong path in the review brief and bare file names in the plans.** The file is `src/Core/Entities/OOParticleSystem.m`; `src/Core/OOParticleSystem.m` does not exist at the pin. `20-10-PLAN.md:126` has the full path, but `20-10-PLAN.md:51` and `20-04-PLAN.md:52,140,296` cite the bare name. The FIDELITY Oolite cells, the constants-ledger rows and the Vitest comments should carry the full path.
+2. **The particle-form row understates the alpha difference.** `20-04-PLAN.md:303` fades a whole burst as `alpha x (1 - t / life)`. Oolite staggers the fade per particle: small `du = 0.5 + (32 - i) / 32` (`OOParticleSystem.m:291-292`), big `du = duration * (0.5 + i / (count - 1))` (`:346-347`), so half of a big burst is gone before 1.0 s and the rest is cut off still visible. `20-10-PLAN.md:51` lists "the alpha" only. The row should name the fade law, the colours (small hue 0.12-0.20 at `:258`, big `{1, 1, 0.5}` at `:308`) and the additive blur texture (`:148`, `:232`) against the cloud's `oolite-particle-cloud2.png`. The small bursts at 8-32 m with the cloud texture will read as small puffs, not sparks: worth a line in the UAT note at `20-08-PLAN.md:201`.
+3. **The explosion does not drift, and for the player that is visible.** Oolite's bursts take the ship's velocity (small 1.0x, `OOParticleSystem.m:274`; big 0.85x, `:324`) while the dead player's velocity is zeroed after the explosion is added (`PlayerEntity.m:6208-6212`), so the bursts move relative to the stopped camera. `20-10-PLAN.md:51` records "the absent drift", which is enough if the row cites these lines.
+4. **The debris extrapolation has no end.** The sim retires a wreck when its energy burns down (`src/sim/world/step.ts:197-207`), but `20-08-PLAN.md:45,239` draws `position + velocity * gameOverSeconds` for as long as the view stays, so a wreck that Oolite would remove seconds later flies on, and through the frozen hulls and the station. The DIV-7 row should say so. By `20-08-PLAN.md:46` the redraw gate also never idles while one piece moves, and Wegolite has no 30 s reset (DIV-4), so a dead tab renders at full rate until the player acts. A cap is cheap (for example, stop the drift and let the gate idle at Oolite's `kDeadResetTime` of 30 s, `PlayerEntity.m:99`).
+5. **The one flash fills the screen.** At 100 m from the camera, with growth `max(150 r, 600)`, about 10.9 km/s at r = 72.7 (`OOFlashEffectEntity.m:35-37,58,89`), the flash covers the view within a frame or two and peaks at alpha 0.5 around 0.27 s (`:38`, `:100-108`). That is the same flash an NPC kill at 100 m gives, so it is acceptable, but the UAT note should ask the owner to look at it, since Oolite's dead view never shows it.
+
+## Verdicts
+
+- DIV-9 (one flash): ACCEPT — `becomeLargeExplosion:` adds no flash (`ShipEntity.m:8308-8320`), but one flash per ship explosion is Oolite's own convention in both ordinary paths, including the reduced-detail one that is exactly small burst + big burst + flash (`ShipEntity.m:7947-7952`, `:7957-7964`); one unmodified `OOFlashEffectEntity` (white, 0.4 s, alpha 0.5) on the first add is a small, bounded, recorded divergence, provided the row says Oolite's player death shows none.
+- DIV-2 (explosion particle form, updated): ACCEPT — the burst count (4 + 4, `ShipEntity.m:8310-8320`), speeds, lifetimes and sizes now match `src/Core/Entities/OOParticleSystem.m:249-250, 262, 265, 302-303, 310-311, 342`; the remaining form divergence is acceptable if the row also names the per-particle fade (`:291-292`, `:346-347`), the colours (`:258`, `:308`), the particle counts (`:253-254`, `:305-306`) and the missing velocity drift (`:274`, `:324`), with the full file path.
+- DIV-7 (frozen sim, moving presentation layers, updated): ACCEPT — Oolite runs the whole universe while dead (`PlayerEntity.m:2450-2452`, `:3112-3113`), so moving debris on screen narrows the divergence and the frozen, hashable sim remains the recorded reason; the row must add that extrapolated debris never burns out or collides (Oolite's would) and that ships stand still beside it, and the endless redraw while debris moves should be capped or recorded.
+
+
+### Sonnet (round 2)
+
+# Sonnet 5.5 targeted fidelity review (DIV-9, DIV-2, DIV-7)
+
+Concerns:
+1. 20-04 (lines 53-54): a plain cloud add keeps today's flash, but the player's seven non-first adds must pass an explicit "no flash" option. The "variant 0 and no kind" default path in 20-04:54 is the one place where the flash could leak back in, so pin the "exactly one flash across the eight adds" case in a test.
+2. Oolite's ordinary explosion flash (`OOFlashEffectEntity.m:74-76`) is sized at the entity's collisionRadius, and the plan's 1x radius matches it. The Oolite flash velocity follows the entity; the plan takes it at the death position. This is a minor point and needs no change.
+3. 20-08 (line 239): the debris extrapolation uses constant velocity with no collision, so a piece that would have hit the station or a ship in Oolite passes through. The DIV-7 row should say this explicitly, because the sim-side drift (`driftEntity`) does the same only while nothing touches the piece.
+
+- DIV-9 (one flash): ACCEPT — `becomeLargeExplosion:` (`ShipEntity.m:8300-8320`) adds only fragment bursts and no flash. The ordinary explosion pairs cloud and flash (`ShipEntity.m:7957-7964`), so a single flash, sized at the collision radius as in `OOFlashEffectEntity.m:74-76`, is a small, clearly better presentation choice that needs its FIDELITY row.
+- DIV-2 (explosion particle form, updated): ACCEPT — Oolite's two loops add `OOSmallFragmentBurstEntity` and `OOBigFragmentBurstEntity` `factor` times each (`ShipEntity.m:8308-8320`), so eight bursts of two distinct kinds with per-kind speed, lifetime and size taken from `OOParticleSystem.m` is faithful in count and kinds. Only the particle form (Phase 16 cloud) diverges.
+- DIV-7 (frozen sim, moving presentation layers, updated): ACCEPT — Oolite keeps the whole universe running while dead, so a frozen sim is a real divergence. The deterministic dead hash justifies it, and animating explosions, shots, debris and the fade on the presentation clock, with ships, buoys, station and dust standing still, narrows the gap, provided the row lists the still layers and the debris collision caveat.
+
+
+### DeepSeek v4.1 Flash (round 2)
+
+### Concerns
+
+- The one flash is Oolite's ordinary flash at 1× r: a 145 m quad on its first frame with the new aft camera only 100 m away, growing by `max(150 r, 600)` ≈ 10.9 km/s for its whole 0.4 s, alpha peaking at 0.5 (`src/render/bodies/explosions.ts:403-407`, `:486-495`). It fills the view from frame one, so four small + four big bursts (1.0 s and 1.5 s) are only countable after it — worth a UAT note against `20-10-PLAN.md:290`.
+- The settle rule cannot idle: `debrisContacts` has no range filter (`src/sim/world/contacts.ts:90-115`) and the drift is constant velocity, so "any debris contact has a non-zero velocity" (`20-08-PLAN.md:46`, `:236`) stays true while any piece exists, long after it left the frame; T-20-25's "drawing settles after the fade" (`20-08-PLAN.md:310`) is not what the rule does. Gate the flag on the drawn piece being in view, or drop the claim.
+- 20-10 records the DIV-9 reason as the owner's decision alone, "with no reason the record does not hold" (`20-10-PLAN.md:229`), where the fidelity rule asks for "clearly better": cite Oolite's own burst explosion, which carries one flash (`ShipEntity.m:7945-7953`), instead of leaving DIV-9 as a preference.
+- The dead camera is fixed 100 m from a stationary fireball, where Oolite's camera keeps coasting at `flightSpeed = 160` (`PlayerEntity.m:6210`) away from bursts that inherit the ship's velocity (small 1× at `OOParticleSystem.m:274`, big 0.85× at `:324`); the drift is disclosed (`20-10-PLAN.md:51`, `:228`), but the DIV-7 row's moving layers (`20-10-PLAN.md:235`) should say the fireball animates in place — and a presentation-layer camera retreat is as available to the frozen sim as the debris drift.
+
+- DIV-9 (one flash): ACCEPT — `becomeLargeExplosion:` adds only four small and four big fragment bursts and no `OOFlashEffectEntity` (`ShipEntity.m:8308-8320`; the flash exists only in the ordinary explosion, cloud at `:7962` plus flash at `:7964`), so one flash is a real divergence — and a mild one, since Oolite's own burst explosion, the reduced-detail branch, is a small burst, a big burst and one flash (`ShipEntity.m:7945-7953`); 20-04 adds it to the first of eight adds only and pins that with a test.
+- DIV-2 (explosion particle form, updated): ACCEPT — every value matches the pin: small 100-400 m/s, 1.5 s, start size `32·100/speed`, no growth (`OOParticleSystem.m:249-250`, `:262`, `:265`, update only at `:290-293`), big `1 + r/2` to four times that, 1.0 s, `2r` growing to `(1+t)2r` (`:302-303`, `:310-311`, `:342`), and the 4+4 count from `ShipEntity.m:8310-8320`; the particle count is the only thing not taken (29 and 14 per burst at r = 72.7 versus the cloud's 10, `OOParticleSystem.m:253-254`, `:305-306`), and 20-10 discloses it, so "particle form only" is accurate.
+- DIV-7 (frozen sim, moving presentation layers, updated): ACCEPT — Oolite's universe does keep running through the dead window (`Universe.m:6533-6547`, comment at `:6539-6540`; `:6662-6666`), so freezing is a divergence, but it is recorded as one and narrowed towards Oolite where it is cheap (explosions, shots, drifted debris, fade) while the death-tick hash keeps determinism; the camera rule is right, because `getDestroyedBy:` places the bursts at the old position and then calls `moveForward:100.0` with `VIEW_AFT` (`PlayerEntity.m:6203`, `:6208-6209`).
+
+
+### Round 2 consensus
+
+| Divergence | Fable | Sonnet | DeepSeek | Status |
+|---|---|---|---|---|
+| DIV-9 one flash (D-01b) | ACCEPT | ACCEPT | ACCEPT | agreed. The row must say that Oolite's player death shows no flash, and it may cite the reduced-detail branch `ShipEntity.m:7945-7953` (small + big + one flash) as Oolite's own precedent. |
+| DIV-2 particle form, updated (D-01a) | ACCEPT | ACCEPT | ACCEPT | agreed. The row names the remaining form differences: per-particle fade, colours, particle counts and velocity drift, with the full path `src/Core/Entities/OOParticleSystem.m`. |
+| DIV-7 frozen sim with moving presentation layers, updated (D-01c) | ACCEPT | ACCEPT | ACCEPT | agreed. The row says the extrapolated debris never burns out or collides, that ships stand still, that the fireball animates in place (Oolite's camera keeps coasting), and how the redraw is bounded. |
+
+Shared concerns for the plans:
+- **Unbounded drift and redraw.** The drift and the redraw run without limit; the settle flag never idles. Cap the drift (for example at Oolite's `kDeadResetTime` of 30 s) or gate it on the piece being in view (Fable, DeepSeek).
+- **The flash fills the view from 100 m.** Add a UAT note (Fable, DeepSeek).
+- **Wrong path to OOParticleSystem.m.** Some cells use the bare name; use the full path (Fable).
