@@ -6,11 +6,11 @@ current_phase: 20
 current_phase_name: Player Death and Game Over
 current_plan: Not started
 status: planning
-stopped_at: Phase 19 complete, ready to plan Phase 20
-last_updated: "2026-11-22T14:20:53.965Z"
+stopped_at: Phase 20 context gathered
+last_updated: "2026-11-22T14:37:30.826Z"
 last_activity: 2026-11-22
 last_activity_desc: Phase 19 complete, transitioned to Phase 20
-state_head: d86adddbce358a13ab1e2ced15e219f76aceb66c
+state_head: fb26c4383e104973c7f4d09eb3f542e489dfa4e2
 progress:
   total_phases: 6
   completed_phases: 5
@@ -751,9 +751,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-21T15:19:30.212Z
-Stopped at: Phase 19 complete, ready to plan Phase 20
-Resume file: None
+Last session: 2026-11-22T14:37:29.727Z
+Stopped at: Phase 20 context gathered
+Resume file: .planning/phases/20-player-death-and-game-over/20-CONTEXT.md
 
 ## Operator Next Steps
 
