@@ -926,7 +926,7 @@ All three reviewers find that the plans achieve the phase goal, with overall ris
 | Divergence | Fable | Sonnet | Kimi | Status |
 |---|---|---|---|---|
 | DIV-1 launching player never dies | ACCEPT | ACCEPT | ACCEPT | agreed |
-| DIV-2 explosion form (D-01) | **OBJECT** (4x radius misreads Oolite's 4.0, a burst count) | ACCEPT | ACCEPT | **objection open** — must be resolved by an owner decision or a plan change before 20-10 records it |
+| DIV-2 explosion form (D-01) | **OBJECT** (4x radius misreads Oolite's 4.0, a burst count) | ACCEPT | ACCEPT | **objection resolved by owner decision 2026-11-22** (20-CONTEXT.md D-01): 8 adds (4 small + 4 big, distinct seeds) at 1× the collision radius, mirroring Oolite's two burst loops; the remaining divergence is the particle form only |
 | DIV-3 cause line (D-02) | ACCEPT | ACCEPT | ACCEPT | agreed |
 | DIV-4 no 30 s auto-restart (D-06) | ACCEPT | ACCEPT | ACCEPT | agreed |
 | DIV-5 fresh Space + click (D-07) | ACCEPT | ACCEPT | ACCEPT | agreed |
