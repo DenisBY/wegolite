@@ -51,6 +51,8 @@ Filled by the planner per task; the requirement-level map is:
 | DEATH-01 | Dead state frozen: stepSim/stepFlight no-op, hash and tick unchanged | unit | `... vitest run tests/sim/death-freeze.test.ts` | ❌ W0 | ⬜ pending |
 | DEATH-01 | Router `playerDestroyed` → deathFlow once; 25-kind table; guards in pause/focus/context-loss/chart/sim-driver | unit | `... vitest run tests/app/session-order.test.ts tests/app/session/death-flow.test.ts tests/app/session/settings-controller.test.ts tests/app/session/chart-controller.test.ts tests/app/session/sim-driver.test.ts` | partial | ⬜ pending |
 | DEATH-01 | gameOver input context: fresh Space / click reload once; everything else ignored; game-over lines model | unit | `... vitest run tests/input/keyboard-gameover.test.ts tests/ui/game-over.test.ts tests/ui/game-over-model.test.ts` | ❌ W0 | ⬜ pending |
+| DEATH-01 | Player explosion (D-01a, D-01b): four small and four big bursts with Oolite's speed range, lifetime and start size per kind (constants pinned with `src/Core/Entities/OOParticleSystem.m` lines, full path), one flash in total with `flash: false` explicit on the seven other adds, no kind keeps every Phase 16 pin | unit | `... vitest run tests/render/explosion-layer.test.ts tests/app/session/death-flow.test.ts` | ✅ extend / ❌ W0 | ⬜ pending |
+| DEATH-01 | Dead view (D-01c): debris drawn at last sim pose + velocity x `min(gameOverSeconds, 30)` and tumbling on the effect time held at the same limit (`DEAD_DRIFT_LIMIT_SECONDS`, Oolite's `kDeadResetTime`); the redraw gate idles from 30 s on; `hashWorld`/`hashFlight` and debris entities unchanged; the contact copies the velocity | unit | `... vitest run tests/app/session/render-driver.test.ts tests/sim/world/contacts.test.ts` | ✅ extend | ⬜ pending |
 | DEATH-06 | autosave/manualSave/queueSnapshot/writeManualSave refuse while dead (skip reason `dead`); snapshotForSave throws on dead | unit | `... vitest run tests/app/session/save-controller.test.ts tests/persistence/autosave.test.ts` | ✅ extend | ⬜ pending |
 | DEATH-06 | Death → Space → reload → title Continue → resumes save with damaged equipment | e2e | `docker compose run --rm e2e sh -lc "npm run build:e2e && npx playwright test tests/e2e/death-and-reload.spec.ts"` | ❌ W0 | ⬜ pending |
 | DEATH-06 | Autosave trigger, F2, P, Esc, F6, blur, visibilitychange never save or revive the dead | e2e | `... npx playwright test tests/e2e/game-over-guard.spec.ts` | ❌ W0 | ⬜ pending |
@@ -80,9 +82,9 @@ Filled by the planner per task; the requirement-level map is:
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Explosion, aft view, B&W fade look | DEATH-01 | Visual | Die in flight; check aft view, explosion, 5 s fade to grey |
+| Explosion, aft view, B&W fade look | DEATH-01 | Visual | Die in flight; check aft view, explosion (four small, four big bursts, one flash), wreckage from earlier kills still drifting (D-01c) and holding still from 30 s, 5 s fade to grey; judge whether the one flash (1x r seen from 100 m, about 10.9 km/s growth, 0.4 s, alpha 0.5) fills the view and hides the bursts, and whether the small bursts read as sparks (review round 2) |
 | Four-line layout and wording | DEATH-01 | Visual/copy | Read Game Over / cause / Score / Press Space |
-| Straight launch into nav buoy kills an idle ship | DEATH-01 | Gameplay arithmetic (A4) | Launch, full throttle straight ahead, observe |
+| The idle launch meets the nav buoy as 20-01 measured and pinned it | DEATH-01 | Browser confirmation of the Vitest pin (A4, measured in 20-01) | Launch and touch nothing; the outcome about a minute later matches 20-01's idle-launch scenario and the CHANGELOG line |
 
 ---
 

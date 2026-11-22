@@ -7,10 +7,10 @@ current_phase_name: Player Death and Game Over
 current_plan: Not started
 status: executing
 stopped_at: Phase 20 context gathered
-last_updated: "2026-11-22T17:58:22.944Z"
+last_updated: "2026-11-22T21:30:08.217Z"
 last_activity: 2026-11-22
 last_activity_desc: Phase 19 complete, transitioned to Phase 20
-state_head: a5a03ce3bef7606219995f0213326e4055d2278e
+state_head: c467a50291df7d47f8673c0885bc6f644861dadb
 progress:
   total_phases: 6
   completed_phases: 5
