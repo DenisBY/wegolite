@@ -66,13 +66,13 @@
     {
       "number": "20",
       "name": "Player Death and Game Over",
-      "status": "pending"
+      "status": "in_progress"
     }
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (plan phase 20)",
-    "reason": "Phase 6 of 6 — needs a plan"
+    "label": "Advance to the next step",
+    "reason": "Phase 6 of 6 · 83% · executing"
   },
-  "updated_at": "2026-11-22T14:20:54.033Z"
+  "updated_at": "2026-11-22T17:58:22.979Z"
 }
