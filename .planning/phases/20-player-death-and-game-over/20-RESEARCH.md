@@ -522,18 +522,23 @@ if (ctx.runtime.gameOver) {
 | A5 | One explosion `add` with `PLAYER_COLLISION_RADIUS_M` times a tuned factor is an acceptable stand-in for `becomeLargeExplosion:4.0` | Render | Owner may want the "large" look; needs the UAT look and a FIDELITY row. |
 | A6 | `snapshotForSave` throwing for a dead state is preferable to returning `undefined` | Save path | If the owner or a reviewer prefers the type-level refusal, about 28 test call sites in 6 files change. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **How large should the player's explosion be?**
    - What we know: Oolite adds four small and four big fragment bursts; this layer draws one cloud plus a flash per `add`, seeded by position and radius (identical for equal inputs).
    - What's unclear: the owner's "scaled as Oolite's becomeLargeExplosion:4.0".
    - Recommendation: one `add`, radius = player collision radius times a constant tuned in UAT (record the constant and the divergence); two adds with distinct radii only if one looks thin.
+   - **RESOLVED:** D-01 is locked (orchestrator ruling, 2026-11-22): `PLAYER_EXPLOSION_SCALE = 4`, Oolite's `becomeLargeExplosion:4.0` factor (`PlayerEntity.m:6208` at the pin), not tuned in UAT. 20-04 Task 2 adds the Phase 16 cloud once at `PLAYER_COLLISION_RADIUS_M * 4`. Oolite's factor counts four small and four big fragment bursts, each sized from the collision radius (`ShipEntity.m:8308-8320`, `OOParticleSystem.m:272-274` and `322-324`); the reused layer has no fragment bursts, so the factor scales the cloud's radius. 20-10 records that difference of form (the owner's D-01 choice) in a FIDELITY row and the factor in the constants ledger; there is no tuned-scale row.
 2. **Wording of the fallback line when the culprit is unknown.**
    - Recommendation: "Destroyed" (no "by"), so the four-line layout never prints an empty name.
+   - **RESOLVED:** "Destroyed" for a laser and "Destroyed in a collision" for a ram when no name resolves (20-05 Task 2, `CAUSE_DESTROYED` and `CAUSE_DESTROYED_IN_COLLISION`); a raw key or an id is never shown.
 3. **Should the frozen world and the missing equipment removal get FIDELITY rows?**
    - Recommendation: yes (cheap, makes the owner decisions visible to reviewers); they need reviewer agreement like the others.
+   - **RESOLVED:** yes. 20-10 Task 2 adds both rows (`performDeadUpdates` from 3551, `removeAllEquipment` at 6220), each with reviewer agreement under the standard stated in 20-10's objective (`20-REVIEWS.md`, from `/gsd-review --phase 20` before execution).
 4. **`snapshotForSave` refusal style** (A6): throw plus guards (recommended) versus `SaveInputs | undefined`.
+   - **RESOLVED:** throw plus guards. `snapshotForSave` throws for a dead state in 20-01's death commit (Task 1), and 20-04 puts the session latch and the `buildSnapshotInputs`/`queueSnapshot` guards in front of it, so the throw is never reached from the save controller.
 5. **Where the death-and-reload spec gets a lethal attacker quickly.** `spawnTestAttacker` exists (hook, `?test=1&traffic=1`); the death tick needs a Node twin (like `tick-parity.test.ts`'s kill twin) before the browser pin is written.
+   - **RESOLVED:** a ram, not `spawnTestAttacker`. 20-09 seeds an in-flight save at `DEATH_RAM_POSE` near the Lave nav buoy (`inFlightSaveAt`), dies under `?test=1&traffic=1&clock=manual`, and pins the death tick and cause with the Node twin `tests/app/session/death-twin.test.ts` before the browser asserts them.
 
 ## Environment Availability
 
@@ -596,7 +601,7 @@ New sim code must keep `src/sim/**` coverage thresholds (lines 93, branches 86):
 - [ ] `tests/app/session/death-flow.test.ts` — subscriber, latch, guards (DEATH-01/06)
 - [ ] `tests/ui/game-over-model.test.ts`, `tests/ui/game-over.test.ts` (Node double for the DOM shell), `tests/input/keyboard-gameover.test.ts`
 - [ ] `tests/e2e/death-and-reload.spec.ts`, `tests/e2e/game-over-guard.spec.ts`, and `inFlightSaveAt(..., { damagedEquipment })` in `tests/e2e/helpers/save-fixtures.ts`
-- [ ] A Node twin pinning the death tick of `spawnTestAttacker` (A3), modelled on `tests/app/session/tick-parity.test.ts`
+- [ ] A Node twin `tests/app/session/death-twin.test.ts` pinning the death tick and cause of the seeded nav-buoy ram from `DEATH_RAM_POSE` (Open Question 5, RESOLVED), modelled on `tests/app/session/tick-parity.test.ts`
 - [ ] Delete `tests/guards/collision-player-death.test.ts`; edit the pins in "Existing pins"
 - [ ] Optional guard `tests/guards/dead-mode-gates.test.ts`: a source scan that every `src/` file comparing a `FlightMode` literal is in the reviewed list from Inventory 1 (a tripwire for the next mode)
 - Framework install: none.

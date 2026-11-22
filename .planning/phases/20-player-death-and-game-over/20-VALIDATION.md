@@ -71,7 +71,7 @@ Filled by the planner per task; the requirement-level map is:
 - [ ] `tests/app/session/death-flow.test.ts`
 - [ ] `tests/ui/game-over-model.test.ts`, `tests/ui/game-over.test.ts`, `tests/input/keyboard-gameover.test.ts`
 - [ ] `tests/e2e/death-and-reload.spec.ts`, `tests/e2e/game-over-guard.spec.ts`, `inFlightSaveAt(..., { damagedEquipment })` in `tests/e2e/helpers/save-fixtures.ts`
-- [ ] Node twin pinning the `spawnTestAttacker` death tick
+- [ ] Node twin `tests/app/session/death-twin.test.ts` pinning the death tick of the seeded nav-buoy ram (`DEATH_RAM_POSE`)
 - [ ] Delete `tests/guards/collision-player-death.test.ts`; amend the "cannot die" pins listed in RESEARCH
 
 ---
