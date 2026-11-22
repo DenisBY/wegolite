@@ -2,21 +2,21 @@
 gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
-current_phase: 19
-current_phase_name: Equipment Damage and Repair
-current_plan: 2
-status: executing
-stopped_at: Phase 19 wave 1 merged (19-01, 19-02, 19-06, 19-15)
-last_updated: "2026-11-21T15:19:30.943Z"
-last_activity: 2026-11-21
-last_activity_desc: Phase 19 execution started
-state_head: c6c04e62ca6610ed8d6f3696c2ab2a42f95a4a86
+current_phase: 20
+current_phase_name: Player Death and Game Over
+current_plan: Not started
+status: planning
+stopped_at: Phase 19 complete, ready to plan Phase 20
+last_updated: "2026-11-22T14:20:53.965Z"
+last_activity: 2026-11-22
+last_activity_desc: Phase 19 complete, transitioned to Phase 20
+state_head: d86adddbce358a13ab1e2ced15e219f76aceb66c
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 65
-  completed_plans: 54
-  percent: 67
+  completed_plans: 65
+  percent: 83
 ---
 
 # Project State
@@ -30,17 +30,17 @@ See: .planning/PROJECT.md (updated 2026-11-16)
 
 ## Current Position
 
-Phase: 19 (Equipment Damage and Repair) — EXECUTING
-Current Plan: 2
+Phase: 20 — Player Death and Game Over
+Current Plan: Not started
 Total Plans in Phase: 15
-Status: Ready to execute
-Last activity: 2026-11-21 — Phase 19 execution started
+Status: Ready to plan
+Last activity: 2026-11-22 — Phase 19 complete, transitioned to Phase 20
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 189
+- Total plans completed: 204
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -65,6 +65,7 @@ Last activity: 2026-11-21 — Phase 19 execution started
 | 16 | 9 | - | - |
 | 17 | 13 | - | - |
 | 18 | 22 | - | - |
+| 19 | 15 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -751,7 +752,7 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-21T15:19:30.212Z
-Stopped at: Phase 19 wave 1 merged (19-01, 19-02, 19-06, 19-15)
+Stopped at: Phase 19 complete, ready to plan Phase 20
 Resume file: None
 
 ## Operator Next Steps

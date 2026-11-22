@@ -61,7 +61,7 @@
     {
       "number": "19",
       "name": "Equipment Damage and Repair",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "20",
@@ -71,8 +71,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 5 of 6 · 67% · executing"
+    "label": "Advance to the next step (plan phase 20)",
+    "reason": "Phase 6 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-21T14:00:42.202Z"
+  "updated_at": "2026-11-22T14:20:54.033Z"
 }

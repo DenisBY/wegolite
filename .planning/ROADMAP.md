@@ -85,7 +85,7 @@ Total: 35 of 35 plans complete. Requirements 10/10. Phase directories now live i
 - [x] **Phase 16: Wreckage, Cargo and the Entity Cap** - A destroyed ship explodes into alloy plates, cargo pods and wreckage by Oolite's cargo rule, drawn within the draw-call budget and held under the entity cap of 256, with the debris models vendored from the Oolite checkout (completed 2026-11-17)
 - [x] **Phase 17: NPC Fire and Hits on the Player** - NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot says so; hits on the player pass through shields and energy; NPCs still never attack in ordinary play (completed 2026-11-19)
 - [x] **Phase 18: Stations, Buoys and Collisions** - Lasers and ident hit the station and the navigation buoys (buoys can be destroyed); ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule; the station hull stays damage-free (completed 2026-11-20)
-- [ ] **Phase 19: Equipment Damage and Repair** - Hits on the player can damage equipment; the damage persists in save schema v5, a damaged item stops counting as installed, and F3 repairs it at Oolite's price
+- [x] **Phase 19: Equipment Damage and Repair** - Hits on the player can damage equipment; the damage persists in save schema v5, a damaged item stops counting as installed, and F3 repairs it at Oolite's price (completed 2026-11-22)
 - [ ] **Phase 20: Player Death and Game Over** - The player dies at zero energy from any cause while in flight; game over reloads the page and offers Continue only when a loadable save exists, through one death path that autosave, pause and the title flow respect; the milestone's determinism and release gates close here
 
 **Owner decisions in force** (taken 2026-11-16 at the start of the milestone, each recorded in PROJECT.md Key Decisions by the phase named):
@@ -388,7 +388,7 @@ Plans:
 **Pitfalls to address**: 13 (equipment damage has no place in the save, F3 or the profile: atomic profile update test), 18 (the save schema: v5 is now an owner decision, with no migration because the game is alpha, and a worst-case size test), 22 (closed sets: router table, probe shape, HUD)
 **Decisions to settle**: which items can be damaged; whether the cargo-pod-loss branch that opens Oolite's `takeInternalDamage` roll is ported or recorded as a divergence (the requirements name equipment only, and the branch also shifts the odds of the equipment branch while the hold is full); the F3 repair row's copy; `ship_trade_in_factor` stays unpersisted (the research's lean)
 **Todos**: `2026-11-11-cargo-purchase-cost-basis-tracking.md` needs its own ordered bump after v5 and stays unscheduled
-**Plans**: 15/15 plans executed in 8 waves (owner answers of 2026-11-21 applied: D-05 factor 95, D-11 old saves `corrupt`, D-07/D-12 "Repair: X" is Oolite's own text; the save work is split in three after the plan check; the D-06 in-use tripwire moved out of 19-03 into 19-15 at the second plan check; the cross-AI review `19-REVIEWS.md` applied: 19-12 before 19-11, the internal-damage loop cap recorded as a divergence, the in-use tripwire pins its counts in `outfitting.ts`)
+**Plans**: 15/15 plans complete in 8 waves (owner answers of 2026-11-21 applied: D-05 factor 95, D-11 old saves `corrupt`, D-07/D-12 "Repair: X" is Oolite's own text; the save work is split in three after the plan check; the D-06 in-use tripwire moved out of 19-03 into 19-15 at the second plan check; the cross-AI review `19-REVIEWS.md` applied: 19-12 before 19-11, the internal-damage loop cap recorded as a divergence, the in-use tripwire pins its counts in `outfitting.ts`)
 
 Plans:
 **Wave 1**
@@ -494,7 +494,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 16. Wreckage, Cargo and the Entity Cap | v2.3 | 9/9 | Complete    | 2026-11-17 |
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
-| 19. Equipment Damage and Repair | v2.3 | 15/15 | In Progress | - |
+| 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
 | 20. Player Death and Game Over | v2.3 | 0/TBD | Not started | - |
 
 ## Backlog
