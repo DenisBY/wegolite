@@ -338,6 +338,78 @@ describe("show FPS", () => {
   });
 });
 
+/**
+ * A latched game over (plan 20-06, D-07, DEATH-06): pause, focus loss and
+ * context loss cannot open the pause overlay or revive the dead session.
+ */
+describe("while the session is latched game over", () => {
+  function latched(pauseOnFocusLoss = true): Harness {
+    const h = harness(pauseOnFocusLoss);
+    h.ctx.runtime.gameOver = true;
+    return h;
+  }
+
+  it("pause clears held input and nothing else: not paused, no overlay", () => {
+    const h = latched();
+    h.controller.pause();
+    expect(h.ctx.runtime.paused).toBe(false);
+    expect(h.calls).toEqual(["input.clearAll"]);
+  });
+
+  it.each([true, false])(
+    "focus loss with pauseOnFocusLoss %s only clears held input",
+    (pauseOnFocusLoss) => {
+      const h = latched(pauseOnFocusLoss);
+      h.controller.focusLost();
+      expect(h.ctx.runtime.paused).toBe(false);
+      expect(h.calls).toEqual(["input.clearAll"]);
+    },
+  );
+
+  it("context loss sets the flag but never pauses or shows the overlay", () => {
+    const h = latched();
+    h.controller.enterContextLoss();
+    expect(h.ctx.runtime.contextLost).toBe(true);
+    expect(h.ctx.runtime.paused).toBe(false);
+    expect(h.calls).not.toContain("overlay.show");
+    expect(h.calls).not.toContain("input.setPaused(true)");
+    expect(h.calls).not.toContain("loop.reset");
+  });
+
+  it("restoring the context draws the dead scene once and opens nothing", () => {
+    const h = latched();
+    h.controller.enterContextLoss();
+    h.calls.length = 0;
+    h.controller.exitContextLoss();
+    expect(h.ctx.runtime.contextLost).toBe(false);
+    expect(h.ctx.runtime.paused).toBe(false);
+    expect(h.frames).toEqual([0]);
+    expect(h.calls).not.toContain("overlay.show");
+  });
+
+  it("resume changes nothing, even for a session that was paused before the latch", () => {
+    // Unreachable in play (a paused world cannot die), which is why it is
+    // built by hand: the guard must still hold, or a resume would hide the
+    // overlay and reset the loop under the game-over view.
+    const h = harness();
+    h.controller.pause();
+    h.ctx.runtime.gameOver = true;
+    h.calls.length = 0;
+    h.controller.resume();
+    expect(h.ctx.runtime.paused).toBe(true);
+    expect(h.calls).toEqual([]);
+  });
+
+  it("the latch is the only difference: before it every route behaves as before", () => {
+    const h = harness();
+    h.controller.focusLost();
+    expect(h.ctx.runtime.paused).toBe(true);
+    expect(h.calls).toContain("overlay.show");
+    h.controller.resume();
+    expect(h.ctx.runtime.paused).toBe(false);
+  });
+});
+
 function ctx(h: Harness): SessionState["core"] {
   return h.ctx.core;
 }
