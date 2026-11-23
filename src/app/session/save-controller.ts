@@ -244,6 +244,13 @@ export function createSaveController(
     // WR-03: recorded before every skip, so a test can prove that a dock never
     // even reached this function while the taint guard still suppresses writes.
     ctx.save.saveAttempts += 1;
+    // DEATH-06: a latched (dead) session never writes, checked before every
+    // other guard so no combination of flags can reach `queueSnapshot`.
+    if (ctx.runtime.gameOver) {
+      ctx.save.saveSkipReason = "dead";
+      syncSaveProbe();
+      return;
+    }
     // QUAL-05 (T-07-05): no write while the context is lost, before any other
     // guard, and never a queued snapshot (research Pitfall 9).
     if (ctx.runtime.contextLost) {
@@ -277,6 +284,12 @@ export function createSaveController(
    */
   function manualSave(): void {
     ctx.save.saveAttempts += 1;
+    // DEATH-06: the latch comes first here too (see `autosave`).
+    if (ctx.runtime.gameOver) {
+      ctx.save.saveSkipReason = "dead";
+      syncSaveProbe();
+      return;
+    }
     // QUAL-05 (T-07-05): the same recovery guard as autosave, ahead of every
     // other check, so a lost context can never reach queueSnapshot.
     if (ctx.runtime.contextLost) {

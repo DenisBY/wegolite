@@ -4,10 +4,10 @@
 /**
  * The ordered event router (Phase 8, D-12 step 8, ARCHITECTURE.md section 4.2).
  *
- * `handleEvent` used to be one switch over every `SimEvent` kind. It is now five
+ * `handleEvent` used to be one switch over every `SimEvent` kind. It is now six
  * gameplay subscribers (`stationFlow`, `damageFlow`, `hudMessages`,
- * `dockFeedback`, `hyperspaceFlow`), the world lifecycle subscriber the router builds itself
- * (`worldLifecycle`, plan 08-15) and a router that offers each event to them in
+ * `dockFeedback`, `hyperspaceFlow`, `deathFlow`), the world lifecycle subscriber the
+ * router builds itself (`worldLifecycle`, plan 08-15) and a router that offers each event to them in
  * `EVENT_SUBSCRIBER_ORDER`. Which subscribers handle which kind is the
  * declarative table `EVENT_KIND_SUBSCRIBER`; the order tests pin it. The
  * `worldLifecycle` subscriber runs right after `stationFlow` on `launched` and
@@ -22,9 +22,15 @@
  * commit knows whether it did (a refused, repeated or stale event prints
  * nothing, T-19-17). It writes no save (D-11).
  *
+ * Phase 20 (DEATH-01, DEATH-06): `playerDestroyed` is routed to `deathFlow`
+ * alone, the seventh and last subscriber. The router installs the session latch
+ * even when a caller supplies no `deathFlow` (the `worldLifecycle` precedent), so
+ * no wiring can drop it: the latch is set synchronously inside the dispatch of
+ * the lethal tick's event, before any later step, frame, timer or key handler.
+ *
  * Order independence with plan 08-11 (which widens `SimEvent` with reserved
  * kinds in the same wave): the table is keyed to the literal `RoutedKind` union
- * of the 24 routed kinds, never to the full `SimEvent` kind union, and every
+ * of the 25 routed kinds, never to the full `SimEvent` kind union, and every
  * read of it with a value that is not already a `RoutedKind` goes through
  * `isRoutedKind`. The only mention of the full union's kind type is the
  * `satisfies` check on `ROUTED_EVENT_KINDS`. There is no exhaustive check and no
@@ -38,6 +44,7 @@ import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import type {
   HyperspaceRefusal,
+  PlayerDeathCause,
   SimEvent,
   WitchspaceBlocker,
 } from "../../sim/events.js";
@@ -63,12 +70,19 @@ export const EVENT_SUBSCRIBER_ORDER = [
   "hudMessages",
   "dockFeedback",
   "hyperspaceFlow",
+  "deathFlow",
 ] as const;
 
 export type SubscriberName = (typeof EVENT_SUBSCRIBER_ORDER)[number];
 
-/** The subscribers the facade supplies; the router builds `worldLifecycle`. */
-export type GameplaySubscriberName = Exclude<SubscriberName, "worldLifecycle">;
+/**
+ * The subscribers the facade must supply; the router builds `worldLifecycle`
+ * and, when none is given, the latch-only `deathFlow`.
+ */
+export type GameplaySubscriberName = Exclude<
+  SubscriberName,
+  "worldLifecycle" | "deathFlow"
+>;
 
 /**
  * The event kinds the router handles: a literal list, so it does not depend on
@@ -102,6 +116,8 @@ export const ROUTED_EVENT_KINDS = [
   // Phase 19 (D-01, D-04): internal damage, committed by `damageFlow`.
   "equipmentDamaged",
   "cargoDestroyed",
+  // Phase 20 (DEATH-01): the player's death, handled by `deathFlow` alone.
+  "playerDestroyed",
 ] as const satisfies readonly SimEvent["kind"][];
 
 export type RoutedKind = (typeof ROUTED_EVENT_KINDS)[number];
@@ -138,6 +154,7 @@ export const EVENT_KIND_SUBSCRIBER: Readonly<
   shipDestroyed: ["dockFeedback"],
   equipmentDamaged: ["damageFlow"],
   cargoDestroyed: ["damageFlow"],
+  playerDestroyed: ["deathFlow"],
 };
 
 /** Whether `kind` is one of the routed kinds; a reserved or unknown kind is not. */
@@ -149,13 +166,19 @@ export function isRoutedKind(kind: string): kind is RoutedKind {
 export type EventSubscriber = (event: SimEvent) => void;
 
 /**
- * What the facade passes: the five gameplay subscribers. `worldLifecycle` is
- * optional and only for a test that records it; the router builds the real one
- * from `ctx` when it is absent, so the facade never changes.
+ * What the facade passes: the five gameplay subscribers and `deathFlow`.
+ * `worldLifecycle` is optional and only for a test that records it; the router
+ * builds the real one from `ctx` when it is absent, so the facade never changes.
+ * `deathFlow` is optional for the same reason: when absent the router installs
+ * the latch-only `createDeathFlow(ctx)`, so the session latch (DEATH-06) can
+ * never be dropped by a construction path (T-20-11).
  */
 export type EventRouterSubscribers = Readonly<
   Record<GameplaySubscriberName, EventSubscriber>
-> & { readonly worldLifecycle?: EventSubscriber };
+> & {
+  readonly worldLifecycle?: EventSubscriber;
+  readonly deathFlow?: EventSubscriber;
+};
 
 /** What the station subscriber calls outside the session context. */
 export interface StationFlowDeps {
@@ -719,9 +742,44 @@ export function createWorldLifecycleFlow(ctx: SessionState): EventSubscriber {
 }
 
 /**
+ * Latch the session as game over (DEATH-06, D-12). Called synchronously from
+ * the `playerDestroyed` dispatch, so no later step, frame, timer or key handler
+ * can run before it. Idempotent: it returns false and changes nothing when the
+ * session is already latched (the cause is the first event's). It resets the
+ * loop accumulator and clears held input as the first shutdown steps; the rest
+ * of the death flow (overlays, HUD, explosion) is `createDeathFlow`'s.
+ */
+export function latchGameOver(
+  ctx: SessionState,
+  cause: PlayerDeathCause,
+): boolean {
+  if (ctx.runtime.gameOver) return false;
+  ctx.runtime.gameOver = true;
+  ctx.runtime.gameOverSeconds = 0;
+  ctx.runtime.gameOverCause = cause;
+  ctx.runtime.loop?.reset();
+  ctx.runtime.input?.clearAll();
+  return true;
+}
+
+/**
+ * playerDestroyed (DEATH-01, DEATH-06): the session's one death subscriber. It
+ * latches the session first; everything else the death does follows only a
+ * successful latch, so a second event repeats nothing.
+ */
+export function createDeathFlow(ctx: SessionState): EventSubscriber {
+  return (event) => {
+    if (event.kind === "playerDestroyed") {
+      if (!latchGameOver(ctx, event.cause)) return;
+    }
+  };
+}
+
+/**
  * Build the router. `ctx` is required, never optional: the `worldLifecycle`
  * subscriber is wired here from `ctx.core.worldLifecycle` and
- * `ctx.core.marketSeed`, so the facade never has to change for it.
+ * `ctx.core.marketSeed`, and the latch-only `deathFlow` is installed when none
+ * is supplied, so the facade never has to change for either.
  */
 export function createEventRouter(
   ctx: SessionState,
@@ -730,6 +788,7 @@ export function createEventRouter(
   const all: Readonly<Record<SubscriberName, EventSubscriber>> = {
     ...subscribers,
     worldLifecycle: subscribers.worldLifecycle ?? createWorldLifecycleFlow(ctx),
+    deathFlow: subscribers.deathFlow ?? createDeathFlow(ctx),
   };
   return {
     dispatch(event) {

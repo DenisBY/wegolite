@@ -64,7 +64,7 @@ import type { HullTable } from "../../sim/combat/hit.js";
 import type { InternalDamageFacts } from "../../sim/combat/internal-damage.js";
 import type { PlayerCombatState } from "../../sim/combat/state.js";
 import type { Command } from "../../sim/commands.js";
-import type { HyperspaceRefusal } from "../../sim/events.js";
+import type { HyperspaceRefusal, PlayerDeathCause } from "../../sim/events.js";
 import type { Market } from "../../sim/economy/market.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import type { FlightConfig } from "../../sim/flight/config.js";
@@ -294,6 +294,17 @@ export interface SessionRuntime {
   paused: boolean;
   /** QUAL-05: set from the context-loss event until the restore. */
   contextLost: boolean;
+  /**
+   * DEATH-06: the session latch. Set once, synchronously, inside the dispatch of
+   * the lethal tick's `playerDestroyed` (`latchGameOver`), before any later
+   * step, frame, timer or key handler can run; never cleared (game over is a
+   * page reload, D-12). Every save path checks it before any other guard.
+   */
+  gameOver: boolean;
+  /** Wall seconds since the death: the presentation clock (D-01, advanced by the frame loop). */
+  gameOverSeconds: number;
+  /** What killed the player: the first `playerDestroyed`'s cause, kept as data. */
+  gameOverCause: PlayerDeathCause | undefined;
   /** Set by any accepted `?test=1` live-state mutation; autosave refuses a tainted profile. */
   testTainted: boolean;
   /** `?test=1` is read once at boot; a Load rebinds the hook only when enabled (G-8). */
@@ -476,6 +487,9 @@ export function createSessionState(init: SessionStateInit): SessionState {
       fpsCounter: undefined,
       paused: false,
       contextLost: false,
+      gameOver: false,
+      gameOverSeconds: 0,
+      gameOverCause: undefined,
       testTainted: false,
       testHookEnabled: false,
       testFlags: { hook: false, manualClock: false, traffic: true },
