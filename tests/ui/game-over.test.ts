@@ -13,10 +13,13 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { formatDecicredits } from "../../src/sim/player/profile";
 import {
   GAME_OVER_PRESS_SPACE,
   GAME_OVER_TITLE,
+  buildGameOverLines,
   createGameOverOverlay,
+  resolveCulpritName,
   type GameOverLines,
 } from "../../src/ui/game-over";
 
@@ -210,5 +213,107 @@ describe("the game-over constants and markup", () => {
   it("hides the version and system lines for the dead view", () => {
     expect(html.includes("#hud[data-dead] ~ #overlay #title")).toBe(true);
     expect(html.includes("#hud[data-dead] ~ #overlay #status")).toBe(true);
+  });
+});
+
+describe("buildGameOverLines", () => {
+  it("names a laser culprit and prints the new commander's score line", () => {
+    const lines = buildGameOverLines(
+      { damage: "laser" },
+      "Krait",
+      1000,
+      "Harmless",
+    );
+    expect(lines.title).toBe(GAME_OVER_TITLE);
+    expect(lines.cause).toBe("Destroyed by Krait");
+    expect(lines.score).toBe("Score: Harmless   (0), 100.0\u00A0₢");
+    expect(lines.prompt).toBe(GAME_OVER_PRESS_SPACE);
+  });
+
+  it("has U+00A0 before the credit sign, as Oolite's template does", () => {
+    const { score } = buildGameOverLines(
+      { damage: "laser" },
+      "Krait",
+      1000,
+      "Harmless",
+    );
+    expect(score.endsWith("₢")).toBe(true);
+    expect(score.codePointAt(score.length - 2)).toBe(0xa0);
+  });
+
+  it("names the static a ram hit", () => {
+    expect(
+      buildGameOverLines({ damage: "scrape" }, "Navigation Buoy", 0, "Harmless")
+        .cause,
+    ).toBe("Collided with Navigation Buoy");
+    expect(
+      buildGameOverLines(
+        { damage: "scrape" },
+        "Witchpoint Beacon",
+        0,
+        "Harmless",
+      ).cause,
+    ).toBe("Collided with Witchpoint Beacon");
+  });
+
+  it("uses the name-free wording when no name resolves", () => {
+    expect(
+      buildGameOverLines({ damage: "laser" }, undefined, 0, "Harmless").cause,
+    ).toBe("Destroyed");
+    expect(
+      buildGameOverLines({ damage: "scrape" }, undefined, 0, "Harmless").cause,
+    ).toBe("Destroyed in a collision");
+    expect(
+      buildGameOverLines({ damage: "laser" }, "", 0, "Harmless").cause,
+    ).toBe("Destroyed");
+  });
+
+  it("writes a name verbatim, even one with replacement patterns", () => {
+    expect(
+      buildGameOverLines({ damage: "laser" }, "A$&B%@", 0, "Harmless").cause,
+    ).toBe("Destroyed by A$&B%@");
+  });
+
+  it("groups the credits as formatDecicredits does, with one credit sign", () => {
+    const { score } = buildGameOverLines(
+      { damage: "laser" },
+      "Krait",
+      123456789,
+      "Dangerous",
+    );
+    const grouped = formatDecicredits(123456789).replace(/ ₢$/, "");
+    expect(score).toBe(`Score: Dangerous   (0), ${grouped}\u00A0₢`);
+    expect(score.split("₢")).toHaveLength(2);
+    expect(score).toContain("12\u00A0345\u00A0678.9");
+  });
+});
+
+describe("resolveCulpritName", () => {
+  it("returns the catalogue name, else the static name", () => {
+    expect(
+      resolveCulpritName("krait", [{ key: "krait", name: "Krait" }], undefined),
+    ).toBe("Krait");
+    expect(
+      resolveCulpritName(
+        "buoy",
+        undefined,
+        new Map([["buoy", "Navigation Buoy"]]),
+      ),
+    ).toBe("Navigation Buoy");
+    expect(
+      resolveCulpritName(
+        "buoy",
+        [{ key: "krait", name: "Krait" }],
+        new Map([["buoy", "Navigation Buoy"]]),
+      ),
+    ).toBe("Navigation Buoy");
+  });
+
+  it("returns undefined, never the key, for an unknown or absent key", () => {
+    expect(
+      resolveCulpritName("ghost", [{ key: "krait", name: "Krait" }], new Map()),
+    ).toBeUndefined();
+    expect(resolveCulpritName(undefined, [], new Map())).toBeUndefined();
+    expect(resolveCulpritName("ghost", undefined, undefined)).toBeUndefined();
   });
 });

@@ -11,6 +11,8 @@
  * key held from before the view is ignored here as well (`event.repeat`).
  */
 
+import type { PlayerDeathCause } from "../sim/events";
+
 /** `descriptions.plist:1993` at the pin, `gameoverscreen-game-over`. */
 export const GAME_OVER_TITLE = "Game Over";
 
@@ -56,6 +58,32 @@ export interface GameOverOverlay {
   setFilter(filter: string): void;
   /** Remove the listeners and hide the root. */
   dispose(): void;
+}
+
+/** Red-phase skeleton of the line model. */
+export function resolveCulpritName(
+  key: string | undefined,
+  catalogue:
+    readonly { readonly key: string; readonly name: string }[] | undefined,
+  targetNames: ReadonlyMap<string, string> | undefined,
+): string | undefined {
+  void key;
+  void catalogue;
+  void targetNames;
+  return undefined;
+}
+
+export function buildGameOverLines(
+  cause: PlayerDeathCause,
+  culpritName: string | undefined,
+  creditsDecicredits: number,
+  ratingLabel: string,
+): GameOverLines {
+  void cause;
+  void culpritName;
+  void creditsDecicredits;
+  void ratingLabel;
+  return { title: "", cause: "", score: "", prompt: "" };
 }
 
 const LINE_KEYS = ["title", "cause", "score", "prompt"] as const;
