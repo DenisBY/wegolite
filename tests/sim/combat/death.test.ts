@@ -13,13 +13,24 @@
 
 import { describe, expect, it } from "vitest";
 
-import { npcLaserRay, playerLaserRay } from "../../../src/sim/combat/aim.js";
+import {
+  npcLaserRay,
+  PLAYER_HULL_KEY,
+  playerLaserRay,
+} from "../../../src/sim/combat/aim.js";
 import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
+import { resolveCollisions } from "../../../src/sim/combat/collide.js";
+import {
+  LASER_STATS,
+  PLAYER_MASS_KG,
+} from "../../../src/sim/combat/constants.js";
 import { killPlayer } from "../../../src/sim/combat/death.js";
+import type { HullTable } from "../../../src/sim/combat/hit.js";
 import {
   DEFAULT_LASER_MOUNTS,
   NO_LASER,
 } from "../../../src/sim/combat/mounts.js";
+import { collideWithShip } from "../../../src/sim/combat/response.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
 import { resolveShots } from "../../../src/sim/combat/step.js";
@@ -32,9 +43,15 @@ import { stepFlight } from "../../../src/sim/flight/step.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { add, identity, vec } from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
+import { massFor } from "../../../src/sim/npc/stats.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT, MAX_STEPS_PER_FRAME } from "../../../src/sim/time.js";
-import { NO_ENTITY, PLAYER_ID } from "../../../src/sim/world/ids.js";
+import {
+  NAV_BUOY_SUBENTITY_ID,
+  NO_ENTITY,
+  PLAYER_ID,
+  STATION_NAV_BUOY_ID,
+} from "../../../src/sim/world/ids.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
@@ -422,6 +439,7 @@ function behind(distance: number): Vec3 {
 function sceneOptions(extra: {
   debris?: boolean;
   collisions?: boolean;
+  hulls?: HullTable;
   hyperspace?: StepOptions["hyperspace"];
   dock?: StepOptions["dock"];
 }): StepOptions {
@@ -429,7 +447,7 @@ function sceneOptions(extra: {
     npcFlight: NPC_FLIGHT,
     combat: {
       mounts: DEFAULT_LASER_MOUNTS,
-      hulls: FULL_HULLS,
+      hulls: extra.hulls ?? FULL_HULLS,
       npcWeapons: NPC_WEAPONS,
       ...(extra.debris === true ? { debris: DEBRIS } : {}),
       ...(extra.collisions === true ? { collisions: true } : {}),
@@ -513,6 +531,11 @@ function stepOnce(
     stepOptions,
     combat,
   );
+}
+
+/** The length of a velocity. */
+function speedOf(velocity: Vec3): number {
+  return Math.hypot(velocity.x, velocity.y, velocity.z);
 }
 
 /** The state a frozen dead world must not move. */
@@ -1007,5 +1030,259 @@ describe("the steps after the lethal one in the same frame", () => {
       expect(frozenKey(player, world, combat)).toBe(lethalKey);
     }
     expect(player.mode).toBe("dead");
+  });
+});
+
+describe("the lethal ram (D-11)", () => {
+  const KRAIT_MASS = massFor({ flight: NPC_FLIGHT }, "krait");
+  const NAV_BUOY = layout.navBuoy.position;
+  const WITCHPOINT = layout.witchpoint.position;
+
+  /** The player hit event of a tick. */
+  function playerHit(events: readonly SimEvent[]) {
+    return ofKind(events, "shipHit").find(
+      (event) => event.target === PLAYER_ID,
+    );
+  }
+
+  it("the response for a player destroyed by the ram is the inelastic branch, with no nudge, and the Krait is not pushed (ShipEntity.m:11111-11121)", () => {
+    // 60 m behind a resting Krait, closing at 350 m/s with a bank of 10: the
+    // ram's damage exceeds the bank, so `selfDestroyed` holds for the player.
+    const player = flyingPlayer();
+    player.speed = 350;
+    const combat = bareCombat(10);
+    const world = createWorld(7);
+    const krait = spawnKind(world, "krait", aheadOf(60), identity(), 5000);
+    const kraitEntity = entityOf(world, krait);
+    const playerBefore = { ...player.position };
+    const expected = collideWithShip({
+      self: {
+        position: playerBefore,
+        velocity: vec(0, 0, -350),
+        mass: PLAYER_MASS_KG,
+        energy: combat.energy,
+        destroyable: true,
+      },
+      other: {
+        position: kraitEntity.position,
+        velocity: vec(0, 0, 0),
+        mass: KRAIT_MASS,
+        energy: 5000,
+        destroyable: true,
+      },
+    });
+    if (expected.kind !== "collided") throw new Error("expected a contact");
+    expect(expected.selfDestroyed).toBe(true);
+    expect(expected.otherDestroyed).toBe(false);
+    expect(expected.nudged).toBe(false);
+
+    resolveCollisions(
+      world,
+      player,
+      combat,
+      sceneOptions({ collisions: true }),
+      layout,
+    );
+
+    // The kernel's destroyed-self rule, applied by the stage: the player takes
+    // its own velocity change and no nudge, and the reversal on the Krait
+    // cancels the push it would have had (vel2a - vel2a).
+    expect(player.drift).toEqual(add(vec(0, 0, 0), expected.dv1));
+    expect(player.position).toEqual(add(playerBefore, expected.dp1));
+    expect(kraitEntity.velocity).toEqual(
+      add(vec(0, 0, 0), expected.dvOtherBody),
+    );
+    expect(speedOf(kraitEntity.velocity)).toBe(0);
+  });
+
+  it("a player with no shields and a low bank ramming a resting Krait at 350 m/s dies on the contact tick with cause scrape and the Krait", () => {
+    const { player, combat, world } = ramScene(350, 10, 5000);
+
+    const { events } = stepToDeath(
+      player,
+      world,
+      combat,
+      sceneOptions({ collisions: true }),
+    );
+
+    // Measured (plan 20-02): dam1 228.564 on the player at 350 m/s; the bank
+    // of 10 is far below it, so `selfDestroyed` holds and the ledger kills.
+    expect(playerHit(events)?.amount).toBeCloseTo(228.564, 3);
+    expect(ofKind(events, "playerDestroyed")).toHaveLength(1);
+    expect(ofKind(events, "playerDestroyed")[0]?.cause).toEqual({
+      damage: "scrape",
+      culprit: "krait",
+    });
+    expect(player.mode).toBe("dead");
+    expect(combat.energy).toBe(0);
+  });
+
+  /** The player 400 m on +Z from `target`, nose toward it, with bank 10 and no shield. */
+  function buoyRam(target: Vec3, speed: number) {
+    const player = flyingPlayer();
+    player.position = vec(target.x, target.y, target.z + 400);
+    player.speed = speed;
+    const combat = bareCombat(10);
+    const world = createWorld(7);
+    return { player, combat, world };
+  }
+
+  it.each([
+    ["the nav buoy", NAV_BUOY, "buoy"],
+    ["the witchpoint buoy", WITCHPOINT, "buoy-witchpoint"],
+  ] as const)(
+    "a ram into %s kills the player and names it %s",
+    (_name, target, culprit) => {
+      const { player, combat, world } = buoyRam(target, 250);
+
+      const { events } = stepToDeath(
+        player,
+        world,
+        combat,
+        sceneOptions({ collisions: true }),
+      );
+
+      // Measured (plan 20-02): dam1 873.364 on the player at 250 m/s, the same
+      // for both buoys (one hull, one mass), against a bank of 10.
+      expect(playerHit(events)?.amount).toBeCloseTo(873.364, 3);
+      expect(ofKind(events, "playerDestroyed")[0]?.cause).toEqual({
+        damage: "scrape",
+        culprit,
+      });
+      expect(player.mode).toBe("dead");
+    },
+  );
+
+  it("a contact on the nav buoy's attached subentity still names the buoy: the collider id is the buoy's, not the subentity's", () => {
+    // The player's hull is replaced by the pod barrel's, with a collision
+    // radius above the buoy's, so the player is Oolite's prime and its octree,
+    // placed in the buoy's cavity, touches the subentity only (the geometry of
+    // `collision-buoy.test.ts`, whose pod does the same).
+    const barrel = FULL_HULLS.get("barrel");
+    const buoy = FULL_HULLS.get("buoy");
+    if (barrel === undefined || buoy === undefined) throw new Error("hulls");
+    const hulls = new Map(FULL_HULLS);
+    hulls.set(PLAYER_HULL_KEY, {
+      ...barrel,
+      collisionRadius: buoy.collisionRadius + 1,
+    });
+    const cavity = vec(-27.5, -5, 0);
+    const toCentre = Math.hypot(cavity.x, cavity.y);
+    const player = flyingPlayer();
+    player.position = vec(
+      NAV_BUOY.x + cavity.x,
+      NAV_BUOY.y + cavity.y,
+      NAV_BUOY.z + cavity.z,
+    );
+    player.flightTime = 0;
+    player.speed = 0;
+    player.drift = vec(
+      (-cavity.x / toCentre) * 200,
+      (-cavity.y / toCentre) * 200,
+      0,
+    );
+    const combat = bareCombat(1);
+    const world = createWorld(7);
+
+    const events = resolveShots(
+      world,
+      true,
+      player,
+      combat,
+      [],
+      sceneOptions({ collisions: true, hulls }),
+      DT,
+      layout,
+    );
+
+    // The contact is on the subentity: its own target id (7) took the damage
+    // (measured, plan 20-02: dam2 171.790 on id 7, dam1 6.117 on the player,
+    // which the bank of 1 cannot take), and the player's hit names the buoy.
+    const hits = ofKind(events, "shipHit");
+    expect(hits.map((event) => [event.target, event.source])).toEqual([
+      [PLAYER_ID, STATION_NAV_BUOY_ID],
+      [NAV_BUOY_SUBENTITY_ID, PLAYER_ID],
+    ]);
+    expect(ofKind(events, "playerDestroyed")[0]?.cause).toEqual({
+      damage: "scrape",
+      culprit: "buoy",
+    });
+    expect(player.mode).toBe("dead");
+  });
+
+  it("a ram whose damage exceeds the bank but not the shield plus the bank reverses the player and leaves it alive (bank only, ShipEntity.m:11111)", () => {
+    // Bank 100 and the forward shield 128: the facing shield absorbs 128 of the
+    // ram, so the damage past it is below the bank, while `selfDestroyed`
+    // compares the whole damage with the bank alone.
+    const player = flyingPlayer();
+    player.speed = 300;
+    const combat = createPlayerCombatState();
+    combat.energy = 100;
+    const world = createWorld(7);
+    const krait = spawnKind(world, "krait", aheadOf(200), identity(), 5000);
+    const stepOptions = sceneOptions({ collisions: true });
+
+    let hit: ReturnType<typeof playerHit>;
+    let events: SimEvent[] = [];
+    let bankBefore = combat.energy;
+    for (let tick = 0; tick < 400 && hit === undefined; tick += 1) {
+      bankBefore = combat.energy;
+      events = stepOnce(player, world, combat, stepOptions);
+      hit = playerHit(events);
+    }
+
+    // Measured (plan 20-02): dam1 167.925 at 300 m/s, between the bank (100)
+    // and the shield plus the bank (228).
+    const dam1 = hit?.amount ?? NaN;
+    expect(dam1).toBeCloseTo(167.925, 3);
+    expect(dam1).toBeGreaterThan(100);
+    expect(dam1).toBeLessThan(100 + 128);
+    // The player took the reversal (`selfDestroyed`): the Krait is not pushed.
+    expect(speedOf(entityOf(world, krait).velocity)).toBe(0);
+    // Alive after the shield absorbed its share: the damage past the full
+    // forward shield (128) comes off the bank of the contact tick (the bank
+    // recharged a little on the way in, a tick's worth on the last tick).
+    expect(player.mode).toBe("inFlight");
+    expect(combat.energy).toBeGreaterThan(0);
+    expect(combat.energy).toBeCloseTo(bankBefore - (dam1 - 128), 1);
+    expect(ofKind(events, "playerDestroyed")).toEqual([]);
+  });
+});
+
+describe("the lethal boundary through the step (QUAL-11)", () => {
+  const BEAM_DAMAGE = LASER_STATS.EQ_WEAPON_BEAM_LASER.damage;
+
+  /** One Viper beam against a player with `shield` forward and `bank`. */
+  function oneBeam(shield: number, bank: number) {
+    const player = flyingPlayer();
+    const combat = createPlayerCombatState();
+    combat.fwdShield = shield;
+    combat.energy = bank;
+    const world = createWorld(7);
+    const viper = viperAhead(world);
+    const events = resolve(player, world, combat, [shotOf(world, viper)]);
+    return { player, combat, events };
+  }
+
+  it("damage past the shield exactly equal to the bank kills", () => {
+    const { player, combat, events } = oneBeam(4, BEAM_DAMAGE - 4);
+    expect(ofKind(events, "playerDestroyed")).toHaveLength(1);
+    expect(player.mode).toBe("dead");
+    expect(combat.energy).toBe(0);
+  });
+
+  it("damage past the shield one short of the bank does not kill", () => {
+    const { player, combat, events } = oneBeam(4, BEAM_DAMAGE - 3);
+    expect(ofKind(events, "playerDestroyed")).toEqual([]);
+    expect(player.mode).toBe("inFlight");
+    expect(combat.energy).toBe(1);
+  });
+
+  it("damage the shield absorbs entirely never kills, also at bank 0", () => {
+    const { player, combat, events } = oneBeam(BEAM_DAMAGE, 0);
+    expect(ofKind(events, "playerDestroyed")).toEqual([]);
+    expect(player.mode).toBe("inFlight");
+    expect(combat.fwdShield).toBe(0);
+    expect(combat.energy).toBe(0);
   });
 });
