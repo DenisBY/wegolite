@@ -69,7 +69,13 @@ function piece(
   radius = 4,
   orientation: Quat = IDENTITY,
 ): DebrisContact {
-  return { position: { x, y: 0, z: 0 }, orientation, radius, specKey };
+  return {
+    position: { x, y: 0, z: 0 },
+    orientation,
+    radius,
+    specKey,
+    velocity: { x: 0, y: 0, z: 0 },
+  };
 }
 
 function instancedMeshes(root: THREE.Object3D): THREE.InstancedMesh[] {

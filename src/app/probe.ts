@@ -430,6 +430,16 @@ export interface WegoliteRecoveryProbe {
   restores: number;
 }
 
+/**
+ * Phase 20, DEATH-01: the game-over latch as the probe shows it. Published only
+ * while the session is latched game over (`updateProbe`), so the browser specs
+ * can wait for it. The culprit is a spec or ident key, never an entity id.
+ */
+export interface WegoliteDeathProbe {
+  dead: true;
+  cause: { damage: "laser" | "scrape"; culprit?: string };
+}
+
 export interface WegoliteProbe {
   ready: boolean;
   calls: number;
@@ -503,6 +513,11 @@ export interface WegoliteProbe {
   hyperspace?: WegoliteHyperspaceProbe;
   /** The pose the in-flight Continue installed (SAV-03). */
   restore?: WegoliteRestoreProbe;
+  /**
+   * The death, present only while the session is latched game over (Phase 20,
+   * DEATH-01) and removed otherwise; `mode` reads "dead" with it.
+   */
+  death?: WegoliteDeathProbe;
   /** The live F2 Save/Load overlay (D-20..D-23). */
   saveScreen?: WegoliteSaveScreenProbe;
   /** The live current system id; the durable identity a reload proof reads. */

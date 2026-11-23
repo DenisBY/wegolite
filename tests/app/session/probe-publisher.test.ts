@@ -1135,3 +1135,59 @@ describe("the HUD gauge values (G-17-4)", () => {
     expect(probe.hud.energyBanks).toEqual([0, 0, 0, 0]);
   });
 });
+
+describe("the death key (Phase 20, DEATH-01, D-01)", () => {
+  it("publishes the cause while the session is latched game over, with mode dead", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.layout = layout;
+    ctx.core.state = { ...initFlightState(layout), mode: "dead" };
+    ctx.runtime.gameOver = true;
+    ctx.runtime.gameOverCause = { damage: "scrape", culprit: "buoy" };
+
+    publisher.updateProbe();
+
+    expect(probe.death).toEqual({
+      dead: true,
+      cause: { damage: "scrape", culprit: "buoy" },
+    });
+    expect(probe.mode).toBe("dead");
+    expect(probe.paused).toBe(false);
+  });
+
+  it("copies the cause and omits an absent culprit", () => {
+    const { ctx, probe, publisher } = harness();
+    const cause = { damage: "laser" as const };
+    ctx.runtime.gameOver = true;
+    ctx.runtime.gameOverCause = cause;
+
+    publisher.updateProbe();
+
+    expect(probe.death).toEqual({ dead: true, cause: { damage: "laser" } });
+    expect(probe.death?.cause).not.toBe(cause);
+    expect(Object.keys(probe.death?.cause ?? {})).toEqual(["damage"]);
+  });
+
+  it("leaves the key absent, not undefined, while not latched", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.layout = layout;
+    ctx.core.state = initFlightState(layout);
+
+    publisher.updateProbe();
+
+    expect("death" in probe).toBe(false);
+  });
+
+  it("removes the key once a latched session is replaced by a fresh state", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.runtime.gameOver = true;
+    ctx.runtime.gameOverCause = { damage: "scrape", culprit: "buoy" };
+    publisher.updateProbe();
+    expect(probe.death?.dead).toBe(true);
+
+    ctx.runtime.gameOver = false;
+    ctx.runtime.gameOverCause = undefined;
+    publisher.updateProbe();
+
+    expect("death" in probe).toBe(false);
+  });
+});

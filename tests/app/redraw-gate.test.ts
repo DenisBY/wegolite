@@ -137,13 +137,14 @@ describe("the session wiring", () => {
     );
   });
 
-  it("treats exactly docked outside the launch pre-roll, and paused, as idle", () => {
+  it("treats exactly docked outside the launch pre-roll, paused, and a settled dead view as idle", () => {
     // Quick 261118-os8: a docked session in the pre-roll moves its camera.
     expect(source).toContain(
       'const frozenDocked = state?.mode === "docked" && !launchSequence.preRolling;',
     );
+    // Plan 20-08, D-01: the dead view idles once the fade and the bursts settle.
     expect(source).toContain(
-      "redrawGate.next(paused || frozenDocked, drawKeys())",
+      "redrawGate.next(paused || frozenDocked || deadSettled, drawKeys())",
     );
   });
 

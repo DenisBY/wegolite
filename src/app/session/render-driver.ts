@@ -29,9 +29,19 @@ import type { FlightState } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import { hostilesNearPlayer } from "../../sim/combat/alert.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
-import { sub, vec } from "../../sim/math.js";
+import {
+  add,
+  conjugate,
+  dot,
+  rotate,
+  scale,
+  sub,
+  vec,
+} from "../../sim/math.js";
+import type { Quat, Vec3 } from "../../sim/math.js";
 import { aegisStatus } from "../../sim/world/aegis.js";
 import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
+import type { DebrisContact } from "../../sim/world/contacts.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
 import {
   buoyPosition,
@@ -50,6 +60,10 @@ import {
   preRollViewTime,
 } from "../../render/launch-camera.js";
 import type { CameraPose } from "../../render/launch-camera.js";
+import {
+  BIG_BURST_DURATION,
+  SMALL_BURST_DURATION,
+} from "../../render/bodies/explosions.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import {
@@ -74,6 +88,90 @@ import type { NpcModelLoader } from "../npc-models.js";
 import type { WegoliteProbe } from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SessionState } from "./context.js";
+
+/**
+ * D-01: the seconds the picture takes to fade to black and white after the
+ * death. Oolite's `gameover-seconds-to-bw-fadeout` default of 5.0
+ * (`gameOverFadeToBW`, `PlayerEntity.m:3566-3568` at the pin).
+ */
+export const GAME_OVER_FADE_SECONDS = 5;
+
+/**
+ * D-01: how far behind the dead ship the camera sits, along the ship's own
+ * forward axis: `getDestroyedBy:` moves the player 100 m forward
+ * (`moveForward:100.0`, `PlayerEntity.m:6187-6221` at the pin) and looks aft
+ * (`VIEW_AFT`), so the view sees the ship it left behind.
+ */
+export const DEAD_CAMERA_SETBACK_M = 100;
+
+/**
+ * Oolite's `NO_DRAW_DISTANCE_FACTOR` (`src/Core/Entities/Entity.h:45` at the
+ * pin): Oolite draws no ship whose squared camera distance exceeds
+ * `2 x (1024 x profile radius)^2` (`no_draw_distance`,
+ * `src/Core/Entities/ShipEntity.m:815`; `isVisible`, `:1443-1446`; the draw
+ * skipped past it, `:5558-5561`), the profile radius being the collision
+ * radius for a ship without subentities (`:798`), as every debris piece is.
+ * Wegolite uses it only for the dead view's redraw bound (D-01d): the debris
+ * layer still draws every piece.
+ */
+export const NO_DRAW_DISTANCE_FACTOR = 1024;
+
+/**
+ * D-01d: whether one debris piece is in the dead camera's view, for the dead
+ * view's redraw bound. `relative` is the piece's drawn position minus the
+ * camera's world position, in float64. The piece's bounding sphere has to be
+ * inside or cross each of the four side planes of the view frustum (the
+ * camera looks along its local -Z; `fovYDegrees` is the vertical field of view
+ * and `aspect` the width over the height), and the piece has to be within
+ * Oolite's no-draw distance, `sqrt(2) x NO_DRAW_DISTANCE_FACTOR x radius`.
+ * The near and far planes are not tested: the no-draw distance bounds the
+ * depth. A radius that is not finite and positive, or a position that is not
+ * finite, is never in view.
+ */
+export function isDebrisInDeadView(
+  relative: Vec3,
+  radius: number,
+  cameraOrientation: Quat,
+  fovYDegrees: number,
+  aspect: number,
+): boolean {
+  if (!Number.isFinite(radius) || radius <= 0) return false;
+  if (
+    !Number.isFinite(relative.x) ||
+    !Number.isFinite(relative.y) ||
+    !Number.isFinite(relative.z)
+  ) {
+    return false;
+  }
+  const local = rotate(conjugate(cameraOrientation), relative);
+  const reach = NO_DRAW_DISTANCE_FACTOR * radius;
+  if (dot(local, local) > 2 * reach * reach) return false;
+  const halfHeight = Math.tan((fovYDegrees * Math.PI) / 360);
+  const halfWidth = aspect * halfHeight;
+  const depth = -local.z;
+  // The signed distance of the centre along each side plane's inward unit
+  // normal, (+-x + halfWidth depth) / sqrt(1 + halfWidth^2) and the same for y.
+  const wide = Math.sqrt(1 + halfWidth * halfWidth);
+  const high = Math.sqrt(1 + halfHeight * halfHeight);
+  return (
+    (local.x + halfWidth * depth) / wide >= -radius &&
+    (-local.x + halfWidth * depth) / wide >= -radius &&
+    (local.y + halfHeight * depth) / high >= -radius &&
+    (-local.y + halfHeight * depth) / high >= -radius
+  );
+}
+
+/**
+ * The presentation seconds after which the fade and the player's bursts have
+ * finished (D-01a: the burst lifetimes come from the burst kinds, not from the
+ * explosion settings, and do not depend on NPC traffic). Past it the dead view
+ * draws nothing new unless a moving debris piece is in the camera's view.
+ */
+const DEAD_SETTLE_SECONDS = Math.max(
+  GAME_OVER_FADE_SECONDS,
+  SMALL_BURST_DURATION,
+  BIG_BURST_DURATION,
+);
 
 /** What the driver calls outside the session context. */
 export interface RenderDriverDeps {
@@ -124,6 +222,24 @@ export function buoyViewStates(
   return { witchpoint: one("witchpoint"), navBuoy: one("navBuoy") };
 }
 
+/**
+ * A debris contact drawn `seconds` after the death (D-01c): the position
+ * advanced by the contact's velocity, every other field kept.
+ */
+function driftedContact(
+  contact: DebrisContact,
+  seconds: number,
+): DebrisContact {
+  return {
+    ...contact,
+    position: {
+      x: contact.position.x + contact.velocity.x * seconds,
+      y: contact.position.y + contact.velocity.y * seconds,
+      z: contact.position.z + contact.velocity.z * seconds,
+    },
+  };
+}
+
 export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
   const {
     renderer,
@@ -138,6 +254,21 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     npcModels,
     launchSequence,
   } = deps;
+
+  /**
+   * The last fade filter written to the canvas and the game-over overlay;
+   * unknown until the driver's first frame, which therefore always writes it
+   * (a canvas reused by a new session never keeps a stale filter).
+   */
+  let lastFilter: string | undefined;
+  /** Whether the previous frame was drawn in the dead mode (the dust jump). */
+  let deadFrameSeen = false;
+  /**
+   * D-01d: whether the last `renderFrame` found a moving debris piece in the
+   * dead camera's view on the poses it drew. `renderFrame` runs every frame,
+   * drawn or not, so `shouldDraw` reads a flag at most one frame old.
+   */
+  let movingDebrisInView = false;
 
   /**
    * What the drawn image depends on besides the simulation: the flight state
@@ -155,13 +286,19 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
    * Whether the loop's next frame has to reach the GPU (see `redraw-gate.ts`).
    * A docked or paused session simulates nothing, so its image cannot change;
    * a docked session in the launch pre-roll moves its camera every step and is
-   * drawn (quick 261118-os8).
+   * drawn (quick 261118-os8). The dead view is drawn every frame while the
+   * fade and the explosion run, then idles like a paused one unless a moving
+   * debris piece is in its camera's view (D-01, D-01d).
    */
   function shouldDraw(): boolean {
     const { paused } = ctx.runtime;
     const { state } = ctx.core;
     const frozenDocked = state?.mode === "docked" && !launchSequence.preRolling;
-    return redrawGate.next(paused || frozenDocked, drawKeys());
+    const deadSettled =
+      ctx.runtime.gameOver &&
+      ctx.runtime.gameOverSeconds >= DEAD_SETTLE_SECONDS &&
+      !movingDebrisInView;
+    return redrawGate.next(paused || frozenDocked || deadSettled, drawKeys());
   }
 
   /**
@@ -205,6 +342,12 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     const preRolling =
       currentState.mode === "docked" && launchSequence.preRolling;
     const launchView = preRolling || launching;
+    // D-01: the dead view is Oolite's aft view set back 100 m. The first dead
+    // frame forgets the previous camera, so the 100 m move gives the dust a
+    // zero delta instead of a jump (the warm Load clears it the same way).
+    const dead = currentState.mode === "dead";
+    if (dead && !deadFrameSeen) ctx.core.previousCameraWorld = undefined;
+    deadFrameSeen = dead;
     // D-10 (quick 261118-l26, 261118-os8): the view time of the drawn frame on
     // one timeline, the pre-roll then the launch time of the interpolated pose.
     // The station is rolled at that same time, so the slot walls hold still
@@ -251,6 +394,18 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
         ctx.core.combat?.view ?? "fore",
         ctx.core.dockFeedback.shakeOffset(currentState.flightTime),
       );
+    } else if (dead) {
+      // `getDestroyedBy:` moves the ship 100 m along its local -Z and looks aft;
+      // the player's own hull stays hidden below.
+      camera = computeViewCamera(
+        add(
+          pose.position,
+          scale(rotate(pose.orientation, vec(0, 0, -1)), DEAD_CAMERA_SETBACK_M),
+        ),
+        pose.orientation,
+        "aft",
+        vec(0, 0, 0),
+      );
     }
     const cameraWorld = applyFrame(
       currentScene,
@@ -296,16 +451,49 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // Debris is not on the scanner (D16-26).
     const debris = debrisContacts(ctx.core.worldLifecycle?.world);
     npcModels.request(debris.map((contact) => contact.specKey));
+    // D-01: while dead the sim clock is frozen, so the explosions, the shots
+    // and the debris run on the effect clock, the flight time plus the seconds
+    // since the death; alive, `gameOverSeconds` is 0 and it is the flight time.
+    const effectTime = currentState.flightTime + ctx.runtime.gameOverSeconds;
+    // D-01c, D-01d: debris already in flight keeps moving on screen only, with
+    // no time limit: each piece is drawn at its last sim position plus its
+    // velocity times the seconds since the death (a render-side extrapolation;
+    // the sim is frozen and nothing is written back). The pose is computed
+    // before the layer's camera subtraction, in float64.
+    const drawnDebris = ctx.runtime.gameOver
+      ? debris.map((contact) =>
+          driftedContact(contact, ctx.runtime.gameOverSeconds),
+        )
+      : debris;
     currentScene.debris.update(
-      debris,
+      drawnDebris,
       cameraWorld,
       npcModels.loaded(),
       ctx.core.npcTraffic?.debrisModels ?? [],
-      currentState.flightTime,
+      effectTime,
     );
+    // D-01d: the redraw bound. Past the settle time the dead view is drawn only
+    // while a moving piece is in the dead camera's view, as these drawn poses
+    // put it; a piece at rest never holds the redraw.
+    movingDebrisInView =
+      dead &&
+      camera !== null &&
+      drawnDebris.some(
+        (contact) =>
+          (contact.velocity.x !== 0 ||
+            contact.velocity.y !== 0 ||
+            contact.velocity.z !== 0) &&
+          isDebrisInDeadView(
+            sub(contact.position, cameraWorld),
+            contact.radius,
+            camera.quaternion,
+            currentScene.camera.fov,
+            currentScene.camera.aspect,
+          ),
+      );
     // CBT-05: the shots added by `laserFired` this frame or earlier, drawn
     // camera-relative and retired after their 0.09 s of flight time.
-    currentScene.shots.update(cameraWorld, currentState.flightTime, {
+    currentScene.shots.update(cameraWorld, effectTime, {
       position: currentState.position,
       orientation: currentState.orientation,
     });
@@ -315,8 +503,22 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     currentScene.explosions.update(
       cameraWorld,
       currentScene.camera.quaternion,
-      currentState.flightTime,
+      effectTime,
     );
+
+    // D-01: the fade to black and white covers the scene and, through the
+    // overlay, the four lines (Oolite saturates the whole frame). Written only
+    // when it changes; a CSS filter costs no draw call.
+    const filter = dead
+      ? `saturate(${String(
+          1 - Math.min(1, ctx.runtime.gameOverSeconds / GAME_OVER_FADE_SECONDS),
+        )})`
+      : "";
+    if (filter !== lastFilter) {
+      lastFilter = filter;
+      renderer.domElement.style.filter = filter;
+      ctx.runtime.gameOverOverlay?.setFilter(filter);
+    }
 
     if (draw) {
       renderer.render(currentScene.scene, currentScene.camera);
@@ -365,7 +567,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // bar at 0 while launching. A docked session without a pre-roll shows the
     // status panel (D-09), not the HUD. The pre-roll HUD reads the launch start
     // state (`preRollHudState`, PD-1); the live state is never written.
-    const hudHidden = currentState.mode === "docked" && !preRolling;
+    const hudHidden = (currentState.mode === "docked" && !preRolling) || dead;
     hudCanvas.hidden = hudHidden;
     const hudState =
       preRollViewPose === null
@@ -381,6 +583,9 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // HUD canvas shows (D-02); the mark keeps them hidden for the whole launch
     // view, the pre-roll included (quick 261118-os8).
     hudCanvas.toggleAttribute("data-launching", launchView);
+    // The same for the dead view (D-01): the HUD canvas is hidden and the
+    // 20-05 CSS rule keeps the page's version and system lines hidden too.
+    hudCanvas.toggleAttribute("data-dead", dead);
     if (!hudHidden && draw) {
       // Oolite's message rows (quick task 261117-pij): the bottom
       // HUD_MESSAGE_ROWS of the ten, newest at the bottom.
