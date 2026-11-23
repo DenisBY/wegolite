@@ -26,17 +26,23 @@ import { createNpcModelLoader } from "../../../src/app/npc-models.js";
 import type { NpcModelLoader } from "../../../src/app/npc-models.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
-import { createRenderDriver } from "../../../src/app/session/render-driver.js";
+import {
+  DEAD_CAMERA_SETBACK_M,
+  GAME_OVER_FADE_SECONDS,
+  createRenderDriver,
+} from "../../../src/app/session/render-driver.js";
 import type { RenderDriver } from "../../../src/app/session/render-driver.js";
 import type { WegoliteProbe } from "../../../src/app/probe.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
 import type { Hud } from "../../../src/render/hud/hud.js";
+import type { GameOverOverlay } from "../../../src/ui/game-over.js";
 import { createMessageQueue } from "../../../src/render/hud/messages.js";
 import type { MessageQueue } from "../../../src/render/hud/messages.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
 import {
   computeCockpitCamera,
   computeSlotLaunchCamera,
+  computeViewCamera,
   LAUNCH_PRE_ROLL_DURATION,
   launchViewElapsed,
   launchViewStationAngle,
@@ -64,7 +70,15 @@ import {
   HYPERSPACE_COUNTDOWN_STEPS,
   countdownSecondsRemaining,
 } from "../../../src/sim/hyperspace/countdown.js";
-import { identity, vec } from "../../../src/sim/math.js";
+import {
+  add,
+  axisAngle,
+  identity,
+  rotate,
+  scale,
+  vec,
+} from "../../../src/sim/math.js";
+import type { Vec3 } from "../../../src/sim/math.js";
 import { NO_ENTITY, STATION_NAV_BUOY_ID } from "../../../src/sim/world/ids.js";
 import { buoyPosition } from "../../../src/sim/world/statics.js";
 import {
@@ -96,6 +110,11 @@ interface Harness {
   readonly messages: MessageQueue;
   /** The HUD canvas double, so its `hidden` flag and marks can be read. */
   readonly hudCanvas: HudCanvasDouble;
+  /**
+   * The renderer's canvas style double: `filter` is the live value, `writes`
+   * every assignment in order (the dead view's fade, D-01).
+   */
+  readonly canvasStyle: CanvasStyleDouble;
   /** The launch pre-roll the driver reads (quick 261118-os8); idle by default. */
   readonly preRoll: { preRolling: boolean; preRollElapsed: number };
 }
@@ -120,6 +139,12 @@ interface HudCanvasDouble {
   hidden: boolean;
   readonly attributes: Set<string>;
   toggleAttribute(name: string, force: boolean): boolean;
+}
+
+/** The `#view` canvas style the driver writes its fade filter to. */
+interface CanvasStyleDouble {
+  filter: string;
+  readonly writes: string[];
 }
 
 interface HarnessOptions {
@@ -149,10 +174,22 @@ function harness(options: HarnessOptions = {}): Harness {
       return force;
     },
   };
+  let filter = "";
+  const canvasStyle: CanvasStyleDouble = {
+    get filter() {
+      return filter;
+    },
+    set filter(value: string) {
+      filter = value;
+      this.writes.push(value);
+    },
+    writes: [],
+  };
   ctx.core.state = initFlightState(layout);
   ctx.core.scene = fakeScene(nebula);
   const driver = createRenderDriver(ctx, {
     renderer: {
+      domElement: { style: canvasStyle },
       render: () => {
         renders.push(1);
         options.onRender?.();
@@ -178,6 +215,7 @@ function harness(options: HarnessOptions = {}): Harness {
     nebula,
     messages,
     hudCanvas,
+    canvasStyle,
     preRoll,
   };
 }
@@ -1400,5 +1438,176 @@ describe("renderFrame live buoys (plan 18-08, D-05, PD-01, PD-02)", () => {
     const moved = model?.contacts[1];
     expect(moved?.id).toBe("witchpoint");
     expect(moved?.x).not.toBeCloseTo(witchpointContact?.x ?? NaN, 6);
+  });
+});
+
+describe("renderFrame dead scene (D-01)", () => {
+  const POSITION = vec(1_000, 200, -300);
+  const ORIENTATION = axisAngle(0, 1, 0, 0.7);
+  const FLIGHT_TIME = 42.5;
+
+  /** A dead, latched session with recording doubles for what the frame feeds. */
+  function dying(seconds = 0) {
+    const h = harness();
+    const explosionCalls: unknown[][] = [];
+    const shotCalls: unknown[][] = [];
+    const dustCalls: unknown[][] = [];
+    const overlayFilters: string[] = [];
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    const scene = flyableScene(h.nebula, undefined, (...args) => {
+      explosionCalls.push(args);
+    });
+    Object.assign(scene, {
+      shots: { update: (...args: unknown[]) => shotCalls.push(args) },
+      dust: { update: (...args: unknown[]) => dustCalls.push(args) },
+    });
+    h.ctx.core.scene = scene;
+    h.ctx.runtime.hud = { draw: () => undefined } as unknown as Hud;
+    h.ctx.runtime.gameOverOverlay = {
+      setFilter: (filter: string) => overlayFilters.push(filter),
+    } as unknown as GameOverOverlay;
+    const state: FlightState = {
+      ...initFlightState(layout),
+      mode: "dead",
+      flightTime: FLIGHT_TIME,
+      position: POSITION,
+      orientation: ORIENTATION,
+    };
+    h.ctx.core.state = state;
+    h.ctx.core.previousPose = poseOf(state);
+    h.ctx.core.currentPose = h.ctx.core.previousPose;
+    h.ctx.runtime.gameOver = true;
+    h.ctx.runtime.gameOverSeconds = seconds;
+    return { h, scene, explosionCalls, shotCalls, dustCalls, overlayFilters };
+  }
+
+  /** Back in flight on a fresh state: what a new session shows. */
+  function revive(h: Harness): void {
+    const state: FlightState = {
+      ...initFlightState(layout),
+      mode: "inFlight",
+      flightTime: FLIGHT_TIME,
+    };
+    h.ctx.core.state = state;
+    h.ctx.core.previousPose = poseOf(state);
+    h.ctx.core.currentPose = h.ctx.core.previousPose;
+    h.ctx.runtime.gameOver = false;
+    h.ctx.runtime.gameOverSeconds = 0;
+  }
+
+  it("draws from Oolite's aft view set back 100 m along the ship's forward, with the hull hidden", () => {
+    const { h, scene, explosionCalls } = dying();
+    expect(DEAD_CAMERA_SETBACK_M).toBe(100);
+    h.driver.renderFrame(0);
+
+    const forward = rotate(ORIENTATION, vec(0, 0, -1));
+    const expected = computeViewCamera(
+      add(POSITION, scale(forward, DEAD_CAMERA_SETBACK_M)),
+      ORIENTATION,
+      "aft",
+      vec(0, 0, 0),
+    );
+    expect(explosionCalls[0]?.[0]).toEqual(expected.position);
+    expect(scene.ship.visible).toBe(false);
+  });
+
+  it("hides the HUD canvas and marks it data-dead while dead, and neither once back in flight", () => {
+    const { h } = dying();
+    h.driver.renderFrame(0);
+    expect(h.hudCanvas.hidden).toBe(true);
+    expect(h.hudCanvas.attributes.has("data-dead")).toBe(true);
+
+    revive(h);
+    h.driver.renderFrame(0);
+    expect(h.hudCanvas.hidden).toBe(false);
+    expect(h.hudCanvas.attributes.has("data-dead")).toBe(false);
+  });
+
+  it("feeds the explosion and shot layers the effect time, the flight time plus the seconds since death", () => {
+    const { h, explosionCalls, shotCalls } = dying(2.5);
+    h.driver.renderFrame(0);
+    expect(explosionCalls[0]?.[2]).toBe(FLIGHT_TIME + 2.5);
+    expect(shotCalls[0]?.[1]).toBe(FLIGHT_TIME + 2.5);
+  });
+
+  it("feeds both layers the flight time exactly while alive", () => {
+    const { h, explosionCalls, shotCalls } = dying();
+    revive(h);
+    h.driver.renderFrame(0);
+    expect(explosionCalls[0]?.[2]).toBe(FLIGHT_TIME);
+    expect(shotCalls[0]?.[1]).toBe(FLIGHT_TIME);
+  });
+
+  it("fades the canvas and the game-over text to grey over GAME_OVER_FADE_SECONDS", () => {
+    expect(GAME_OVER_FADE_SECONDS).toBe(5);
+    const { h, overlayFilters } = dying();
+    const seen: string[] = [];
+    for (const seconds of [0, 2.5, 5, 9]) {
+      h.ctx.runtime.gameOverSeconds = seconds;
+      h.driver.renderFrame(0);
+      seen.push(h.canvasStyle.filter);
+    }
+    expect(seen).toEqual([
+      "saturate(1)",
+      "saturate(0.5)",
+      "saturate(0)",
+      "saturate(0)",
+    ]);
+    // The overlay gets the same strings, written when they change.
+    expect(overlayFilters).toEqual([
+      "saturate(1)",
+      "saturate(0.5)",
+      "saturate(0)",
+    ]);
+  });
+
+  it("sets no filter in flight, and writes a string only when it changes", () => {
+    const { h, overlayFilters } = dying();
+    revive(h);
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    expect(h.canvasStyle.filter).toBe("");
+    expect(h.canvasStyle.writes).toEqual([""]);
+    expect(overlayFilters).toEqual([""]);
+  });
+
+  it("always writes the filter on a driver's first frame, clearing a stale one", () => {
+    const { h } = dying();
+    revive(h);
+    h.canvasStyle.filter = "saturate(0)";
+    h.canvasStyle.writes.length = 0;
+    h.driver.renderFrame(0);
+    expect(h.canvasStyle.filter).toBe("");
+    expect(h.canvasStyle.writes).toEqual([""]);
+  });
+
+  it("gives the dust a zero delta on the first dead frame although the camera moved, and on the next", () => {
+    const { h, dustCalls } = dying();
+    // The camera of the last live frame: far from the 100 m aft camera.
+    h.ctx.core.previousCameraWorld = vec(0, 0, 0);
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    expect(dustCalls).toHaveLength(2);
+    expect(dustCalls[0]?.[0]).toEqual(vec(0, 0, 0));
+    expect(dustCalls[1]?.[0]).toEqual(vec(0, 0, 0));
+  });
+
+  it("draws every dead frame until the settle time, with or without traffic, then lets the gate idle", () => {
+    const { h } = dying(4.9);
+    expect(runFrames(h, 20)).toBe(20);
+    h.ctx.core.npcTraffic = {
+      debrisModels: [],
+    } as unknown as TrafficContent;
+    expect(runFrames(h, 20)).toBe(20);
+    h.ctx.runtime.gameOverSeconds = GAME_OVER_FADE_SECONDS + 1;
+    expect(runFrames(h, 20)).toBe(IDLE_SETTLE_DRAWS);
+    expect(runFrames(h, 20)).toBe(0);
+  });
+
+  it("draws the dead scene from the live fields on a context restore", () => {
+    const { h } = dying(7);
+    h.driver.renderFrame(0);
+    expect(h.renders).toHaveLength(1);
   });
 });
