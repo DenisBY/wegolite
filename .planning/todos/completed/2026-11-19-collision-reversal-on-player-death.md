@@ -57,3 +57,17 @@ and the buoy are destroyed (FIDELITY "Player-against-buoy ram").
 
 The commit that gives the player a death removes the marker constant, which retires the
 guard, and closes this todo.
+
+## Resolution (2026-11-23)
+
+Fixed in Phase 20 plan 20-01 (D-11), in the commit that gave the player its death (`b10e191`):
+the player collider is `destroyable: true` in `gatherColliders`, the marker
+`PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20` and `tests/guards/collision-player-death.test.ts` are
+gone, and a lethal ram on the player now takes Oolite's inelastic reversal and skips the nudge.
+Oolite's detail is kept: `selfDestroyed` still compares the ram damage with the energy bank
+only (`ShipEntity.m:11111`), so a player whose shields absorb most of a scrape can survive it and
+still take the reversal. The ledger's player floor is now display-only and the death is decided
+at the damage point (`applyLedger`; the Key Decisions row "Decide the player's death where the
+damage is applied, and floor the banks at 0 for display (Phase 20, D-04, D-11)"). The 350 m/s
+nav-buoy ram destroys both the player and the buoy, as plan 18-20 measured on real Oolite
+(`tests/sim/combat/collision-buoy.test.ts`). FIDELITY.md: the interim row E-132 is faithful now.
