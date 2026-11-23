@@ -374,6 +374,7 @@ describe("SystemScene owns only what it created", () => {
           orientation: { w: 1, x: 0, y: 0, z: 0 },
           radius: 5,
           specKey: "barrel",
+          velocity: { x: 0, y: 0, z: 0 },
         },
       ],
       { x: 0, y: 0, z: 0 },

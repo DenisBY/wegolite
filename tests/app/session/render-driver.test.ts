@@ -1750,6 +1750,7 @@ describe("renderFrame dead debris drift (D-01c, D-01d)", () => {
     h.ctx.core.currentPose = h.ctx.core.previousPose;
     h.ctx.runtime.gameOver = true;
     const world = lifecycle.world;
+    if (world === undefined) throw new Error("the lifecycle has no world");
     /** One dead frame at `seconds`, then whether the gate would draw the next. */
     function drawsAt(seconds: number): boolean {
       h.ctx.runtime.gameOverSeconds = seconds;

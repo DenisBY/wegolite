@@ -80,6 +80,13 @@ export interface DebrisContact {
   readonly orientation: Quat;
   readonly radius: number;
   readonly specKey: string;
+  /**
+   * A copy of the piece's velocity, for presentation only: while the player is
+   * dead and the sim is frozen, the render driver draws the piece at its
+   * position plus this velocity times the seconds since the death (D-01c).
+   * Nothing in the sim reads a contact.
+   */
+  readonly velocity: Vec3;
 }
 
 /**
@@ -109,6 +116,11 @@ export function debrisContacts(
       },
       radius: entity.radius,
       specKey: entity.specKey,
+      velocity: {
+        x: entity.velocity.x,
+        y: entity.velocity.y,
+        z: entity.velocity.z,
+      },
     });
   }
   return contacts;
