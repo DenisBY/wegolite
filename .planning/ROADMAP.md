@@ -446,7 +446,7 @@ Plans:
 **Pitfalls to address**: 6 (old pins encode "the player cannot die"), 7 (autosave races a death; a dead player must not be saved as docked), 10 (one death path and everything that must stop when it fires), 19 (Oolite's death is not the whole of "game over"), 22 (closed sets), 4, 21, 25 and 26 (close-out: acceptance, test cost, provenance, changelog)
 **Decisions to settle**: the deterministic dead hash during the game-over window; the `playerDestroyed` event payload; the game-over copy; the Key Decisions amendments named under "Changes from the former plan"
 **Todos**: `2026-11-16-ci-e2e-timeout-margins.md` (apply its 60 % rule to the new specs in the same change)
-**Plans**: 10/11 plans executed in 6 waves (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
+**Plans**: 11/11 plans executed in 6 waves (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
 
 Plans:
 **Wave 1**
@@ -470,7 +470,7 @@ Plans:
 - [x] 20-09-PLAN.md — DEATH-01, DEATH-06 (D-13, D-14, D-16): one death route (a seeded full-speed ram into the nav buoy from at least 5 km, measured lethal in 20-01 and confirmed by a Node twin; a non-lethal twin stops the plan for a report, with no fallback route); death-and-reload through the manual-clock hook (the no-save variant exits by a click), game-over-guard in an unhooked, untainted session so its save checks can fail; with the CI timeout margins and the 90 % Vitest count
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 20-10-PLAN.md — DEATH-01, DEATH-06, QUAL-11 (D-15): Key Decisions, the DEATH-01 wording, FIDELITY rows and excerpts (E-45 rewritten with its title, drifted line cells re-pointed), todos, the CHANGELOG check, remote `verify-full`, one recorded `e2e-cross` run and the 20-seed acceptance run (prerequisite: `20-REVIEWS.md` from `/gsd-review --phase 20`, present at `4e28360`: DIV-1..DIV-8 accepted, DIV-2's objection resolved by the owner's amended D-01; DIV-9, the one flash of D-01b, and the updated DIV-2 and DIV-7 accepted by fable, sonnet and deepseek-v4.1-flash in `## Round 2` at `c467a50`; 20-10 halts on any verdict missing at execution time); the burst-kind constants and the no-draw factor in the ledger (D-01a, D-01d), the DIV-9 row with Oolite's reduced-detail precedent, the DIV-2 row's remaining form differences and debris among DIV-7's moving layers, with no time limit and the redraw bounded by visibility (D-01c, D-01d; round 2's DIV-7 acceptance stands)
+- [x] 20-10-PLAN.md — DEATH-01, DEATH-06, QUAL-11 (D-15): Key Decisions, the DEATH-01 wording, FIDELITY rows and excerpts (E-45 rewritten with its title, drifted line cells re-pointed), todos, the CHANGELOG check, remote `verify-full`, one recorded `e2e-cross` run and the 20-seed acceptance run (prerequisite: `20-REVIEWS.md` from `/gsd-review --phase 20`, present at `4e28360`: DIV-1..DIV-8 accepted, DIV-2's objection resolved by the owner's amended D-01; DIV-9, the one flash of D-01b, and the updated DIV-2 and DIV-7 accepted by fable, sonnet and deepseek-v4.1-flash in `## Round 2` at `c467a50`; 20-10 halts on any verdict missing at execution time); the burst-kind constants and the no-draw factor in the ledger (D-01a, D-01d), the DIV-9 row with Oolite's reduced-detail precedent, the DIV-2 row's remaining form differences and debris among DIV-7's moving layers, with no time limit and the redraw bounded by visibility (D-01c, D-01d; round 2's DIV-7 acceptance stands)
 
 **UI hint**: yes
 
@@ -520,7 +520,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
-| 20. Player Death and Game Over | v2.3 | 10/11 | In Progress | - |
+| 20. Player Death and Game Over | v2.3 | 11/11 | In Progress | - |
 
 ## Backlog
 

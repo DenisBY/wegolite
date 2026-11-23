@@ -29,8 +29,8 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Death
 
-- [ ] **DEATH-01**: The player dies at zero energy from any cause (only while `inFlight`); without an escape pod the game is over and the page reloads to the title, which offers Continue from the last save (D-12), through one death path that autosave, pause and the title flow respect.
-- [ ] **DEATH-06**: A dead player is never autosaved; after game over the page reloads and offers Continue only when a loadable save exists.
+- [x] **DEATH-01**: The player dies at zero energy from any cause (only while `inFlight`); without an escape pod the game is over and the page reloads to the title, which offers Continue from the last save (D-12), through one death path that autosave, pause and the title flow respect.
+- [x] **DEATH-06**: A dead player is never autosaved; after game over the page reloads and offers Continue only when a loadable save exists.
 
 ### Save
 
@@ -39,7 +39,7 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 ### Render and Quality
 
 - [x] **WORLD-17**: Explosions, debris, pods and flashes are drawn within the draw-call budget and do not affect the world hash.
-- [ ] **QUAL-11**: Kills are deterministic: the world hash is equal at 30, 60 and 144 Hz; the frozen 20-seed acceptance run stays 21 of 21 after every plan touching `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json`.
+- [x] **QUAL-11**: Kills are deterministic: the world hash is equal at 30, 60 and 144 Hz; the frozen 20-seed acceptance run stays 21 of 21 after every plan touching `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json`.
 
 ## v2 Requirements
 
@@ -88,9 +88,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CBT-08 | Phase 19 | Complete |
 | CBT-12 | Phase 19 | Complete |
 | SAVE-09 | Phase 19 | Complete |
-| DEATH-01 | Phase 20 | Pending |
-| DEATH-06 | Phase 20 | Pending |
-| QUAL-11 | Phase 20 | Pending |
+| DEATH-01 | Phase 20 | Complete |
+| DEATH-06 | Phase 20 | Complete |
+| QUAL-11 | Phase 20 | Complete |
 
 Staged requirements are mapped to the phase that completes them and are not checked off earlier: CBT-08 (destruction clauses proved in Phase 16, internal-damage clause completes it in Phase 19) and QUAL-11 (a standing gate from Phase 15 on, completed in Phase 20, where every kill source exists).
 
