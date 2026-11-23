@@ -18,6 +18,9 @@ import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import { createChartController } from "../../../src/app/session/chart-controller.js";
 import type { ChartController } from "../../../src/app/session/chart-controller.js";
+import { createSettingsController } from "../../../src/app/session/settings-controller.js";
+import type { SettingsV1 } from "../../../src/settings/schema.js";
+import type { PauseOverlay } from "../../../src/ui/pause.js";
 import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import type { GameLoop } from "../../../src/app/game-loop.js";
@@ -100,7 +103,7 @@ describe("toggleChartPreset", () => {
     expect(ctx.chart.chartCamera).toEqual(localPreset(system));
   });
 
-  it.each(["disposed", "paused", "contextLost"] as const)(
+  it.each(["disposed", "paused", "contextLost", "gameOver"] as const)(
     "is inert while %s",
     (flag) => {
       const { ctx, controller, calls } = harness();
@@ -195,6 +198,104 @@ describe("openChart and closeChart", () => {
     ctx.runtime.paused = true;
     controller.openChart();
     expect(ctx.chart.chartOpen).toBe(false);
+  });
+});
+
+/**
+ * A latched game over (plan 20-06, D-08): no chart opens over the game-over
+ * view. The death flow closes a chart that was open at the death (20-04), so
+ * the refusals below are belt and braces; an open chart is forced by hand to
+ * prove each guard on its own.
+ */
+describe("while the session is latched game over", () => {
+  function latched() {
+    const h = harness();
+    h.ctx.runtime.gameOver = true;
+    return h;
+  }
+
+  it("openChart leaves the chart closed and touches nothing", () => {
+    const { ctx, controller, calls, contexts, titles } = latched();
+    controller.openChart();
+    expect(ctx.chart.chartOpen).toBe(false);
+    expect(calls).toEqual([]);
+    expect(contexts).toEqual([]);
+    expect(titles).toEqual([]);
+  });
+
+  it("the chart key does not open it either", () => {
+    const { ctx, controller } = latched();
+    controller.applyChartAction("chart");
+    expect(ctx.chart.chartOpen).toBe(false);
+  });
+
+  it("setChartCamera changes no camera", () => {
+    const { ctx, controller, calls } = latched();
+    ctx.chart.chartOpen = true;
+    const before = ctx.chart.chartCamera;
+    controller.setChartCamera({ centre: { x: 1, y: 2 }, spanX: 40 });
+    expect(ctx.chart.chartCamera).toBe(before);
+    expect(calls).toEqual([]);
+  });
+
+  it("selectChartSystem selects nothing, even on a chart forced open", () => {
+    const { ctx, controller, calls } = latched();
+    ctx.chart.chartOpen = true;
+    controller.selectChartSystem(system.id);
+    expect(ctx.chart.chartSelectedId).toBeUndefined();
+    expect(calls).toEqual([]);
+  });
+
+  it("one latched session runs every refusal route in turn and leaks nothing between them", () => {
+    const { ctx, controller, calls, contexts } = latched();
+    const overlay: string[] = [];
+    const renders: number[] = [];
+    let clears = 0;
+    const input = ctx.runtime.input as unknown as Record<string, unknown>;
+    ctx.runtime.input = {
+      ...input,
+      clearAll: () => {
+        clears += 1;
+      },
+      setPaused: () => overlay.push("setPaused"),
+    } as unknown as KeyboardInputSource;
+    ctx.runtime.pauseOverlay = {
+      show: () => overlay.push("show"),
+      hide: () => overlay.push("hide"),
+      setNotice: () => undefined,
+    } as unknown as PauseOverlay;
+    ctx.runtime.settings = {
+      pauseOnFocusLoss: true,
+    } as unknown as SettingsV1;
+    const settings = createSettingsController(ctx, {
+      scenes: { quality: () => "standard", setQuality: () => undefined },
+      renderFrame: (alpha: number) => {
+        renders.push(alpha);
+      },
+      syncStationNav: () => undefined,
+      refreshStationChrome: () => undefined,
+      performSwap: () => undefined,
+    });
+
+    settings.focusLost();
+    settings.enterContextLoss();
+    controller.openChart();
+    settings.pause();
+    settings.resume();
+    settings.exitContextLoss();
+    controller.selectChartSystem(system.id);
+
+    expect(ctx.runtime.gameOver).toBe(true);
+    expect(ctx.runtime.paused).toBe(false);
+    expect(ctx.runtime.contextLost).toBe(false);
+    expect(ctx.chart.chartOpen).toBe(false);
+    expect(ctx.chart.chartSelectedId).toBeUndefined();
+    expect(ctx.core.hyperspaceTargetId).toBeUndefined();
+    expect(overlay).toEqual([]);
+    expect(calls).toEqual([]);
+    expect(contexts).toEqual([]);
+    expect(renders).toEqual([0]);
+    expect(clears).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -337,7 +438,7 @@ describe("handleFind", () => {
     expect(finds.at(-1)).toBe("result:");
   });
 
-  it.each(["disposed", "paused", "contextLost"] as const)(
+  it.each(["disposed", "paused", "contextLost", "gameOver"] as const)(
     "ignores every kind while %s",
     (flag) => {
       const { ctx, controller, calls } = opened();

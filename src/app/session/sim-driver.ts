@@ -184,6 +184,11 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
     ) {
       return;
     }
+    // D-01: a dead world is frozen. The frame loop's reset stops the lethal
+    // frame before it reaches here; this is the backstop for any other caller
+    // (the hook, `advanceBehind`), and it returns before the pose shift, the
+    // controller update and every dispatch.
+    if (liveState.mode === "dead") return;
     ctx.core.previousPose = ctx.core.currentPose;
     const modeBefore = liveState.mode;
     const controller = liveState.mode === "launching" ? scripted : player;
@@ -400,8 +405,9 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
    * unsafe call is refused with the tick unchanged and nothing stepped, drained
    * or tainted: a disposed session (checked first), a flag-less session, an `n`
    * that is not a safe integer in 1..`MAX_ADVANCE_TICKS`, a paused session, an
-   * open Save/Load screen, an open chart while not in flight, or a session
-   * without a state.
+   * open Save/Load screen, an open chart while not in flight, a session without
+   * a state, or a latched game over (a dead world is frozen, D-01; the refusal
+   * comes before `markHookMutation`, so it does not taint).
    *
    * The session is tainted before the first step (so the pre-launch autosave
    * and every docked or arrival autosave inside or after the call skip), the
@@ -409,8 +415,8 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
    * tick shares the one input frame. With the chart open in flight it steps
    * behind the chart as the frame loop does (WORLD-11): no drain, no commands
    * and the zero input frame. The loop stops early when a step disposes or
-   * pauses the session, opens the Save/Load screen or changes whether the
-   * chart is open (a step that opens it, or a dock or a jump that closes it).
+   * pauses the session, opens the Save/Load screen, latches the game over (the
+   * step that killed the player) or changes whether the chart is open (a step that opens it, or a dock or a jump that closes it).
    *
    * A step that throws is not caught: the error reaches the caller (a test
    * spec). The session is already tainted, so no save can be written, and
@@ -429,6 +435,7 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       ctx.runtime.paused ||
       (ctx.chart.chartOpen && currentState?.mode !== "inFlight") ||
       ctx.save.saveScreenOpen ||
+      ctx.runtime.gameOver ||
       currentState === undefined ||
       currentInput === undefined
     ) {
@@ -451,7 +458,8 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
         ctx.runtime.disposed ||
         ctx.runtime.paused ||
         ctx.chart.chartOpen !== chartOpenAtStart ||
-        ctx.save.saveScreenOpen
+        ctx.save.saveScreenOpen ||
+        ctx.runtime.gameOver
       ) {
         break;
       }

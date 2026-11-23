@@ -57,6 +57,7 @@ export function createChartController(
   function setChartCamera(camera: ChartCamera): void {
     if (
       ctx.runtime.disposed ||
+      ctx.runtime.gameOver ||
       ctx.runtime.paused ||
       ctx.runtime.contextLost ||
       !ctx.chart.chartOpen
@@ -71,6 +72,7 @@ export function createChartController(
   function toggleChartPreset(): void {
     if (
       ctx.runtime.disposed ||
+      ctx.runtime.gameOver ||
       ctx.runtime.paused ||
       ctx.runtime.contextLost ||
       !ctx.chart.chartOpen
@@ -119,8 +121,10 @@ export function createChartController(
     }
     // Pitfall 13: F6 is inert while launching (mode `launching`, the launch
     // view from the dock slot), an open chart is not reopened, and an overlay
-    // must never open beneath the pause overlay.
+    // must never open beneath the pause overlay or over the game-over view
+    // (D-08).
     if (
+      ctx.runtime.gameOver ||
       ctx.runtime.paused ||
       ctx.chart.chartOpen ||
       currentState.mode === "launching"
@@ -199,6 +203,7 @@ export function createChartController(
   function handleFind(event: ChartFindEvent): void {
     if (
       ctx.runtime.disposed ||
+      ctx.runtime.gameOver ||
       ctx.runtime.paused ||
       ctx.runtime.contextLost ||
       !ctx.chart.chartOpen
@@ -245,6 +250,9 @@ export function createChartController(
   }
 
   function selectChartSystem(id: string): void {
+    // D-08: no selection over the game-over view (belt and braces: the death
+    // flow closes an open chart and `openChart` refuses while latched).
+    if (ctx.runtime.gameOver) return;
     if (!ctx.chart.chartOpen) return;
     ctx.chart.chartSelectedId = id;
     refreshChart();
