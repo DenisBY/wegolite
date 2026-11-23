@@ -57,6 +57,11 @@ export default defineConfig({
     watch: {
       // Opt-in only: polling is the WSL2/macOS workaround and costs CPU.
       usePolling: Boolean(process.env.VITE_USE_POLLING),
+      // Agent worktrees under .claude/ carry their own index.html and
+      // tsconfig.json. Watching them makes Vite treat each worktree edit as a
+      // tsconfig change, clear the dep cache mid-optimize and leave
+      // node_modules/.vite/deps half-written (504 Outdated Optimize Dep).
+      ignored: ["**/.claude/**"],
     },
     // `allowedHosts` stays at its default (localhost + IP addresses). Setting
     // it to `true` is a DNS-rebinding footgun and is never needed here.
