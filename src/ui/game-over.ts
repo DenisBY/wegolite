@@ -12,6 +12,8 @@
  */
 
 import type { PlayerDeathCause } from "../sim/events";
+import { formatDecicredits } from "../sim/player/profile";
+import { formatRating } from "./station-model";
 
 /** `descriptions.plist:1993` at the pin, `gameoverscreen-game-over`. */
 export const GAME_OVER_TITLE = "Game Over";
@@ -21,7 +23,7 @@ export const GAME_OVER_TITLE = "Game Over";
  * character before the credit sign is U+00A0 (bytes `c2 a0` in Oolite's
  * file), written as an escape so it is visible in review.
  */
-export const GAME_OVER_SCORE_TEMPLATE = "Score: %@, [credits_number] ₢";
+export const GAME_OVER_SCORE_TEMPLATE = "Score: %@, [credits_number]\u00A0₢";
 
 /** `descriptions.plist:1992` at the pin, `gameoverscreen-press-space`. */
 export const GAME_OVER_PRESS_SPACE = "Press Space";
@@ -60,30 +62,84 @@ export interface GameOverOverlay {
   dispose(): void;
 }
 
-/** Red-phase skeleton of the line model. */
+/**
+ * The cause line templates (D-02, D-03). Wegolite text, the owner's divergence
+ * from Oolite's screen; there is no Oolite source for them. `%@` stands for the
+ * culprit's compiled display name.
+ */
+export const CAUSE_DESTROYED_BY_TEMPLATE = "Destroyed by %@";
+export const CAUSE_COLLIDED_WITH_TEMPLATE = "Collided with %@";
+/** The name-free wording of a laser death whose culprit has no name. */
+export const CAUSE_DESTROYED = "Destroyed";
+/** The name-free wording of a ram death whose culprit has no name. */
+export const CAUSE_DESTROYED_IN_COLLISION = "Destroyed in a collision";
+
+/**
+ * The display name of a culprit key: the NPC catalogue's name, else the
+ * compiled static name, else `undefined`. Never the key itself, so no spec key
+ * or id can reach the screen (D-03).
+ */
 export function resolveCulpritName(
   key: string | undefined,
   catalogue:
     readonly { readonly key: string; readonly name: string }[] | undefined,
   targetNames: ReadonlyMap<string, string> | undefined,
 ): string | undefined {
-  void key;
-  void catalogue;
-  void targetNames;
-  return undefined;
+  if (key === undefined) return undefined;
+  return (
+    catalogue?.find((record) => record.key === key)?.name ??
+    targetNames?.get(key)
+  );
 }
 
+/** Oolite's credits unit as `formatDecicredits` ends it: a space and the sign. */
+const CREDIT_SUFFIX = " ₢";
+
+function causeLine(
+  cause: PlayerDeathCause,
+  culpritName: string | undefined,
+): string {
+  const named = culpritName !== undefined && culpritName !== "";
+  if (cause.damage === "laser") {
+    return named
+      ? CAUSE_DESTROYED_BY_TEMPLATE.replace("%@", () => culpritName)
+      : CAUSE_DESTROYED;
+  }
+  return named
+    ? CAUSE_COLLIDED_WITH_TEMPLATE.replace("%@", () => culpritName)
+    : CAUSE_DESTROYED_IN_COLLISION;
+}
+
+/**
+ * The four lines for a death. The score is Oolite's template with the rating
+ * (`formatRating(rating, 0)`, the kill tally stays deferred, D-05) and the
+ * credits number. `formatDecicredits` ends with U+0020 and the sign; both are
+ * cut so the template supplies Oolite's U+00A0 and the sign, once.
+ */
 export function buildGameOverLines(
   cause: PlayerDeathCause,
   culpritName: string | undefined,
   creditsDecicredits: number,
   ratingLabel: string,
 ): GameOverLines {
-  void cause;
-  void culpritName;
-  void creditsDecicredits;
-  void ratingLabel;
-  return { title: "", cause: "", score: "", prompt: "" };
+  const credits = formatDecicredits(creditsDecicredits);
+  if (!credits.endsWith(CREDIT_SUFFIX)) {
+    throw new Error(
+      "Wegolite: formatDecicredits no longer ends with its credit sign.",
+    );
+  }
+  const number = credits.slice(0, credits.length - CREDIT_SUFFIX.length);
+  const rating = formatRating(ratingLabel, 0);
+  const score = GAME_OVER_SCORE_TEMPLATE.replace("%@", () => rating).replace(
+    "[credits_number]",
+    () => number,
+  );
+  return {
+    title: GAME_OVER_TITLE,
+    cause: causeLine(cause, culpritName),
+    score,
+    prompt: GAME_OVER_PRESS_SPACE,
+  };
 }
 
 const LINE_KEYS = ["title", "cause", "score", "prompt"] as const;
