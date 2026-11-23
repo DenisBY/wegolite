@@ -69,7 +69,15 @@ export type ActionId =
 
 /** The input modes that decide which actions may fire (ECON-09, D-03). */
 export type InputContext =
-  "flight" | "dockHome" | "dockScreen" | "chart" | "saveScreen";
+  | "flight"
+  | "dockHome"
+  | "dockScreen"
+  | "chart"
+  | "saveScreen"
+  // The game-over view (D-07): no action lists this context, so every binding
+  // is inert and the browser-reserved F1 to F8 are swallowed (handled, nothing
+  // fires, F5 included). Space and the click belong to the overlay itself.
+  | "gameOver";
 
 /**
  * The contexts whose Escape is a screen Back action rather than pause

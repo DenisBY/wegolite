@@ -146,6 +146,10 @@ export function createInputState(
 
   return {
     keyDown(code, repeat = false, mods) {
+      // D-07: on the game-over view no action fires. The browser-reserved
+      // F1 to F8 are still reported handled (F7 has no binding, F5 and F8 are
+      // the ones a reload or browser menu would otherwise take), nothing else.
+      if (context === "gameOver") return RESERVED_F_KEYS.has(code);
       const actions = codeToActions.get(code);
       if (actions === undefined) return false;
 

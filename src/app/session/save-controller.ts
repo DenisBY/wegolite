@@ -157,6 +157,11 @@ export function createSaveController(
    */
   function buildSnapshotInputs(): SaveInputs | undefined {
     const currentState = ctx.core.state;
+    // DEATH-06, second layer: a latched session or a dead state has no
+    // snapshot, so the `snapshotForSave` refusal is never reached from here.
+    if (ctx.runtime.gameOver || currentState?.mode === "dead") {
+      return undefined;
+    }
     const lifecycle = ctx.core.worldLifecycle;
     const currentStationKey = ctx.core.stationKey;
     const currentMarket = ctx.core.market;
@@ -188,6 +193,9 @@ export function createSaveController(
    * transaction completes.
    */
   function queueSnapshot(inputs: SaveInputs, manual: boolean): void {
+    // DEATH-06, defence in depth: nothing queues, and nothing is counted, for
+    // a latched session or a dead state, whatever producer asks.
+    if (ctx.runtime.gameOver || ctx.core.state?.mode === "dead") return;
     ctx.save.saveRevision += 1;
     const revision = ctx.save.saveRevision;
     ctx.save.saveWrites += 1;
@@ -204,7 +212,9 @@ export function createSaveController(
           ctx.save.saveCommittedRevision = revision;
           ctx.save.saveLastClock = inputs.clockSeconds;
           ctx.save.saveStatus = "valid";
-          ctx.save.saveSkipReason = "";
+          // A write queued before the death lands as the pre-death anchor; it
+          // must not hide the refusals that followed the latch (DEATH-06).
+          ctx.save.saveSkipReason = ctx.runtime.gameOver ? "dead" : "";
           if (manual) {
             setSaveNotice(`Saved at ${formatClock(inputs.clockSeconds)}`);
           } else {
@@ -326,6 +336,13 @@ export function createSaveController(
 
   /** The confirmed (or absent-slot) manual write; never asks again. */
   function writeManualSave(): void {
+    // DEATH-06: also reached directly from `start-session.ts`, so it carries
+    // its own latch refusal, before it touches the overwrite dialog.
+    if (ctx.runtime.gameOver) {
+      ctx.save.saveSkipReason = "dead";
+      syncSaveProbe();
+      return;
+    }
     ctx.save.saveLoad?.cancelOverwrite();
     updateProbe();
     const inputs = buildSnapshotInputs();
@@ -372,6 +389,13 @@ export function createSaveController(
    * IndexedDB bytes exactly as they were (T-06-16).
    */
   async function loadFromSave(): Promise<void> {
+    // DEATH-06: a death never replaces the session through a load either (game
+    // over is a page reload, D-12); refuse before any read or install.
+    if (ctx.runtime.gameOver) {
+      ctx.save.saveSkipReason = "dead";
+      syncSaveProbe();
+      return;
+    }
     const currentInput = ctx.runtime.input;
     const currentStationDef = ctx.core.stationDef;
     const catalogue = ctx.core.commodities;
@@ -545,6 +569,12 @@ export function createSaveController(
    * D-14/T-04-47) and the write path stays disabled.
    */
   async function clearSaveForNewGame(): Promise<void> {
+    // DEATH-06: a death never clears the player's last save (T-20-41).
+    if (ctx.runtime.gameOver) {
+      ctx.save.saveSkipReason = "dead";
+      syncSaveProbe();
+      return;
+    }
     if (!canClear(ctx.save.saveStatus)) {
       ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
       syncSaveProbe();
