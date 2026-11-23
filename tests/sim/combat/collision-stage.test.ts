@@ -549,8 +549,11 @@ describe("ships, pods and plates (D-01, D-07, PD-05)", () => {
     const krait = spawnShip(world, vec(FAR.x, FAR.y, FAR.z - 200));
     let kills: Extract<SimEvent, { kind: "shipDestroyed" }>[] = [];
     let pieces = 0;
+    let deaths = 0;
     for (let tick = 0; tick < 120 && kills.length === 0; tick += 1) {
-      kills = destroyed(step(player, world, combat, withDebris()));
+      const events = step(player, world, combat, withDebris());
+      kills = destroyed(events);
+      deaths += events.filter((e) => e.kind === "playerDestroyed").length;
       pieces = world.store.live.filter(
         (e) => e.kind === "cargo" || e.kind === "wreckage",
       ).length;
@@ -560,10 +563,15 @@ describe("ships, pods and plates (D-01, D-07, PD-05)", () => {
     ]);
     expect(world.store.get(krait)).toBeUndefined();
     expect(pieces).toBeGreaterThan(0);
-    // The player is never destroyable: 228.6 damage, energy floored, alive.
+    // The player lives because the shield and the bank carry the ram, not
+    // because it is exempt: the 350 m/s ram deals 228.6 to the player, the
+    // facing shield takes up to 128 of it and the rest stays below the 256
+    // bank, so `selfDestroyed` (`dam1 > energy`) is false too and no
+    // `playerDestroyed` is posted (D-11).
     expect(combat.energy).toBeGreaterThan(0);
     expect(combat.energy).toBeLessThan(256);
     expect(player.mode).toBe("inFlight");
+    expect(deaths).toBe(0);
   });
 
   it("two Kraits that kill each other in one ram: both die on the same tick, credited by the ledger's same-tick rule (D-10 asymmetry)", () => {

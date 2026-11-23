@@ -543,7 +543,10 @@ function gatherColliders(
  * 5. Damage: one `"scrape"` record per applied side (`dam > 0.05`), self's
  *    first, each with a copy of the source's position at queue time, for the
  *    ledger to apply after the laser records. A ship brought to 0 then dies
- *    through the one kill path; the player's energy floors at 0.
+ *    through the one kill path. The player is `destroyable` (D-11): the
+ *    flags read its energy bank only, a ram that empties the bank kills it
+ *    through the ledger's lethal check and `killPlayer` (`./death.ts`), and
+ *    the bank floors at 0 for display.
  *
  * The destroyed flags read each body's energy as it stood before this
  * tick's ledger, so a body in two contacts of one tick decides its reversal

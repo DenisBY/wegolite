@@ -141,6 +141,21 @@ function hits(
   );
 }
 
+function deaths(
+  events: readonly SimEvent[],
+): Extract<SimEvent, { kind: "playerDestroyed" }>[] {
+  return events.filter(
+    (event): event is Extract<SimEvent, { kind: "playerDestroyed" }> =>
+      event.kind === "playerDestroyed",
+  );
+}
+
+function destroyedIds(events: readonly SimEvent[]): EntityId[] {
+  return events.flatMap((event) =>
+    event.kind === "shipDestroyed" ? [event.id] : [],
+  );
+}
+
 /**
  * The largest distance on +Z from the nav buoy, in 0.01 m steps, at which
  * the player's Cobra (facing -Z) first touches the buoy at its tumble of
@@ -286,7 +301,7 @@ describe("the player rams the nav buoy (tracer, PD-02)", () => {
     expect(buoy.offset.y + 0).toBe(0);
   });
 
-  it("at 250 m/s the buoy is destroyed, credited to the player; a destroyed buoy is no collider and never moves", () => {
+  it("at 250 m/s the buoy is destroyed, credited to the player, and the player dies with it (D-09, D-11); a destroyed buoy is no collider and never moves", () => {
     const player = playerAt(vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + 400), 250);
     const combat = createPlayerCombatState();
     const world = createWorld(7);
@@ -302,17 +317,102 @@ describe("the player rams the nav buoy (tracer, PD-02)", () => {
       }),
     ]);
     expect(world.staticHealth.navBuoy).toBe(0);
+    // Measured (plan 20-01 Task 1): from full shields and bank the player's
+    // dam1 is 873.364, the facing shield takes 128 and the 745.364 past it
+    // exceed the 256 bank, so the player dies on the contact tick with the
+    // buoy (the 18-20 measurement found the same at 350 m/s).
+    const playerHit = hits(events).find((e) => e.target === PLAYER_ID);
+    expect(playerHit?.amount).toBeCloseTo(873.364, 3);
+    expect(player.mode).toBe("dead");
+    expect(combat.energy).toBe(0);
+    expect(deaths(events).map((e) => e.cause)).toEqual([
+      { damage: "scrape", culprit: "buoy" },
+    ]);
     // dam2 = 214,737.6875 x 250^2 / 5e7 = 268.4 > 250: no nudge.
     const offset = { ...world.buoys.navBuoy.offset };
     expect(offset).toEqual(vec(0, 0, 0));
+    // The case keeps its other purpose with a fresh live player flown through
+    // the buoy's position against the same world after the kill.
+    const second = playerAt(vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + 400), 250);
+    const secondCombat = createPlayerCombatState();
     let later = 0;
     for (let tick = 0; tick < 240; tick += 1) {
-      later += hits(step(player, world, combat)).length;
+      later += hits(step(second, world, secondCombat)).length;
     }
     expect(later).toBe(0);
     expect(world.buoys.navBuoy.offset).toEqual(offset);
-    // The player flew through where the buoy was.
-    expect(player.position.z).toBeLessThan(NAV_BUOY.z - 200);
+    expect(second.mode).toBe("inFlight");
+    // The second player flew through where the buoy was.
+    expect(second.position.z).toBeLessThan(NAV_BUOY.z - 50);
+  });
+
+  it("at 350 m/s from full shields and bank both are destroyed on the contact tick (D-09, D-11)", () => {
+    const player = playerAt(vec(NAV_BUOY.x, NAV_BUOY.y, NAV_BUOY.z + 400), 350);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    let events: SimEvent[] = [];
+    for (let tick = 0; tick < 600 && hits(events).length === 0; tick += 1) {
+      events = step(player, world, combat);
+    }
+    // Measured (plan 20-01 Task 1): dam1 1711.793 and dam2 526.107 at 350 m/s;
+    // the facing shield takes 128, the 1583.793 past it exceed the 256 bank,
+    // and dam2 exceeds the buoy's 250. The premise of 20-09's death route.
+    expect(
+      hits(events).find((e) => e.target === PLAYER_ID)?.amount,
+    ).toBeCloseTo(1711.793, 3);
+    expect(
+      hits(events).find((e) => e.target === STATION_NAV_BUOY_ID)?.amount,
+    ).toBeCloseTo(526.107, 3);
+    expect(destroyedIds(events)).toEqual([STATION_NAV_BUOY_ID]);
+    expect(player.mode).toBe("dead");
+    expect(combat.energy).toBe(0);
+    expect(deaths(events).map((e) => e.cause)).toEqual([
+      { damage: "scrape", culprit: "buoy" },
+    ]);
+  });
+
+  it("the idle straight launch rams the nav buoy and the player dies about a minute later (D-11)", () => {
+    // The real launch from the Lave dock (175 m/s out of the slot), then zero
+    // intent and no commands: the unsteered ship meets the nav buoy.
+    const player = initFlightState(layout);
+    const combat = createPlayerCombatState();
+    const world = createWorld(7);
+    const LAUNCH_BOUND = 12_000;
+    let events: SimEvent[] = [];
+    let contactTick = -1;
+    for (let tick = 0; tick < LAUNCH_BOUND; tick += 1) {
+      events = stepSim(
+        player,
+        world,
+        layout,
+        config,
+        ZERO_INTENT,
+        tick === 0 ? [{ kind: "launch" }] : [],
+        DT,
+        options(),
+        combat,
+      );
+      if (hits(events).length > 0) {
+        contactTick = tick;
+        break;
+      }
+    }
+    // The bound was not reached: the ship really meets the buoy.
+    expect(contactTick).toBeGreaterThanOrEqual(0);
+    // Measured (plan 20-01 Task 1): contact on tick 6450 (53.75 s after the
+    // launch command) at 175 m/s with full shields and bank. dam1 427.948
+    // (dam2 131.527, so the buoy survives with 118.47 left); the facing shield
+    // takes 128 and the 299.948 past it exceed the 256 bank: the player dies.
+    expect(contactTick).toBe(6450);
+    expect(
+      hits(events).find((e) => e.target === PLAYER_ID)?.amount,
+    ).toBeCloseTo(427.948, 3);
+    expect(destroyedIds(events)).toEqual([]);
+    expect(player.mode).toBe("dead");
+    expect(combat.energy).toBe(0);
+    expect(deaths(events).map((e) => e.cause)).toEqual([
+      { damage: "scrape", culprit: "buoy" },
+    ]);
   });
 });
 
