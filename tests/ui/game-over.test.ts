@@ -170,7 +170,10 @@ describe("the game-over overlay shell", () => {
       const names = LINE_NAMES.filter((name) => name !== missing);
       const root = new RootDouble(names);
       expect(() =>
-        createGameOverOverlay({ root: root as unknown as HTMLElement }),
+        createGameOverOverlay({
+          root: root as unknown as HTMLElement,
+          keyTarget: new EventTarget(),
+        }),
       ).toThrow(
         `Wegolite: the game-over overlay is missing its "${missing}" line.`,
       );
