@@ -591,7 +591,7 @@ const LABELS = {
 
 /** The live tables the cause line resolves through (D-03). */
 function liveTables(ctx: SessionState): void {
-  ctx.core.profile.credits = 1000;
+  ctx.core.profile = { ...ctx.core.profile, credits: 1000 };
   ctx.core.labels = LABELS;
   ctx.core.npcTraffic = {
     catalogue: [{ key: "krait", name: "Krait" }],
