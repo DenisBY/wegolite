@@ -80,6 +80,8 @@ export function stepSim(
   options?: StepOptions,
   combat?: PlayerCombatState,
 ): SimEvent[] {
+  // A dead player freezes the simulation (D-01): no field, tick or hash moves.
+  if (player.mode === "dead") return [];
   const ships =
     world === undefined
       ? undefined

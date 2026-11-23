@@ -75,6 +75,9 @@ export interface SaveWorldCounters {
 /**
  * Build the schema inputs from the live state, profile, identities and market.
  *
+ * A dead state is refused with a thrown `Error` (DEATH-06): the schema cannot
+ * hold it and no caller may save a dead player.
+ *
  * `mode` is `inFlight` only for a live in-flight state: a `launching` snapshot
  * is encoded as `docked`, because v2 has no `launching` mode and the pre-launch
  * segment anchor is taken before the transition (D-17). The live market's goods
@@ -97,6 +100,11 @@ export function snapshotForSave(
   counters: SaveWorldCounters,
   targetSystemId?: string,
 ): SaveInputs {
+  // DEATH-06: the save schema has no dead mode, and encoding a dead player as
+  // docked would resurrect it. Refuse before the mode mapping below.
+  if (state.mode === "dead") {
+    throw new Error("Wegolite: a dead player is never saved.");
+  }
   const order = new Map(
     commodities.map((commodity) => [commodity.key, commodity.sortOrder]),
   );

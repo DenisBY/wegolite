@@ -63,7 +63,9 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../src/sim/economy/market.js";
+import { killPlayer } from "../../src/sim/combat/death.js";
 import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
+import { createPlayerCombatState } from "../../src/sim/combat/state.js";
 import {
   newProfile,
   purchase,
@@ -155,6 +157,55 @@ const MAX_ALLOW: SaveAllowLists = {
 };
 
 describe("snapshotForSave", () => {
+  it("refuses a dead state before any mapping (DEATH-06), never encoding it as docked", () => {
+    const state = initFlightState(layout);
+    launch(state);
+    completeLaunch(state);
+    expect(state.mode).toBe("inFlight");
+    // The dead state is built through the one death path, never by assignment.
+    killPlayer(state, createPlayerCombatState(), { damage: "laser" }, []);
+    expect(state.mode).toBe("dead");
+    expect(() =>
+      snapshotForSave(
+        state,
+        newProfile(),
+        SYSTEM,
+        STATION,
+        MARKET,
+        COMMODITIES,
+        NO_WORLD,
+      ),
+    ).toThrow(/a dead player is never saved/);
+  });
+
+  it("still maps a launching state to docked and keeps the in-flight mode for a live flight", () => {
+    const state = initFlightState(layout);
+    launch(state);
+    expect(state.mode).toBe("launching");
+    const launching = snapshotForSave(
+      state,
+      newProfile(),
+      SYSTEM,
+      STATION,
+      MARKET,
+      COMMODITIES,
+      NO_WORLD,
+    );
+    expect(launching.mode).toBe("docked");
+    completeLaunch(state);
+    expect(state.mode).toBe("inFlight");
+    const flying = snapshotForSave(
+      state,
+      newProfile(),
+      SYSTEM,
+      STATION,
+      MARKET,
+      COMMODITIES,
+      NO_WORLD,
+    );
+    expect(flying.mode).toBe("inFlight");
+  });
+
   it("takes the pre-launch anchor while still docked, before beginLaunch (D-17)", () => {
     const state = initFlightState(layout);
     const profile = newProfile();

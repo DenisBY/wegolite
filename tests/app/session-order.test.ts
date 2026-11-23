@@ -1186,6 +1186,7 @@ describe("an unrouted kind", () => {
       playerDestroyed: {
         kind: "playerDestroyed",
         position: { x: 0, y: 0, z: 0 },
+        cause: { damage: "laser" },
       },
       podEjected: { kind: "podEjected", pod: 101, owner: 102 },
       proximityWarning: { kind: "proximityWarning", id: 101, other: 102 },

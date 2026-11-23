@@ -15,7 +15,12 @@ import { add, scale, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import type { SystemLayout } from "../world/layout.js";
 
-export type FlightMode = "docked" | "launching" | "inFlight";
+/**
+ * `"dead"` is set only by `killPlayer` (`../combat/death.ts`, DEATH-01), is
+ * never stepped (`stepSim` and `stepFlight` return no events for it, D-01) and
+ * is never saved (`snapshotForSave` refuses it, DEATH-06).
+ */
+export type FlightMode = "docked" | "launching" | "inFlight" | "dead";
 export type CompassMode = "auto" | "planet" | "station" | "witchpoint";
 export type CompassTarget = "planet" | "station" | "witchpoint";
 

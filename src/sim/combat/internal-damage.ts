@@ -73,8 +73,8 @@ export const PLAYER_MASS_DAMAGE_TERM = Math.floor(PLAYER_MASS_KG / 10_000);
  * above 0 after the hit, so its amount is below the 256-point bank (at most 8
  * iterations); the cap binds only on a scrape above 8,192 points, which
  * destroys Oolite's player (bank at most 256) in the same call, so it is
- * observable only through the Phase 20 gap (Wegolite's player survives at
- * energy 0).
+ * observable only on the death tick, which a dead player never sees again
+ * (the world freezes, D-01).
  */
 export const MAX_INTERNAL_DAMAGE_ROLLS = 256;
 

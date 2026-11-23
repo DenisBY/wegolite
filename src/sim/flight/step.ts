@@ -138,6 +138,9 @@ export function stepFlight(
   options?: StepOptions,
   ships?: ShipField,
 ): SimEvent[] {
+  // A dead player is never stepped (D-01): the clock block's negative mode gate
+  // would otherwise keep a dead clock running.
+  if (state.mode === "dead") return [];
   // Repair a poisoned hook/restore value before anything integrates it
   // (T-04-41). Speed is bounded by the torus cap, so it can never drive the
   // position to Infinity.

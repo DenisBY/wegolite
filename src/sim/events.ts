@@ -38,6 +38,16 @@ export type AiFaultSite = "think" | "event";
 /** The player's legal standing, reserved for the legal-status phase. */
 export type LegalStatus = "clean" | "offender" | "fugitive";
 
+/**
+ * What killed the player (D-04): the kind of the lethal damage record and its
+ * culprit. `culprit` is the spec key of an NPC ship or the ident key of a
+ * static (a buoy, the station), omitted when unknown, and never an entity id.
+ */
+export interface PlayerDeathCause {
+  readonly damage: "laser" | "scrape";
+  readonly culprit?: string;
+}
+
 export type SimEvent =
   | { kind: "launched" }
   | { kind: "launchComplete" }
@@ -176,7 +186,12 @@ export type SimEvent =
     }
   | { kind: "shipSpawned"; id: EntityId; specKey: string }
   | { kind: "legalStatusChanged"; from: LegalStatus; to: LegalStatus }
-  | { kind: "playerDestroyed"; position: Vec3 }
+  /**
+   * Posted by `killPlayer` (`./combat/death.ts`, DEATH-01), once, on the tick
+   * the player's energy bank is emptied in flight. `position` is a copy of the
+   * player's position and `cause` names what killed it (D-04).
+   */
+  | { kind: "playerDestroyed"; position: Vec3; cause: PlayerDeathCause }
   | { kind: "podEjected"; pod: EntityId; owner: EntityId }
   | { kind: "proximityWarning"; id: EntityId; other: EntityId }
   | { kind: "energyLow"; id: EntityId }
@@ -204,9 +219,10 @@ export type SimEvent =
  * each first appears: 8 `entityRemoved` (by `stepWorld`, one per committed
  * removal, ascending); 13 lasers and hits (`laserFired`, `shipHit`); 15
  * destruction (`shipDestroyed`, through `killShip`, and a second group of
- * `entityRemoved` after the ledger's commit, `combat/step.ts`); later, scooping
- * and comms (`cargoScooped`, `commsMessage`), spawning and the player's death
- * (`shipSpawned`, `playerDestroyed`), pods (`podEjected`), legal status
+ * `entityRemoved` after the ledger's commit, `combat/step.ts`); the player's
+ * death (`playerDestroyed`, posted by `killPlayer`); later, scooping
+ * and comms (`cargoScooped`, `commsMessage`), spawning
+ * (`shipSpawned`), pods (`podEjected`), legal status
  * (`legalStatusChanged`) and missiles and ECM (`missileLaunched`,
  * `missileDetonated`, `ecmFired`); `energyLow` and `proximityWarning` have no
  * producer yet.

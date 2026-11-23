@@ -30,6 +30,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   kept as a backup, Continue is not offered for it, and New game starts a fresh
   commander with saving working again. Saves are no longer migrated between
   formats.
+- **Breaking:** your ship is now destroyed when its energy reaches zero in
+  flight, from a laser hit or a collision; a docked or launching ship is never
+  destroyed. In normal play NPC ships still do not fire, so a collision is the
+  usual cause. A ship that launches and flies straight on without steering
+  rams the navigation buoy about a minute later and is destroyed.
 
 ## [0.7.0] - 2026-11-20
 

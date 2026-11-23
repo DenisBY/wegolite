@@ -23,8 +23,9 @@
  * - The `shipCollided` script event and the `COLLISION` AI message (11152+)
  *   are not ported (RESEARCH A8).
  * - `selfDestroyed` / `otherDestroyed` (11111-11112) are read before any
- *   damage and only for a `destroyable` party: the player is not destroyable
- *   until Phase 20.
+ *   damage and only for a `destroyable` party: the player is destroyable (D-11),
+ *   its energy is the bank only (never shields plus energy), and a player
+ *   brought to 0 dies through `killPlayer` (`./death.ts`).
  *
  * Axes: Wegolite world axes are Oolite's with z negated. Every float step
  * below is sign-symmetric (`f(-x) = -f(x)`, products and sums of negated
@@ -89,8 +90,9 @@ export interface CollisionParty {
   readonly mass: number;
   readonly energy: number;
   /**
-   * Whether `dam > energy` may set the destroyed flag (11111-11112). False
-   * for the player until Phase 20 owns its death.
+   * Whether `dam > energy` may set the destroyed flag (11111-11112). True for
+   * the player (D-11): its energy is the bank only, and a lethal ram takes
+   * Oolite's inelastic reversal.
    */
   readonly destroyable: boolean;
 }

@@ -40,7 +40,7 @@
  * of the world hash.
  */
 
-import type { SimEvent } from "../events.js";
+import type { PlayerDeathCause, SimEvent } from "../events.js";
 import type { Command } from "../commands.js";
 import type { ControlIntent } from "../flight/controller.js";
 import type { FlightState } from "../flight/state.js";
@@ -93,6 +93,7 @@ import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
 import type { NpcWeapon } from "./aim.js";
 import { resolveCollisions } from "./collide.js";
 import { LASER_STATS, PLAYER_MASS_KG } from "./constants.js";
+import { killPlayer } from "./death.js";
 import { firstShipHit } from "./hit.js";
 import { stepIdent, updateIdentTarget } from "./ident.js";
 import type { HitPart, HitTarget, HullTable, LaserRay } from "./hit.js";
@@ -746,9 +747,17 @@ function applyPlayerPush(player: FlightState, push: BlastPush): void {
  *    is dropped on the same tick. It runs only on a tick that stepped the world,
  *    so the jump step (which skips the world) never touches an old world's ids.
  *
+ * The player's death (DEATH-01): the ledger decides it at the damage point and
+ * reports it through its `outcome`; `killPlayer` (`./death.ts`) is called once,
+ * after the kills and the player's push (step 3) and before the AI drain
+ * (step 4), whether or not the world was stepped. A dead player (mode `"dead"`)
+ * makes the whole call return no events before anything runs (D-01). The AI
+ * drain of the lethal tick sees the dead player once; that is deterministic and
+ * harmless, because the world freezes from the next step.
+ *
  * Event order: `laserFired*`, `shipHit*` (each player record's
  * `equipmentDamaged*` / `cargoDestroyed*` follow its own `shipHit`),
- * `shipDestroyed*`, `aiFaulted*` (a
+ * `shipDestroyed*`, `playerDestroyed` (after every `shipDestroyed`), `aiFaulted*` (a
  * handler that faults during the immediate drain), `entityRemoved*`, then the
  * ident events.
  *
@@ -766,6 +775,9 @@ export function resolveShots(
   layout: SystemLayout,
   registry: AiRegistry = AI_REGISTRY,
 ): SimEvent[] {
+  // A dead player freezes every entry point (D-01): nothing fires, recharges,
+  // collides or dies, so a second call on a dead state changes no hash.
+  if (player.mode === "dead") return [];
   const { events, records } = resolveShotHits(
     world,
     worldStepped,
@@ -795,6 +807,7 @@ export function resolveShots(
           witchpoint: world.buoys.witchpoint.subentityEnergy,
           navBuoy: world.buoys.navBuoy.subentityEnergy,
         };
+  const outcome: { playerDeath?: PlayerDeathCause } = {};
   const lethal = applyLedger(
     world,
     worldStepped,
@@ -803,6 +816,7 @@ export function resolveShots(
     records,
     events,
     options?.combat?.internalDamage,
+    outcome,
   );
   if (world !== undefined && worldStepped) {
     const playerPush: BlastPush = { x: 0, y: 0, z: 0 };
@@ -830,6 +844,14 @@ export function resolveShots(
       }
     }
     applyPlayerPush(player, playerPush);
+  }
+  // The one death call (DEATH-01), after the kills and the player's push and
+  // before the AI drain, reached whether or not the world was stepped, so a
+  // lethal outcome is never dropped silently.
+  if (outcome.playerDeath !== undefined && combat !== undefined) {
+    killPlayer(player, combat, outcome.playerDeath, events);
+  }
+  if (world !== undefined && worldStepped) {
     drainAiEventsNow(world, player, layout, player.tick, events, registry);
     for (const id of commitWorld(world))
       events.push({ kind: "entityRemoved", id });
