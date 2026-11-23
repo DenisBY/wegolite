@@ -11,18 +11,29 @@
  * and the refusals are asserted on what reaches the store, not on a flag.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import type { GameLoop } from "../../../src/app/game-loop.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import {
+  PLAYER_EXPLOSION_FACTOR,
+  PLAYER_EXPLOSION_SETTINGS,
+  createDeathFlow,
   createEventRouter,
   latchGameOver,
 } from "../../../src/app/session/event-router.js";
+import type { DeathFlowDeps } from "../../../src/app/session/event-router.js";
 import { createSaveController } from "../../../src/app/session/save-controller.js";
 import type { SaveController } from "../../../src/app/session/save-controller.js";
+import type { TrafficContent } from "../../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import { ExplosionCatalogueSchema } from "../../../src/content/schemas/explosion.js";
+import type { ExplosionAddOptions } from "../../../src/render/bodies/explosions.js";
+import type { SystemScene } from "../../../src/render/system-scene.js";
+import { PLAYER_COLLISION_RADIUS_M } from "../../../src/sim/npc/stats.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import type { SaveStore, WriteResult } from "../../../src/persistence/store.js";
 import { npcLaserRay } from "../../../src/sim/combat/aim.js";
@@ -319,5 +330,218 @@ describe("a latched session refuses every save attempt as dead (DEATH-06)", () =
 
     expect(ctx.save.saveAttempts).toBe(2);
     expect(writes).toEqual([]);
+  });
+});
+
+/** One recorded `explosions.add` call. */
+interface AddCall {
+  readonly position: Vec3;
+  readonly radius: number;
+  readonly settings: unknown;
+  readonly flightTime: number;
+  readonly options: ExplosionAddOptions | undefined;
+}
+
+interface FlowSession {
+  readonly ctx: SessionState;
+  readonly router: ReturnType<typeof createEventRouter>;
+  readonly log: string[];
+  readonly adds: AddCall[];
+  readonly hud: { hidden: boolean };
+}
+
+const DEATH_AT: Vec3 = { x: 11, y: -22, z: 33 };
+
+/** The router wired with the real death flow on recording doubles. */
+function flowSession(options: { readonly scene?: boolean } = {}): FlowSession {
+  const ctx = createSessionState({
+    system,
+    saveStatus: "absent",
+    saveSkipReason: "",
+  });
+  const log: string[] = [];
+  const adds: AddCall[] = [];
+  const hud = { hidden: false };
+  ctx.core.state = initFlightState(layout);
+  ctx.core.state.flightTime = 12.5;
+  ctx.runtime.input = {
+    getContext: () => "flight",
+    setContext: (next: string) => log.push(`input.setContext ${next}`),
+    clearAll: () => log.push("input.clearAll"),
+  } as unknown as KeyboardInputSource;
+  ctx.runtime.loop = {
+    reset: () => log.push("loop.reset"),
+  } as unknown as GameLoop;
+  if (options.scene !== false) {
+    ctx.core.scene = {
+      explosions: {
+        add: (
+          position: Vec3,
+          radius: number,
+          settings: unknown,
+          flightTime: number,
+          addOptions?: ExplosionAddOptions,
+        ) => {
+          log.push("explosions.add");
+          adds.push({
+            position,
+            radius,
+            settings,
+            flightTime,
+            options: addOptions,
+          });
+        },
+      },
+    } as unknown as SystemScene;
+  }
+  const deps: DeathFlowDeps = {
+    closeChart: () => {
+      log.push("closeChart");
+      // The chart restores its saved context when it closes.
+      ctx.runtime.input?.setContext("flight");
+    },
+    closeSaveScreen: () => log.push("closeSaveScreen"),
+    launchSequence: { reset: () => log.push("launchSequence.reset") },
+    hudCanvas: {
+      get hidden(): boolean {
+        return hud.hidden;
+      },
+      set hidden(value: boolean) {
+        log.push(`hudCanvas.hidden ${String(value)}`);
+        hud.hidden = value;
+      },
+    },
+    messages: { clear: () => log.push("messages.clear") },
+  };
+  const router = createEventRouter(ctx, {
+    stationFlow: () => undefined,
+    damageFlow: () => undefined,
+    hudMessages: () => undefined,
+    dockFeedback: () => undefined,
+    hyperspaceFlow: () => undefined,
+    deathFlow: createDeathFlow(ctx, deps),
+  });
+  return { ctx, router, log, adds, hud };
+}
+
+const PLAYER_DIED: SimEvent = {
+  kind: "playerDestroyed",
+  position: DEATH_AT,
+  cause: { damage: "laser", culprit: "viper" },
+};
+
+describe("the death flow shuts the session down around the frozen world (D-08, D-01)", () => {
+  it("closes the chart and the F2 screen before the gameOver context, then clears the messages, resets the launch sequence and hides the HUD", () => {
+    const { router, log, hud } = flowSession();
+
+    router.dispatch(PLAYER_DIED);
+
+    const withoutAdds = log.filter((entry) => entry !== "explosions.add");
+    expect(withoutAdds).toEqual([
+      "loop.reset",
+      "input.clearAll",
+      "closeChart",
+      // closeChart restores the saved context first ...
+      "input.setContext flight",
+      "closeSaveScreen",
+      // ... and the last context change is gameOver.
+      "input.setContext gameOver",
+      "messages.clear",
+      "launchSequence.reset",
+      "hudCanvas.hidden true",
+    ]);
+    expect(hud.hidden).toBe(true);
+  });
+
+  it("a second event repeats nothing: no clear, add or context change", () => {
+    const { router, log, adds, ctx } = flowSession();
+    router.dispatch(PLAYER_DIED);
+    const before = log.length;
+    expect(adds).toHaveLength(2 * PLAYER_EXPLOSION_FACTOR);
+
+    router.dispatch({
+      kind: "playerDestroyed",
+      position: { x: 0, y: 0, z: 0 },
+      cause: { damage: "scrape" },
+    });
+
+    expect(log).toHaveLength(before);
+    expect(adds).toHaveLength(2 * PLAYER_EXPLOSION_FACTOR);
+    expect(ctx.runtime.gameOverCause).toEqual({
+      damage: "laser",
+      culprit: "viper",
+    });
+  });
+});
+
+describe("the player's explosion (D-01 as amended, D-01a, D-01b)", () => {
+  it("adds eight clouds, four small then four big, each at one collision radius, one flash on the first", () => {
+    // Traffic off, as the e2e bundle's default: the setting never comes from
+    // the traffic content (defensive today: no lethal record exists traffic-off).
+    const { ctx, router, adds } = flowSession();
+    expect(ctx.core.npcTraffic).toBeUndefined();
+
+    router.dispatch(PLAYER_DIED);
+
+    expect(PLAYER_EXPLOSION_FACTOR).toBe(4);
+    expect(adds).toHaveLength(2 * PLAYER_EXPLOSION_FACTOR);
+    for (const add of adds) {
+      expect(add.position).toEqual(DEATH_AT);
+      // 1x the collision radius: nothing is scaled by the factor.
+      expect(add.radius).toBe(PLAYER_COLLISION_RADIUS_M);
+      expect(add.settings).toBe(PLAYER_EXPLOSION_SETTINGS);
+      expect(add.flightTime).toBe(12.5);
+    }
+    // Oolite's small-burst loop, then its big-burst loop; flash passed
+    // explicitly on every add (an omitted flash defaults to true).
+    expect(adds.map((add) => add.options)).toStrictEqual([
+      { kind: "small", variant: 1, flash: true },
+      { kind: "small", variant: 2, flash: false },
+      { kind: "small", variant: 3, flash: false },
+      { kind: "small", variant: 4, flash: false },
+      { kind: "big", variant: 5, flash: false },
+      { kind: "big", variant: 6, flash: false },
+      { kind: "big", variant: 7, flash: false },
+      { kind: "big", variant: 8, flash: false },
+    ]);
+    expect(adds.filter((add) => add.options?.flash === true)).toHaveLength(1);
+  });
+
+  it("traffic on: the eight adds still take PLAYER_EXPLOSION_SETTINGS, never the traffic content's", () => {
+    const { ctx, router, adds } = flowSession();
+    ctx.core.npcTraffic = {
+      explosion: { ...PLAYER_EXPLOSION_SETTINGS, count: 99, key: "other" },
+    } as unknown as TrafficContent;
+
+    router.dispatch(PLAYER_DIED);
+
+    expect(adds).toHaveLength(2 * PLAYER_EXPLOSION_FACTOR);
+    for (const add of adds) {
+      expect(add.settings).toBe(PLAYER_EXPLOSION_SETTINGS);
+    }
+  });
+
+  it("with no live scene adds nothing and does not throw", () => {
+    const { ctx, router, adds, log } = flowSession({ scene: false });
+    expect(() => {
+      router.dispatch(PLAYER_DIED);
+    }).not.toThrow();
+    expect(adds).toEqual([]);
+    expect(ctx.runtime.gameOver).toBe(true);
+    expect(log).toContain("hudCanvas.hidden true");
+  });
+
+  it("PLAYER_EXPLOSION_SETTINGS is the compiled oolite-default-ship-explosion record without its key (the drift pin)", () => {
+    const records = ExplosionCatalogueSchema.parse(
+      JSON.parse(readFileSync("src/content/generated/explosions.json", "utf8")),
+    );
+    const record = records.find(
+      (entry) => entry.key === "oolite-default-ship-explosion",
+    );
+    if (record === undefined) throw new Error("no default explosion record");
+    const { key: _key, ...setting } = record;
+    void _key;
+    expect(PLAYER_EXPLOSION_SETTINGS).toStrictEqual(setting);
+    expect(Object.isFrozen(PLAYER_EXPLOSION_SETTINGS)).toBe(true);
   });
 });
