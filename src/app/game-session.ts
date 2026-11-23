@@ -42,6 +42,7 @@ import {
 } from "./session/save-controller.js";
 import {
   createDamageFlow,
+  createDeathFlow,
   createDockFeedbackFlow,
   createEventRouter,
   createHudMessages,
@@ -465,6 +466,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       messages,
       refusalCopy,
       handleHyperspaceJumped,
+    }),
+    deathFlow: createDeathFlow(ctx, {
+      closeChart: chartController.closeChart,
+      closeSaveScreen,
+      launchSequence,
+      hudCanvas,
+      messages,
     }),
   });
   const simDriver = createSimDriver(ctx, {

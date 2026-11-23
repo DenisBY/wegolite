@@ -40,6 +40,7 @@
  * test passes recording doubles.
  */
 
+import type { ExplosionSettings } from "../../render/bodies/explosions.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import type {
@@ -53,6 +54,7 @@ import {
   applyCargoDestroyed,
   applyEquipmentDamaged,
 } from "../../sim/player/damage.js";
+import { PLAYER_COLLISION_RADIUS_M } from "../../sim/npc/stats.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
 import {
   shouldEmitScrapeMessage,
@@ -763,14 +765,105 @@ export function latchGameOver(
 }
 
 /**
- * playerDestroyed (DEATH-01, DEATH-06): the session's one death subscriber. It
- * latches the session first; everything else the death does follows only a
- * successful latch, so a second event repeats nothing.
+ * How many bursts each of Oolite's two explosion loops adds for the player:
+ * the `becomeLargeExplosion:4.0` argument of `getDestroyedBy:`
+ * (`src/Core/Entities/PlayerEntity.m:6208` at the pin `7437f22`), read as
+ * Oolite reads it. 4.0 sizes nothing: each of the two loops runs while the
+ * remainder is above 0.5, so 4.0 adds four small bursts, fast sparks of 100 to
+ * 400 m/s for 1.5 s, and four big ones, slow clouds of `1 + r/2` to four times
+ * that for 1.0 s growing from `2r` (`src/Core/Entities/ShipEntity.m:8308-8320`:
+ * the small-burst loop at 8311-8314, the big-burst loop at 8317-8320;
+ * `src/Core/Entities/OOParticleSystem.m:244-353`), each burst sized from the
+ * collision radius `r` itself. Wegolite draws each burst as one Phase 16 cloud
+ * at that radius whose kind carries Oolite's speed range, lifetime and start
+ * size (D-01a, `ExplosionAddOptions.kind`); the particle form is the one
+ * divergence the owner kept (D-01).
  */
-export function createDeathFlow(ctx: SessionState): EventSubscriber {
+export const PLAYER_EXPLOSION_FACTOR = 4;
+
+/**
+ * The setting the player's explosion draws with: the compiled
+ * `oolite-default-ship-explosion` record of `src/content/generated/explosions.json`
+ * without its key, the setting every compiled hull explodes with (D16-22). It
+ * is restated like `DEFAULT_SHIP_EXPLOSION_KEY` (`src/app/session/traffic.ts`)
+ * and pinned to the generated file by a unit test. It is not loaded: the
+ * explosion catalogue joins the boot load only with traffic on, a traffic-off
+ * cold start must request no explosion chunk (`tests/e2e/budget.spec.ts`,
+ * Phase 16 criterion 4), and a load started at the death would delay the
+ * explosion or lose it on a failed fetch. It is defensive today (the
+ * orchestrator's decision of 2026-11-22, not an owner decision): no lethal
+ * record exists with traffic off, but the constant keeps the death flow
+ * independent of the traffic setting for any later damage source.
+ */
+export const PLAYER_EXPLOSION_SETTINGS: ExplosionSettings = Object.freeze({
+  alpha: 0.8500000238418579,
+  brightness: 1,
+  colorOrder: "rgb",
+  count: 25,
+  duration: 1.5,
+  growthRate: 1.5,
+  size: 2.5,
+  spread: 1,
+  texture: "oolite-particle-cloud2.png",
+});
+
+/** What the death flow calls outside the session context. */
+export interface DeathFlowDeps {
+  /** Close the galactic chart (a no-op when closed; restores its saved context). */
+  readonly closeChart: () => void;
+  /** Close the F2 screen (a no-op when closed; restores its saved context). */
+  readonly closeSaveScreen: () => void;
+  readonly launchSequence: Pick<LaunchSequence, "reset">;
+  readonly hudCanvas: Pick<HTMLCanvasElement, "hidden">;
+  readonly messages: Pick<MessageQueue, "clear">;
+}
+
+/**
+ * playerDestroyed (DEATH-01, DEATH-06, D-01, D-08): the session's one death
+ * subscriber. It latches the session first; everything else the death does
+ * follows only a successful latch, so a second event repeats nothing. Without
+ * `deps` it is the latch alone (the router's default, T-20-11). With them it
+ * also shuts the session down around the frozen world: it closes an open chart
+ * and an open F2 screen (both restore a saved context, so the `gameOver`
+ * context is set after them), clears the HUD message queue (Oolite's "No
+ * messages for the dead"), resets the launch sequence, hides the HUD canvas and
+ * adds the player's explosion to the live scene.
+ */
+export function createDeathFlow(
+  ctx: SessionState,
+  deps?: DeathFlowDeps,
+): EventSubscriber {
   return (event) => {
-    if (event.kind === "playerDestroyed") {
-      if (!latchGameOver(ctx, event.cause)) return;
+    if (event.kind !== "playerDestroyed") return;
+    if (!latchGameOver(ctx, event.cause)) return;
+    if (deps === undefined) return;
+    deps.closeChart();
+    deps.closeSaveScreen();
+    ctx.runtime.input?.setContext("gameOver");
+    deps.messages.clear();
+    deps.launchSequence.reset();
+    deps.hudCanvas.hidden = true;
+    // Read the live scene at call time (G-8); with no scene nothing is drawn.
+    const scene = ctx.core.scene;
+    if (scene === undefined) return;
+    const flightTime = ctx.core.state?.flightTime ?? 0;
+    // Oolite's two loops (becomeLargeExplosion:4.0): the first
+    // `PLAYER_EXPLOSION_FACTOR` adds are small bursts, the next as many big
+    // ones, each with its own seed variant (1 to 8). One flash for the whole
+    // explosion, on the first add (D-01b, DIV-9); `flash` is passed on every
+    // add, because an absent `flash` defaults to true.
+    for (let k = 1; k <= 2 * PLAYER_EXPLOSION_FACTOR; k += 1) {
+      scene.explosions.add(
+        event.position,
+        PLAYER_COLLISION_RADIUS_M,
+        PLAYER_EXPLOSION_SETTINGS,
+        flightTime,
+        {
+          kind: k <= PLAYER_EXPLOSION_FACTOR ? "small" : "big",
+          variant: k,
+          flash: k === 1,
+        },
+      );
     }
   };
 }
