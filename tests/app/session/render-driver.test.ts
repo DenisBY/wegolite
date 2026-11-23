@@ -29,7 +29,9 @@ import type { SessionState } from "../../../src/app/session/context.js";
 import {
   DEAD_CAMERA_SETBACK_M,
   GAME_OVER_FADE_SECONDS,
+  NO_DRAW_DISTANCE_FACTOR,
   createRenderDriver,
+  isDebrisInDeadView,
 } from "../../../src/app/session/render-driver.js";
 import type { RenderDriver } from "../../../src/app/session/render-driver.js";
 import type { WegoliteProbe } from "../../../src/app/probe.js";
@@ -76,8 +78,10 @@ import {
   identity,
   rotate,
   scale,
+  sub,
   vec,
 } from "../../../src/sim/math.js";
+import type { Vec3 } from "../../../src/sim/math.js";
 import { NO_ENTITY, STATION_NAV_BUOY_ID } from "../../../src/sim/world/ids.js";
 import { buoyPosition } from "../../../src/sim/world/statics.js";
 import {
@@ -88,6 +92,7 @@ import type {
   DebrisContact,
   NpcContact,
 } from "../../../src/sim/world/contacts.js";
+import { hashWorld } from "../../../src/sim/world/serialize.js";
 import { spawnEntity } from "../../../src/sim/world/world.js";
 import type { TrafficContent } from "../../../src/app/session/traffic.js";
 import { populateInertWorld } from "../../../src/sim/world/populate.js";
@@ -1608,5 +1613,296 @@ describe("renderFrame dead scene (D-01)", () => {
     const { h } = dying(7);
     h.driver.renderFrame(0);
     expect(h.renders).toHaveLength(1);
+  });
+});
+
+describe("isDebrisInDeadView (D-01d)", () => {
+  const FOV = 57.2;
+  const ASPECT = 1.5;
+  const halfHeight = Math.tan((FOV * Math.PI) / 360);
+  const halfWidth = ASPECT * halfHeight;
+  const view = (relative: Vec3, radius = 4, orientation = identity()) =>
+    isDebrisInDeadView(relative, radius, orientation, FOV, ASPECT);
+
+  it("takes Oolite's no-draw factor", () => {
+    expect(NO_DRAW_DISTANCE_FACTOR).toBe(1024);
+  });
+
+  it("sees a piece straight ahead and not the same piece behind the camera", () => {
+    expect(view(vec(0, 0, -500))).toBe(true);
+    expect(view(vec(0, 0, 500))).toBe(false);
+  });
+
+  it("tests the bounding sphere against each of the four side planes", () => {
+    const depth = 500;
+    const wide = Math.sqrt(1 + halfWidth * halfWidth);
+    const high = Math.sqrt(1 + halfHeight * halfHeight);
+    const sideEdge = halfWidth * depth;
+    const topEdge = halfHeight * depth;
+    // Outside by more than the radius: not in view; by less: the sphere crosses.
+    expect(view(vec(sideEdge + 4.5 * wide, 0, -depth))).toBe(false);
+    expect(view(vec(sideEdge + 3.5 * wide, 0, -depth))).toBe(true);
+    expect(view(vec(-(sideEdge + 4.5 * wide), 0, -depth))).toBe(false);
+    expect(view(vec(-(sideEdge + 3.5 * wide), 0, -depth))).toBe(true);
+    expect(view(vec(0, topEdge + 4.5 * high, -depth))).toBe(false);
+    expect(view(vec(0, topEdge + 3.5 * high, -depth))).toBe(true);
+    expect(view(vec(0, -(topEdge + 4.5 * high), -depth))).toBe(false);
+    expect(view(vec(0, -(topEdge + 3.5 * high), -depth))).toBe(true);
+  });
+
+  it("stops at Oolite's no-draw distance, sqrt(2) x 1024 x the radius", () => {
+    // sqrt(2) x 1024 x 4 is about 5,792.6 m.
+    expect(view(vec(0, 0, -5_700))).toBe(true);
+    expect(view(vec(0, 0, -5_900))).toBe(false);
+  });
+
+  it("looks along the camera's own -Z", () => {
+    const quarterTurn = axisAngle(0, 1, 0, Math.PI / 2);
+    const turned = rotate(quarterTurn, vec(0, 0, -500));
+    expect(view(turned, 4, quarterTurn)).toBe(true);
+    expect(view(vec(0, 0, -500), 4, quarterTurn)).toBe(false);
+  });
+
+  it("never sees a piece with no usable radius or position", () => {
+    for (const radius of [0, -4, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(view(vec(0, 0, -500), radius)).toBe(false);
+    }
+    expect(view(vec(Number.NaN, 0, -500))).toBe(false);
+    expect(view(vec(0, Number.POSITIVE_INFINITY, -500))).toBe(false);
+  });
+});
+
+describe("renderFrame dead debris drift (D-01c, D-01d)", () => {
+  const FLIGHT_TIME = 7.25;
+
+  /** Where a piece is drawn at `at` seconds, in the dead camera's frame. */
+  interface PieceSpec {
+    /** Metres along the camera's view axis at `at`. */
+    readonly depth: number;
+    /** Metres along the camera's right axis at `at`. */
+    readonly lateral: number;
+    /** Metres per second along the view axis and the right axis. */
+    readonly speed: readonly [number, number];
+    /** The `gameOverSeconds` at which `depth` and `lateral` hold. */
+    readonly at: number;
+    readonly radius?: number;
+  }
+
+  /** A latched dead session whose world holds the given pieces. */
+  function deadDebris(pieces: readonly PieceSpec[]) {
+    const h = harness();
+    const debrisCalls: unknown[][] = [];
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(h.nebula, undefined, undefined, (...args) =>
+      debrisCalls.push(args),
+    );
+    h.ctx.runtime.hud = { draw: () => undefined } as unknown as Hud;
+    const state: FlightState = {
+      ...initFlightState(layout),
+      mode: "dead",
+      flightTime: FLIGHT_TIME,
+      position: vec(0, 0, 0),
+      orientation: identity(),
+    };
+    const deadCamera = computeViewCamera(
+      add(state.position, scale(vec(0, 0, -1), DEAD_CAMERA_SETBACK_M)),
+      state.orientation,
+      "aft",
+      vec(0, 0, 0),
+    );
+    const axis = rotate(deadCamera.quaternion, vec(0, 0, -1));
+    const right = rotate(deadCamera.quaternion, vec(1, 0, 0));
+    const lifecycle = createWorldLifecycle({
+      traffic: true,
+      populate: (world) => {
+        populateInertWorld(world, layout, laveInertRecords());
+        for (const piece of pieces) {
+          const velocity = add(
+            scale(axis, piece.speed[0]),
+            scale(right, piece.speed[1]),
+          );
+          const drawn = add(
+            deadCamera.position,
+            add(scale(axis, piece.depth), scale(right, piece.lateral)),
+          );
+          const result = spawnEntity(
+            world,
+            {
+              kind: "wreckage",
+              specKey: "wreck1",
+              scanClass: "CLASS_CARGO",
+              position: sub(drawn, scale(velocity, piece.at)),
+              orientation: identity(),
+              radius: piece.radius ?? 4,
+              velocity,
+            },
+            0,
+          );
+          if (!result.ok) throw new Error(result.reason);
+        }
+      },
+    });
+    lifecycle.begin(marketSeedForSystem(system.id));
+    h.ctx.core.worldLifecycle = lifecycle;
+    h.ctx.core.state = state;
+    h.ctx.core.previousPose = poseOf(state);
+    h.ctx.core.currentPose = h.ctx.core.previousPose;
+    h.ctx.runtime.gameOver = true;
+    const world = lifecycle.world;
+    /** One dead frame at `seconds`, then whether the gate would draw the next. */
+    function drawsAt(seconds: number): boolean {
+      h.ctx.runtime.gameOverSeconds = seconds;
+      h.driver.renderFrame(0);
+      // Drain the gate's settle draws, so only a held redraw still reads true.
+      runFrames(h, 6);
+      return h.driver.shouldDraw();
+    }
+    return { h, state, world, debrisCalls, drawsAt };
+  }
+
+  /** The entity position plus its velocity times `seconds`, in float64. */
+  function driftedPosition(entity: DebrisContact, seconds: number): Vec3 {
+    return {
+      x: entity.position.x + entity.velocity.x * seconds,
+      y: entity.position.y + entity.velocity.y * seconds,
+      z: entity.position.z + entity.velocity.z * seconds,
+    };
+  }
+
+  it("draws each moving piece at its sim position plus velocity x the seconds since death, and tumbles it on the effect time", () => {
+    const { h, world, debrisCalls } = deadDebris([
+      { depth: 500, lateral: 0, speed: [30, -12], at: 0, radius: 4 },
+    ]);
+    const [entity] = debrisContacts(world);
+    if (entity === undefined) throw new Error("no debris");
+
+    for (const seconds of [0, 2.5]) {
+      debrisCalls.length = 0;
+      h.ctx.runtime.gameOverSeconds = seconds;
+      h.driver.renderFrame(0);
+      const [contacts, , , , time] = debrisCalls[0] ?? [];
+      const drawn = (contacts as readonly DebrisContact[])[0];
+      expect(drawn?.position).toEqual(driftedPosition(entity, seconds));
+      expect(drawn?.orientation).toEqual(entity.orientation);
+      expect(drawn?.radius).toBe(entity.radius);
+      expect(drawn?.specKey).toBe(entity.specKey);
+      expect(drawn?.velocity).toEqual(entity.velocity);
+      expect(time).toBe(FLIGHT_TIME + seconds);
+    }
+  });
+
+  it("draws a piece at rest where it lies", () => {
+    const { h, world, debrisCalls } = deadDebris([
+      { depth: 500, lateral: 0, speed: [0, 0], at: 0 },
+    ]);
+    h.ctx.runtime.gameOverSeconds = 12;
+    h.driver.renderFrame(0);
+    const drawn = (debrisCalls[0]?.[0] as readonly DebrisContact[])[0];
+    expect(drawn?.position).toEqual(debrisContacts(world)[0]?.position);
+  });
+
+  it("has no time limit: the pose and the tumble time follow 30 s and 45 s, and a context restore draws 45 s", () => {
+    const { h, world, debrisCalls } = deadDebris([
+      { depth: 500, lateral: 0, speed: [30, -12], at: 0 },
+    ]);
+    const [entity] = debrisContacts(world);
+    if (entity === undefined) throw new Error("no debris");
+    const positions: Vec3[] = [];
+    for (const seconds of [30, 45]) {
+      debrisCalls.length = 0;
+      h.ctx.runtime.gameOverSeconds = seconds;
+      h.driver.renderFrame(0);
+      const [contacts, , , , time] = debrisCalls[0] ?? [];
+      const drawn = (contacts as readonly DebrisContact[])[0];
+      expect(drawn?.position).toEqual(driftedPosition(entity, seconds));
+      expect(time).toBe(FLIGHT_TIME + seconds);
+      positions.push(drawn?.position ?? vec(0, 0, 0));
+    }
+    expect(positions[0]).not.toEqual(positions[1]);
+    // The context-restore draw reads the live fields at 45 s.
+    const rendersBefore = h.renders.length;
+    debrisCalls.length = 0;
+    h.driver.renderFrame(0);
+    expect(h.renders.length).toBe(rendersBefore + 1);
+    expect(debrisCalls[0]?.[4]).toBe(FLIGHT_TIME + 45);
+    const restored = (debrisCalls[0]?.[0] as readonly DebrisContact[])[0];
+    expect(restored?.position).toEqual(driftedPosition(entity, 45));
+  });
+
+  it("leaves the sim untouched: the hashes and every debris entity are the same across dead frames", () => {
+    const { h, state, world } = deadDebris([
+      { depth: 500, lateral: 0, speed: [30, -12], at: 0 },
+      { depth: 800, lateral: 100, speed: [0, 0], at: 0 },
+    ]);
+    const snapshot = () =>
+      structuredClone(
+        world.store.live
+          .filter((entity) => entity.kind === "wreckage")
+          .map((entity) => ({
+            position: entity.position,
+            velocity: entity.velocity,
+          })),
+      );
+    const worldBefore = hashWorld(state, world);
+    const flightBefore = hashFlight(state);
+    const entitiesBefore = snapshot();
+    expect(entitiesBefore).toHaveLength(2);
+    for (const seconds of [0, 2.5, 5, 45]) {
+      h.ctx.runtime.gameOverSeconds = seconds;
+      h.driver.renderFrame(0);
+    }
+    expect(hashWorld(state, world)).toBe(worldBefore);
+    expect(hashFlight(state)).toBe(flightBefore);
+    expect(snapshot()).toEqual(entitiesBefore);
+  });
+
+  it("keeps drawing a moving piece in view past the settle time and idles once it has left the side plane", () => {
+    // Drifts sideways at 100 m/s from the axis at 500 m: the side plane is
+    // about 409 m out there, so it leaves between 10 and 12 s.
+    const { drawsAt } = deadDebris([
+      { depth: 500, lateral: 0, speed: [0, 100], at: 6 },
+    ]);
+    expect(drawsAt(6)).toBe(true);
+    expect(drawsAt(8)).toBe(true);
+    expect(drawsAt(12)).toBe(false);
+  });
+
+  it("keeps drawing a piece moving straight away until its no-draw distance, then idles", () => {
+    // On the axis at 500 m moving away at 50 m/s: 5,792.6 m is reached near 111.9 s.
+    const { drawsAt } = deadDebris([
+      { depth: 500, lateral: 0, speed: [50, 0], at: 6 },
+    ]);
+    expect(drawsAt(6)).toBe(true);
+    expect(drawsAt(100)).toBe(true);
+    expect(drawsAt(120)).toBe(false);
+  });
+
+  it("resumes drawing when a moving piece drifts into the view and idles while it is outside", () => {
+    // 600 m out to the right at 6 s, closing on the axis at 100 m/s.
+    const { drawsAt } = deadDebris([
+      { depth: 500, lateral: 600, speed: [0, -100], at: 6 },
+    ]);
+    expect(drawsAt(6)).toBe(false);
+    expect(drawsAt(12)).toBe(true);
+  });
+
+  it("idles after the settle time with no world and with only pieces at rest in view", () => {
+    const rest = deadDebris([{ depth: 500, lateral: 0, speed: [0, 0], at: 0 }]);
+    expect(rest.drawsAt(6)).toBe(false);
+    expect(rest.drawsAt(60)).toBe(false);
+
+    const none = deadDebris([]);
+    none.h.ctx.core.worldLifecycle = undefined;
+    expect(none.drawsAt(6)).toBe(false);
+  });
+
+  it("draws every dead frame before the settle time whatever the debris", () => {
+    const { h } = deadDebris([
+      { depth: 500, lateral: 600, speed: [0, 0], at: 0 },
+    ]);
+    h.ctx.runtime.gameOverSeconds = 4.9;
+    h.driver.renderFrame(0);
+    expect(runFrames(h, 20)).toBe(20);
   });
 });

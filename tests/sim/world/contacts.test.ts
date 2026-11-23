@@ -151,6 +151,7 @@ function spawnDebris(
   specKey: string,
   x: number,
   radius: number,
+  velocity?: { x: number; y: number; z: number },
 ): void {
   const result = spawnEntity(
     world,
@@ -161,6 +162,7 @@ function spawnDebris(
       position: { x, y: -x, z: 0.5 * x },
       orientation: { w: 0.5, x: 0.5, y: 0.5, z: 0.5 },
       radius,
+      ...(velocity === undefined ? {} : { velocity }),
     },
     0,
   );
@@ -205,7 +207,7 @@ describe("debrisContacts (WORLD-17, D16-26)", () => {
     ]);
   });
 
-  it("carries no entity id and exactly the four snapshot fields", () => {
+  it("carries no entity id and exactly the five snapshot fields", () => {
     const world = createWorld(LAVE_EPOCH1_WORLD_SEED);
     spawnDebris(world, "cargo", "barrel", 10, 4);
     const contact = debrisContacts(world)[0];
@@ -214,8 +216,31 @@ describe("debrisContacts (WORLD-17, D16-26)", () => {
       "position",
       "radius",
       "specKey",
+      "velocity",
     ]);
     expect(JSON.stringify(contact)).not.toMatch(/"(id|ownerId|targetId)"/);
+  });
+
+  it("copies the piece's velocity for the dead view's drift (D-01c), a rest piece's as zero", () => {
+    const world = createWorld(LAVE_EPOCH1_WORLD_SEED);
+    spawnDebris(world, "cargo", "barrel", 10, 4, { x: 12, y: -3, z: 40 });
+    spawnDebris(world, "wreckage", "wreck1", 20, 20);
+    const contacts = debrisContacts(world);
+    expect(contacts[0]?.velocity).toEqual({ x: 12, y: -3, z: 40 });
+    expect(contacts[1]?.velocity).toEqual({ x: 0, y: 0, z: 0 });
+  });
+
+  it("returns copies: mutating a contact's velocity never changes the entity's", () => {
+    const world = createWorld(LAVE_EPOCH1_WORLD_SEED);
+    spawnDebris(world, "cargo", "barrel", 10, 4, { x: 12, y: -3, z: 40 });
+    const velocity = debrisContacts(world)[0]?.velocity as {
+      x: number;
+      y: number;
+      z: number;
+    };
+    velocity.x = -1;
+    velocity.z = 0;
+    expect(world.store.live[0]?.velocity).toEqual({ x: 12, y: -3, z: 40 });
   });
 
   it("returns copies: mutating a contact never changes an entity", () => {
