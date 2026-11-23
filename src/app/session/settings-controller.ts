@@ -67,6 +67,14 @@ export function createSettingsController(
       ctx.runtime.input?.clearAll();
       return;
     }
+    if (ctx.runtime.gameOver) {
+      // D-07: a dead session shows the game-over view and nothing else. Held
+      // input is cleared, but no pause overlay opens over the view and the
+      // session never reads as paused. This covers focus loss, the P toggle,
+      // the public pause and the context-loss entry, which all land here.
+      ctx.runtime.input?.clearAll();
+      return;
+    }
     if (ctx.runtime.paused) {
       // Repeated blur/visibility events are idempotent.
       ctx.runtime.input?.clearAll();
@@ -98,6 +106,8 @@ export function createSettingsController(
   }
 
   function resume(): void {
+    // D-07, DEATH-06: nothing resumes a dead session.
+    if (ctx.runtime.gameOver) return;
     if (!ctx.runtime.paused) return;
     // QUAL-05 (D-15): no resume without a context. P and the Resume button
     // reach this line (Escape no longer pauses or resumes by default, INPUT-01;
