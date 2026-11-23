@@ -47,3 +47,10 @@ Add the decision to that plan's `read_first` and acceptance criteria, with a tes
 `src/sim/ai/types.ts`) names `shipTargetDestroyed` or `shipKilledOther`, or reads the credit (`.killer`,
 `?.killer`, `["killer"]`, or `killer` as a key in an object destructuring pattern). Its failure message names this
 file. The commit that adds the consumer updates the guard's allowlist and records the decision above.
+
+## Phase 20 check (2026-11-23)
+
+Checked in Phase 20 (D-09, plan 20-10): the player-versus-NPC mutual kill adds no consumer of kill
+credit. The cause line names the culprit from the lethal ledger record's source (D-04) and the
+score reads no kill tally (D-05), so `tests/guards/kill-credit-consumers.test.ts` stays as it is
+and this todo stays open for LAW-*.
