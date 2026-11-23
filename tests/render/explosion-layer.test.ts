@@ -12,21 +12,32 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 
 import {
+  BIG_BURST_DURATION,
+  BIG_BURST_MIN_SPEED_BASE,
+  BIG_BURST_MIN_SPEED_PER_RADIUS,
+  BIG_BURST_SIZE_FACTOR,
+  BIG_BURST_SPEED_SPAN,
   EXPLOSION_MAX_PARTICLES,
   EXPLOSION_POOL,
   FLASH_ALPHA,
   FLASH_DURATION,
   FLASH_GROWTH_FACTOR,
   FLASH_MIN_GROWTH,
+  SMALL_BURST_DURATION,
+  SMALL_BURST_MAX_SPEED,
+  SMALL_BURST_MIN_SPEED,
+  SMALL_BURST_SIZE_FACTOR,
   createExplosionLayer,
 } from "../../src/render/bodies/explosions.js";
 import type {
   ExplosionAddOptions,
+  ExplosionBurstKind,
   ExplosionLayer,
   ExplosionSettings,
 } from "../../src/render/bodies/explosions.js";
 import { linearToSrgb } from "../../src/render/color.js";
 import { vec } from "../../src/sim/math.js";
+import { PLAYER_COLLISION_RADIUS_M } from "../../src/sim/npc/stats.js";
 import type { Vec3 } from "../../src/sim/math.js";
 
 /** The compiled `oolite-default-ship-explosion` (explosions.json). */
@@ -464,6 +475,217 @@ describe("createExplosionLayer: the per-add flash flag (D-01b)", () => {
     expect(cloudOf(layer).count).toBe(20);
     expect(flashOf(layer).count).toBe(1);
     expect(flashAt(layer, 0).position).toEqual(vec(0, 0, 0));
+  });
+});
+
+describe("createExplosionLayer: the fragment-burst constants (D-01a)", () => {
+  it("copies Oolite's small and big burst values from the pinned particle system", () => {
+    // OOSmallFragmentBurstEntity: kMinSpeed = 100, kMaxSpeed = 400
+    // (src/Core/Entities/OOParticleSystem.m:249-250 at pin 7437f22).
+    expect(SMALL_BURST_MIN_SPEED).toBe(100);
+    expect(SMALL_BURST_MAX_SPEED).toBe(400);
+    // `duration:1.5` (src/Core/Entities/OOParticleSystem.m:262).
+    expect(SMALL_BURST_DURATION).toBe(1.5);
+    // The start size `32.0f * kMinSpeed / speed`
+    // (src/Core/Entities/OOParticleSystem.m:265).
+    expect(SMALL_BURST_SIZE_FACTOR).toBe(32);
+    // OOBigFragmentBurstEntity: `minSpeed = 1.0f + size * 0.5f`
+    // (src/Core/Entities/OOParticleSystem.m:302).
+    expect(BIG_BURST_MIN_SPEED_BASE).toBe(1);
+    expect(BIG_BURST_MIN_SPEED_PER_RADIUS).toBe(0.5);
+    // `maxSpeed = minSpeed * 4.0f` (src/Core/Entities/OOParticleSystem.m:303).
+    expect(BIG_BURST_SPEED_SPAN).toBe(4);
+    // `size *= 2.0f` (src/Core/Entities/OOParticleSystem.m:310) and the growth
+    // `(1.0f + timePassed) * _baseSize` (src/Core/Entities/OOParticleSystem.m:342).
+    expect(BIG_BURST_SIZE_FACTOR).toBe(2);
+    // `duration:1.0` (src/Core/Entities/OOParticleSystem.m:311).
+    expect(BIG_BURST_DURATION).toBe(1);
+  });
+});
+
+describe("createExplosionLayer: the small burst kind (D-01a)", () => {
+  const radius = PLAYER_COLLISION_RADIUS_M;
+
+  it("flies at 100 to 400 m/s, starts at 32 * 100 / speed and never grows", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), radius, DEFAULT, 0, {
+      kind: "small",
+      flash: false,
+    });
+    layer.update(ORIGIN, FACING, 0.5);
+    const half = particles(layer);
+    expect(half).toHaveLength(EXPLOSION_MAX_PARTICLES);
+    const speeds = half.map((p) => length(p.position) / 0.5);
+    for (const [i, particle] of half.entries()) {
+      const speed = speeds[i] ?? 0;
+      expect(speed).toBeGreaterThanOrEqual(100 - 1e-3);
+      expect(speed).toBeLessThanOrEqual(400 + 1e-3);
+      expect(particle.size).toBeCloseTo((32 * 100) / speed, 3);
+    }
+    layer.update(ORIGIN, FACING, 1.0);
+    const full = particles(layer);
+    for (const [i, particle] of full.entries()) {
+      expect(particle.size).toBeCloseTo(half[i]?.size ?? 0, 3);
+      expect(length(particle.position) / 1.0).toBeCloseTo(speeds[i] ?? 0, 2);
+    }
+  });
+
+  it("lives 1.5 s: drawn at 1.49, gone at 1.5", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), radius, DEFAULT, 10, { kind: "small" });
+    layer.update(ORIGIN, FACING, 10 + 1.49);
+    expect(cloudOf(layer).visible).toBe(true);
+    layer.update(ORIGIN, FACING, 10 + 1.5);
+    expect(cloudOf(layer).visible).toBe(false);
+    expect(cloudOf(layer).count).toBe(0);
+  });
+
+  it("keeps the range whatever the radius", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), 12, DEFAULT, 0, { kind: "small", flash: false });
+    layer.update(ORIGIN, FACING, 0.5);
+    for (const particle of particles(layer)) {
+      const speed = length(particle.position) / 0.5;
+      expect(speed).toBeGreaterThanOrEqual(100 - 1e-3);
+      expect(speed).toBeLessThanOrEqual(400 + 1e-3);
+    }
+  });
+});
+
+describe("createExplosionLayer: the big burst kind (D-01a)", () => {
+  const radius = PLAYER_COLLISION_RADIUS_M;
+
+  it("flies from 1 + r/2 to four times that, every particle at 2r growing to (1 + t) 2r", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), radius, DEFAULT, 0, { kind: "big", flash: false });
+    layer.update(ORIGIN, FACING, 0);
+    const start = particles(layer);
+    expect(start).toHaveLength(EXPLOSION_MAX_PARTICLES);
+    for (const particle of start) {
+      expect(particle.size).toBeCloseTo(2 * radius, 3);
+    }
+    layer.update(ORIGIN, FACING, 0.5);
+    const minSpeed = 1 + radius / 2;
+    for (const particle of particles(layer)) {
+      const speed = length(particle.position) / 0.5;
+      expect(speed).toBeGreaterThanOrEqual(minSpeed - 1e-3);
+      expect(speed).toBeLessThanOrEqual(4 * minSpeed + 1e-3);
+      expect(particle.size).toBeCloseTo(2 * radius * (1 + 0.5), 3);
+    }
+  });
+
+  it("lives 1.0 s: drawn at 0.99, gone at 1.0", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), radius, DEFAULT, 10, { kind: "big" });
+    layer.update(ORIGIN, FACING, 10 + 0.99);
+    expect(cloudOf(layer).visible).toBe(true);
+    layer.update(ORIGIN, FACING, 10 + 1);
+    expect(cloudOf(layer).visible).toBe(false);
+    expect(cloudOf(layer).count).toBe(0);
+  });
+});
+
+describe("createExplosionLayer: a kind changes three parameters only (D-01a)", () => {
+  const position = vec(5, 6, 7);
+  const camera = position;
+
+  function directions(options?: ExplosionAddOptions): number[] {
+    const { layer } = recorded();
+    layer.add(position, 20, DEFAULT, 0, options);
+    layer.update(camera, FACING, 0.1);
+    return particles(layer).flatMap((p) => {
+      const n = length(p.position);
+      return [p.position.x / n, p.position.y / n, p.position.z / n];
+    });
+  }
+
+  function startColours(options?: ExplosionAddOptions): number[] {
+    const { layer } = recorded();
+    layer.add(position, 20, DEFAULT, 0, options);
+    layer.update(camera, FACING, 0);
+    return [...(cloudOf(layer).instanceColor?.array.slice(0, 30) ?? [])];
+  }
+
+  it("draws the same directions and initial colours for both kinds and for no kind", () => {
+    const plain = directions({ variant: 1 });
+    expect(plain).toHaveLength(30);
+    const small = directions({ kind: "small", variant: 1 });
+    const big = directions({ kind: "big", variant: 1 });
+    expect(small).toHaveLength(30);
+    expect(big).toHaveLength(30);
+    for (const [i, value] of plain.entries()) {
+      expect(small[i]).toBeCloseTo(value, 4);
+      expect(big[i]).toBeCloseTo(value, 4);
+    }
+    const plainColours = startColours({ variant: 1 });
+    expect(startColours({ kind: "small", variant: 1 })).toEqual(plainColours);
+    expect(startColours({ kind: "big", variant: 1 })).toEqual(plainColours);
+  });
+
+  it("skips a kind outside small and big like other bad input", () => {
+    const { layer, urls } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 1, {
+      kind: "medium" as unknown as ExplosionBurstKind,
+    });
+    layer.update(ORIGIN, FACING, 1);
+    expect(cloudOf(layer).visible).toBe(false);
+    expect(cloudOf(layer).count).toBe(0);
+    expect(flashOf(layer).count).toBe(0);
+    expect(urls).toEqual([]);
+  });
+});
+
+describe("createExplosionLayer: the player's explosion as the death flow adds it (D-01, D-01b, D-09)", () => {
+  function addPlayerExplosion(layer: ExplosionLayer, at: number): void {
+    // Eight adds at one point: small x4 then big x4, variants 1 to 8, a flash
+    // on the first alone, passed explicitly on every add.
+    const point = vec(0, 0, 0);
+    const r = PLAYER_COLLISION_RADIUS_M;
+    layer.add(point, r, DEFAULT, at, {
+      kind: "small",
+      variant: 1,
+      flash: true,
+    });
+    for (let k = 2; k <= 4; k += 1) {
+      layer.add(point, r, DEFAULT, at, {
+        kind: "small",
+        variant: k,
+        flash: false,
+      });
+    }
+    for (let k = 5; k <= 8; k += 1) {
+      layer.add(point, r, DEFAULT, at, {
+        kind: "big",
+        variant: k,
+        flash: false,
+      });
+    }
+  }
+
+  it("keeps nine explosions live beside a same-moment default one, with exactly two flashes", () => {
+    const { layer } = recorded();
+    layer.add(vec(1000, 0, 0), 20, DEFAULT, 0);
+    addPlayerExplosion(layer, 0);
+
+    layer.update(ORIGIN, FACING, 0.1);
+    expect(cloudOf(layer).count).toBe(90);
+    expect(flashOf(layer).count).toBe(2);
+    expect(drawObjects(layer)).toBe(2);
+    const flashXs = [0, 1].map((i) => flashAt(layer, i).position.x).sort();
+    expect(flashXs).toEqual([0, 1000]);
+
+    layer.update(ORIGIN, FACING, 0.5);
+    expect(flashOf(layer).count).toBe(0);
+    expect(cloudOf(layer).count).toBe(90);
+
+    // The four big bursts (1.0 s) are gone; the default cloud and the four
+    // small bursts (1.5 s) remain.
+    layer.update(ORIGIN, FACING, 1.2);
+    expect(cloudOf(layer).count).toBe(50);
+
+    layer.update(ORIGIN, FACING, 1.5);
+    expect(cloudOf(layer).count).toBe(0);
+    expect(drawObjects(layer)).toBe(0);
   });
 });
 
