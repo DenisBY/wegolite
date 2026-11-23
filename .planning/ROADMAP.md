@@ -446,12 +446,12 @@ Plans:
 **Pitfalls to address**: 6 (old pins encode "the player cannot die"), 7 (autosave races a death; a dead player must not be saved as docked), 10 (one death path and everything that must stop when it fires), 19 (Oolite's death is not the whole of "game over"), 22 (closed sets), 4, 21, 25 and 26 (close-out: acceptance, test cost, provenance, changelog)
 **Decisions to settle**: the deterministic dead hash during the game-over window; the `playerDestroyed` event payload; the game-over copy; the Key Decisions amendments named under "Changes from the former plan"
 **Todos**: `2026-11-16-ci-e2e-timeout-margins.md` (apply its 60 % rule to the new specs in the same change)
-**Plans**: 11 plans in 6 waves (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
+**Plans**: 2/11 plans executed in 6 waves (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
 
 Plans:
 **Wave 1**
-- [ ] 20-01-PLAN.md — DEATH-01, DEATH-06, QUAL-11 (D-04, D-11): the one death path in the sim: the ledger's lethal check, `killPlayer`, the `"dead"` mode and the freeze (`resolveShots` included), the destroyable player in collisions, the tripwire retired and replaced by a producer-scope guard for `playerDestroyed`, `snapshotForSave` refusing a dead state (callers audited for the window before the latch) and the CHANGELOG line, all in the death commit, built in a fixed edit order with typecheck checkpoints; the nav-buoy ram measured first (idle launch, 250 and 350 m/s from full shields) and pinned, the idle launch included; the "cannot die" pins restated without hiding a death
-- [ ] 20-11-PLAN.md — DEATH-01 (D-01, D-01a, D-01b): the explosion layer for the player's death, split out of 20-04 (owner, 2026-11-23): per-add options (seed variant, flash, burst kind), Oolite's small and big fragment bursts with their speed range, lifetime and start size (`SMALL_BURST_*`/`BIG_BURST_*`, pinned with their `src/Core/Entities/OOParticleSystem.m` lines), and the pool of 16; every Phase 16 explosion unchanged
+- [x] 20-01-PLAN.md — DEATH-01, DEATH-06, QUAL-11 (D-04, D-11): the one death path in the sim: the ledger's lethal check, `killPlayer`, the `"dead"` mode and the freeze (`resolveShots` included), the destroyable player in collisions, the tripwire retired and replaced by a producer-scope guard for `playerDestroyed`, `snapshotForSave` refusing a dead state (callers audited for the window before the latch) and the CHANGELOG line, all in the death commit, built in a fixed edit order with typecheck checkpoints; the nav-buoy ram measured first (idle launch, 250 and 350 m/s from full shields) and pinned, the idle launch included; the "cannot die" pins restated without hiding a death
+- [x] 20-11-PLAN.md — DEATH-01 (D-01, D-01a, D-01b): the explosion layer for the player's death, split out of 20-04 (owner, 2026-11-23): per-add options (seed variant, flash, burst kind), Oolite's small and big fragment bursts with their speed range, lifetime and start size (`SMALL_BURST_*`/`BIG_BURST_*`, pinned with their `src/Core/Entities/OOParticleSystem.m` lines), and the pool of 16; every Phase 16 explosion unchanged
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 20-02-PLAN.md — DEATH-01 (D-09, D-10, D-11): the dock, jump and launching ticks, the countdown and ident, the mutual kill, the lethal ram with Oolite's reversal and the bank-only comparison, the ledger's lethal boundary, the freeze table over every sim entry point and the lethal-predicate property
@@ -520,7 +520,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
-| 20. Player Death and Game Over | v2.3 | 0/10 | Planned | - |
+| 20. Player Death and Game Over | v2.3 | 2/11 | In Progress | - |
 
 ## Backlog
 
