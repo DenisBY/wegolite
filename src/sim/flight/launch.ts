@@ -126,6 +126,9 @@ export function beginLaunch(
 
 /** Finish the exit and hand control to the player. */
 export function completeLaunch(state: FlightState): void {
+  // A dead state is never revived (the death phase's fail-closed rule). No
+  // broader mode check: tests call this directly from a docked state.
+  if (state.mode === "dead") return;
   state.mode = "inFlight";
   state.launchElapsed = LAUNCH_DURATION;
   state.rollRate = 0;
