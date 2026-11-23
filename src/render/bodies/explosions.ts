@@ -14,7 +14,14 @@
  * instances per explosion, the flash with one. That is two draw calls while
  * any explosion is live (one once every flash has expired), none otherwise,
  * however many ships die, and nothing is allocated by `add` or `update`. A
- * ninth simultaneous explosion overwrites the oldest.
+ * seventeenth simultaneous explosion overwrites the oldest. The pool of 16
+ * holds the player's eight bursts beside the ordinary explosions of the same
+ * moments (Phase 20, D-09).
+ *
+ * **Per-add options** (`ExplosionAddOptions`, Phase 20): a seed `variant`, so
+ * several explosions at one position and radius draw different particles, and
+ * a `flash` flag, so an add can go without its flash. An add without options
+ * draws exactly the Phase 16 explosion.
  *
  * **The cloud, from Oolite.**
  * - Particle count: `min(count, 10)`, Oolite's cap at a detail level up to
@@ -101,8 +108,12 @@ export interface ExplosionSettings {
   readonly texture: string;
 }
 
-/** Explosions drawn at once; a further explosion overwrites the oldest. */
-export const EXPLOSION_POOL = 8;
+/**
+ * Explosions drawn at once; a further explosion overwrites the oldest. 16, so
+ * the player's eight bursts (Phase 20, D-01) and an NPC explosion of the same
+ * tick (D-09) are live together.
+ */
+export const EXPLOSION_POOL = 16;
 
 /**
  * Cloud particles per explosion (D16-08): Oolite's count at a detail level up
@@ -135,6 +146,28 @@ const PARTICLE_TEXTURE = /^oolite-particle-[a-z0-9-]+\.png$/;
 /** Load one texture by URL; tests inject a recording double. */
 export type ExplosionTextureLoader = (url: string) => THREE.Texture;
 
+/**
+ * Per-add options of `ExplosionLayer.add`. With none, or with `variant` 0 and
+ * `flash` true, an add draws exactly the Phase 16 explosion.
+ */
+export interface ExplosionAddOptions {
+  /**
+   * A non-negative integer, default 0, folded into the render-only seed so
+   * several explosions at one position and radius draw different particles
+   * (the player's death adds eight there, Phase 20 D-01). 0 keeps the seed
+   * string of a plain add. A non-integer or negative variant is skipped.
+   */
+  readonly variant?: number;
+  /**
+   * Default true. False for an add whose Oolite counterpart adds no flash
+   * entity, as each burst of `becomeLargeExplosion:` does
+   * (`src/Core/Entities/ShipEntity.m:8308-8320`, against the ordinary cloud
+   * and flash pair at `:7957-7964`): the add draws its cloud and never a
+   * flash, so the player's whole explosion can carry exactly one (D-01b).
+   */
+  readonly flash?: boolean;
+}
+
 /** The explosion layer of one system scene. */
 export interface ExplosionLayer {
   /** The group holding the layer's instanced draw objects. */
@@ -142,13 +175,15 @@ export interface ExplosionLayer {
   /**
    * Add an explosion at `position` (world space) for a ship of collision
    * radius `radius`, starting at `flightTime`. Non-finite input, a negative
-   * radius or a texture name outside `oolite-particle-<name>.png` is skipped.
+   * radius, a non-integer or negative `options.variant` or a texture name
+   * outside `oolite-particle-<name>.png` is skipped.
    */
   add(
     position: Vec3,
     radius: number,
     settings: ExplosionSettings,
     flightTime: number,
+    options?: ExplosionAddOptions,
   ): void;
   /**
    * Rewrite the live particles camera-relative, facing the camera, and retire
@@ -269,6 +304,8 @@ export function createExplosionLayer(
   // The flash: its starting size (the radius) and its growth per second.
   const flashSize = new Float64Array(EXPLOSION_POOL);
   const flashGrowth = new Float64Array(EXPLOSION_POOL);
+  // 0 for an add made with `flash: false`: no flash instance over its life.
+  const flashEnabled = new Uint8Array(EXPLOSION_POOL);
   // 1 for `color_order` "white": no channel fade.
   const white = new Uint8Array(EXPLOSION_POOL);
   // Primary, secondary, tertiary channel per slot.
@@ -361,14 +398,17 @@ export function createExplosionLayer(
 
   return {
     root,
-    add(position, radius, settings, flightTime): void {
+    add(position, radius, settings, flightTime, options): void {
       if (disposed) return;
+      const variant = options?.variant ?? 0;
       if (
         !finiteVec(position) ||
         !Number.isFinite(radius) ||
         radius < 0 ||
         !Number.isFinite(flightTime) ||
-        !finiteSettings(settings)
+        !finiteSettings(settings) ||
+        !Number.isInteger(variant) ||
+        variant < 0
       ) {
         return;
       }
@@ -405,6 +445,7 @@ export function createExplosionLayer(
         FLASH_GROWTH_FACTOR * radius,
         FLASH_MIN_GROWTH,
       );
+      flashEnabled[slot] = options?.flash === false ? 0 : 1;
       const isWhite = settings.colorOrder === "white";
       white[slot] = isWhite ? 1 : 0;
       const channels = CHANNEL_ORDER[settings.colorOrder] ?? DEFAULT_ORDER;
@@ -413,11 +454,11 @@ export function createExplosionLayer(
       order[slot * 3 + 2] = channels[2];
 
       // Render-only randomness (T-16-24): seeded from the event, not a stream.
+      // Variant 0 hashes today's string; another variant appends itself.
+      const eventKey = `${String(position.x)},${String(position.y)},${String(position.z)},${String(radius)}`;
       const random = createSeededRandom(
         Number.parseInt(
-          fnv1a32(
-            `${String(position.x)},${String(position.y)},${String(position.z)},${String(radius)}`,
-          ),
+          fnv1a32(variant === 0 ? eventKey : `${eventKey},${String(variant)}`),
           16,
         ),
       );
@@ -469,7 +510,8 @@ export function createExplosionLayer(
         const t = flightTime - start;
         const life = duration[slot] ?? 0;
         const cloudOn = t >= 0 && t < life;
-        const flashOn = t >= 0 && t <= FLASH_DURATION;
+        const flashOn =
+          t >= 0 && t <= FLASH_DURATION && flashEnabled[slot] === 1;
         // Expired, or started in the future (a Load rewound the clock): the
         // slot is freed and never comes back.
         if (!cloudOn && !flashOn) {
