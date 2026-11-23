@@ -21,6 +21,7 @@ import {
   createExplosionLayer,
 } from "../../src/render/bodies/explosions.js";
 import type {
+  ExplosionAddOptions,
   ExplosionLayer,
   ExplosionSettings,
 } from "../../src/render/bodies/explosions.js";
@@ -145,13 +146,13 @@ function length(v: Vec3): number {
 }
 
 describe("createExplosionLayer: constants", () => {
-  it("pools 8 explosions of at most 10 cloud particles (D16-08)", () => {
-    expect(EXPLOSION_POOL).toBe(8);
+  it("pools 16 explosions of at most 10 cloud particles (D16-08, D-09)", () => {
+    expect(EXPLOSION_POOL).toBe(16);
     expect(EXPLOSION_MAX_PARTICLES).toBe(10);
     const { layer } = recorded();
     const cloud = cloudOf(layer);
-    expect(cloud.instanceMatrix.count).toBe(80);
-    expect(cloud.instanceColor?.count).toBe(80);
+    expect(cloud.instanceMatrix.count).toBe(160);
+    expect(cloud.instanceColor?.count).toBe(160);
     expect(cloud.frustumCulled).toBe(false);
     expect(cloud.instanceMatrix.usage).toBe(THREE.DynamicDrawUsage);
   });
@@ -375,15 +376,106 @@ describe("createExplosionLayer: render-only randomness", () => {
   });
 });
 
-describe("createExplosionLayer: the fixed pool", () => {
-  it("overwrites the oldest of nine simultaneous explosions", () => {
+describe("createExplosionLayer: the seed variant (D-01)", () => {
+  function snapshotWith(options?: ExplosionAddOptions): number[] {
     const { layer } = recorded();
-    for (let i = 1; i <= 9; i += 1) layer.add(vec(i, 0, 0), 10, DEFAULT, 1);
+    layer.add(vec(5, 6, 7), 20, DEFAULT, 0, options);
+    layer.update(vec(5, 6, 7), FACING, 0.3);
+    const cloud = cloudOf(layer);
+    return [
+      ...cloud.instanceMatrix.array.slice(0, cloud.count * 16),
+      ...(cloud.instanceColor?.array.slice(0, cloud.count * 3) ?? []),
+    ];
+  }
+
+  it("keeps today's particles for no options and for variant 0", () => {
+    const today = snapshotWith();
+    expect(today.length).toBeGreaterThan(0);
+    expect(snapshotWith({ variant: 0 })).toEqual(today);
+    expect(snapshotWith({})).toEqual(today);
+  });
+
+  it("gives different particles for variants 1 and 2 at one position and radius", () => {
+    const today = snapshotWith();
+    const one = snapshotWith({ variant: 1 });
+    const two = snapshotWith({ variant: 2 });
+    expect(one.length).toBeGreaterThan(0);
+    expect(one).not.toEqual(today);
+    expect(two).not.toEqual(today);
+    expect(one).not.toEqual(two);
+    // The same variant is the same explosion again.
+    expect(snapshotWith({ variant: 1 })).toEqual(one);
+  });
+
+  it("skips a non-integer or negative variant before taking a slot", () => {
+    for (const variant of [1.5, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const { layer } = recorded();
+      layer.add(vec(1, 0, 0), 10, DEFAULT, 1, { variant });
+      layer.update(ORIGIN, FACING, 1);
+      expect(cloudOf(layer).visible, String(variant)).toBe(false);
+      expect(cloudOf(layer).count, String(variant)).toBe(0);
+      expect(flashOf(layer).count, String(variant)).toBe(0);
+    }
+    // A skipped add takes no slot: sixteen valid adds around it all survive.
+    const { layer } = recorded();
+    layer.add(vec(1, 0, 0), 10, DEFAULT, 1);
+    layer.add(vec(99, 0, 0), 10, DEFAULT, 1, { variant: 1.5 });
+    for (let i = 2; i <= 16; i += 1) layer.add(vec(i, 0, 0), 10, DEFAULT, 1);
     layer.update(ORIGIN, FACING, 1);
-    expect(cloudOf(layer).count).toBe(80);
+    expect(cloudOf(layer).count).toBe(160);
+    const xs = new Set(particles(layer).map((p) => p.position.x));
+    expect(xs.has(1)).toBe(true);
+    expect(xs.has(99)).toBe(false);
+  });
+});
+
+describe("createExplosionLayer: the per-add flash flag (D-01b)", () => {
+  it("draws a cloud and never a flash for an add with flash: false", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 0, { flash: false });
+    for (const t of [0, 0.1, 0.2, 0.39, 0.4, 0.5, 1.2, 1.49]) {
+      layer.update(ORIGIN, FACING, t);
+      expect(cloudOf(layer).visible, `t = ${String(t)}`).toBe(true);
+      expect(cloudOf(layer).count, `t = ${String(t)}`).toBe(10);
+      expect(flashOf(layer).count, `t = ${String(t)}`).toBe(0);
+      expect(flashOf(layer).visible, `t = ${String(t)}`).toBe(false);
+    }
+    layer.update(ORIGIN, FACING, 1.5);
+    expect(cloudOf(layer).visible).toBe(false);
+  });
+
+  it("draws the flash of an add that names a variant and no flash option", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 0, { variant: 3 });
+    layer.update(ORIGIN, FACING, 0.1);
+    expect(flashOf(layer).count).toBe(1);
+    expect(flashOf(layer).visible).toBe(true);
+    const explicit = recorded();
+    explicit.layer.add(vec(0, 0, 0), 10, DEFAULT, 0, { flash: true });
+    explicit.layer.update(ORIGIN, FACING, 0.1);
+    expect(flashOf(explicit.layer).count).toBe(1);
+  });
+
+  it("keeps a flash-less add beside a flashing one: one flash instance", () => {
+    const { layer } = recorded();
+    layer.add(vec(0, 0, 0), 10, DEFAULT, 0, { flash: true });
+    layer.add(vec(100, 0, 0), 10, DEFAULT, 0, { flash: false });
+    layer.update(ORIGIN, FACING, 0.1);
+    expect(cloudOf(layer).count).toBe(20);
+    expect(flashOf(layer).count).toBe(1);
+    expect(flashAt(layer, 0).position).toEqual(vec(0, 0, 0));
+  });
+});
+
+describe("createExplosionLayer: the fixed pool", () => {
+  it("overwrites the oldest of seventeen simultaneous explosions", () => {
+    const { layer } = recorded();
+    for (let i = 1; i <= 17; i += 1) layer.add(vec(i, 0, 0), 10, DEFAULT, 1);
+    layer.update(ORIGIN, FACING, 1);
+    expect(cloudOf(layer).count).toBe(160);
     const xs = new Set(particles(layer).map((p) => p.position.x));
     expect(xs.has(1)).toBe(false);
-    for (let i = 2; i <= 9; i += 1) expect(xs.has(i)).toBe(true);
+    for (let i = 2; i <= 17; i += 1) expect(xs.has(i)).toBe(true);
   });
 
   it("frees a slot whose start lies in the future (a Load rewound the clock)", () => {
@@ -539,7 +631,7 @@ describe("createExplosionLayer: a fixed number of draw objects", () => {
     expect(drawObjects(layer)).toBe(0);
   });
 
-  for (const count of [8, 50]) {
+  for (const count of [16, 50]) {
     it(`never makes a third draw object for ${String(count)} explosions in one frame`, () => {
       const { layer } = recorded();
       const children = [...layer.root.children];
