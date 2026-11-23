@@ -121,6 +121,8 @@ export function applyWitchpointArrival(
   config: FlightConfig,
   draw: WitchpointExitDraw,
 ): void {
+  // A dead state is never revived (the death phase's fail-closed rule).
+  if (state.mode === "dead") return;
   const safety = layout.witchpoint.radius + MIN_DISTANCE_TO_BUOY;
   let distance = layout.scannerRange * draw.radial;
   if (Math.abs(Math.trunc(distance)) < safety) {

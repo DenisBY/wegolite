@@ -253,6 +253,70 @@ describe("applyLedger", () => {
     ]);
   });
 
+  it("kills when the damage past the shield equals the bank (Oolite energy <= 0.0, QUAL-11)", () => {
+    const world = createWorld(1);
+    const adder = ship(world, 100);
+    // The forward shield takes 4 of the 9; the 5 past it equal the bank of 5.
+    const equal = createPlayerCombatState();
+    equal.fwdShield = 4;
+    equal.energy = 5;
+    const outcome: { playerDeath?: PlayerDeathCause } = {};
+    applyLedger(
+      world,
+      true,
+      player(),
+      equal,
+      [record(PLAYER_ID, adder, 9)],
+      [],
+      undefined,
+      outcome,
+    );
+    expect(equal.energy).toBe(0);
+    expect(outcome.playerDeath).toEqual({ damage: "laser", culprit: "adder" });
+
+    // One short of the bank leaves the player alive with 1 energy.
+    const short = createPlayerCombatState();
+    short.fwdShield = 4;
+    short.energy = 5;
+    const none: { playerDeath?: PlayerDeathCause } = {};
+    applyLedger(
+      world,
+      true,
+      player(),
+      short,
+      [record(PLAYER_ID, adder, 8)],
+      [],
+      undefined,
+      none,
+    );
+    expect(short.energy).toBe(1);
+    expect(none.playerDeath).toBeUndefined();
+  });
+
+  it("never kills when the shield absorbs all of the damage, also at bank 0 (QUAL-11)", () => {
+    const world = createWorld(1);
+    const adder = ship(world, 100);
+    const combat = createPlayerCombatState();
+    combat.fwdShield = 50;
+    combat.energy = 0;
+    const events: SimEvent[] = [];
+    const outcome: { playerDeath?: PlayerDeathCause } = {};
+    applyLedger(
+      world,
+      true,
+      player(),
+      combat,
+      [record(PLAYER_ID, adder, 50)],
+      events,
+      undefined,
+      outcome,
+    );
+    expect(outcome.playerDeath).toBeUndefined();
+    expect(combat.fwdShield).toBe(0);
+    expect(combat.energy).toBe(0);
+    expect(events).toMatchObject([{ kind: "shipHit", shield: true }]);
+  });
+
   it("lets the shield take a player hit and reports shield true", () => {
     const world = createWorld(1);
     const combat = createPlayerCombatState();
@@ -582,6 +646,57 @@ describe("applyLedger internal damage", () => {
     );
     expect(events).toEqual([hit(320), ...expected]);
     expect(expected.length).toBeGreaterThan(0);
+  });
+
+  /** The lethal record of the two cases below, with the death outcome kept. */
+  function runLethal(
+    kind: HitRecord["kind"],
+    tick: number,
+  ): { events: SimEvent[]; outcome: { playerDeath?: PlayerDeathCause } } {
+    const events: SimEvent[] = [];
+    const outcome: { playerDeath?: PlayerDeathCause } = {};
+    const flight = player();
+    flight.tick = tick;
+    applyLedger(
+      createWorld(1),
+      true,
+      flight,
+      bareCombat(0),
+      [record(PLAYER_ID, 9, 320, kind)],
+      events,
+      FACTS,
+      outcome,
+    );
+    return { events, outcome };
+  }
+
+  it("a lethal scrape still rolls its internal damage on the death tick", () => {
+    // Wegolite's kept gate, NOT Oolite's result for equipment: Oolite's
+    // `getDestroyedBy:` removes every item of equipment (`PlayerEntity.m:6220`)
+    // before the scrape's roll loop (`PlayerEntity.m:5746-5752`), so only cargo
+    // can still be destroyed there. The roll here can post an `equipmentDamaged`
+    // on the death tick, an artefact that is never saved (a dead state is never
+    // saved). Recorded in 20-10's DIV-8 row.
+    const tick = firstTick(
+      (t) => (oracle(t, FACTS, [320])[0]?.length ?? 0) > 0,
+      200,
+    );
+    const expected = oracle(tick, FACTS, [320])[0] ?? [];
+    const { events, outcome } = runLethal("scrape", tick);
+    expect(outcome.playerDeath).toEqual({ damage: "scrape" });
+    expect(expected.length).toBeGreaterThan(0);
+    expect(events).toEqual([hit(320), ...expected]);
+  });
+
+  it("a lethal laser rolls nothing: the player is dead, as in Oolite (PlayerEntity.m:5683-5697)", () => {
+    // The same tick rolls for a scrape of the same size (the case above).
+    const tick = firstTick(
+      (t) => (oracle(t, FACTS, [320])[0]?.length ?? 0) > 0,
+      200,
+    );
+    const { events, outcome } = runLethal("laser", tick);
+    expect(outcome.playerDeath).toEqual({ damage: "laser" });
+    expect(events).toEqual([hit(320)]);
   });
 
   it("draws nothing for a hit the shield absorbed entirely", () => {
