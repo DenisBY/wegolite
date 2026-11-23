@@ -58,7 +58,9 @@
       #hud:not([hidden]) ~ #overlay #title,
       #hud:not([hidden]) ~ #overlay #status,
       #hud[data-launching] ~ #overlay #title,
-      #hud[data-launching] ~ #overlay #status {
+      #hud[data-launching] ~ #overlay #status,
+      #hud[data-dead] ~ #overlay #title,
+      #hud[data-dead] ~ #overlay #status {
         visibility: hidden;
       }
 
@@ -1286,6 +1288,42 @@
         color: #000;
       }
 
+      /* The game-over view (D-02): Oolite's three lines and the cause line,
+         centred over the scene, which shows through (the background is
+         transparent). The gaps after the cause and the score stand for the
+         blank message rows of Oolite's screen. It sits below the pause
+         overlay; a click anywhere on it ends the view (D-07). */
+      #game-over {
+        position: absolute;
+        inset: 0;
+        z-index: 15;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        background: transparent;
+        color: #33ff66;
+        font: 16px/1.6 monospace;
+        text-align: center;
+        cursor: pointer;
+        outline: none;
+      }
+
+      #game-over p {
+        margin: 0;
+      }
+
+      #game-over-title {
+        font-size: 24px;
+        letter-spacing: 0.08em;
+      }
+
+      #game-over p:nth-child(2),
+      #game-over p:nth-child(3) {
+        margin-bottom: 1.6em;
+      }
+
       /* The pause overlay is the single home for Resume, Controls and Settings
          (D-14). It sits above the title, docked panel and HUD. */
       #pause {
@@ -2093,6 +2131,19 @@
           </div>
         </div>
       </div>
+    </div>
+    <div
+      id="game-over"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="game-over-title"
+      tabindex="-1"
+    >
+      <p id="game-over-title" data-game-over-line="title"></p>
+      <p data-game-over-line="cause"></p>
+      <p data-game-over-line="score"></p>
+      <p data-game-over-line="prompt"></p>
     </div>
     <div
       id="pause"
