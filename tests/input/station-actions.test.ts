@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { ACTION_CONTEXTS } from "../../src/input/actions.js";
 import { createBindingMap } from "../../src/input/bindings.js";
 import {
   cancelReservedKey,
@@ -229,6 +230,52 @@ describe("reserved F-key guard", () => {
     // F8's action is dockHome/dockScreen only, but the browser default must
     // still be ours to cancel so the capture guard and keyDown agree.
     expect(state.keyDown("F8")).toBe(true);
+  });
+});
+
+describe("the gameOver context (D-07)", () => {
+  it("fires no action: flight keys, pause, Escape and Space produce no command", () => {
+    const state = createInputState();
+    state.setContext("gameOver");
+    for (const code of ["KeyP", "Escape", "KeyA", "KeyW", "Space"]) {
+      state.keyDown(code);
+    }
+    expect(state.drainCommands()).toEqual([]);
+    expect(state.drainStationActions()).toEqual([]);
+    expect(state.drainChartActions()).toEqual([]);
+    expect(state.drainSaveScreenActions()).toEqual([]);
+    expect(state.consumePauseToggle()).toBe(false);
+  });
+
+  it("returns the zero input frame even with a flight key held", () => {
+    const state = createInputState();
+    state.keyDown("KeyW");
+    state.keyDown("ArrowUp");
+    state.setContext("gameOver");
+    expect(state.frame()).toEqual({
+      pitch: 0,
+      roll: 0,
+      speed: 0,
+      precision: false,
+    });
+  });
+
+  it("swallows F1 to F8: handled, nothing fires, F5 included", () => {
+    for (const code of ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"]) {
+      const state = createInputState();
+      state.setContext("gameOver");
+      expect(state.keyDown(code)).toBe(true);
+      expect(state.drainCommands()).toEqual([]);
+      expect(state.drainStationActions()).toEqual([]);
+      expect(state.drainSaveScreenActions()).toEqual([]);
+      expect(state.consumePauseToggle()).toBe(false);
+    }
+  });
+
+  it("lists no action in the gameOver context", () => {
+    for (const contextsOfAction of Object.values(ACTION_CONTEXTS)) {
+      expect(contextsOfAction).not.toContain("gameOver");
+    }
   });
 });
 

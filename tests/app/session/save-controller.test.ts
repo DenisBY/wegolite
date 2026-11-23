@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
+import { latchGameOver } from "../../../src/app/session/event-router.js";
 import {
   canClear,
   canOverwrite,
@@ -429,6 +430,165 @@ describe("a dead state is never written (DEATH-06)", () => {
     expect(ctx.save.saveWrites).toBe(0);
     expect(ctx.save.manualSavePending).toBe(false);
     expect(ctx.save.saveRevision).toBe(0);
+  });
+});
+
+describe("a latched session refuses every save path (DEATH-06, D-12)", () => {
+  /** Latch the session as the death flow does, with a scrape cause. */
+  function latch(ctx: SessionState): void {
+    // The harness's input double has no clearAll (the latch calls it).
+    const input = ctx.runtime.input as unknown as { clearAll?: () => void };
+    input.clearAll ??= () => undefined;
+    expect(latchGameOver(ctx, { damage: "scrape", culprit: "buoy" })).toBe(
+      true,
+    );
+  }
+
+  it("writeManualSave writes nothing, reports dead and leaves the overwrite dialog alone", () => {
+    const { ctx, controller, writes, log } = harness({ status: "absent" });
+    latch(ctx);
+    log.length = 0;
+
+    controller.writeManualSave();
+
+    expect(writes).toEqual([]);
+    expect(ctx.save.saveSkipReason).toBe("dead");
+    expect(ctx.save.manualSavePending).toBe(false);
+    expect(ctx.save.saveRevision).toBe(0);
+    expect(log).not.toContain("saveLoad.cancelOverwrite");
+    expect(log.some((entry) => entry.startsWith("store.write"))).toBe(false);
+  });
+
+  it("buildSnapshotInputs returns undefined for a latched session", () => {
+    const { ctx, controller } = harness({ status: "absent" });
+    expect(controller.buildSnapshotInputs()).toBeDefined();
+    latch(ctx);
+    expect(controller.buildSnapshotInputs()).toBeUndefined();
+  });
+
+  it("buildSnapshotInputs returns undefined for a dead state even with the latch unset", () => {
+    const { ctx, controller } = harness({ status: "absent" });
+    const state = flyingState();
+    killPlayer(state, createPlayerCombatState(), { damage: "laser" }, []);
+    ctx.core.state = state;
+    expect(ctx.runtime.gameOver).toBe(false);
+    // The snapshot refusal of 20-01 is never reached: no throw, just undefined.
+    expect(() => controller.buildSnapshotInputs()).not.toThrow();
+    expect(controller.buildSnapshotInputs()).toBeUndefined();
+  });
+
+  it("queueSnapshot called directly counts and queues nothing for a latched session or a dead state", () => {
+    const { ctx, controller, writes } = harness({ status: "absent" });
+    const inputs = controller.buildSnapshotInputs();
+    if (inputs === undefined) throw new Error("no inputs");
+
+    latch(ctx);
+    controller.queueSnapshot(inputs, false);
+    controller.queueSnapshot(inputs, true);
+    expect(ctx.save.saveRevision).toBe(0);
+    expect(ctx.save.saveWrites).toBe(0);
+    expect(ctx.save.manualSavePending).toBe(false);
+
+    const other = harness({ status: "absent" });
+    const state = flyingState();
+    killPlayer(state, createPlayerCombatState(), { damage: "laser" }, []);
+    other.ctx.core.state = state;
+    other.controller.queueSnapshot(inputs, false);
+    expect(other.ctx.save.saveRevision).toBe(0);
+    expect(other.ctx.save.saveWrites).toBe(0);
+    expect(writes).toEqual([]);
+    expect(other.writes).toEqual([]);
+  });
+
+  it("loadFromSave returns before reading the store and installs nothing", async () => {
+    const h = harness({ status: "valid" });
+    h.readResult.current = Promise.resolve<SaveReadResult>({
+      kind: "ok",
+      raw: dockedBlob().raw,
+    });
+    latch(h.ctx);
+    h.log.length = 0;
+
+    await h.controller.loadFromSave();
+
+    expect(h.log).toEqual(["syncSaveProbe"]);
+    expect(h.log).not.toContain("store.read");
+    expect(h.ctx.save.saveSkipReason).toBe("dead");
+    expect(h.ctx.save.loadingSave).toBe(false);
+    expect(h.bound).toEqual([]);
+  });
+
+  it("clearSaveForNewGame returns before clearing the store", async () => {
+    const h = harness({ status: "valid" });
+    latch(h.ctx);
+    h.log.length = 0;
+
+    await h.controller.clearSaveForNewGame();
+
+    expect(h.log).toEqual(["syncSaveProbe"]);
+    expect(h.log.some((entry) => entry.startsWith("store.clear"))).toBe(false);
+    expect(h.ctx.save.saveRevision).toBe(0);
+    expect(h.ctx.save.saveSkipReason).toBe("dead");
+    expect(h.ctx.save.saveStatus).toBe("valid");
+  });
+
+  it("same frame: an anchor queued before the lethal step commits, every later attempt is refused", async () => {
+    const { ctx, controller, writes } = harness({ status: "absent" });
+    controller.autosave();
+    const anchor = writes[0]?.json;
+    expect(writes).toHaveLength(1);
+
+    latch(ctx);
+    controller.autosave();
+    controller.autosave();
+    controller.manualSave();
+    await flush();
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.json).toBe(anchor);
+    expect(ctx.save.saveStatus).toBe("valid");
+    expect(ctx.save.saveAttempts).toBe(4);
+    expect(ctx.save.saveSkipReason).toBe("dead");
+  });
+
+  it("a write pending at the death completes as the anchor and leaves the dead reason in place", async () => {
+    const { ctx, controller, writes, writeResult } = harness({
+      status: "absent",
+    });
+    const held = deferred<WriteResult>();
+    writeResult.current = held.promise;
+    controller.autosave();
+    expect(writes).toHaveLength(1);
+
+    latch(ctx);
+    controller.autosave();
+    expect(ctx.save.saveSkipReason).toBe("dead");
+
+    held.resolve({ committed: true, revision: 1 });
+    await flush();
+
+    expect(ctx.runtime.gameOver).toBe(true);
+    expect(ctx.save.saveStatus).toBe("valid");
+    expect(ctx.save.saveCommitted).toBe(1);
+    expect(ctx.save.saveCommittedRevision).toBe(1);
+    // The completion clears the reason only while unlatched (review round 1).
+    expect(ctx.save.saveSkipReason).toBe("dead");
+    controller.autosave();
+    expect(writes).toHaveLength(1);
+    expect(ctx.save.saveSkipReason).toBe("dead");
+  });
+
+  it("a write that commits after the latch with no later attempt reports dead, not blank", async () => {
+    const { ctx, controller, writeResult } = harness({ status: "absent" });
+    const held = deferred<WriteResult>();
+    writeResult.current = held.promise;
+    controller.autosave();
+    latch(ctx);
+
+    held.resolve({ committed: true, revision: 1 });
+    await flush();
+
+    expect(ctx.save.saveSkipReason).toBe("dead");
   });
 });
 

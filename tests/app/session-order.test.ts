@@ -127,10 +127,15 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
   },
   equipmentDamaged: { kind: "equipmentDamaged", key: "EQ_DOCK_COMP" },
   cargoDestroyed: { kind: "cargoDestroyed", commodity: "food", amount: 1 },
+  playerDestroyed: {
+    kind: "playerDestroyed",
+    position: { x: 1, y: 2, z: 3 },
+    cause: { damage: "laser", culprit: "viper" },
+  },
 };
 
 describe("the pinned subscriber order and routing table", () => {
-  it("dispatches in the order stationFlow, worldLifecycle, damageFlow, hudMessages, dockFeedback, hyperspaceFlow", () => {
+  it("dispatches in the order stationFlow, worldLifecycle, damageFlow, hudMessages, dockFeedback, hyperspaceFlow, deathFlow", () => {
     expect([...EVENT_SUBSCRIBER_ORDER]).toEqual([
       "stationFlow",
       "worldLifecycle",
@@ -138,10 +143,11 @@ describe("the pinned subscriber order and routing table", () => {
       "hudMessages",
       "dockFeedback",
       "hyperspaceFlow",
+      "deathFlow",
     ]);
   });
 
-  it("maps each of the 24 routed kinds to exactly one subscriber tuple", () => {
+  it("maps each of the 25 routed kinds to exactly one subscriber tuple", () => {
     expect(EVENT_KIND_SUBSCRIBER).toEqual({
       launched: ["stationFlow", "worldLifecycle"],
       launchComplete: ["stationFlow"],
@@ -167,12 +173,13 @@ describe("the pinned subscriber order and routing table", () => {
       shipDestroyed: ["dockFeedback"],
       equipmentDamaged: ["damageFlow"],
       cargoDestroyed: ["damageFlow"],
+      playerDestroyed: ["deathFlow"],
     });
-    expect(ROUTED_EVENT_KINDS).toHaveLength(24);
+    expect(ROUTED_EVENT_KINDS).toHaveLength(25);
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
-    // Twenty-two kinds have one subscriber; launched and docked have the ordered
+    // Twenty-three kinds have one subscriber; launched and docked have the ordered
     // pair (plan 08-15), so the world lifecycle runs after the station flow.
     const pair = ["launched", "docked"];
     for (const kind of ROUTED_EVENT_KINDS) {
@@ -197,7 +204,7 @@ describe("the pinned subscriber order and routing table", () => {
     }
   });
 
-  it("offers each of the 24 kinds to exactly the subscribers its table entry names", () => {
+  it("offers each of the 25 kinds to exactly the subscribers its table entry names", () => {
     for (const kind of ROUTED_EVENT_KINDS) {
       const ctx = createSessionState({
         system: lave.system,
@@ -215,6 +222,7 @@ describe("the pinned subscriber order and routing table", () => {
         hudMessages: record("hudMessages"),
         dockFeedback: record("dockFeedback"),
         hyperspaceFlow: record("hyperspaceFlow"),
+        deathFlow: record("deathFlow"),
       });
       router.dispatch(EVENTS[kind]);
       expect(offered).toEqual(
@@ -239,6 +247,7 @@ describe("the pinned subscriber order and routing table", () => {
       hudMessages: record("hudMessages"),
       dockFeedback: record("dockFeedback"),
       hyperspaceFlow: record("hyperspaceFlow"),
+      deathFlow: record("deathFlow"),
     }).dispatch(EVENTS.docked);
     expect(offered).toEqual(["stationFlow"]);
   });
@@ -1193,6 +1202,9 @@ describe("an unrouted kind", () => {
       energyLow: { kind: "energyLow", id: 101 },
     };
     for (const kind of RESERVED_EVENT_KINDS) {
+      // playerDestroyed is routed to deathFlow (DEATH-01): the table pins above
+      // and the death-flow tests cover it, so it is no longer a silent kind.
+      if (kind === "playerDestroyed") continue;
       const { ctx, log, router } = harness();
       ctx.core.marketSeed = 7;
       const real = createWorldLifecycle({ traffic: false });
