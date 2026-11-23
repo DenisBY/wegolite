@@ -446,7 +446,7 @@ Plans:
 **Pitfalls to address**: 6 (old pins encode "the player cannot die"), 7 (autosave races a death; a dead player must not be saved as docked), 10 (one death path and everything that must stop when it fires), 19 (Oolite's death is not the whole of "game over"), 22 (closed sets), 4, 21, 25 and 26 (close-out: acceptance, test cost, provenance, changelog)
 **Decisions to settle**: the deterministic dead hash during the game-over window; the `playerDestroyed` event payload; the game-over copy; the Key Decisions amendments named under "Changes from the former plan"
 **Todos**: `2026-11-16-ci-e2e-timeout-margins.md` (apply its 60 % rule to the new specs in the same change)
-**Plans**: 2/11 plans executed in 6 waves (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
+**Plans**: 6/11 plans executed in 6 waves (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
 
 Plans:
 **Wave 1**
@@ -454,10 +454,10 @@ Plans:
 - [x] 20-11-PLAN.md — DEATH-01 (D-01, D-01a, D-01b): the explosion layer for the player's death, split out of 20-04 (owner, 2026-11-23): per-add options (seed variant, flash, burst kind), Oolite's small and big fragment bursts with their speed range, lifetime and start size (`SMALL_BURST_*`/`BIG_BURST_*`, pinned with their `src/Core/Entities/OOParticleSystem.m` lines), and the pool of 16; every Phase 16 explosion unchanged
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 20-02-PLAN.md — DEATH-01 (D-09, D-10, D-11): the dock, jump and launching ticks, the countdown and ident, the mutual kill, the lethal ram with Oolite's reversal and the bank-only comparison, the ledger's lethal boundary, the freeze table over every sim entry point and the lethal-predicate property
-- [ ] 20-03-PLAN.md — QUAL-11: one scenario with an NPC-against-NPC kill, a collision kill and the player's death, equal at 30, 60 and 144 Hz and pinned as literals, with a stable dead hash; each kill proven feasible first, a per-kind fallback only as a recorded deviation
-- [ ] 20-04-PLAN.md — DEATH-06, DEATH-01 (D-01, D-07, D-08): `playerDestroyed` routed to `deathFlow`, the session latch set inside the dispatch, the save refusals (load and clear paths included, each with the skip reason `dead`) in front of 20-01's persistence refusal, the `gameOver` input context, the death flow adding the player's explosion as Oolite's eight bursts (four small, four big, D-01a) at 1x the collision radius with one flash in total (D-01b) through 20-11's layer options (depends on 20-01 and 20-11)
-- [ ] 20-05-PLAN.md — DEATH-01, DEATH-06 (D-02, D-03, D-05, D-06, D-07, D-12): the game-over view module (Oolite's three lines plus the cause line; fresh Space or click reloads) and its markup
+- [x] 20-02-PLAN.md — DEATH-01 (D-09, D-10, D-11): the dock, jump and launching ticks, the countdown and ident, the mutual kill, the lethal ram with Oolite's reversal and the bank-only comparison, the ledger's lethal boundary, the freeze table over every sim entry point and the lethal-predicate property
+- [x] 20-03-PLAN.md — QUAL-11: one scenario with an NPC-against-NPC kill, a collision kill and the player's death, equal at 30, 60 and 144 Hz and pinned as literals, with a stable dead hash; each kill proven feasible first, a per-kind fallback only as a recorded deviation
+- [x] 20-04-PLAN.md — DEATH-06, DEATH-01 (D-01, D-07, D-08): `playerDestroyed` routed to `deathFlow`, the session latch set inside the dispatch, the save refusals (load and clear paths included, each with the skip reason `dead`) in front of 20-01's persistence refusal, the `gameOver` input context, the death flow adding the player's explosion as Oolite's eight bursts (four small, four big, D-01a) at 1x the collision radius with one flash in total (D-01b) through 20-11's layer options (depends on 20-01 and 20-11)
+- [x] 20-05-PLAN.md — DEATH-01, DEATH-06 (D-02, D-03, D-05, D-06, D-07, D-12): the game-over view module (Oolite's three lines plus the cause line; fresh Space or click reloads) and its markup
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 20-06-PLAN.md — DEATH-01, DEATH-06 (D-06, D-07, D-08): the sim driver, the frame loop's game-over branch, pause, focus loss, context loss and the chart all refuse while dead
@@ -520,7 +520,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
-| 20. Player Death and Game Over | v2.3 | 2/11 | In Progress | - |
+| 20. Player Death and Game Over | v2.3 | 6/11 | In Progress | - |
 
 ## Backlog
 
