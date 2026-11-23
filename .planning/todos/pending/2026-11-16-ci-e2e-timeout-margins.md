@@ -141,3 +141,20 @@ test timeout.
   elapsed 491 s). Local lint, typecheck and the full unit suite (269 files) passed before the last spec commit.
 - **The watch continues.** After the next sharded CI run, re-measure each launch-spanning test's share of its budget per
   shard and apply the Rule above.
+
+## Status (2026-11-23, Phase 20 plan 20-09)
+
+- **The specs.** `tests/e2e/death-and-reload.spec.ts` (two tests) and `tests/e2e/game-over-guard.spec.ts` (one test),
+  the two browser specs of the player-death phase. Both start in flight from a seeded save (`writeRaw`, then Continue),
+  so neither plays an unskipped launch and no `FIRST_LAUNCH_WAIT_MS` enters a budget.
+- **Budgets** (each an expression in code, the non-launch budget only):
+  - death-and-reload, both tests: `4 * SLOW` = 4 x 30 s = 120 s (the first load, the seeded reload with Continue, the
+    1,682 manual ticks with the dead page, the exit reload);
+  - game-over-guard: `3 * SLOW + DEATH_WAIT_MS + 3 * SLOW` with `DEATH_WAIT_MS` = the twin's 1,682 ticks / 120 per second
+    x 1000 ms x 10 (a loop at one tenth of real time) = 140.2 s, so about 320 s.
+- **Measured on the remote machine** (Chromium, GPU, snapshots 81307c2 and 11a4064): death-and-reload 5.3 s and 5.1 s
+  (6.4 s on the first run), game-over-guard 20.7 s (the real-time run to the death at 14 s of sim time, the 5 km seed
+  being the dominant part). Three times those is 19 s (16 % of 120 s) and 62 s (19 % of 320 s), inside the 60 % rule.
+- **The watch continues.** After the next sharded CI run, re-measure the three tests per shard. The one to check first
+  is game-over-guard: its run to the death is frame-bound on SwiftShader (at most 5 fixed steps of 1/120 s per rendered
+  frame), 14 s of sim time against the 140 s wait.
