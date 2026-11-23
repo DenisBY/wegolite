@@ -21,11 +21,17 @@
  * where in Oolite it would already be dead. Consumers of `shipHit` (the HUD,
  * future audio) may therefore show a hit on a ship that dies on that tick.
  *
- * The player is a target too, but never a lethal one: a hit on the player goes
- * through `routeDamage` (the facing shield first, then energy, heating the
- * cabin), a collision's scrape through `routeScrapeDamage` (the same shield
- * rule, no heat, CBT-18), and the energy floors at 0 until the player's death
- * in Phase 20 (D-13).
+ * The player is a target too: a hit on the player goes through `routeDamage`
+ * (the facing shield first, then energy, heating the cabin), a collision's
+ * scrape through `routeScrapeDamage` (the same shield rule, no heat, CBT-18).
+ * The lethal decision is taken here, at the damage point and before the floor
+ * (D-04): a record is lethal when the player is in flight, the damage past the
+ * shield is above 0 and the bank before the record minus that damage is at or
+ * below 0. The first such record of a call sets `outcome.playerDeath` from
+ * `playerDeathCause` (`./death.ts`) and every later player record of the call
+ * is skipped, as is any record once the player is dead (`PlayerEntity.m:5607`,
+ * `:5707`); `resolveShots` then calls `killPlayer` once. A shield that absorbs
+ * the whole hit never kills. The bank still floors at 0 for display (D-13).
  *
  * A hit that gets past the shield also rolls the player's internal damage
  * (CBT-08, Phase 19, `./internal-damage.ts`) when the app supplies the facts
@@ -35,10 +41,12 @@
  * (`PlayerEntity.m:5746-5752`), on the damage that got past the shield
  * (`DamageResult.applied`). One stream (`internalDamageSeed(worldSeed, tick)`)
  * and one work copy serve every player record of the call, in ledger order, so
- * a later record cannot damage what an earlier one already took. Until the
- * player can die (Phase 20) a scrape that empties the bank still rolls while a
- * laser hit that empties it does not, where Oolite's player is already dead:
- * Phase 20 must keep both gates.
+ * a later record cannot damage what an earlier one already took. A laser hit
+ * that empties the bank rolls nothing (the player is dead, faithful); a scrape
+ * that empties it still rolls, which is not Oolite's result for equipment
+ * (`getDestroyedBy:` removes all equipment before the roll loop,
+ * `PlayerEntity.m:6220`), so an `equipmentDamaged` can sit on the death tick as
+ * a recorded artefact that is never saved.
  *
  * A static target (`../world/statics.ts`) is one of two kinds (Phase 18,
  * CBT-17). The main station only absorbs a hit (A6): the record posts
@@ -76,7 +84,7 @@
  * applied to a world that was not stepped are skipped, never thrown on.
  */
 
-import type { SimEvent } from "../events.js";
+import type { PlayerDeathCause, SimEvent } from "../events.js";
 import type { FlightState } from "../flight/state.js";
 import { rotate, sub, vec } from "../math.js";
 import type { Vec3 } from "../math.js";
@@ -90,6 +98,7 @@ import {
   staticTargetById,
 } from "../world/statics.js";
 import type { World } from "../world/world.js";
+import { playerDeathCause } from "./death.js";
 import {
   internalDamageSeed,
   internalDamageWork,
@@ -143,9 +152,11 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  *
  * - A record whose amount is not finite or not above 0 is skipped.
  * - A record on `PLAYER_ID` is applied exactly as in Phase 13 (skipped without a
- *   combat state; `routeDamage` with the offset from the player to the
- *   shooter and the player's forward; `shipHit` with `shield`) and is never
- *   lethal. A `"scrape"` record takes `routeScrapeDamage` instead, which does
+ *   combat state, for a dead player and once `outcome.playerDeath` is set;
+ *   `routeDamage` with the offset from the player to the shooter and the
+ *   player's forward; `shipHit` with `shield`). It is lethal when it empties
+ *   the bank of a player in flight (see the module comment): then
+ *   `outcome.playerDeath` is set, when an `outcome` was passed. A `"scrape"` record takes `routeScrapeDamage` instead, which does
  *   not heat the cabin (CBT-18). With `internalDamage` and a world, each
  *   player record then rolls internal damage on `DamageResult.applied` (a laser
  *   record only while the energy is still above 0, a scrape always); its
@@ -181,6 +192,7 @@ export function applyLedger(
   records: readonly HitRecord[],
   events: SimEvent[],
   internalDamage?: InternalDamageFacts,
+  outcome?: { playerDeath?: PlayerDeathCause },
 ): LethalHit[] {
   const lethal = new Map<EntityId, EntityId>();
   // One work copy and one stream for the whole call, created at the first
@@ -191,10 +203,17 @@ export function applyLedger(
     if (!Number.isFinite(record.amount) || !(record.amount > 0)) continue;
     if (record.target === PLAYER_ID) {
       if (combat === undefined) continue;
+      // Oolite's dead early returns (`PlayerEntity.m:5607`, `:5707`): a dead
+      // player, or one already killed by an earlier record of this call, takes
+      // no further record.
+      if (player.mode === "dead" || outcome?.playerDeath !== undefined) {
+        continue;
+      }
       // A laser heats the cabin (`takeEnergyDamage`); a collision's scrape
       // does not (`takeScrapeDamage`, CBT-18). Both drain the shield on the
       // source's side first and floor the energy at 0.
       const route = record.kind === "scrape" ? routeScrapeDamage : routeDamage;
+      const energyBefore = combat.energy;
       const result = route(
         combat,
         record.amount,
@@ -208,6 +227,15 @@ export function applyLedger(
         amount: record.amount,
         shield: result.shieldAbsorbed,
       });
+      if (
+        outcome !== undefined &&
+        player.mode === "inFlight" &&
+        result.applied > 0 &&
+        Number.isFinite(energyBefore) &&
+        energyBefore - result.applied <= 0
+      ) {
+        outcome.playerDeath = playerDeathCause(world, record);
+      }
       if (
         internalDamage !== undefined &&
         world !== undefined &&

@@ -228,17 +228,6 @@ export function doOctreesCollide(
 
 // --- The collision stage (plan 18-11) ----------------------------------------
 
-/**
- * Tripwire marker: the player is never `destroyable` in a collision before
- * Phase 20 owns its death (D-13, T-18-30). With it the response never takes
- * the inelastic reversal for the player (`selfDestroyed`/`otherDestroyed`,
- * `ShipEntity.m:11111-11134`) and the ledger floors the player's energy at 0.
- * Plan 18-18 adds the guard `tests/guards/collision-player-death.test.ts` and
- * the todo that names this marker; whoever gives the player a death in Phase
- * 20 turns it off there.
- */
-export const PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20 = true;
-
 /** A body the update order ranks: its id and where it is. */
 export interface RankedBody {
   readonly id: EntityId;
@@ -448,7 +437,7 @@ function gatherColliders(
       id: PLAYER_ID,
       hull: playerHull,
       mass: PLAYER_MASS_KG,
-      destroyable: !PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20,
+      destroyable: true,
       entity: undefined,
       buoy: undefined,
       detached: undefined,

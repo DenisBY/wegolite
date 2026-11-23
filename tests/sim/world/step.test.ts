@@ -1055,7 +1055,7 @@ describe("entityRemoved and the reserved event kinds", () => {
       { kind: "cargoScooped", scooper: 100, commodity: "food", amount: 1 },
       { kind: "shipSpawned", id: 101, specKey: "viper" },
       { kind: "legalStatusChanged", from: "clean", to: "offender" },
-      { kind: "playerDestroyed", position: origin },
+      { kind: "playerDestroyed", position: origin, cause: { damage: "laser" } },
       { kind: "podEjected", pod: 104, owner: 101 },
       { kind: "proximityWarning", id: 101, other: 102 },
       { kind: "energyLow", id: 101 },
