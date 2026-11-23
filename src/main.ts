@@ -159,6 +159,7 @@ if (!boot.ok) {
   const dockedRoot = requireElement("docked");
   const station = createStationShell(dockedRoot, createDockedPanel(dockedRoot));
   const pauseRoot = requireElement("pause");
+  const gameOverRoot = requireElement("game-over");
   const controlsRoot = requireElement("controls");
   const settingsRoot = requireElement("settings-panel");
   const fpsRoot = requireElement("fps");
@@ -320,6 +321,7 @@ if (!boot.ok) {
     system: lave,
     galaxy: galaxy0(),
     pauseRoot,
+    gameOverRoot,
     controlsRoot,
     settingsRoot,
     fpsRoot,

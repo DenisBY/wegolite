@@ -61,6 +61,7 @@ import {
   shouldEmitThrottledMessage,
 } from "../dock-feedback.js";
 import type { LaunchSequence } from "../launch-sequence.js";
+import { buildGameOverLines, resolveCulpritName } from "../../ui/game-over.js";
 import type { StationShell } from "../../ui/station.js";
 import type { CombatMessageKind, SessionState } from "./context.js";
 
@@ -843,6 +844,21 @@ export function createDeathFlow(
     deps.messages.clear();
     deps.launchSequence.reset();
     deps.hudCanvas.hidden = true;
+    // DEATH-01, D-02, D-03, D-05: the four lines in the dispatch that latched.
+    // The culprit's name comes from compiled content only (never the key); a
+    // harness without the DOM has no overlay and shows nothing.
+    ctx.runtime.gameOverOverlay?.show(
+      buildGameOverLines(
+        event.cause,
+        resolveCulpritName(
+          event.cause.culprit,
+          ctx.core.npcTraffic?.catalogue,
+          ctx.core.targetNames,
+        ),
+        ctx.core.profile.credits,
+        ctx.core.labels?.rating[0] ?? "",
+      ),
+    );
     // Read the live scene at call time (G-8); with no scene nothing is drawn.
     const scene = ctx.core.scene;
     if (scene === undefined) return;

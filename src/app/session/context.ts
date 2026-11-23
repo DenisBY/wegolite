@@ -85,6 +85,7 @@ import { galaxyPreset } from "../../ui/chart-model.js";
 import type { ControlsPanel } from "../../ui/controls.js";
 import type { MarketSort } from "../../ui/station-model.js";
 import type { FpsCounter } from "../../ui/fps-counter.js";
+import type { GameOverOverlay } from "../../ui/game-over.js";
 import type { PauseOverlay } from "../../ui/pause.js";
 import type { SaveLoadScreen } from "../../ui/save-load.js";
 import type { SettingsPanel } from "../../ui/settings-panel.js";
@@ -287,6 +288,8 @@ export interface SessionRuntime {
   bindings: BindingMap | undefined;
   hints: HintController | undefined;
   pauseOverlay: PauseOverlay | undefined;
+  /** The game-over view (Phase 20), created and disposed with the session. */
+  gameOverOverlay: GameOverOverlay | undefined;
   controlsPanel: ControlsPanel | undefined;
   settingsPanel: SettingsPanel | undefined;
   /** Settings > Show FPS counter: the footer readout, ticked once per frame. */
@@ -357,6 +360,8 @@ export interface SessionDeps {
   readonly hudCanvas: HTMLCanvasElement;
   readonly probe: WegoliteProbe;
   readonly pauseRoot: HTMLElement;
+  /** The `#game-over` overlay root (Phase 20). */
+  readonly gameOverRoot: HTMLElement;
   readonly controlsRoot: HTMLElement;
   readonly settingsRoot: HTMLElement;
   readonly gameRoot: HTMLElement;
@@ -482,6 +487,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       bindings: undefined,
       hints: undefined,
       pauseOverlay: undefined,
+      gameOverOverlay: undefined,
       controlsPanel: undefined,
       settingsPanel: undefined,
       fpsCounter: undefined,

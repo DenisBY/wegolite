@@ -78,6 +78,7 @@ import { createKeyboardInputSource } from "../../input/keyboard.js";
 import { createBindingMap } from "../../input/bindings.js";
 import { loadSettings } from "../../settings/store.js";
 import { createControlsPanel } from "../../ui/controls.js";
+import { createGameOverOverlay } from "../../ui/game-over.js";
 import { createPauseOverlay } from "../../ui/pause.js";
 import { createSettingsPanel } from "../../ui/settings-panel.js";
 import { createFpsCounter } from "../../ui/fps-counter.js";
@@ -112,6 +113,8 @@ export interface LifecycleDeps {
   readonly hudCanvas: HTMLCanvasElement;
   readonly probe: Pick<WegoliteProbe, "restore">;
   readonly pauseRoot: HTMLElement;
+  /** The `#game-over` overlay root (Phase 20). */
+  readonly gameOverRoot: HTMLElement;
   readonly controlsRoot: HTMLElement;
   readonly gameRoot: HTMLElement;
   readonly settingsRoot: HTMLElement;
@@ -331,6 +334,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     hudCanvas,
     probe,
     pauseRoot,
+    gameOverRoot,
     controlsRoot,
     gameRoot,
     settingsRoot,
@@ -779,6 +783,11 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
         openSettings();
       },
     });
+    // Phase 20 (D-12): the game-over view lives with the session, beside the
+    // pause overlay; its only exit is the page reload.
+    ctx.runtime.gameOverOverlay = createGameOverOverlay({
+      root: gameOverRoot,
+    });
     ctx.runtime.controlsPanel = createControlsPanel(bindingMap, {
       root: controlsRoot,
       onChange: (next) => {
@@ -1013,6 +1022,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.runtime.input?.clearAll();
     ctx.runtime.input?.dispose();
     ctx.runtime.pauseOverlay?.dispose();
+    ctx.runtime.gameOverOverlay?.dispose();
+    ctx.runtime.gameOverOverlay = undefined;
     ctx.runtime.controlsPanel?.dispose();
     ctx.runtime.settingsPanel?.dispose();
     ctx.runtime.fpsCounter?.dispose();

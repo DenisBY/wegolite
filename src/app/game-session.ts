@@ -121,6 +121,8 @@ export interface GameSessionOptions {
    */
   readonly galaxy?: readonly System[];
   readonly pauseRoot: HTMLElement;
+  /** The `#game-over` overlay (Phase 20), shown by the death flow. */
+  readonly gameOverRoot: HTMLElement;
   readonly controlsRoot: HTMLElement;
   readonly settingsRoot: HTMLElement;
   /** The `#fps` readout in the document footer (Settings > Show FPS counter). */
@@ -194,6 +196,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     hudCanvas,
     probe,
     pauseRoot,
+    gameOverRoot,
     controlsRoot,
     settingsRoot,
     fpsRoot,
@@ -533,6 +536,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     hudCanvas,
     probe,
     pauseRoot,
+    gameOverRoot,
     controlsRoot,
     gameRoot,
     settingsRoot,

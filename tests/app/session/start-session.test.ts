@@ -446,6 +446,7 @@ describe("dispose order", () => {
       },
     } as never;
     ctx.runtime.pauseOverlay = disposable(log, "pauseOverlay") as never;
+    ctx.runtime.gameOverOverlay = disposable(log, "gameOverOverlay") as never;
     ctx.runtime.controlsPanel = disposable(log, "controlsPanel") as never;
     ctx.runtime.settingsPanel = disposable(log, "settingsPanel") as never;
     ctx.runtime.fpsCounter = disposable(log, "fpsCounter") as never;
@@ -466,6 +467,7 @@ describe("dispose order", () => {
     "input.clearAll",
     "input.dispose",
     "pauseOverlay.dispose",
+    "gameOverOverlay.dispose",
     "controlsPanel.dispose",
     "settingsPanel.dispose",
     "fpsCounter.dispose",
@@ -494,6 +496,7 @@ describe("dispose order", () => {
 
     expect(log).toEqual(TEARDOWN);
     expect(ctx.runtime.disposed).toBe(true);
+    expect(ctx.runtime.gameOverOverlay).toBeUndefined();
     expect(ctx.runtime.rafId).toBe(0);
     expect(ctx.station.stationNav).toBeUndefined();
     expect(ctx.chart.chart).toBeUndefined();
