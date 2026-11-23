@@ -78,7 +78,6 @@ import {
   scale,
   vec,
 } from "../../../src/sim/math.js";
-import type { Vec3 } from "../../../src/sim/math.js";
 import { NO_ENTITY, STATION_NAV_BUOY_ID } from "../../../src/sim/world/ids.js";
 import { buoyPosition } from "../../../src/sim/world/statics.js";
 import {

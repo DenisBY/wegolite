@@ -29,7 +29,7 @@ import type { FlightState } from "../../sim/flight/state.js";
 import { countdownSecondsRemaining } from "../../sim/hyperspace/countdown.js";
 import { hostilesNearPlayer } from "../../sim/combat/alert.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
-import { sub, vec } from "../../sim/math.js";
+import { add, rotate, scale, sub, vec } from "../../sim/math.js";
 import { aegisStatus } from "../../sim/world/aegis.js";
 import { debrisContacts, npcContacts } from "../../sim/world/contacts.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
@@ -50,6 +50,10 @@ import {
   preRollViewTime,
 } from "../../render/launch-camera.js";
 import type { CameraPose } from "../../render/launch-camera.js";
+import {
+  BIG_BURST_DURATION,
+  SMALL_BURST_DURATION,
+} from "../../render/bodies/explosions.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
 import {
@@ -74,6 +78,33 @@ import type { NpcModelLoader } from "../npc-models.js";
 import type { WegoliteProbe } from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SessionState } from "./context.js";
+
+/**
+ * D-01: the seconds the picture takes to fade to black and white after the
+ * death. Oolite's `gameover-seconds-to-bw-fadeout` default of 5.0
+ * (`gameOverFadeToBW`, `PlayerEntity.m:3566-3568` at the pin).
+ */
+export const GAME_OVER_FADE_SECONDS = 5;
+
+/**
+ * D-01: how far behind the dead ship the camera sits, along the ship's own
+ * forward axis: `getDestroyedBy:` moves the player 100 m forward
+ * (`moveForward:100.0`, `PlayerEntity.m:6187-6221` at the pin) and looks aft
+ * (`VIEW_AFT`), so the view sees the ship it left behind.
+ */
+export const DEAD_CAMERA_SETBACK_M = 100;
+
+/**
+ * The presentation seconds after which the fade and the player's bursts have
+ * finished (D-01a: the burst lifetimes come from the burst kinds, not from the
+ * explosion settings, and do not depend on NPC traffic). Past it the dead view
+ * draws nothing new unless something in it still moves.
+ */
+const DEAD_SETTLE_SECONDS = Math.max(
+  GAME_OVER_FADE_SECONDS,
+  SMALL_BURST_DURATION,
+  BIG_BURST_DURATION,
+);
 
 /** What the driver calls outside the session context. */
 export interface RenderDriverDeps {
@@ -140,6 +171,15 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
   } = deps;
 
   /**
+   * The last fade filter written to the canvas and the game-over overlay;
+   * unknown until the driver's first frame, which therefore always writes it
+   * (a canvas reused by a new session never keeps a stale filter).
+   */
+  let lastFilter: string | undefined;
+  /** Whether the previous frame was drawn in the dead mode (the dust jump). */
+  let deadFrameSeen = false;
+
+  /**
    * What the drawn image depends on besides the simulation: the flight state
    * object (replaced by a Load), the scene (replaced by a jump, a quality
    * change or a test swap) and the nebula textures, which arrive after the
@@ -155,13 +195,17 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
    * Whether the loop's next frame has to reach the GPU (see `redraw-gate.ts`).
    * A docked or paused session simulates nothing, so its image cannot change;
    * a docked session in the launch pre-roll moves its camera every step and is
-   * drawn (quick 261118-os8).
+   * drawn (quick 261118-os8). The dead view is drawn every frame while the
+   * fade and the explosion run, then idles like a paused one (D-01).
    */
   function shouldDraw(): boolean {
     const { paused } = ctx.runtime;
     const { state } = ctx.core;
     const frozenDocked = state?.mode === "docked" && !launchSequence.preRolling;
-    return redrawGate.next(paused || frozenDocked, drawKeys());
+    const deadSettled =
+      ctx.runtime.gameOver &&
+      ctx.runtime.gameOverSeconds >= DEAD_SETTLE_SECONDS;
+    return redrawGate.next(paused || frozenDocked || deadSettled, drawKeys());
   }
 
   /**
@@ -205,6 +249,12 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     const preRolling =
       currentState.mode === "docked" && launchSequence.preRolling;
     const launchView = preRolling || launching;
+    // D-01: the dead view is Oolite's aft view set back 100 m. The first dead
+    // frame forgets the previous camera, so the 100 m move gives the dust a
+    // zero delta instead of a jump (the warm Load clears it the same way).
+    const dead = currentState.mode === "dead";
+    if (dead && !deadFrameSeen) ctx.core.previousCameraWorld = undefined;
+    deadFrameSeen = dead;
     // D-10 (quick 261118-l26, 261118-os8): the view time of the drawn frame on
     // one timeline, the pre-roll then the launch time of the interpolated pose.
     // The station is rolled at that same time, so the slot walls hold still
@@ -250,6 +300,18 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
         pose.orientation,
         ctx.core.combat?.view ?? "fore",
         ctx.core.dockFeedback.shakeOffset(currentState.flightTime),
+      );
+    } else if (dead) {
+      // `getDestroyedBy:` moves the ship 100 m along its local -Z and looks aft;
+      // the player's own hull stays hidden below.
+      camera = computeViewCamera(
+        add(
+          pose.position,
+          scale(rotate(pose.orientation, vec(0, 0, -1)), DEAD_CAMERA_SETBACK_M),
+        ),
+        pose.orientation,
+        "aft",
+        vec(0, 0, 0),
       );
     }
     const cameraWorld = applyFrame(
@@ -305,7 +367,11 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     );
     // CBT-05: the shots added by `laserFired` this frame or earlier, drawn
     // camera-relative and retired after their 0.09 s of flight time.
-    currentScene.shots.update(cameraWorld, currentState.flightTime, {
+    // D-01: while dead the sim clock is frozen, so the explosions and the shots
+    // run on the effect clock, the flight time plus the seconds since the
+    // death; alive, `gameOverSeconds` is 0 and it is the flight time itself.
+    const effectTime = currentState.flightTime + ctx.runtime.gameOverSeconds;
+    currentScene.shots.update(cameraWorld, effectTime, {
       position: currentState.position,
       orientation: currentState.orientation,
     });
@@ -315,8 +381,22 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     currentScene.explosions.update(
       cameraWorld,
       currentScene.camera.quaternion,
-      currentState.flightTime,
+      effectTime,
     );
+
+    // D-01: the fade to black and white covers the scene and, through the
+    // overlay, the four lines (Oolite saturates the whole frame). Written only
+    // when it changes; a CSS filter costs no draw call.
+    const filter = dead
+      ? `saturate(${String(
+          1 - Math.min(1, ctx.runtime.gameOverSeconds / GAME_OVER_FADE_SECONDS),
+        )})`
+      : "";
+    if (filter !== lastFilter) {
+      lastFilter = filter;
+      renderer.domElement.style.filter = filter;
+      ctx.runtime.gameOverOverlay?.setFilter(filter);
+    }
 
     if (draw) {
       renderer.render(currentScene.scene, currentScene.camera);
@@ -365,7 +445,7 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // bar at 0 while launching. A docked session without a pre-roll shows the
     // status panel (D-09), not the HUD. The pre-roll HUD reads the launch start
     // state (`preRollHudState`, PD-1); the live state is never written.
-    const hudHidden = currentState.mode === "docked" && !preRolling;
+    const hudHidden = (currentState.mode === "docked" && !preRolling) || dead;
     hudCanvas.hidden = hudHidden;
     const hudState =
       preRollViewPose === null
@@ -381,6 +461,9 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // HUD canvas shows (D-02); the mark keeps them hidden for the whole launch
     // view, the pre-roll included (quick 261118-os8).
     hudCanvas.toggleAttribute("data-launching", launchView);
+    // The same for the dead view (D-01): the HUD canvas is hidden and the
+    // 20-05 CSS rule keeps the page's version and system lines hidden too.
+    hudCanvas.toggleAttribute("data-dead", dead);
     if (!hudHidden && draw) {
       // Oolite's message rows (quick task 261117-pij): the bottom
       // HUD_MESSAGE_ROWS of the ten, newest at the bottom.
