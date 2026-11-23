@@ -52,7 +52,7 @@ import {
   PlayerController,
   ScriptedLaunchController,
 } from "../../../src/sim/flight/controller.js";
-import { initFlightState } from "../../../src/sim/flight/state.js";
+import { hashFlight, initFlightState } from "../../../src/sim/flight/state.js";
 import { NAV_BUOY_MASS } from "../../../src/sim/hyperspace/countdown.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { flightTableFrom } from "../../../src/sim/npc/stats.js";
@@ -62,12 +62,13 @@ import type { FlightRecord } from "../../../src/sim/npc/stats.js";
 import { spawnEntity } from "../../../src/sim/world/world.js";
 import type { InputFrame } from "../../../src/sim/state.js";
 import { MAX_STEPS_PER_FRAME } from "../../../src/sim/step.js";
-import { DT } from "../../../src/sim/time.js";
+import { DT, MAX_FRAME_DELTA } from "../../../src/sim/time.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { sessionSources } from "../../helpers/session-source.js";
 import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
+import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
 
 /** One flight record for the step-options hand-over cases (plan 14-18). */
@@ -1698,5 +1699,415 @@ describe("buildStepOptions", () => {
     };
     expect(buildStepOptions({ ...base, debris }).combat?.debris).toBe(debris);
     expect(buildStepOptions(base).combat).not.toHaveProperty("debris");
+  });
+});
+
+describe("a dead session (plan 20-06, DEATH-01, D-01, D-06)", () => {
+  /** Far from the station and the planet, so nothing mass-locks the player. */
+  const FAR = vec(1e7, 0, 0);
+
+  /** Every key held at once: nothing of it may reach a dead world. */
+  const HELD: InputFrame = {
+    pitch: 1,
+    roll: -1,
+    speed: 1,
+    precision: true,
+    fire: true,
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** What the held-key input double counted. */
+  interface Held {
+    readonly drained: {
+      commands: number;
+      station: number;
+      chart: number;
+      save: number;
+    };
+    readonly stationQueue: string[];
+    readonly chartQueue: string[];
+    readonly saveQueue: string[];
+    clears: number;
+  }
+
+  /**
+   * The ram scene of `tests/sim/combat/death.test.ts` through the real sim
+   * driver, router (its default death flow) and step: the player at 350 m/s
+   * with a bank of 10 and no shield, a Krait of 5000 energy 200 m ahead, the
+   * collision stage on (`buildStepOptions` turns it on). The lethal tick is
+   * the contact tick, a measured number (`deathTickOf`), never a literal.
+   */
+  function ramming(options: Parameters<typeof harness>[0] = {}): Harness {
+    const built = harness({ mode: "inFlight", combat: true, ...options });
+    const state = built.ctx.core.state;
+    const combat = built.ctx.core.combat;
+    if (state === undefined || combat === undefined) {
+      throw new Error("the harness has no state");
+    }
+    state.position = FAR;
+    state.orientation = identity();
+    state.speed = 350;
+    combat.fwdShield = 0;
+    combat.aftShield = 0;
+    combat.energy = 10;
+    const lifecycle = createWorldLifecycle({ traffic: false });
+    lifecycle.begin(1);
+    built.ctx.core.worldLifecycle = lifecycle;
+    const hulls = fullHullTable();
+    built.ctx.core.hulls = hulls;
+    built.ctx.core.npcTraffic = {
+      catalogue: [],
+      records: [],
+      masses: [],
+      flight: realNpcFlightTable(),
+      weapons: realNpcWeapons(),
+      laserColors: new Map(),
+    };
+    const world = lifecycle.world;
+    if (world === undefined) throw new Error("no world");
+    const spawned = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "krait",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(FAR.x, FAR.y, FAR.z - 200),
+        orientation: identity(),
+        radius: hulls.get("krait")?.collisionRadius ?? 30,
+        maxEnergy: 5000,
+      },
+      0,
+    );
+    if (!spawned.ok) throw new Error(`spawn refused: ${spawned.reason}`);
+    return built;
+  }
+
+  /** The held-key input double: counts every drain and every `clearAll`. */
+  function holdKeys(built: Harness, input: InputFrame = IDLE): Held {
+    const held: Held = {
+      drained: { commands: 0, station: 0, chart: 0, save: 0 },
+      stationQueue: [],
+      chartQueue: [],
+      saveQueue: [],
+      clears: 0,
+    };
+    built.ctx.runtime.input = {
+      drainCommands: () => {
+        held.drained.commands += 1;
+        built.counts.drains += 1;
+        return built.queue.splice(0);
+      },
+      frame: () => {
+        built.counts.frames += 1;
+        built.frames.push(input);
+        return input;
+      },
+      consumePauseToggle: () => false,
+      drainStationActions: () => {
+        held.drained.station += 1;
+        return held.stationQueue.splice(0);
+      },
+      drainChartActions: () => {
+        held.drained.chart += 1;
+        return held.chartQueue.splice(0);
+      },
+      drainSaveScreenActions: () => {
+        held.drained.save += 1;
+        return held.saveQueue.splice(0);
+      },
+      clearAll: () => {
+        held.clears += 1;
+      },
+    } as unknown as KeyboardInputSource;
+    return held;
+  }
+
+  /** Step one tick at a time through the router until the session latches. */
+  function stepToDeath(built: Harness): number {
+    for (let tick = 0; tick < 400; tick += 1) {
+      built.driver.stepOnce([], IDLE);
+      if (built.ctx.runtime.gameOver) return built.ctx.core.state?.tick ?? -1;
+    }
+    throw new Error("the player never died");
+  }
+
+  /** The tick the contact kills the player on (the scene is deterministic). */
+  function deathTickOf(): number {
+    const probe = ramming();
+    holdKeys(probe);
+    return stepToDeath(probe);
+  }
+
+  /** The frame loop over the real sim driver, with every call counted. */
+  function looped(built: Harness) {
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    const calls = {
+      advanceFrame: 0,
+      advanceBehind: 0,
+      handleChart: 0,
+      handleSave: 0,
+      applyStation: 0,
+      pause: 0,
+      resume: 0,
+      probes: 0,
+      draws: 0,
+      renders: [] as number[],
+    };
+    const frame = createFrameLoop(built.ctx, {
+      probe: { frames: 0 },
+      pending: built.pending,
+      redrawGate: { request: () => undefined },
+      simDriver: {
+        advanceFrame: (delta) => {
+          calls.advanceFrame += 1;
+          return built.driver.advanceFrame(delta);
+        },
+        advanceBehind: (delta) => {
+          calls.advanceBehind += 1;
+          built.driver.advanceBehind(delta);
+        },
+      },
+      renderFrame: (alpha) => {
+        calls.renders.push(alpha);
+      },
+      shouldDraw: () => {
+        calls.draws += 1;
+        return true;
+      },
+      pause: () => {
+        calls.pause += 1;
+      },
+      resume: () => {
+        calls.resume += 1;
+      },
+      handleChartActions: () => {
+        calls.handleChart += 1;
+      },
+      handleSaveScreenActions: () => {
+        calls.handleSave += 1;
+      },
+      applyStationAction: () => {
+        calls.applyStation += 1;
+      },
+      updateProbe: () => {
+        calls.probes += 1;
+      },
+    });
+    return { frame, calls };
+  }
+
+  it("the scene is real: the contact kills the player after a few ticks and latches the session", () => {
+    const built = ramming();
+    holdKeys(built);
+    const tick = stepToDeath(built);
+    expect(tick).toBeGreaterThan(3);
+    expect(built.ctx.runtime.gameOver).toBe(true);
+    expect(built.ctx.core.state?.mode).toBe("dead");
+    expect(
+      built.dispatched.filter((event) => event.kind === "playerDestroyed"),
+    ).toHaveLength(1);
+  });
+
+  it("the loop reset stops the lethal frame: five steps owed, the death on step 2, two steps run and nothing follows them", () => {
+    const deathTick = deathTickOf();
+    const built = ramming();
+    const held = holdKeys(built);
+    const { frame, calls } = looped(built);
+    // Two ticks short of the death, so the frame's second step is the lethal one.
+    for (let tick = 0; tick < deathTick - 2; tick += 1) {
+      built.driver.stepOnce([], IDLE);
+    }
+    expect(built.ctx.runtime.gameOver).toBe(false);
+    built.log.length = 0;
+    built.dispatched.length = 0;
+    const seenBefore = built.seenFrames.length;
+
+    frame(1000);
+    frame(1000 + 5.2 * DT * 1000);
+
+    // The latch: set by the router inside the lethal step's dispatch.
+    expect(built.ctx.runtime.gameOver).toBe(true);
+    expect(built.ctx.core.state?.tick).toBe(deathTick);
+    // The step callback ran exactly twice: the loop's `advance` returned after
+    // the step whose dispatch reset it (`latchGameOver`), so `stepOnce` was not
+    // called a third time (its own dead return is proven below, by a direct
+    // call).
+    expect(built.log.filter((entry) => entry === "stepFlight")).toHaveLength(2);
+    expect(built.seenFrames.length - seenBefore).toBe(2);
+    expect(held.clears).toBeGreaterThanOrEqual(1);
+    // Nothing the three later steps would have done: no docked event, no
+    // autosave attempt, no launch advance.
+    expect(built.dispatched.some((event) => event.kind === "docked")).toBe(
+      false,
+    );
+    expect(built.log.some((entry) => entry.startsWith("autosave"))).toBe(false);
+    expect(built.counts.advances).toBe(0);
+    // The rest of the frame (the draw after the dead state) completed.
+    expect(calls.renders).toHaveLength(2);
+    expect(calls.renders[1]).toBe(0);
+    expect(built.ctx.core.currentPose).toBeDefined();
+  });
+
+  it("stepOnce on a dead state changes nothing", () => {
+    const built = ramming();
+    holdKeys(built);
+    stepToDeath(built);
+    // The gate: the call below is made on a latched, dead session.
+    const state = built.ctx.core.state;
+    if (state === undefined) throw new Error("no state");
+    expect(state.mode).toBe("dead");
+    expect(built.ctx.runtime.gameOver).toBe(true);
+    const tick = state.tick;
+    const hash = hashFlight(state);
+    const previous = built.ctx.core.previousPose;
+    const current = built.ctx.core.currentPose;
+    const dispatched = built.dispatched.length;
+    const updates = built.seenFrames.length;
+    const log = [...built.log];
+    const advances = built.counts.advances;
+
+    built.driver.stepOnce([launch], HELD);
+
+    expect(state.tick).toBe(tick);
+    expect(hashFlight(state)).toBe(hash);
+    expect(built.ctx.core.previousPose).toBe(previous);
+    expect(built.ctx.core.currentPose).toBe(current);
+    expect(built.dispatched).toHaveLength(dispatched);
+    expect(built.seenFrames).toHaveLength(updates);
+    expect(built.log).toEqual(log);
+    expect(built.counts.advances).toBe(advances);
+  });
+
+  describe.each([
+    ["real time", false],
+    ["the manual clock", true],
+  ])("every later frame under %s", (_name, manual) => {
+    function dead() {
+      const built = ramming({ manual });
+      const held = holdKeys(built, HELD);
+      stepToDeath(built);
+      return { built, held };
+    }
+
+    it("only draws and advances the presentation clock: no step, every queue drained, alpha 1, probe published", () => {
+      const { built, held } = dead();
+      const { frame, calls } = looped(built);
+      const state = built.ctx.core.state;
+      if (state === undefined) throw new Error("no state");
+      const tick = state.tick;
+      const hash = hashFlight(state);
+      const stepped = built.log.length;
+      built.queue.push(launch);
+      built.pending.push(launch, { kind: "skipLaunch" });
+      held.stationQueue.push("station");
+      held.chartQueue.push("chart");
+      held.saveQueue.push("save");
+      built.ctx.core.currentFrame = HELD;
+
+      frame(1000);
+      frame(1016);
+      frame(1048);
+
+      expect(calls.advanceFrame).toBe(0);
+      expect(calls.advanceBehind).toBe(0);
+      expect(state.tick).toBe(tick);
+      expect(hashFlight(state)).toBe(hash);
+      expect(built.log).toHaveLength(stepped);
+      expect(built.queue).toEqual([]);
+      expect(built.pending).toEqual([]);
+      expect(held.stationQueue).toEqual([]);
+      expect(held.chartQueue).toEqual([]);
+      expect(held.saveQueue).toEqual([]);
+      expect(held.drained.commands).toBeGreaterThanOrEqual(3);
+      expect(held.drained.station).toBeGreaterThanOrEqual(3);
+      expect(held.drained.chart).toBeGreaterThanOrEqual(3);
+      expect(held.drained.save).toBeGreaterThanOrEqual(3);
+      expect(calls.handleChart).toBe(0);
+      expect(calls.handleSave).toBe(0);
+      expect(calls.applyStation).toBe(0);
+      expect(built.ctx.core.currentFrame).toEqual({
+        pitch: 0,
+        roll: 0,
+        speed: 0,
+        precision: false,
+      });
+      expect(calls.renders).toEqual([1, 1, 1]);
+      expect(calls.draws).toBe(3);
+      expect(calls.probes).toBe(3);
+      // The presentation clock: wall time (the first frame owes nothing).
+      expect(built.ctx.runtime.gameOverSeconds).toBeCloseTo(0.048, 12);
+    });
+
+    it("clamps the wall delta, and ignores a negative or non-finite one", () => {
+      const { built } = dead();
+      const { frame } = looped(built);
+      frame(1000);
+      frame(1000 + 60_000);
+      expect(built.ctx.runtime.gameOverSeconds).toBe(MAX_FRAME_DELTA);
+      const before = built.ctx.runtime.gameOverSeconds;
+      frame(0);
+      frame(Number.NaN);
+      frame(Number.POSITIVE_INFINITY);
+      expect(built.ctx.runtime.gameOverSeconds).toBe(before);
+    });
+
+    it("has no timer: a thousand frames and minutes later the session is still latched and nothing was asked to reset", () => {
+      const { built } = dead();
+      const { frame, calls } = looped(built);
+      for (let index = 0; index < 1000; index += 1) {
+        frame(1000 + index * 1000);
+      }
+      expect(built.ctx.runtime.gameOver).toBe(true);
+      expect(built.ctx.core.state?.mode).toBe("dead");
+      expect(built.ctx.runtime.gameOverSeconds).toBeCloseTo(
+        999 * MAX_FRAME_DELTA,
+        9,
+      );
+      expect(calls.pause).toBe(0);
+      expect(calls.resume).toBe(0);
+      expect(calls.advanceFrame).toBe(0);
+      expect(calls.renders).toHaveLength(1000);
+      expect(calls.renders.every((alpha) => alpha === 1)).toBe(true);
+    });
+  });
+
+  it("advanceTicks refuses while latched: the death tick comes back, nothing steps, nothing is tainted", () => {
+    const built = ramming({ manual: true });
+    holdKeys(built);
+    const tick = stepToDeath(built);
+    expect(built.ctx.runtime.testTainted).toBe(false);
+    built.log.length = 0;
+    const updates = built.seenFrames.length;
+    const drains = built.counts.drains;
+    const frames = built.counts.frames;
+
+    expect(built.driver.advanceTicks(10)).toBe(tick);
+
+    expect(built.ctx.core.state?.tick).toBe(tick);
+    expect(built.ctx.runtime.testTainted).toBe(false);
+    expect(built.log).toEqual([]);
+    expect(built.seenFrames).toHaveLength(updates);
+    expect(built.counts.drains).toBe(drains);
+    expect(built.counts.frames).toBe(frames);
+  });
+
+  it("advanceTicks across the death returns the death tick and steps no further", () => {
+    const deathTick = deathTickOf();
+    const built = ramming({ manual: true });
+    holdKeys(built);
+
+    expect(built.driver.advanceTicks(deathTick + 50)).toBe(deathTick);
+
+    expect(built.ctx.runtime.gameOver).toBe(true);
+    expect(built.ctx.core.state?.tick).toBe(deathTick);
+    // The loop broke on the latch right after the lethal step.
+    expect(built.log.filter((entry) => entry === "stepFlight")).toHaveLength(
+      deathTick,
+    );
+    expect(built.seenFrames).toHaveLength(deathTick);
+    expect(built.ctx.runtime.testTainted).toBe(true);
   });
 });
