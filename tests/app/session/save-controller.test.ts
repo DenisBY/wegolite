@@ -32,6 +32,7 @@ import type {
   SaveStore,
   WriteResult,
 } from "../../../src/persistence/store.js";
+import { killPlayer } from "../../../src/sim/combat/death.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import {
   createPlayerCombatState,
@@ -394,6 +395,40 @@ describe("autosave guards", () => {
     expect(ctx.save.saveStatus).toBe("valid");
     expect(ctx.save.saveSkipReason).toBe("");
     expect(log).toContain("renderStation");
+  });
+});
+
+describe("a dead state is never written (DEATH-06)", () => {
+  /** Run `call`; it either returns or throws the snapshot refusal, nothing else. */
+  function refusedOrReturned(call: () => void): void {
+    try {
+      call();
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/a dead player is never saved/);
+    }
+  }
+
+  it("a dead state never queues a write, through autosave or the manual save", async () => {
+    const { ctx, controller, writes, log } = harness({ status: "absent" });
+    const state = flyingState();
+    // The dead state comes from the one death path, never from an assignment.
+    killPlayer(state, createPlayerCombatState(), { damage: "laser" }, []);
+    expect(state.mode).toBe("dead");
+    ctx.core.state = state;
+    expect(ctx.runtime.contextLost).toBe(false);
+    expect(ctx.runtime.testTainted).toBe(false);
+
+    refusedOrReturned(() => controller.autosave());
+    refusedOrReturned(() => controller.manualSave());
+    await flush();
+
+    // Nothing reached the store, and no write was counted or marked pending.
+    expect(writes).toEqual([]);
+    expect(log.some((entry) => entry.startsWith("store.write"))).toBe(false);
+    expect(ctx.save.saveWrites).toBe(0);
+    expect(ctx.save.manualSavePending).toBe(false);
+    expect(ctx.save.saveRevision).toBe(0);
   });
 });
 

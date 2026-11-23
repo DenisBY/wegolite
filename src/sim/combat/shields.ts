@@ -148,7 +148,8 @@ function drainFacingShield(
  * Route one hit on the player (S9, C4, `PlayerEntity.m:5635-5680`).
  *
  * The attacker's side decides the shield (`drainFacingShield`). The overflow
- * drains energy, which floors at 0 (the player's death is Phase 20, D-13), and
+ * drains energy, which floors at 0 for display (the ledger decides the death at
+ * the damage point, D-04), and
  * heats the cabin by `ENERGY_DAMAGE_TO_HEAT_FACTOR` per point while it is
  * below `SHIP_MAX_CABIN_TEMP`, never past it (D-05: energy damage is the only
  * heat input).
@@ -186,7 +187,8 @@ export function routeDamage(
  * (5726) is the same `!(dForward < 0)` test as `routeDamage`'s, through the
  * shared `drainFacingShield`; `otherOffset` is the other's position minus the
  * player's. The remainder lowers energy (`[super takeScrapeDamage:]`,
- * `ShipEntity.m:11651`), which floors at 0 (the player's death is Phase 20).
+ * `ShipEntity.m:11651`), which floors at 0 for display (the ledger decides the
+ * death at the damage point, D-04).
  * Unlike `routeDamage` (`takeEnergyDamage`, 5599-5700) the scrape never heats
  * the cabin. The internal-damage loop (5746-5752) is the ledger's roll
  * (`./ledger.ts`, `./internal-damage.ts`).

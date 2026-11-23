@@ -6,7 +6,8 @@
  *
  * The ledger lowers energy and reports the victims that reached 0, credited to
  * the first lethal record's source; it never marks anything dead (`killShip`
- * does, `tests/sim/world/kill.test.ts`) and never lets the player die.
+ * does, `tests/sim/world/kill.test.ts`) and never kills the player itself: a
+ * lethal player record only sets `outcome.playerDeath` for `killPlayer`.
  */
 
 import { describe, expect, it } from "vitest";
@@ -20,7 +21,7 @@ import type { InternalDamageFacts } from "../../../src/sim/combat/internal-damag
 import { applyLedger } from "../../../src/sim/combat/ledger.js";
 import type { HitRecord } from "../../../src/sim/combat/ledger.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
-import type { SimEvent } from "../../../src/sim/events.js";
+import type { PlayerDeathCause, SimEvent } from "../../../src/sim/events.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
@@ -192,7 +193,40 @@ describe("applyLedger", () => {
     expect(lethal.map((hit) => hit.victim)).toEqual([first, second]);
   });
 
-  it("routes a player record through the shields, floors energy at 0 and is never lethal", () => {
+  it("routes a lethal player record through the shields, floors the bank at 0 and sets the death outcome with the source's key", () => {
+    const world = createWorld(1);
+    const adder = ship(world, 100);
+    const combat = createPlayerCombatState();
+    combat.fwdShield = 0;
+    combat.energy = 5;
+    const events: SimEvent[] = [];
+    const outcome: { playerDeath?: PlayerDeathCause } = {};
+    const lethal = applyLedger(
+      world,
+      true,
+      player(),
+      combat,
+      [record(PLAYER_ID, adder, 100)],
+      events,
+      undefined,
+      outcome,
+    );
+    // The ledger marks no ship dead for the player: the list stays empty.
+    expect(lethal).toEqual([]);
+    expect(combat.energy).toBe(0);
+    expect(outcome.playerDeath).toEqual({ damage: "laser", culprit: "adder" });
+    expect(events).toEqual([
+      {
+        kind: "shipHit",
+        target: PLAYER_ID,
+        source: adder,
+        amount: 100,
+        shield: false,
+      },
+    ]);
+  });
+
+  it("without an outcome the same record keeps the old result: the floor and the array", () => {
     const world = createWorld(1);
     const combat = createPlayerCombatState();
     combat.fwdShield = 0;
@@ -235,7 +269,7 @@ describe("applyLedger", () => {
     expect(combat.energy).toBe(256);
   });
 
-  it("routes a scrape on the player through the shield on the source's side, with no cabin heat, never lethal (CBT-18)", () => {
+  it("routes a scrape on the player through the shield on the source's side, with no cabin heat, and a scrape past the bank sets the death outcome (CBT-18)", () => {
     const world = createWorld(1);
     // The source is 2,000 m ahead: the forward shield takes it first.
     const combat = createPlayerCombatState();
@@ -263,18 +297,23 @@ describe("applyLedger", () => {
       },
     ]);
 
-    // A scrape far above shield and energy floors the energy at 0, unheated.
+    // A scrape far above shield and energy floors the energy at 0, unheated,
+    // and names the nav buoy as the culprit.
+    const outcome: { playerDeath?: PlayerDeathCause } = {};
     const lethal2 = applyLedger(
       world,
       true,
       player(),
       combat,
-      [record(PLAYER_ID, 999, 1000, "scrape")],
+      [record(PLAYER_ID, STATION_NAV_BUOY_ID, 1000, "scrape")],
       events,
+      undefined,
+      outcome,
     );
     expect(lethal2).toEqual([]);
     expect(combat.energy).toBe(0);
     expect(combat.cabinTemp).toBe(60);
+    expect(outcome.playerDeath).toEqual({ damage: "scrape", culprit: "buoy" });
   });
 
   it("a laser on the player still heats the cabin (routeDamage)", () => {

@@ -779,7 +779,7 @@ describe("an NPC hit on the player, by the shared rule (CBT-16, D-16)", () => {
     expect(combat.cabinTemp).toBe(cabin);
   });
 
-  it("a larger hit spills the rest into energy, heats the cabin and floors the energy at 0", () => {
+  it("a larger hit spills the rest into energy, heats the cabin, floors the energy at 0 and kills the player", () => {
     const player = flyingPlayer();
     const combat = createPlayerCombatState();
     combat.fwdShield = 2;
@@ -799,12 +799,20 @@ describe("an NPC hit on the player, by the shared rule (CBT-16, D-16)", () => {
       12,
     );
 
-    // The floor: 3 energy left, the whole 6 taken, the bank stops at 0.
+    // The floor and the death: 3 energy left, the whole 6 taken, the bank stops
+    // at 0 and the player in flight dies on that tick (DEATH-01, D-04).
     combat.fwdShield = 0;
     combat.energy = 3;
-    resolve(player, world, combat, [shotOf(world, viper)]);
+    const lethal = resolve(player, world, combat, [shotOf(world, viper)]);
     expect(combat.energy).toBe(0);
-    resolve(player, world, combat, [shotOf(world, viper)]);
+    expect(player.mode).toBe("dead");
+    expect(ofKind(lethal, "playerDestroyed")).toHaveLength(1);
+    // A dead player takes no further hit: no event, and no shield, energy or
+    // cabin value moves on the second shot (`PlayerEntity.m:5607`).
+    const afterDeath = JSON.stringify(combat);
+    const second = resolve(player, world, combat, [shotOf(world, viper)]);
+    expect(second).toEqual([]);
+    expect(JSON.stringify(combat)).toBe(afterDeath);
     expect(combat.energy).toBe(0);
     expect(Number.isFinite(combat.cabinTemp)).toBe(true);
   });
