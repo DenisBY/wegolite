@@ -22,6 +22,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the HUD message (for example "Docking Computers damaged."). A damaged item
   stops working (a damaged docking computer no longer docks you) until you
   repair it at F3.
+- Game over: when your ship is destroyed, the Game Over screen says what
+  destroyed you (for example "Destroyed by Krait" or "Collided with Navigation
+  Buoy") and shows your score. Press Space or click to return to the title,
+  which offers Continue from your last save. A destroyed ship is never saved.
 
 ### Changed
 

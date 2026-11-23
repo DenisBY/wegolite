@@ -11,7 +11,7 @@
  * and the refusals are asserted on what reaches the store, not on a flag.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -40,7 +40,11 @@ import type {
   GameOverLines,
   GameOverOverlay,
 } from "../../../src/ui/game-over.js";
-import type { SaveStore, WriteResult } from "../../../src/persistence/store.js";
+import type {
+  SaveStatus,
+  SaveStore,
+  WriteResult,
+} from "../../../src/persistence/store.js";
 import { npcLaserRay } from "../../../src/sim/combat/aim.js";
 import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
@@ -363,11 +367,15 @@ const DEATH_AT: Vec3 = { x: 11, y: -22, z: 33 };
 
 /** The router wired with the real death flow on recording doubles. */
 function flowSession(
-  options: { readonly scene?: boolean; readonly overlay?: boolean } = {},
+  options: {
+    readonly scene?: boolean;
+    readonly overlay?: boolean;
+    readonly saveStatus?: SaveStatus;
+  } = {},
 ): FlowSession {
   const ctx = createSessionState({
     system,
-    saveStatus: "absent",
+    saveStatus: options.saveStatus ?? "absent",
     saveSkipReason: "",
   });
   const log: string[] = [];
@@ -661,5 +669,133 @@ describe("the game-over overlay is shown by the death flow (DEATH-01, D-02, D-03
     router.dispatch(PLAYER_DIED);
 
     expect(shows).toHaveLength(1);
+  });
+});
+
+/** The static names the session installs as `ctx.core.targetNames` (plan 18-06). */
+const STATIC_NAMES: ReadonlyMap<string, string> = new Map([
+  ["buoy", "Navigation Buoy"],
+  ["buoy-witchpoint", "Witchpoint Beacon"],
+]);
+
+describe("the cause line reads the live tables (D-03)", () => {
+  it("a ram into the navigation buoy reads Collided with Navigation Buoy", () => {
+    const { ctx, router, shows } = flowSession({ overlay: true });
+    liveTables(ctx);
+    ctx.core.targetNames = STATIC_NAMES;
+
+    router.dispatch({
+      kind: "playerDestroyed",
+      position: DEATH_AT,
+      cause: { damage: "scrape", culprit: "buoy" },
+    });
+
+    expect(shows.map((lines) => lines.cause)).toEqual([
+      "Collided with Navigation Buoy",
+    ]);
+  });
+
+  it("a ram into the witchpoint beacon reads Collided with Witchpoint Beacon", () => {
+    const { ctx, router, shows } = flowSession({ overlay: true });
+    liveTables(ctx);
+    ctx.core.targetNames = STATIC_NAMES;
+
+    router.dispatch({
+      kind: "playerDestroyed",
+      position: DEATH_AT,
+      cause: { damage: "scrape", culprit: "buoy-witchpoint" },
+    });
+
+    expect(shows.map((lines) => lines.cause)).toEqual([
+      "Collided with Witchpoint Beacon",
+    ]);
+  });
+
+  it("a culprit key no table resolves gives the name-free wording, never the key", () => {
+    const { ctx, router, shows } = flowSession({ overlay: true });
+    liveTables(ctx);
+    ctx.core.targetNames = STATIC_NAMES;
+
+    router.dispatch({
+      kind: "playerDestroyed",
+      position: DEATH_AT,
+      cause: { damage: "laser", culprit: "unknown-ship" },
+    });
+
+    expect(shows.map((lines) => lines.cause)).toEqual(["Destroyed"]);
+  });
+
+  // Defensive: with traffic off no lethal record exists today (collisions need
+  // the hull table and NPC fire needs the traffic content), so a player never
+  // sees this wording. It pins that the key is never shown when both tables are
+  // absent (review round 1, Sonnet).
+  it("traffic off (no catalogue, no targetNames) gives the name-free wording for a laser and a ram", () => {
+    const laser = flowSession({ overlay: true });
+    expect(laser.ctx.core.npcTraffic).toBeUndefined();
+    expect(laser.ctx.core.targetNames).toBeUndefined();
+    laser.router.dispatch({
+      kind: "playerDestroyed",
+      position: DEATH_AT,
+      cause: { damage: "laser", culprit: "krait" },
+    });
+    expect(laser.shows.map((lines) => lines.cause)).toEqual(["Destroyed"]);
+
+    const ram = flowSession({ overlay: true });
+    ram.router.dispatch({
+      kind: "playerDestroyed",
+      position: DEATH_AT,
+      cause: { damage: "scrape", culprit: "buoy" },
+    });
+    expect(ram.shows.map((lines) => lines.cause)).toEqual([
+      "Destroyed in a collision",
+    ]);
+  });
+});
+
+describe("the game-over view does not depend on the save (D-13)", () => {
+  const STATUSES: readonly SaveStatus[] = [
+    "absent",
+    "corrupt",
+    "future",
+    "unreadable",
+    "unavailable",
+  ];
+
+  it("the same death shows identical lines for every save status", () => {
+    const seen: GameOverLines[] = [];
+    for (const saveStatus of STATUSES) {
+      const { ctx, router, shows } = flowSession({
+        overlay: true,
+        saveStatus,
+      });
+      liveTables(ctx);
+      router.dispatch({
+        kind: "playerDestroyed",
+        position: DEATH_AT,
+        cause: { damage: "laser", culprit: "krait" },
+      });
+      expect(shows).toHaveLength(1);
+      seen.push(...shows);
+    }
+    expect(seen).toHaveLength(STATUSES.length);
+    for (const lines of seen) expect(lines).toStrictEqual(seen[0]);
+  });
+});
+
+describe("the reload is the only way forward (D-12)", () => {
+  it("no in-session load function exists and only the overlay reloads the page", () => {
+    const sources = readdirSync("src", {
+      recursive: true,
+      encoding: "utf8",
+    }).filter((path) => path.endsWith(".ts"));
+    const reloaders = sources.filter((path) =>
+      readFileSync(`src/${path}`, "utf8").includes("location.reload"),
+    );
+    expect(reloaders).toEqual(["ui/game-over.ts"]);
+    for (const path of sources) {
+      expect(readFileSync(`src/${path}`, "utf8")).not.toContain(
+        "loadSavedGame",
+      );
+    }
   });
 });
