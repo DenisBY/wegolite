@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 20-player-death-and-game-over
 source: [20-VERIFICATION.md]
 started: 2026-11-23T21:00:00Z
-updated: 2026-11-23T21:31:37.645Z
+updated: 2026-11-23T22:30:00Z
 ---
 
 ## Current Test
@@ -56,8 +56,22 @@ blocked: 0
   reason: "User reported: shot down all 3 flyers, none dropped a plate; on death everything froze, even the space dust turned into streaks instead of dots."
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "Three parts. (1a, bug) While dead, render-driver.ts passes dust.update a zero camera delta (previousCameraWorld cleared, dead camera never moves) together with the speed frozen at the death tick (killPlayer does not zero it), so dust.ts takes its stationary branch and draws each mote as a still, randomly oriented streak of clamp(speed*0.02, 0.5, 40) m instead of a dot; Oolite draws dust as GL_POINTS except at hyperspeed. (1b, recorded design) The frozen dead camera and world are the recorded divergence E-179 / DIV-7 (FIDELITY.md:209, PROJECT.md:349); Oolite's dead camera coasts at flightSpeed 160 (PlayerEntity.m getDestroyedBy:) while the universe keeps running; PROJECT.md defers the look to this UAT, which judged it frozen. (1c, chance) Debris drift and tumble do keep running (render-driver tests D-01c/D-01d pass) but nothing was in the aft view: flyer kills dropped no plate (faithful Oolite odds), wrecks burn out in 0.05-0.55 s as in Oolite, test hulls carry no cargo, and the single shooter plate was small, slow and likely kilometres away. Flyer plates: releaseDebris faithfully ports becomeExplosion; plate chance per kill is 0.13 Shuttle, 0.32 Viper, 0.20 Adder, so no plate from all three is a 0.48 outcome (Monte Carlo of 20,000 calls per hull matches the formula). Not a bug."
+  artifacts:
+    - path: "src/app/session/render-driver.ts"
+      issue: "lines 428-434 pass the frozen death-tick speed to dust.update while the dead camera has a zero delta"
+    - path: "src/render/bodies/dust.ts"
+      issue: "update() stationary branch assumes a still camera means speed 0; draws random-axis speed-scaled streaks"
+    - path: "FIDELITY.md"
+      issue: "row E-179 records the frozen dead camera and world (Oolite coasts at 160 m/s); owner judged the frozen look at UAT"
+  missing:
+    - "While dead, dust renders as dots (speed 0 to dust.update), with a test on the speed argument"
+    - "Owner decision on E-179: keep the frozen dead camera, or coast it render-only at Oolite's 160 m/s looking aft (sim and hash stay frozen)"
+  side_findings:
+    - "Phase 16 debris velocity diverges from Oolite: ShipEntity velocity includes thrustVector, so Oolite debris carries the dying ship's flight speed; debris.ts uses drift only (16-RESEARCH.md:149). Separate todo/decision; changes hashed debris velocities."
+    - "Pause likely shows the same random dust dashes (zero delta, non-zero speed); inferred from code, not observed."
+    - "Dust as streaks in normal flight may be an unrecorded divergence (Oolite draws points except at hyperspeed)."
+  debug_session: ".planning/debug/death-scene-frozen-and-flyer-no-wreckage.md"
 
 - gap_id: G-20-2
   truth: "All four game-over lines stay legible over any background, including a bright sun or a lit station face, through the 5 s fade."
@@ -65,5 +79,15 @@ blocked: 0
   reason: "User reported: against the sun the light-grey lines are barely readable (screenshot); the credits glyph after the score also looks clipped."
   severity: minor
   test: 2
-  artifacts: []
-  missing: []
+  root_cause: "Legibility: #game-over (index.html:1296-1311) is transparent with no backing, text-shadow or stroke, and the text is very light (#33ff66, luminance ~0.73; ~rgb(200,200,200) after the saturate fade). Contrast is 1.34:1 to 1.67:1 on the white sun, ~2:1 on a lit grey hull, 12-15:1 on black space (WCAG 4.5:1). Every other overlay over the scene (#title-confirm, #pause, .home-card) uses a dark translucent panel; #game-over is the only transparent one. A dark panel rgba(0,0,0,.6) inside the filtered root was legible on all three backgrounds at both saturations in a Firefox scratch render and keeps the E-174 fade. Oolite also draws no backing while STATUS_DEAD (GuiDisplayGen.m:1347-1349), so a backing is a fidelity divergence needing a FIDELITY row; Oolite's game-over text is yellow, Wegolite's green is an unrecorded difference. Credits glyph: not clipped; the system monospace font's U+20A2 'Cr' glyph does not resolve its r at 16 px (ink fits its advance in Consolas, Courier New, DejaVu Sans Mono; same on station price screens). Oolite draws its own bitmap glyph (oolite-font.plist:29)."
+  artifacts:
+    - path: "index.html"
+      issue: "#game-over CSS (lines 1291-1325) has no backing behind the four lines"
+    - path: "src/ui/game-over.ts"
+      issue: "lines 210-212 setFilter applies the fade to the root; the backing must sit inside it"
+  missing:
+    - "Dark translucent backing panel behind the four lines inside the filtered #game-over root, matching other overlays"
+    - "FIDELITY.md row for the backing divergence (Oolite draws none while dead), and a decision on the green vs Oolite yellow text colour"
+  deferred:
+    - "Credits glyph rendering at 16 px is a global presentation decision (station screens too), not part of this gap"
+  debug_session: ".planning/debug/game-over-lines-illegible-on-bright-background.md"
