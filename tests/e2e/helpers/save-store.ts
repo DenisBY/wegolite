@@ -90,3 +90,45 @@ export async function writeRaw(
     { raw, key, db: SAVE_DB, store: SAVE_STORE },
   );
 }
+
+/**
+ * Remove a record from the save database from outside the app (Phase 20, D-13:
+ * a session whose save is gone before the game-over exit). A missing database,
+ * store or key is already the wanted state and resolves without creating
+ * anything.
+ */
+export async function deleteRaw(
+  page: Page,
+  key: string = AUTOSAVE_KEY,
+): Promise<void> {
+  await page.evaluate(
+    (payload: { key: string; db: string; store: string }) =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(payload.db, 1);
+        request.onerror = () => {
+          reject(new Error(`open failed: ${String(request.error)}`));
+        };
+        request.onsuccess = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(payload.store)) {
+            db.close();
+            resolve();
+            return;
+          }
+          const transaction = db.transaction(payload.store, "readwrite");
+          transaction.objectStore(payload.store).delete(payload.key);
+          transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          transaction.onerror = () => {
+            reject(new Error(`delete failed: ${String(transaction.error)}`));
+          };
+          transaction.onabort = () => {
+            reject(new Error(`delete aborted: ${String(transaction.error)}`));
+          };
+        };
+      }),
+    { key, db: SAVE_DB, store: SAVE_STORE },
+  );
+}

@@ -47,7 +47,7 @@ import {
   DEATH_TARGET,
   inFlightSaveAt,
 } from "./helpers/save-fixtures.js";
-import { readRaw, writeRaw } from "./helpers/save-store.js";
+import { deleteRaw, readRaw, writeRaw } from "./helpers/save-store.js";
 
 /** The URL this spec boots: the hook, traffic on, manual clock. */
 const DEATH_URL = "/?test=1&traffic=1&clock=manual";
@@ -363,6 +363,43 @@ test("a ram death at the twin's tick, one fresh Space, and Continue resumes the 
     },
     damaged: DEATH_SEED_ITEMS.damagedEquipment,
     tainted: false,
+  });
+  expect(errors).toEqual([]);
+});
+
+test("with the save removed before the exit, a click on the overlay reloads to a title that offers New game only", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await continueSeed(page);
+
+  // The same seed and the same death.
+  const { dead } = await dieAtTwinTick(page);
+  expect(dead, "the death at the twin's tick").toEqual({
+    mode: "dead",
+    tick: TWIN_DEATH_TICK_OFFSET,
+    cause: TWIN_DEATH_CAUSE,
+  });
+
+  // D-13: no loadable save after the reload. The blob goes before the exit,
+  // and the exit is a mouse click on the overlay (D-07's second input, in a
+  // real browser; the first is the fresh Space of the test above).
+  await deleteRaw(page);
+  await page.evaluate(() => {
+    Reflect.set(window, "__deathMarker", "alive");
+  });
+  await page.click("#game-over");
+  await waitForReload(page);
+  await expect(page.locator("#title-start")).toBeVisible({ timeout: SLOW });
+  const afterReload = {
+    title: await reloadedTitle(page),
+    continueShown: await page.locator("#title-continue").isVisible(),
+    blob: await readRaw(page),
+  };
+  expect(afterReload, "the reloaded title with no save").toEqual({
+    title: { ready: true, continueVisible: false, marker: undefined },
+    continueShown: false,
+    blob: null,
   });
   expect(errors).toEqual([]);
 });
