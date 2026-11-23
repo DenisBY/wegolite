@@ -7,10 +7,10 @@ current_phase_name: Player Death and Game Over
 current_plan: 1
 status: executing
 stopped_at: Phase 20 context gathered
-last_updated: "2026-11-23T16:31:21.844Z"
+last_updated: "2026-11-23T21:38:04.708Z"
 last_activity: 2026-11-23
 last_activity_desc: Phase 20 execution started
-state_head: d8b37162e500e63f678f534d54c5ecf4ae83a57b
+state_head: 841f5626851845bf118f012ae358abd12caeeac6
 progress:
   total_phases: 6
   completed_phases: 5
@@ -716,6 +716,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 61 | Raise the e2e waits that span the first launch (FIRST_LAUNCH_WAIT_MS) so the sharded GitHub Chromium run passes | 2026-11-20 | 8edca56 | — |
 | 62 | Give the remaining first-launch e2e waits FIRST_LAUNCH_WAIT_MS and widen the core-loop arrival wait | 2026-11-21 | 41550f6 | — |
 | 63 | Record the project-wide rule for diverging from Oolite (AGENTS.md, PROJECT.md, Phase 19 D-12) | 2026-11-21 | 688d4d3 | — |
+| 64 | Exclude .claude/ agent worktrees from the Vite dev watcher | 2026-11-23 | 841f562 | — |
 
 ## Deferred Items
 
