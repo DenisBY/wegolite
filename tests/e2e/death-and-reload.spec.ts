@@ -73,12 +73,14 @@ const SEED = inFlightSaveAt(
 
 /**
  * The non-launch budget of one test: no launch is played (both specs start in
- * flight from a seeded save), so the budget is three page loads, the 1,682
- * manual ticks and a reload, each bounded by `SLOW`. The CI margin rule is
- * 3 x the measured remote time below 60 % of this
- * (.planning/todos/pending/2026-11-16-ci-e2e-timeout-margins.md).
+ * flight from a seeded save), so the budget is four steps (the first load, the
+ * seeded reload with Continue, the 1,682 manual ticks with the dead page, and
+ * the exit reload), each bounded by `SLOW`. Measured on the remote machine:
+ * 5.1 to 6.4 s per test, so 3 x that (the CI slowdown) is 16 % of this, below
+ * the 60 % rule of
+ * .planning/todos/pending/2026-11-16-ci-e2e-timeout-margins.md.
  */
-const NON_LAUNCH_BUDGET_MS = 120_000;
+const NON_LAUNCH_BUDGET_MS = 4 * SLOW;
 test.setTimeout(NON_LAUNCH_BUDGET_MS);
 
 /** Collect console errors and uncaught page errors. */

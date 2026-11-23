@@ -79,9 +79,10 @@ const DEATH_WAIT_MS = (TWIN_DEATH_TICK_OFFSET / TICKS_PER_SECOND) * 1000 * 10;
 /**
  * The non-launch budget of the test: no launch is played (the test starts in
  * flight from a seeded save), so it is three page loads, the real-time run to
- * the death, the dead page's keys and a final reload. The CI margin rule is 3 x
- * the measured remote time below 60 % of this
- * (.planning/todos/pending/2026-11-16-ci-e2e-timeout-margins.md).
+ * the death, the dead page's keys and a final reload. Measured on the remote
+ * machine: 20.7 s, so 3 x that (the CI slowdown) is 62 s, 19 % of the 320 s
+ * this evaluates to, below the 60 % rule of
+ * .planning/todos/pending/2026-11-16-ci-e2e-timeout-margins.md.
  */
 const NON_LAUNCH_BUDGET_MS = 3 * SLOW + DEATH_WAIT_MS + 3 * SLOW;
 test.setTimeout(NON_LAUNCH_BUDGET_MS);
