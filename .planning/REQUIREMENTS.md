@@ -29,7 +29,7 @@ Requirements for this milestone. Each maps to roadmap phases (numbering continue
 
 ### Death
 
-- [ ] **DEATH-01**: The player dies at zero energy from any cause (only while `inFlight`); without an escape pod the game is over and the last save is loaded, through one death path that autosave, pause and the title flow respect.
+- [ ] **DEATH-01**: The player dies at zero energy from any cause (only while `inFlight`); without an escape pod the game is over and the page reloads to the title, which offers Continue from the last save (D-12), through one death path that autosave, pause and the title flow respect.
 - [ ] **DEATH-06**: A dead player is never autosaved; after game over the page reloads and offers Continue only when a loadable save exists.
 
 ### Save
