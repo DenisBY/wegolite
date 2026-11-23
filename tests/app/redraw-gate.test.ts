@@ -119,16 +119,20 @@ describe("the session wiring", () => {
     expect(source.match(/renderFrame\(alpha, shouldDraw\(\)\)/g)).toHaveLength(
       1,
     );
+    // The game-over branch (plan 20-06, D-01) is the second site, in the same
+    // frame loop: it draws the frozen dead scene at alpha 1.
+    expect(source.match(/renderFrame\(1, shouldDraw\(\)\)/g)).toHaveLength(1);
     // Every other caller passes one argument and therefore always draws.
     const calls = source.match(/renderFrame\([^)]*\)/g) ?? [];
     const gated = calls.filter((call) => call.includes(","));
-    // Compared as a sorted set: the two sites may end up in different files.
+    // Compared as a sorted set: the sites may end up in different files.
     const byCodeUnit = (a: string, b: string): number =>
       a < b ? -1 : a > b ? 1 : 0;
     expect([...gated].sort(byCodeUnit)).toEqual(
       [
         "renderFrame(alpha: number, draw = true)",
         "renderFrame(alpha, shouldDraw()",
+        "renderFrame(1, shouldDraw()",
       ].sort(byCodeUnit),
     );
   });

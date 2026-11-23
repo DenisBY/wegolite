@@ -1490,14 +1490,15 @@ describe("markHookMutation, taint equivalence with the hook's mutate callback", 
 });
 
 describe("the session's pending-queue resets", () => {
-  it("keeps four `pending` resets across the facade and the session modules", () => {
+  it("keeps five `pending` resets across the facade and the session modules", () => {
     const text = sessionSources()
       .map((entry) => entry.text)
       .join("\n");
     const resets = text.match(/pending\.length = 0;/g) ?? [];
-    // The chart-open freeze, the save-screen freeze, the paused branch and the
-    // sim driver's command drain (Round 2 review 820a435 L142).
-    expect(resets).toHaveLength(4);
+    // The game-over branch (plan 20-06), the chart-open freeze, the
+    // save-screen freeze, the paused branch and the sim driver's command drain
+    // (Round 2 review 820a435 L142).
+    expect(resets).toHaveLength(5);
   });
 });
 

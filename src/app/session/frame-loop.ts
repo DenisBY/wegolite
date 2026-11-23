@@ -10,7 +10,10 @@
  *
  *   1. reschedule, count (`probe.frames`) and tick the FPS counter (a DOM text
  *      readout, so no redraw request), then the live guards and the delta;
- *   2. the pause toggle, then the docked message clock: while docked, not
+ *   2. the pause toggle, then the game-over branch (a latched death: drain every
+ *      queue, advance only the presentation clock `gameOverSeconds`, draw at
+ *      alpha 1, publish the probe and return, no step and no timer, D-01 and
+ *      D-06), then the docked message clock: while docked, not
  *      paused and not under the manual clock, the frame delta is added to
  *      `ctx.runtime.dockedMessageSeconds` (quick task 261117-u3m), chart and
  *      save screen included, as Oolite draws the message area on every screen;
@@ -33,6 +36,7 @@
  */
 
 import type { Command } from "../../sim/commands.js";
+import { clampFrameDelta } from "../../sim/loop.js";
 import type { WegoliteProbe } from "../probe.js";
 import type { RedrawGate } from "../redraw-gate.js";
 import type { ChartController } from "./chart-controller.js";
@@ -107,6 +111,29 @@ export function createFrameLoop(
     if (currentInput.consumePauseToggle()) {
       if (ctx.runtime.paused) resume();
       else pause();
+    }
+
+    // D-01, D-06: once the player is dead the world is frozen and the session
+    // stays on the game-over view. No fixed step runs, whatever the clock
+    // (the sim driver is never called), every queue is drained so nothing
+    // pressed repeats or fires later, and only the presentation clock moves:
+    // the wall delta, also under the manual clock, because the fade and the
+    // overlay run on wall time, not on the simulation clock. Nothing here
+    // ends the branch: no timer, no frame count (Oolite's 30 s `kDeadResetTime`
+    // is not ported).
+    if (ctx.runtime.gameOver) {
+      currentInput.drainCommands();
+      currentInput.drainStationActions();
+      currentInput.drainChartActions();
+      currentInput.drainSaveScreenActions();
+      pending.length = 0;
+      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+      if (Number.isFinite(delta) && delta > 0) {
+        ctx.runtime.gameOverSeconds += clampFrameDelta(delta);
+      }
+      renderFrame(1, shouldDraw());
+      updateProbe();
+      return;
     }
 
     // The message rows count down on the docked screens too (Universe.m:4735-
