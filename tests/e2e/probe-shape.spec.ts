@@ -46,6 +46,7 @@
  * | chart | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | hyperspace | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | restore | only after a Continue installs a saved pose (boot or in-session) | never: every sample is a fresh New game |
+ * | death | updateProbe while the session is latched game over (Phase 20) | never: no sampled state is dead |
  * | saveScreen | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | systemId | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |
  * | quality | updateProbe on every call | docked, paused, chart, inFlight, testHookDocked, testHookManualDocked; absent in menu |

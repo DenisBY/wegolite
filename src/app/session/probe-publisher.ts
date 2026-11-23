@@ -370,6 +370,20 @@ export function createProbePublisher(
     probe.renders = renderer.info.render.frame;
     probe.memory = readMemory(renderer);
     probe.paused = ctx.runtime.paused;
+    // DEATH-01: the death is published only while the session is latched game
+    // over, a copy of the cause (a key string, never an entity id).
+    const deathCause = ctx.runtime.gameOverCause;
+    if (ctx.runtime.gameOver && deathCause !== undefined) {
+      probe.death = {
+        dead: true,
+        cause:
+          deathCause.culprit === undefined
+            ? { damage: deathCause.damage }
+            : { damage: deathCause.damage, culprit: deathCause.culprit },
+      };
+    } else {
+      delete probe.death;
+    }
     probe.systemId = ctx.core.system.id;
     probe.quality = scenes.quality();
     probe.atmosphere = ctx.core.scene?.planet.atmosphere !== undefined;
