@@ -446,7 +446,7 @@ Plans:
 **Pitfalls to address**: 6 (old pins encode "the player cannot die"), 7 (autosave races a death; a dead player must not be saved as docked), 10 (one death path and everything that must stop when it fires), 19 (Oolite's death is not the whole of "game over"), 22 (closed sets), 4, 21, 25 and 26 (close-out: acceptance, test cost, provenance, changelog)
 **Decisions to settle**: the deterministic dead hash during the game-over window; the `playerDestroyed` event payload; the game-over copy; the Key Decisions amendments named under "Changes from the former plan"
 **Todos**: `2026-11-16-ci-e2e-timeout-margins.md` (apply its 60 % rule to the new specs in the same change)
-**Plans**: 11/13 plans executed in 6 waves, plus 2 UAT gap-closure plans in 2 gap waves (20-12, 20-13: owner decisions of 2026-11-24 on gaps G-20-1 and G-20-2 in `20-UAT.md`) (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
+**Plans**: 12/13 plans executed in 6 waves, plus 2 UAT gap-closure plans in 2 gap waves (20-12, 20-13: owner decisions of 2026-11-24 on gaps G-20-1 and G-20-2 in `20-UAT.md`) (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
 
 Plans:
 **Wave 1**
@@ -475,7 +475,7 @@ Plans:
 **UAT gap closure** (2026-11-24; gap-closure waves restart at 1)
 
 **Gap wave 1**
-- [ ] 20-12-PLAN.md — G-20-1, DEATH-01: the dead camera coasts render-only at Oolite's 160 m/s looking aft on the presentation clock (sim, tick and hash frozen); the dust gets the coasting camera's delta and speed (0 when the camera has not moved), pinned by Vitest; the dead view draws every frame while shown (D-01e, owner-confirmed 2026-11-24: the redraw half of D-01d withdrawn); FIDELITY E-179 and DIV-7 revised on the owner's authority with the `## Round 3` record conditions (accepted 3/3 at `d7d91e9`: the dust streak form as a divergence, the range with no distance cap per D-01e, the corrected overtake thresholds), the camera-only coast row with excerpt E-181, the E-176 cross-reference, T-20-25 marked superseded in `20-SECURITY.md`, CHANGELOG; `verify-full` deferred to 20-13's phase gate; the flyer plates are Oolite's odds (no change)
+- [x] 20-12-PLAN.md — G-20-1, DEATH-01: the dead camera coasts render-only at Oolite's 160 m/s looking aft on the presentation clock (sim, tick and hash frozen); the dust gets the coasting camera's delta and speed (0 when the camera has not moved), pinned by Vitest; the dead view draws every frame while shown (D-01e, owner-confirmed 2026-11-24: the redraw half of D-01d withdrawn); FIDELITY E-179 and DIV-7 revised on the owner's authority with the `## Round 3` record conditions (accepted 3/3 at `d7d91e9`: the dust streak form as a divergence, the range with no distance cap per D-01e, the corrected overtake thresholds), the camera-only coast row with excerpt E-181, the E-176 cross-reference, T-20-25 marked superseded in `20-SECURITY.md`, CHANGELOG; `verify-full` deferred to 20-13's phase gate; the flyer plates are Oolite's odds (no change)
 
 **Gap wave 2** *(blocked on gap wave 1 completion)*
 - [ ] 20-13-PLAN.md — G-20-2, DEATH-01, DEATH-06: the four game-over lines on a dark translucent panel inside the faded `#game-over` root, in Oolite's yellow; plan-level pre-flight: `## Round 3` ACCEPT verdicts on the backing (DIV-10) in `20-REVIEWS.md` (3/3 at `d7d91e9`, L1065, L1095, L1125, consensus L1134), else nothing is committed; the yellow ships only with the panel; the E-182 row carries Round 3's conditions (the panel dims the receding explosion, Oolite's comm-log backing precedent, the unmodelled 0.75 HUD alpha); the backing recorded first (excerpt E-182, a new Key Decision), then the panel and CHANGELOG in one commit; the phase gate's remote `verify-full`, covering 20-12 too; the credits glyph stays a todo
@@ -528,7 +528,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
-| 20. Player Death and Game Over | v2.3 | 11/11 | In Progress | - |
+| 20. Player Death and Game Over | v2.3 | 12/13 | In Progress | - |
 
 ## Backlog
 
