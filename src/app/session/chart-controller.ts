@@ -285,6 +285,10 @@ export function createChartController(
   function applyChartAction(action: ActionId): void {
     switch (action) {
       case "chart":
+        // Reachable only from flight: a docked F6 goes through the
+        // synchronous `navigateByKey`, and an in-flight F6 pressed after a
+        // same-frame Escape over the chart is resolved again in the flight
+        // context and queued here (quick 261124-pze F2, F3).
         // F6 opens the chart; on an open chart it does nothing (owner
         // decision 2026-11-24, FIDELITY E-184): the chart stays open with its
         // preset and camera, and Escape closes it.

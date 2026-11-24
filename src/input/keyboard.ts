@@ -20,7 +20,8 @@
  * browser-reserved F-keys (F1, F2, F3, F4, F5, F6, F7, F8); it never dispatches
  * and never stops propagation. Those eight keys are never text input: a
  * focused text field (the chart's Find planet box) keeps every other key, but
- * an F-key still reaches the game and never reaches the browser.
+ * a docked screen F-key still reaches the game, and no F-key reaches the
+ * browser.
  *
  * The docked screen keys (`STATION_NAV_ACTIONS`) are synchronous outside
  * flight, so a following same-frame key resolves against the screen they open.
@@ -75,7 +76,7 @@ const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
 };
 
 /**
- * The modifier state that decides a chord.
+ * The modifier and source state of a keydown.
  *
  * The Shift requirement is shared action metadata in `actions.ts`
  * (`SHIFT_REQUIRED_ACTIONS`), sourced from Oolite's fast autopilot
@@ -83,9 +84,15 @@ const EDGE_COMMANDS: Readonly<Partial<Record<ActionId, Command>>> = {
  * build does not have. Bindings still store plain `KeyboardEvent.code` values,
  * and only the display layer adds the chord through `bindings.chordLabel`
  * (D-11, T-04-18).
+ *
+ * `textField` is true when the key came from a focused text field (the
+ * chart's Find planet box). Only the docked screen keys (`STATION_NAV_ACTIONS`)
+ * may fire from there (quick 261124-pze F11), so a future text field does not
+ * inherit any other F-key binding.
  */
 export interface KeyModifiers {
   readonly shift: boolean;
+  readonly textField?: boolean;
 }
 
 function buildCodeToActions(map: BindingMap): Map<string, ActionId[]> {
@@ -200,7 +207,14 @@ export function createInputState(
       return true;
     }
 
-    const contextual = actions.filter((action) => inContext(action));
+    // From a focused text field only the docked screen keys may fire (quick
+    // 261124-pze F11): the Find planet box keeps F2 to F6 and F8, and a future
+    // text field does not inherit any other F-key binding.
+    const contextual = actions.filter(
+      (action) =>
+        inContext(action) &&
+        (mods?.textField !== true || STATION_NAV_ACTIONS.has(action)),
+    );
     // A browser-reserved F-key is reported handled even when no action is
     // live in this context, so the narrow capture guard and this return agree.
     if (contextual.length === 0) return RESERVED_F_KEYS.has(code);
@@ -263,7 +277,9 @@ export function createInputState(
         chartActions.push(action);
         continue;
       }
-      if (action === "saveLoad" || action.startsWith("saveScreen")) {
+      // F2 (`saveLoad`) never lands here: it is live only outside flight, so
+      // it always takes the synchronous sink above (quick 261124-pze F3).
+      if (action.startsWith("saveScreen")) {
         saveScreenActions.push(action);
         continue;
       }
@@ -385,8 +401,10 @@ export interface KeyboardInputSource extends InputState {
 
 /**
  * A text field owns every key but the reserved F-keys: rebinding and browser
- * typing must not become game input. The HTMLElement guard keeps the predicate
- * usable in Node tests.
+ * typing must not become game input. Of the F-keys, only the docked screen
+ * keys (`STATION_NAV_ACTIONS`) may act from a text field (`KeyModifiers`
+ * `textField`); any other F-key binding is reported handled and fires nothing
+ * there. The HTMLElement guard keeps the predicate usable in Node tests.
  */
 function isTextTarget(target: EventTarget | null): boolean {
   if (typeof HTMLElement === "undefined") return false;
@@ -495,8 +513,11 @@ export function createKeyboardInputSource(
 
   function onKeyDown(event: KeyboardEvent): void {
     // An F-key types nothing, so a focused text field (the chart's Find planet
-    // box) does not keep it from the game (Oolite has no text box there).
-    if (isTextTarget(event.target) && !RESERVED_F_KEYS.has(event.code)) return;
+    // box) does not keep it from the game (Oolite has no text box there). Only
+    // the docked screen keys act from a text field; `keyDown` filters the rest
+    // through the `textField` flag (quick 261124-pze F11).
+    const textField = isTextTarget(event.target);
+    if (textField && !RESERVED_F_KEYS.has(event.code)) return;
     if (
       !allowsChordKey(
         event,
@@ -505,7 +526,12 @@ export function createKeyboardInputSource(
     ) {
       return;
     }
-    if (state.keyDown(event.code, event.repeat, { shift: event.shiftKey })) {
+    if (
+      state.keyDown(event.code, event.repeat, {
+        shift: event.shiftKey,
+        textField,
+      })
+    ) {
       event.preventDefault();
     }
   }

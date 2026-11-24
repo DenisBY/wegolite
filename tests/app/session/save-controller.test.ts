@@ -933,6 +933,41 @@ describe("loadFromSave order", () => {
     expect(h.ctx.save.loadingSave).toBe(false);
   });
 
+  it("(c) closing an open F2 screen bumps the screen generation once; a closed one does not", () => {
+    const h = harness();
+    h.ctx.save.saveScreenOpen = true;
+    const start = h.ctx.save.saveScreenGeneration;
+    h.controller.closeSaveScreen();
+    expect(h.ctx.save.saveScreenGeneration).toBe(start + 1);
+    h.controller.closeSaveScreen();
+    expect(h.ctx.save.saveScreenGeneration).toBe(start + 1);
+  });
+
+  it("(c) a read that resolves after F2 was closed and reopened installs nothing (quick 261124-pze F5)", async () => {
+    const h = harness();
+    const pending = deferred<SaveReadResult>();
+    h.readResult.current = pending.promise;
+    const before = {
+      state: h.ctx.core.state,
+      profile: h.ctx.core.profile,
+      market: h.ctx.core.market,
+    };
+
+    const loading = h.controller.loadFromSave();
+    expect(h.ctx.save.loadingSave).toBe(true);
+    h.controller.closeSaveScreen();
+    // The player opens F2 again before the IndexedDB read resolves.
+    h.ctx.save.saveScreenOpen = true;
+    pending.resolve({ kind: "ok", raw: dockedBlob().raw });
+    await loading;
+
+    expect(h.ctx.core.state).toBe(before.state);
+    expect(h.ctx.core.profile).toBe(before.profile);
+    expect(h.ctx.core.market).toBe(before.market);
+    expect(h.ctx.save.saveScreenOpen).toBe(true);
+    expect(h.ctx.save.loadingSave).toBe(false);
+  });
+
   it("(d) a blob that fails to parse calls the failure path once and changes no live field", async () => {
     const h = harness();
     watched(h);
