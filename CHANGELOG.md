@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- The market (F8) has Oolite's commodity information screen. Press F8 again on
+  the market to see the selected commodity's line and Oolite's note on it
+  (slaves, narcotics and firearms may not be exported from Cooperative
+  stations). F8 once more returns to the list.
+
 ## [0.8.0] - 2026-11-24
 
 Damage and death. A hit that gets through your shields can damage your

@@ -157,6 +157,16 @@ export function createStationShell(
     "thead",
     "the market column headings",
   );
+  const marketTitle = requireElement<HTMLElement>(
+    marketPanel,
+    '[data-field="market-title"]',
+    "the market heading",
+  );
+  const marketInfoComment = requireElement<HTMLElement>(
+    root,
+    '[data-field="market-info-comment"]',
+    "the market info comment line",
+  );
   const marketCashLoad = requireElement<HTMLElement>(
     root,
     '[data-field="market-cash-load"]',
@@ -274,11 +284,19 @@ export function createStationShell(
 
   function renderMarketRows(model: MarketModel): void {
     renderMarketHeadings(model);
+    marketTitle.textContent = model.title;
     marketBody.replaceChildren();
-    for (const row of model.rows) {
+    // Market Info shows only the selected commodity's row, with no selected
+    // highlight (Oolite calls `setNoSelectedRow` before showing it,
+    // `PlayerEntityControls.m:3963-3964`).
+    const info = model.info;
+    const shown = info === null ? model.rows : [info.row];
+    for (const row of shown) {
       const tr = document.createElement("tr");
       tr.dataset.key = row.key;
-      if (row.key === model.selectedKey) tr.classList.add("selected");
+      if (info === null && row.key === model.selectedKey) {
+        tr.classList.add("selected");
+      }
       if (row.dimmed) tr.classList.add("dimmed");
       tr.append(
         cell(row.name),
@@ -290,6 +308,8 @@ export function createStationShell(
       );
       marketBody.append(tr);
     }
+    marketInfoComment.textContent = info === null ? "" : info.comment;
+    marketInfoComment.hidden = info === null;
     marketCashLoad.textContent = model.cashLoadText;
   }
 

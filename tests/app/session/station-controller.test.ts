@@ -471,6 +471,92 @@ describe("navigateByKey: the docked screen keys from every screen (docked-f-keys
     expect(h.calls).toEqual([]);
   });
 
+  describe("the second F8 press opens Market Info (quick 261124-nbu)", () => {
+    it("F8 opens the market, again Market Info, a third time the list with the same selection", () => {
+      const h = navHarness();
+      h.controller.navigateByKey("stationMarket");
+      expect(h.ctx.station.stationScreen).toBe("market");
+      expect(h.ctx.station.stationPage).toBe(1);
+      const selected = h.ctx.station.stationSelection;
+      expect(selected).not.toBe("");
+
+      h.ctx.station.stationNotice = "stale";
+      h.calls.length = 0;
+      h.controller.navigateByKey("stationMarket");
+      expect(h.ctx.station.stationPage).toBe(2);
+      expect(h.ctx.station.stationScreen).toBe("market");
+      expect(h.ctx.station.stationPending).toBeNull();
+      expect(h.ctx.station.stationNotice).toBe("");
+      expect(overlayCalls(h.calls)).toEqual([]);
+      const info = h.views[h.views.length - 1]?.market;
+      expect(info?.page).toBe(2);
+      expect(info?.info?.row.key).toBe(selected);
+
+      h.controller.navigateByKey("stationMarket");
+      expect(h.ctx.station.stationPage).toBe(1);
+      expect(h.ctx.station.stationSelection).toBe(selected);
+      expect(h.views[h.views.length - 1]?.market?.page).toBe(1);
+    });
+
+    it.each([
+      ["chart", "closeChart"],
+      ["save", "closeSaveScreen"],
+    ] as const)(
+      "F8 with the %s open over the market closes it and lands on the list",
+      (overlay, call) => {
+        const h = navHarness();
+        h.controller.navigateByKey("stationMarket");
+        if (overlay === "chart") h.ctx.chart.chartOpen = true;
+        else h.ctx.save.saveScreenOpen = true;
+        h.calls.length = 0;
+        h.controller.navigateByKey("stationMarket");
+        expect(overlayCalls(h.calls)).toEqual([call]);
+        expect(h.ctx.station.stationPage).toBe(1);
+        expect(h.views[h.views.length - 1]?.market?.page).toBe(1);
+      },
+    );
+
+    it("F8 stays on the list when nothing is selectable", () => {
+      const h = navHarness();
+      h.ctx.core.market = {
+        ...h.market,
+        goods: h.market.goods.map((good) => ({ ...good, stock: 0 })),
+      };
+      h.controller.navigateByKey("stationMarket");
+      expect(h.ctx.station.stationSelection).toBe("");
+      h.controller.navigateByKey("stationMarket");
+      expect(h.ctx.station.stationScreen).toBe("market");
+      expect(h.ctx.station.stationPage).toBe(1);
+      expect(h.views[h.views.length - 1]?.market?.info).toBeNull();
+    });
+
+    it("Up and Down on Market Info move the selection and Market Info follows", () => {
+      const h = navHarness();
+      h.controller.navigateByKey("stationMarket");
+      h.controller.navigateByKey("stationMarket");
+      const first = h.ctx.station.stationSelection;
+      h.controller.applyStationAction("stationDown");
+      const second = h.ctx.station.stationSelection;
+      expect(second).not.toBe(first);
+      expect(h.ctx.station.stationPage).toBe(2);
+      expect(h.views[h.views.length - 1]?.market?.info?.row.key).toBe(second);
+      h.controller.applyStationAction("stationUp");
+      expect(h.ctx.station.stationSelection).toBe(first);
+      expect(h.views[h.views.length - 1]?.market?.info?.row.key).toBe(first);
+    });
+
+    it("renders the list when the selection left the market while on page 2", () => {
+      const h = navHarness();
+      h.controller.navigateByKey("stationMarket");
+      h.controller.navigateByKey("stationMarket");
+      expect(h.ctx.station.stationPage).toBe(2);
+      h.ctx.station.stationSelection = "not_a_good";
+      h.controller.renderStation();
+      expect(h.ctx.station.stationPage).toBe(1);
+      expect(h.views[h.views.length - 1]?.market?.page).toBe(1);
+    });
+  });
+
   it("opens nothing during the launch pre-roll, while paused or after death", () => {
     for (const setup of [
       (h: ReturnType<typeof navHarness>) => {

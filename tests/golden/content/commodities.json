@@ -3,6 +3,7 @@
   "commodities": [
     {
       "classes": ["oolite-consumer", "oolite-edible", "oolite-farming"],
+      "comment": "No additional information available",
       "key": "food",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -25,6 +26,7 @@
     },
     {
       "classes": ["oolite-consumer", "oolite-wearable", "oolite-farming"],
+      "comment": "No additional information available",
       "key": "textiles",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -47,6 +49,7 @@
     },
     {
       "classes": ["oolite-dangerous", "oolite-mining"],
+      "comment": "No additional information available",
       "key": "radioactives",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -74,6 +77,7 @@
         "oolite-slaves",
         "oolite-salvage"
       ],
+      "comment": "It is illegal to export this good from Cooperative stations.",
       "key": "slaves",
       "legalityExport": 1,
       "legalityImport": 0,
@@ -96,6 +100,7 @@
     },
     {
       "classes": ["oolite-consumer", "oolite-edible", "oolite-farming"],
+      "comment": "No additional information available",
       "key": "liquor_wines",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -118,6 +123,7 @@
     },
     {
       "classes": ["oolite-consumer", "oolite-luxury"],
+      "comment": "No additional information available",
       "key": "luxuries",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -145,6 +151,7 @@
         "oolite-restricted",
         "oolite-medical"
       ],
+      "comment": "It is illegal to export this good from Cooperative stations.",
       "key": "narcotics",
       "legalityExport": 2,
       "legalityImport": 0,
@@ -167,6 +174,7 @@
     },
     {
       "classes": ["oolite-business", "oolite-shipyard", "oolite-technological"],
+      "comment": "No additional information available",
       "key": "computers",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -193,6 +201,7 @@
         "oolite-technological",
         "oolite-machinery"
       ],
+      "comment": "No additional information available",
       "key": "machinery",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -220,6 +229,7 @@
         "oolite-metals",
         "oolite-salvage"
       ],
+      "comment": "No additional information available",
       "key": "alloys",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -247,6 +257,7 @@
         "oolite-military",
         "oolite-weapons"
       ],
+      "comment": "It is illegal to export this good from Cooperative stations.",
       "key": "firearms",
       "legalityExport": 1,
       "legalityImport": 0,
@@ -274,6 +285,7 @@
         "oolite-wearable",
         "oolite-animalproduct"
       ],
+      "comment": "No additional information available",
       "key": "furs",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -296,6 +308,7 @@
     },
     {
       "classes": ["oolite-mining", "oolite-business", "oolite-rawmaterial"],
+      "comment": "No additional information available",
       "key": "minerals",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -323,6 +336,7 @@
         "oolite-consumer",
         "oolite-metals"
       ],
+      "comment": "No additional information available",
       "key": "gold",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -350,6 +364,7 @@
         "oolite-consumer",
         "oolite-metals"
       ],
+      "comment": "No additional information available",
       "key": "platinum",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -372,6 +387,7 @@
     },
     {
       "classes": ["oolite-mining", "oolite-consumer"],
+      "comment": "No additional information available",
       "key": "gem_stones",
       "legalityExport": 0,
       "legalityImport": 0,
@@ -394,6 +410,7 @@
     },
     {
       "classes": ["oolite-alien", "oolite-thargoid", "oolite-military"],
+      "comment": "No additional information available",
       "key": "alien_items",
       "legalityExport": 0,
       "legalityImport": 0,

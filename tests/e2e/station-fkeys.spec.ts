@@ -332,3 +332,78 @@ test("F4 then F6 then F6 keeps the chart open with an unchanged preset and camer
   await expectNoReload(page);
   expect(errors).toEqual([]);
 });
+
+/** Wait for the station probe to show `screen` on `page` (Status or Market). */
+async function waitForStationPage(
+  page: Page,
+  screen: "status" | "market",
+  stationPage: 1 | 2,
+): Promise<void> {
+  await page.waitForFunction(
+    ([expectedScreen, expectedPage]) => {
+      const station = window.__wegolite?.station;
+      return (
+        station?.screen === expectedScreen && station.page === expectedPage
+      );
+    },
+    [screen, stationPage] as const,
+    { timeout: UI_WAIT },
+  );
+}
+
+test("F8 twice opens Market Info for the selected commodity and a third press returns", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  const title = page.locator('#docked [data-field="market-title"]');
+  const rows = page.locator("#docked [data-market-rows] tr");
+  const comment = page.locator('#docked [data-field="market-info-comment"]');
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 1);
+  // Lave's first selectable good, as in core-loop.spec.ts.
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.selectedKey === "food",
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  await expect(title).toHaveText("Market");
+  await expect(rows).toHaveCount(17);
+  await expect(comment).toBeHidden();
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 2);
+  await expect(title).toHaveText("Commodity: Food");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toHaveAttribute("data-key", "food");
+  await expect(rows.first()).not.toHaveClass(/selected/);
+  await expect(comment).toBeVisible();
+  await expect(comment).toHaveText("No additional information available");
+
+  // Down moves the selection and Market Info follows it: food, textiles,
+  // radioactives, slaves in Lave's golden market order.
+  for (let step = 0; step < 3; step++) await page.keyboard.press("ArrowDown");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.selectedKey === "slaves",
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  await waitForStationPage(page, "market", 2);
+  await expect(title).toHaveText("Commodity: Slaves");
+  await expect(rows.first()).toHaveAttribute("data-key", "slaves");
+  await expect(comment).toHaveText(
+    "It is illegal to export this good from Cooperative stations.",
+  );
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 1);
+  await expect(title).toHaveText("Market");
+  await expect(rows).toHaveCount(17);
+  await expect(comment).toBeHidden();
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.selectedKey),
+  ).toBe("slaves");
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});

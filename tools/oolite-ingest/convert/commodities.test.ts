@@ -178,3 +178,86 @@ describe("commodity golden", () => {
     );
   });
 });
+
+describe("commodity comment", () => {
+  const ILLEGAL =
+    "It is illegal to export this good from Cooperative stations.";
+  const NO_COMMENT = "No additional information available";
+
+  it("resolves the three restricted goods through descriptions.plist", () => {
+    for (const key of ["slaves", "narcotics", "firearms"]) {
+      expect(require(key).comment).toBe(ILLEGAL);
+    }
+  });
+
+  it("gives every other record the no-comment text", () => {
+    for (const record of commodities) {
+      if (["slaves", "narcotics", "firearms"].includes(record.key)) continue;
+      expect(record.comment).toBe(NO_COMMENT);
+    }
+    expect(require("food").comment).toBe(NO_COMMENT);
+    expect(require("alien_items").comment).toBe(NO_COMMENT);
+  });
+
+  it("never ships an empty comment or a raw token", () => {
+    for (const record of commodities) {
+      expect(record.comment.length).toBeGreaterThan(0);
+      expect(record.comment).not.toMatch(/[[\]]/);
+    }
+  });
+
+  describe("synthetic plists", () => {
+    const names = `"commodity-name food" = "Food"; `;
+    const desc = (extra: string): ReturnType<typeof parseOpenStep> =>
+      parseOpenStep(
+        `{ ${names} "oolite-commodity-no-comment" = "No info"; "note" = "A note"; "nested" = "see [note]"; "blank" = ""; ${extra} }`,
+        DESCRIPTIONS_PLIST,
+      );
+    const trade = (commentLine: string): ReturnType<typeof parseOpenStep> =>
+      parseOpenStep(
+        `{ "food" = { "name" = "[commodity-name food]"; "classes" = ("a"); "quantity_unit" = 0; "peak_export" = 7; "peak_import" = 0; "price_average" = 50; "price_economic" = 0.5; "price_random" = 0.04; "quantity_average" = 10; "quantity_economic" = 0.5; "quantity_random" = 0.04; "legality_export" = 0; "legality_import" = 0; "trumble_opinion" = 0; "sort_order" = 100; ${commentLine} }; }`,
+        PLIST,
+      );
+    const commentOf = (commentLine: string): string => {
+      const [record] = compileCommodities(trade(commentLine), desc(""));
+      if (record === undefined) throw new Error("no record");
+      return record.comment;
+    };
+
+    it("falls back to the no-comment text for an absent or empty comment", () => {
+      expect(commentOf("")).toBe("No info");
+      expect(commentOf('"comment" = "";')).toBe("No info");
+      expect(commentOf('"comment" = "[blank]";')).toBe("No info");
+    });
+
+    it("keeps bracket-free text and resolves a whole token", () => {
+      expect(commentOf('"comment" = "Plain text";')).toBe("Plain text");
+      expect(commentOf('"comment" = "[note]";')).toBe("A note");
+    });
+
+    it.each([
+      ["an unknown key", '"comment" = "[nope]";'],
+      ["a mixed string", '"comment" = "see [note] here";'],
+      ["a nested token", '"comment" = "[nested]";'],
+      ["a non-string value", '"comment" = 5;'],
+    ])("fails the build for %s", (_label, line) => {
+      let thrown: unknown;
+      try {
+        commentOf(line);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({ code: "SCHEMA" });
+    });
+
+    it("names the commodity in the failing construct", () => {
+      let thrown: unknown;
+      try {
+        commentOf('"comment" = "see [note] here";');
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toMatchObject({ construct: "commodities.food.comment" });
+    });
+  });
+});
