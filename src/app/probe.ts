@@ -168,8 +168,8 @@ export interface WegoliteStationProbe {
   screen: "home" | "market" | "outfitting" | "status" | "interfaces";
   selectedKey: string;
   /**
-   * The active page, always clamped to 1..2: F5 Status 1 / Manifest 2, F8
-   * Market 1 / Market Info 2, 1 on every other screen.
+   * The active F5 page, always clamped to 1..2: Status 1 / Manifest 2, 1 on
+   * every other screen.
    */
   page: 1 | 2;
   /** The open `[Y/N]` confirmation, or null when no line is pending. */

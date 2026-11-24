@@ -188,21 +188,6 @@ export function createStationController(
     ctx.station.stationSelection = first?.key ?? "";
   }
 
-  /**
-   * Whether Market Info can open: a selected commodity that is in the market
-   * and in the catalogue (Oolite's `indexOfObject` test in
-   * `setGuiToMarketInfoScreen`, `PlayerEntity.m:9928-9937`); without one Oolite
-   * falls back to the Market list.
-   */
-  function marketInfoAvailable(): boolean {
-    const key = ctx.station.stationSelection;
-    if (key === "") return false;
-    return (
-      ctx.core.market?.goods.some((good) => good.key === key) === true &&
-      ctx.core.commodities?.some((commodity) => commodity.key === key) === true
-    );
-  }
-
   function selectableKeys(): readonly string[] {
     return orderedGoods()
       .filter((good) => isSelectableGood(good.key, good.stock))
@@ -728,15 +713,6 @@ export function createStationController(
     const catalogue = ctx.core.commodities;
     if (currentMarket === undefined || catalogue === undefined) return;
 
-    // Market Info without a selected commodity falls back to the list.
-    if (
-      ctx.station.stationScreen === "market" &&
-      ctx.station.stationPage === 2 &&
-      !marketInfoAvailable()
-    ) {
-      ctx.station.stationPage = 1;
-    }
-
     const equipment = ctx.core.equipmentCatalogue;
     const marketModel = buildMarketModel(
       currentMarket,
@@ -745,7 +721,6 @@ export function createStationController(
       ctx.station.stationSelection,
       { pending: pendingPlan(), notice: ctx.station.stationNotice },
       ctx.station.marketSort,
-      ctx.station.stationScreen === "market" ? ctx.station.stationPage : 1,
     );
     const outModel =
       equipment === undefined
@@ -971,12 +946,13 @@ export function createStationController(
    * every docked GUI screen, `PlayerEntityControls.m:4157-4165` at the pin
    * 7437f22): an open overlay is closed first (closing the F2 screen also
    * cancels an open overwrite dialog), then the target opens. F3 and F4
-   * re-run their open path even on their own screen. F5 and F8 do so too,
-   * except for the second press on page 1 with no overlay open: F8 on the
-   * Market opens Market Info (page 2) when a commodity is selected, and F5 on
-   * Status opens the Manifest (page 2); on page 2, on another screen, or with
-   * an overlay open they open the Market list or Status page 1
-   * (`PlayerEntityControls.m:3904-3916` and `:3955-3967`). F2 on its own
+   * re-run their open path even on their own screen. F5 on Status page 1
+   * with no overlay open opens the Manifest (page 2), elsewhere Status page 1
+   * (`PlayerEntityControls.m:3904-3916`). F8 on the Market with no overlay
+   * open does nothing, because Oolite's second F8 opens Market Info
+   * (`PlayerEntityControls.m:3955-3967`) and Wegolite has none (owner decision
+   * 2026-11-24, quick 261124-ou6, FIDELITY E-186), as F6 on an open chart;
+   * with an overlay open F8 closes it and shows the Market. F2 on its own
    * screen is ignored, as Oolite ignores it on `GUI_SCREEN_OPTIONS`. F6 on an
    * open chart does nothing: the chart stays open with its preset and camera,
    * and Escape is the way out (owner decision 2026-11-24, FIDELITY E-184;
@@ -1005,20 +981,32 @@ export function createStationController(
     if (currentState.mode !== "docked" || launchSequence.preRolling) return;
     if (action === "saveLoad" && ctx.save.saveScreenOpen) return;
 
-    // The second press of F5 and F8 (Oolite's `pollGuiScreenControlsWithFKeyAlias`,
-    // `PlayerEntityControls.m:3904-3916` and `:3955-3967`) acts only when
-    // Status or the Market itself is the current screen: with the chart or the
-    // F2 screen open, the current GUI screen is that overlay, so the key opens
-    // Status page 1 or the Market list instead. Without a selected commodity
-    // the Market keeps Oolite's fallback to the list.
+    // With the chart or the F2 screen open, the current GUI screen is that
+    // overlay, so F5 and F8 open Status page 1 or the Market list instead of
+    // their second-press behaviour.
     const overlayOpen = ctx.chart.chartOpen || ctx.save.saveScreenOpen;
+
+    // F8 on the Market itself does nothing: Oolite's second F8 opens Market
+    // Info (`PlayerEntityControls.m:3955-3967`), which Wegolite does not have
+    // (owner decision 2026-11-24, quick 261124-ou6, FIDELITY E-186). Like F6 on
+    // an open chart, nothing changes and nothing renders.
+    if (
+      !overlayOpen &&
+      action === "stationMarket" &&
+      ctx.station.stationScreen === "market"
+    ) {
+      return;
+    }
+
+    // The second press of F5 (Oolite's `pollGuiScreenControlsWithFKeyAlias`,
+    // `PlayerEntityControls.m:3904-3916`) acts only when Status itself is the
+    // current screen, on page 1: it opens the Manifest. Elsewhere F5 opens
+    // Status page 1.
     if (
       !overlayOpen &&
       ctx.station.stationPage === 1 &&
-      ((action === "stationStatus" && ctx.station.stationScreen === "status") ||
-        (action === "stationMarket" &&
-          ctx.station.stationScreen === "market" &&
-          marketInfoAvailable()))
+      action === "stationStatus" &&
+      ctx.station.stationScreen === "status"
     ) {
       ctx.station.stationPage = 2;
       ctx.station.stationPending = null;

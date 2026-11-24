@@ -297,33 +297,25 @@ export function isMarketRowSelectable(
 }
 
 /**
- * Market Info (page 2 of the market screen): the selected commodity's own row
- * and its compiled comment (`setGuiToMarketInfoScreen`,
- * `PlayerEntity.m:9928-9964` at the pin).
+ * Oolite's `oolite-commodity-no-comment` (`descriptions.plist:1657`): the
+ * comment text of a commodity without a note of its own. The market list shows
+ * no line for it (see `MarketModel.commentText`).
  */
-export interface MarketInfo {
-  readonly row: MarketRow;
-  readonly comment: string;
-}
-
-/** The market list heading (page 1). */
-export const MARKET_TITLE = "Market";
-
-/**
- * Oolite's `oolite-commodity-information-@` (`descriptions.plist:1661`): the
- * Market Info heading, `%@` standing for the commodity name.
- */
-export const MARKET_INFO_TITLE_TEMPLATE = "Commodity: %@";
+export const MARKET_NO_COMMENT_TEXT = "No additional information available";
 
 export interface MarketModel {
   readonly columns: readonly MarketColumn[];
   readonly rows: readonly MarketRow[];
   readonly selectedKey: string;
-  /** 1 = the market list, 2 = Market Info for the selected commodity. */
-  readonly page: 1 | 2;
-  readonly title: string;
-  /** The Market Info content; null on page 1. */
-  readonly info: MarketInfo | null;
+  /**
+   * The selected commodity's compiled comment, for the line under the table;
+   * empty for no selection, a key that is not a market row, or Oolite's
+   * default no-comment text (owner decision 2026-11-24, quick 261124-ou6:
+   * Wegolite has no Market Info screen, `setGuiToMarketInfoScreen` at
+   * `PlayerEntity.m:9895`, so the comment lives on the list and the default
+   * text is left out).
+   */
+  readonly commentText: string;
   /**
    * Oolite's `market-cash-and-load` line under the table
    * (`descriptions.plist:1635`, `PlayerEntity.m:9979-9986`):
@@ -428,8 +420,7 @@ export function tradeNoticeText(
  * footer is confirming and `feedback.notice` is an independent refusal/clamp
  * line. The row order is the catalogue's `sortOrder`, already stable in the
  * generated content, unless `sort` names a heading-click sort
- * (`sortMarketGoods`). `page` 2 asks for Market Info; it is honoured only for
- * a selected commodity that is in the market (see `info`).
+ * (`sortMarketGoods`).
  */
 export function buildMarketModel(
   market: Market,
@@ -438,7 +429,6 @@ export function buildMarketModel(
   selection: string,
   feedback: MarketFeedback,
   sort: MarketSort = null,
-  page: number = 1,
 ): MarketModel {
   const byKey = new Map(
     commodities.map((commodity) => [commodity.key, commodity]),
@@ -491,32 +481,22 @@ export function buildMarketModel(
     sort: sort !== null && sort.column === column.key ? sort.direction : null,
   }));
 
-  // Market Info needs a selection that names a market row with a catalogue
-  // record (Oolite's `indexOfObject` test, `PlayerEntity.m:9928-9937`);
-  // otherwise it falls back to the list. Oolite draws a "Total cargo contracts"
-  // line only when `contractedVolumeForGood` is positive (`:9946-9951`);
-  // Wegolite has no cargo contracts, so that line never exists.
-  const infoRow =
-    page === 2 && selection !== ""
-      ? rows.find((row) => row.key === selection)
+  // The comment line follows the selection when it names a market row with a
+  // catalogue record (Oolite's `indexOfObject` test, `PlayerEntity.m:9928-9937`).
+  const selectedComment =
+    selection !== "" && rows.some((row) => row.key === selection)
+      ? byKey.get(selection)?.comment
       : undefined;
-  const infoCommodity =
-    infoRow === undefined ? undefined : byKey.get(selection);
-  const info: MarketInfo | null =
-    infoRow !== undefined && infoCommodity !== undefined
-      ? { row: infoRow, comment: infoCommodity.comment }
-      : null;
 
   return {
     columns,
     rows,
     selectedKey: selection,
-    page: info === null ? 1 : 2,
-    title:
-      info === null
-        ? MARKET_TITLE
-        : MARKET_INFO_TITLE_TEMPLATE.replace("%@", info.row.name),
-    info,
+    commentText:
+      selectedComment === undefined ||
+      selectedComment === MARKET_NO_COMMENT_TEXT
+        ? ""
+        : selectedComment,
     cashLoadText: `Cash: ${formatDecicredits(profile.credits)}. Load ${String(usedPods)} of ${String(capacityPods)} t.`,
     confirmText: confirmationText(feedback.pending, byKey),
     noticeText: clampNotice === "" ? feedback.notice : clampNotice,

@@ -17,7 +17,8 @@
  * economy peaks (0..7) and feed only the market bias formula. `comment` is
  * Oolite's `commentForGood` value, resolved at build time from the
  * `trade-goods.plist` comment through `descriptions.plist` (default
- * `[oolite-commodity-no-comment]`); it is the line Market Info shows.
+ * `[oolite-commodity-no-comment]`); the market list shows it in the line under
+ * the table, empty for the no-comment default.
  */
 
 import { z } from "zod";

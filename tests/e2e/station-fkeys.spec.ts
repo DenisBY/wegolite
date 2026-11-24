@@ -377,41 +377,23 @@ test("F5 twice shows the Manifest, a third press returns, and the footer names t
   expect(errors).toEqual([]);
 });
 
-test("the market footer names F8 and the Market Info line is not ellipsised at 1280x720", async ({
+test("F8 on the Market does nothing and a line under the list shows the selected commodity's comment at 1280x720", async ({
   page,
 }) => {
   const errors = collectErrors(page);
   await page.setViewportSize({ width: 1280, height: 720 });
   await boot(page);
-  const hints = page.locator('#docked [data-footer-role="hints"]');
-
-  await page.keyboard.press("F8");
-  await waitForStationPage(page, "market", 1);
-  await expect(hints).toContainText("F8 commodity info");
-
-  await page.keyboard.press("F8");
-  await waitForStationPage(page, "market", 2);
-  await expect(hints).toContainText("F8 commodity list");
-  const sizes = await hints.evaluate((element) => ({
-    scrollWidth: element.scrollWidth,
-    clientWidth: element.clientWidth,
-  }));
-  expect(
-    sizes.scrollWidth,
-    "the hints line is not ellipsised",
-  ).toBeLessThanOrEqual(sizes.clientWidth);
-  await expectNoReload(page);
-  expect(errors).toEqual([]);
-});
-
-test("F8 twice opens Market Info for the selected commodity and a third press returns", async ({
-  page,
-}) => {
-  const errors = collectErrors(page);
-  await boot(page);
-  const title = page.locator('#docked [data-field="market-title"]');
   const rows = page.locator("#docked [data-market-rows] tr");
-  const comment = page.locator('#docked [data-field="market-info-comment"]');
+  const comment = page.locator('#docked [data-field="market-comment"]');
+  const cash = page.locator('#docked [data-field="market-cash-load"]');
+  const hints = page.locator('#docked [data-footer-role="hints"]');
+  const screen = page.locator("#docked #station-screen");
+
+  async function top(locator: typeof cash): Promise<number> {
+    const box = await locator.boundingBox();
+    if (box === null) throw new Error("the element has no box");
+    return box.y;
+  }
 
   await page.keyboard.press("F8");
   await waitForStationPage(page, "market", 1);
@@ -421,20 +403,25 @@ test("F8 twice opens Market Info for the selected commodity and a third press re
     undefined,
     { timeout: UI_WAIT },
   );
-  await expect(title).toHaveText("Market");
   await expect(rows).toHaveCount(17);
-  await expect(comment).toBeHidden();
-
-  await page.keyboard.press("F8");
-  await waitForStationPage(page, "market", 2);
-  await expect(title).toHaveText("Commodity: Food");
-  await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toHaveAttribute("data-key", "food");
-  await expect(rows.first()).not.toHaveClass(/selected/);
   await expect(comment).toBeVisible();
-  await expect(comment).toHaveText("No additional information available");
+  await expect(comment).toHaveText("");
+  const cashY = await top(cash);
 
-  // Down moves the selection and Market Info follows it: food, textiles,
+  // A second F8 does nothing: the list, its page and the selection stay.
+  await page.keyboard.press("F8");
+  await settleFrames(page);
+  await waitForStationPage(page, "market", 1);
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.selectedKey),
+  ).toBe("food");
+  await expect(hints).not.toContainText("F8");
+  await expect(rows).toHaveCount(17);
+  await expect(
+    page.locator("#docked [data-market-rows] tr.selected"),
+  ).toHaveAttribute("data-key", "food");
+
+  // Down moves the selection and the line follows it: food, textiles,
   // radioactives, slaves in Lave's golden market order.
   for (let step = 0; step < 3; step++) await page.keyboard.press("ArrowDown");
   await page.waitForFunction(
@@ -442,21 +429,57 @@ test("F8 twice opens Market Info for the selected commodity and a third press re
     undefined,
     { timeout: UI_WAIT },
   );
-  await waitForStationPage(page, "market", 2);
-  await expect(title).toHaveText("Commodity: Slaves");
-  await expect(rows.first()).toHaveAttribute("data-key", "slaves");
   await expect(comment).toHaveText(
     "It is illegal to export this good from Cooperative stations.",
   );
 
-  await page.keyboard.press("F8");
-  await waitForStationPage(page, "market", 1);
-  await expect(title).toHaveText("Market");
-  await expect(rows).toHaveCount(17);
-  await expect(comment).toBeHidden();
+  // The line fits inside the station screen above the cash line and the
+  // footer key line, is not ellipsised, and the screen does not scroll.
+  const commentBox = await comment.boundingBox();
+  const screenBox = await screen.boundingBox();
+  const cashBox = await cash.boundingBox();
+  const hintsBox = await hints.boundingBox();
+  if (
+    commentBox === null ||
+    screenBox === null ||
+    cashBox === null ||
+    hintsBox === null
+  ) {
+    throw new Error("a measured element has no box");
+  }
+  expect(commentBox.y).toBeGreaterThanOrEqual(screenBox.y);
+  expect(commentBox.y + commentBox.height).toBeLessThanOrEqual(
+    screenBox.y + screenBox.height,
+  );
+  expect(commentBox.y + commentBox.height).toBeLessThanOrEqual(cashBox.y);
+  expect(commentBox.y + commentBox.height).toBeLessThanOrEqual(hintsBox.y);
+  const commentSizes = await comment.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
   expect(
-    await page.evaluate(() => window.__wegolite?.station?.selectedKey),
-  ).toBe("slaves");
+    commentSizes.scrollWidth,
+    "the comment line is not ellipsised",
+  ).toBeLessThanOrEqual(commentSizes.clientWidth);
+  const screenSizes = await screen.evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }));
+  expect(
+    screenSizes.scrollHeight,
+    "the station screen does not scroll",
+  ).toBeLessThanOrEqual(screenSizes.clientHeight);
+  expect(await top(cash), "the cash line has not moved").toBe(cashY);
+
+  for (let step = 0; step < 3; step++) await page.keyboard.press("ArrowUp");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.selectedKey === "food",
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  await expect(comment).toHaveText("");
+  expect(await top(cash), "the cash line has not moved").toBe(cashY);
+
   await expectNoReload(page);
   expect(errors).toEqual([]);
 });
