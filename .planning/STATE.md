@@ -1,19 +1,19 @@
 ---
 gsd_state_version: "1.0"
 milestone: v2.3
-milestone_name: Combat and Death
 status: Awaiting next milestone
 stopped_at: Milestone v2.3 archived
-last_updated: "2026-11-24T13:43:23.287Z"
+last_updated: "2026-11-24T16:40:03.262Z"
 last_activity: 2026-11-24
 last_activity_desc: Milestone v2.3 completed and archived
-state_head: 8fe9a482dc0e5382b2dd1b7220fbd2ccd0a61e81
+state_head: 7c3f32a1624c144ccefb0fe316b79e2735e7c44f
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 78
   completed_plans: 78
   percent: 100
+milestone_name: Combat and Death
 current_phase: 20
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-24)
 Phase: Milestone v2.3 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-11-24 — Milestone v2.3 completed and archived
+Last activity: 2026-11-24 - Completed quick task 261124-nbu: Second F5 and F8 press open Oolite's sub-screens (Manifest, Market Info) with an on-screen hint
 
 ## Performance Metrics
 
@@ -714,6 +714,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 62 | Give the remaining first-launch e2e waits FIRST_LAUNCH_WAIT_MS and widen the core-loop arrival wait | 2026-11-21 | 41550f6 | — |
 | 63 | Record the project-wide rule for diverging from Oolite (AGENTS.md, PROJECT.md, Phase 19 D-12) | 2026-11-21 | 688d4d3 | — |
 | 64 | Exclude .claude/ agent worktrees from the Vite dev watcher | 2026-11-23 | 841f562 | — |
+| 261124-nbu | Second F5 and F8 press open Oolite's sub-screens (Manifest, Market Info) with an on-screen hint | 2026-11-24 | 7c3f32a1 | [261124-nbu-second-f5-and-f8-press-open-oolite-s-sub](./quick/261124-nbu-second-f5-and-f8-press-open-oolite-s-sub/) |
 
 ## Deferred Items
 
