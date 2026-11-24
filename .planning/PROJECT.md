@@ -10,7 +10,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 ## Current State
 
-**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08), v2.0 Foundation (Phase 8, completed 2026-11-13), v2.1 World Population Base (Phases 9-12, completed 2026-11-14), v2.2 Weapons and NPC Flight (Phases 13-14, completed 2026-11-16) and v2.3 Combat and Death (Phases 15-20, completed 2026-11-24). GSD milestones are not release tags; the latest release is `v0.7.0`, and the v2.3 work since it sits under `[Unreleased]` in CHANGELOG.md.
+**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08), v2.0 Foundation (Phase 8, completed 2026-11-13), v2.1 World Population Base (Phases 9-12, completed 2026-11-14), v2.2 Weapons and NPC Flight (Phases 13-14, completed 2026-11-16) and v2.3 Combat and Death (Phases 15-20, completed 2026-11-24). GSD milestones are not release tags; the latest release is `v0.8.0` (tagged 2026-11-24), which carries the v2.3 work, and the quick tasks since it sit under `[Unreleased]` in CHANGELOG.md.
 
 v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `src/app/game-session.ts` is split into typed controllers behind a 532-line facade, and the simulation runs a multi-entity world: stable per-world ids, seeded per-entity streams, a world hash, restorable test snapshots, a typed `WorldView`/`ShipControl` AI seam with a scripted test pilot, and a tick-stepping test hook (`advanceTicks`, `worldHash`, `probe.sim`). The AI seam, the snapshot codec and the reserved SimEvent types have only the test pilot as a consumer, so they stay provisional until Phases 12-14 exercise them.
 
