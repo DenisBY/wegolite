@@ -343,14 +343,15 @@ function descriptionStrings(descriptions: PlistValue): Map<string, string> {
 }
 
 /**
- * Resolve a commodity comment the way `commentForGood` and Market Info do:
- * `OOExpand` of the authored string, with an empty result replaced by the
- * no-comment text (`PlayerEntity.m:9953-9956`).
+ * Resolve a commodity comment for the subset of OOExpand the vendored plist
+ * uses: plain text, or one whole `[key]` token (`commentForGood`,
+ * `PlayerEntity.m:9953-9956`). An absent or empty authored comment never
+ * reaches here: `readComment` already maps it to the default no-comment token.
  *
- * Only two shapes are accepted: text with no brackets (kept verbatim) and
- * exactly one `[key]` token that names a `descriptions.plist` string. A mixed
- * string, an unknown key, or a resolved value that still holds a bracket is a
- * SCHEMA error, so no raw token can reach the screen.
+ * Only those two shapes are accepted: text with no brackets (kept verbatim)
+ * and exactly one `[key]` token that names a `descriptions.plist` string. A
+ * mixed string, an unknown key, or a resolved value that still holds a bracket
+ * is a SCHEMA error, so no raw token can reach the screen.
  */
 function resolveComment(
   entryKey: string,
@@ -364,7 +365,6 @@ function resolveComment(
       excerpt: `missing or empty default comment for commodity "${entryKey}"`,
     });
   }
-  if (authored === "") return defaultText;
   if (!authored.includes("[") && !authored.includes("]")) return authored;
   const match = COMMENT_TOKEN.exec(authored);
   const token = match?.[1];
