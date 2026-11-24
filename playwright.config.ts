@@ -44,10 +44,12 @@ export default defineConfig({
       // wraps the run in xvfb-run, which supplies the display, and passes
       // --workers=1: two headed Firefox windows on one display starve the engine
       // smoke's frame sampling (0 renders in 5 s), while each passes alone. Only
-      // the engine smoke and the core-loop journey run here.
+      // the engine smoke, the core-loop journey and the docked screen keys
+      // (debug session docked-f-keys: the owner's report names both engines)
+      // run here.
       name: "firefox",
       use: { ...devices["Desktop Firefox"], headless: false },
-      testMatch: /(engine|core-loop)\.spec\.ts$/,
+      testMatch: /(engine|core-loop|station-fkeys)\.spec\.ts$/,
     },
   ],
   webServer: {

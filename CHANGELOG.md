@@ -44,6 +44,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   usual cause. A ship that launches and flies straight on without steering
   rams the navigation buoy about a minute later and is destroyed.
 
+### Fixed
+
+- While docked, F2 Save/Load, F3 Outfitting, F4 Interfaces, F5 Status, F6 Chart
+  and F8 Market now work from every station screen on the first press, the
+  chart and the Save/Load screen included, as in Oolite. Before, they did
+  nothing on the chart and the Save/Load screen, and nothing while the chart's
+  Find planet box had the cursor (where F5 could reload the page).
+- A second F6 on the chart no longer closes it and returns to the previous
+  screen. F6 on an open chart now does nothing: the chart stays open with its
+  view unchanged. Tab switches between the local chart and the whole galaxy,
+  and Escape closes the chart. Oolite's F6 switches between its short-range
+  and long-range charts; Wegolite has one zoomable chart instead.
+
 ## [0.7.0] - 2026-11-20
 
 Stations, buoys and collisions. Your ship can now take damage in normal play

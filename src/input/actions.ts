@@ -359,6 +359,14 @@ export const RESERVED_F_KEYS: ReadonlySet<string> = new Set([
  * `skipLaunch`, not `launch`); every section action is `dockScreen` only, so
  * Enter on the home Launch button and a number key inside a section can never
  * launch the ship.
+ *
+ * The docked screen keys (F2 Save/Load, F3 Outfitting, F4 Interfaces, F5
+ * Status, F6 Chart, F8 Market) are live on every docked screen, the chart and
+ * the F2 screen included: Oolite polls them on every docked GUI screen
+ * (`pollDockedControls` calls `pollGuiScreenControls`,
+ * `PlayerEntityControls.m:4157-4165` at the pin 7437f22). F2 is the one
+ * exception on its own screen, where Oolite ignores it (`gui_screen !=
+ * GUI_SCREEN_OPTIONS`).
  */
 function contexts(...values: InputContext[]): readonly InputContext[] {
   return Object.freeze(values);
@@ -380,7 +388,7 @@ export const ACTION_CONTEXTS: Readonly<
   targetStation: contexts("flight"),
   compassCycle: contexts("flight"),
   precision: contexts("flight"),
-  chart: contexts("flight", "dockHome", "dockScreen", "chart"),
+  chart: contexts("flight", "dockHome", "dockScreen", "chart", "saveScreen"),
   hyperspace: contexts("flight"),
   viewFore: contexts("flight"),
   viewAft: contexts("flight"),
@@ -398,8 +406,9 @@ export const ACTION_CONTEXTS: Readonly<
   chartRange: contexts("chart"),
   chartBack: contexts("chart"),
   chartFind: contexts("chart"),
-  // F2 is docked-only: never in flight, never over the chart.
-  saveLoad: contexts("dockHome", "dockScreen"),
+  // F2 is docked-only: never in flight, and inert on its own screen. Over the
+  // chart it is live; the session ignores it there in flight.
+  saveLoad: contexts("dockHome", "dockScreen", "chart"),
   saveScreenUp: contexts("saveScreen"),
   saveScreenDown: contexts("saveScreen"),
   saveScreenSave: contexts("saveScreen"),
@@ -408,10 +417,10 @@ export const ACTION_CONTEXTS: Readonly<
   saveScreenActivate: contexts("saveScreen"),
   saveScreenConfirm: contexts("saveScreen"),
   saveScreenCancel: contexts("saveScreen"),
-  stationMarket: contexts("dockHome", "dockScreen"),
-  stationOutfitting: contexts("dockHome", "dockScreen"),
-  stationStatus: contexts("dockHome", "dockScreen"),
-  stationInterfaces: contexts("dockHome", "dockScreen"),
+  stationMarket: contexts("dockHome", "dockScreen", "chart", "saveScreen"),
+  stationOutfitting: contexts("dockHome", "dockScreen", "chart", "saveScreen"),
+  stationStatus: contexts("dockHome", "dockScreen", "chart", "saveScreen"),
+  stationInterfaces: contexts("dockHome", "dockScreen", "chart", "saveScreen"),
   stationBack: contexts("dockScreen"),
   stationUp: contexts("dockScreen"),
   stationDown: contexts("dockScreen"),
@@ -431,4 +440,17 @@ export const STATION_SCREEN_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
   "stationOutfitting",
   "stationStatus",
   "stationInterfaces",
+]);
+
+/**
+ * The six docked screen keys the tab strip advertises: the four section keys
+ * plus F2 Save/Load and F6 Chart. Outside the flight context the input layer
+ * hands each one to the session's synchronous sink, which closes an open
+ * overlay and opens the target inside the key event, so presses apply in
+ * order. In flight the chart key keeps its queued open path.
+ */
+export const STATION_NAV_ACTIONS: ReadonlySet<ActionId> = new Set<ActionId>([
+  ...STATION_SCREEN_ACTIONS,
+  "saveLoad",
+  "chart",
 ]);

@@ -285,8 +285,10 @@ export function createChartController(
   function applyChartAction(action: ActionId): void {
     switch (action) {
       case "chart":
-        if (ctx.chart.chartOpen) closeChart();
-        else openChart();
+        // F6 opens the chart; on an open chart it does nothing (owner
+        // decision 2026-11-24, FIDELITY E-184): the chart stays open with its
+        // preset and camera, and Escape closes it.
+        if (!ctx.chart.chartOpen) openChart();
         break;
       case "chartBack":
         closeChart();

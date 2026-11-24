@@ -151,8 +151,9 @@ export function createFrameLoop(
       ctx.runtime.dockedMessageSeconds += delta;
     }
 
-    // D-01: consume the chart edges before the freeze branch, so F6 opens and
-    // closes and a KeyP over the chart still reaches the pause handler above.
+    // D-01: consume the chart edges before the freeze branch, so F6 opens the
+    // chart, Escape closes it and a KeyP over the chart still reaches the
+    // pause handler above.
     handleChartActions(currentInput.drainChartActions());
     // D-20: the F2 screen is another opaque edge-driven overlay; its actions
     // are applied before the freeze so Save/Load can run and Return can close.

@@ -176,7 +176,6 @@ describe("reserved F-key guard", () => {
       ctrlKey: overrides.ctrlKey ?? false,
       metaKey: overrides.metaKey ?? false,
       altKey: overrides.altKey ?? false,
-      target: null as EventTarget | null,
       defaultPrevented: false,
       preventDefault() {
         this.defaultPrevented = true;
@@ -219,7 +218,6 @@ describe("reserved F-key guard", () => {
         metaKey: false,
         altKey: false,
         capturing: false,
-        textTarget: false,
       }),
     ).toBe(false);
   });
@@ -279,6 +277,55 @@ describe("the gameOver context (D-07)", () => {
   });
 });
 
+describe("the docked screen keys on every docked screen (docked-f-keys)", () => {
+  const KEYS = [
+    ["F2", "saveLoad"],
+    ["F3", "stationOutfitting"],
+    ["F4", "stationInterfaces"],
+    ["F5", "stationStatus"],
+    ["F6", "chart"],
+    ["F8", "stationMarket"],
+  ] as const;
+
+  it("hands each key to the synchronous sink from home, a section, the chart and the F2 screen", () => {
+    for (const context of [
+      "dockHome",
+      "dockScreen",
+      "chart",
+      "saveScreen",
+    ] as const) {
+      for (const [code, action] of KEYS) {
+        // Oolite ignores F2 on its own screen.
+        const expected =
+          context === "saveScreen" && code === "F2" ? [] : [action];
+        const state = createInputState();
+        const sunk: string[] = [];
+        state.setStationScreenHandler((next) => sunk.push(next));
+        state.setContext(context);
+        expect(state.keyDown(code), `${code} in ${context}`).toBe(true);
+        expect(sunk, `${code} in ${context}`).toEqual(expected);
+        expect(state.drainStationActions()).toEqual([]);
+        expect(state.drainChartActions()).toEqual([]);
+        expect(state.drainSaveScreenActions()).toEqual([]);
+      }
+    }
+  });
+
+  it("keeps the flight meanings: views on F2 to F4, the queued chart on F6, nothing on F5 and F8", () => {
+    const state = createInputState();
+    const sunk: string[] = [];
+    state.setStationScreenHandler((next) => sunk.push(next));
+    for (const [code] of KEYS) expect(state.keyDown(code)).toBe(true);
+    expect(sunk).toEqual([]);
+    expect(state.drainCommands()).toEqual([
+      { kind: "setView", view: "aft" },
+      { kind: "setView", view: "port" },
+      { kind: "setView", view: "starboard" },
+    ]);
+    expect(state.drainChartActions()).toEqual(["chart"]);
+  });
+});
+
 describe("F1 outside the home screen", () => {
   it("is handled but fires nothing in dockScreen, chart and saveScreen", () => {
     for (const context of ["dockScreen", "chart", "saveScreen"] as const) {
@@ -304,7 +351,6 @@ describe("F1 outside the home screen", () => {
       metaKey: false,
       altKey: false,
       capturing: false,
-      textTarget: false,
     };
     expect(shouldCancelReservedKey(base)).toBe(false);
     expect(

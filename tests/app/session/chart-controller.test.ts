@@ -300,12 +300,44 @@ describe("while the session is latched game over", () => {
 });
 
 describe("applyChartAction", () => {
-  it("the chart key opens a closed chart and closes an open one", () => {
-    const { ctx, controller } = harness();
+  it("the chart key opens a closed chart and does nothing on an open one: never closes it, never moves preset or camera", () => {
+    const { ctx, controller, contexts, calls } = harness();
     controller.applyChartAction("chart");
     expect(ctx.chart.chartOpen).toBe(true);
+    expect(ctx.chart.chartPreset).toBe("local");
+    expect(ctx.chart.chartCamera).toEqual(localPreset(system));
+    // Owner decision 2026-11-24 (FIDELITY E-184): F6 on an open chart is a
+    // no-op, where Oolite's repeated F6 switches the short- and long-range
+    // chart. Twice and three times, on the local preset.
+    calls.length = 0;
     controller.applyChartAction("chart");
-    expect(ctx.chart.chartOpen).toBe(false);
+    controller.applyChartAction("chart");
+    expect(ctx.chart.chartOpen).toBe(true);
+    expect(ctx.chart.chartPreset).toBe("local");
+    expect(ctx.chart.chartCamera).toEqual(localPreset(system));
+    expect(calls).toEqual([]);
+    // The input context never went back to the screen under the chart.
+    expect(contexts).toEqual(["chart"]);
+  });
+
+  it("the chart key keeps a panned and zoomed camera and the galaxy preset on an open chart", () => {
+    const { ctx, controller, contexts, calls } = harness();
+    controller.openChart();
+    controller.toggleChartPreset();
+    expect(ctx.chart.chartPreset).toBe("galaxy");
+    const camera = { centre: { x: 40, y: 30 }, spanX: 120 };
+    controller.setChartCamera(camera);
+    const before = ctx.chart.chartCamera;
+    expect(before).toEqual(camera);
+    calls.length = 0;
+    controller.applyChartAction("chart");
+    controller.applyChartAction("chart");
+    controller.applyChartAction("chart");
+    expect(ctx.chart.chartOpen).toBe(true);
+    expect(ctx.chart.chartPreset).toBe("galaxy");
+    expect(ctx.chart.chartCamera).toBe(before);
+    expect(calls).toEqual([]);
+    expect(contexts).toEqual(["chart"]);
   });
 
   it("confirm commits the selected system as the hyperspace target", () => {

@@ -19,7 +19,11 @@
 
 import type { Commodity, Equipment, System } from "../../content/types.js";
 import type { ActionId } from "../../input/actions.js";
-import { ACTION_CONTEXTS, DEFAULT_BINDINGS } from "../../input/actions.js";
+import {
+  ACTION_CONTEXTS,
+  DEFAULT_BINDINGS,
+  STATION_NAV_ACTIONS,
+} from "../../input/actions.js";
 import type { Command } from "../../sim/commands.js";
 import { availablePods } from "../../sim/economy/cargo.js";
 import {
@@ -931,6 +935,53 @@ export function createStationController(
     syncStationNav();
   }
 
+  /**
+   * The synchronous sink for the docked screen keys (F2 Save/Load, F3
+   * Outfitting, F4 Interfaces, F5 Status, F6 Chart, F8 Market). The input
+   * layer calls it inside `keyDown` in every context but `flight`.
+   *
+   * As in Oolite, the keys work from every docked screen, the chart and the F2
+   * screen included (`pollDockedControls` calls `pollGuiScreenControls` on
+   * every docked GUI screen, `PlayerEntityControls.m:4157-4165` at the pin
+   * 7437f22): an open overlay is closed first (closing the F2 screen also
+   * cancels an open overwrite dialog), then the target opens. A section key
+   * re-runs its open path even on its own screen, as before. F2 on its own
+   * screen is ignored, as Oolite ignores it on `GUI_SCREEN_OPTIONS`. F6 on an
+   * open chart does nothing: the chart stays open with its preset and camera,
+   * and Escape is the way out (owner decision 2026-11-24, FIDELITY E-184;
+   * Oolite's F6 switches the short-range and the long-range chart,
+   * `PlayerEntityControls.m:3921-3940`, but Wegolite has one zoomable chart
+   * whose presets Tab switches).
+   *
+   * In flight (the chart is the only overlay there) F6 on the open chart does
+   * nothing either, and every other key does nothing; during the launch
+   * pre-roll the station is already behind the player, so nothing opens.
+   */
+  function navigateByKey(action: ActionId): void {
+    const currentState = ctx.core.state;
+    if (
+      !STATION_NAV_ACTIONS.has(action) ||
+      ctx.runtime.disposed ||
+      ctx.runtime.contextLost ||
+      ctx.runtime.paused ||
+      ctx.runtime.gameOver ||
+      currentState === undefined
+    ) {
+      return;
+    }
+    // F6 on an open chart is a no-op: never close it, never switch its preset.
+    if (action === "chart" && ctx.chart.chartOpen) return;
+    if (currentState.mode !== "docked" || launchSequence.preRolling) return;
+    if (action === "saveLoad" && ctx.save.saveScreenOpen) return;
+
+    if (ctx.chart.chartOpen) closeChart();
+    if (ctx.save.saveScreenOpen) closeSaveScreen();
+
+    if (action === "chart") openChart();
+    else if (action === "saveLoad") openSaveScreen();
+    else openStationScreen(action);
+  }
+
   /** The Status | Manifest sub-tab: the same effect as the Tab key's paging. */
   function setStationPage(page: 1 | 2): void {
     if (
@@ -1082,6 +1133,7 @@ export function createStationController(
     openStationScreen,
     backToHome,
     navigateStation,
+    navigateByKey,
     setStationPage,
     sortMarket,
     applyStationAction,

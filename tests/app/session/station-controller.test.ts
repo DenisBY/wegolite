@@ -349,6 +349,151 @@ describe("Node safety and guards", () => {
   });
 });
 
+describe("navigateByKey: the docked screen keys from every screen (docked-f-keys)", () => {
+  const SECTION_KEYS = [
+    ["stationMarket", "market"],
+    ["stationOutfitting", "outfitting"],
+    ["stationStatus", "status"],
+    ["stationInterfaces", "interfaces"],
+  ] as const;
+
+  /** A docked session on Home with a recording input context. */
+  function navHarness() {
+    const h = harness();
+    h.ctx.core.equipmentCatalogue = equipmentCatalogue;
+    h.ctx.station.stationScreen = "home";
+    let context: InputContext = "dockHome";
+    h.ctx.runtime.input = {
+      getContext: () => context,
+      setContext: (next: InputContext) => {
+        context = next;
+      },
+    } as unknown as KeyboardInputSource;
+    return { ...h, context: () => context };
+  }
+
+  /** The overlay calls only, without the station render bookkeeping. */
+  function overlayCalls(calls: readonly string[]): string[] {
+    return calls.filter(
+      (call) => call.endsWith("Chart") || call.endsWith("SaveScreen"),
+    );
+  }
+
+  it.each(SECTION_KEYS)(
+    "%s leaves the chart and opens its section",
+    (action, screen) => {
+      const h = navHarness();
+      h.ctx.chart.chartOpen = true;
+      h.controller.navigateByKey(action);
+      expect(overlayCalls(h.calls)).toEqual(["closeChart"]);
+      expect(h.calls[0]).toBe("closeChart");
+      expect(h.ctx.station.stationScreen).toBe(screen);
+      expect(h.context()).toBe("dockScreen");
+    },
+  );
+
+  it.each(SECTION_KEYS)(
+    "%s leaves the Save/Load screen and opens its section",
+    (action, screen) => {
+      const h = navHarness();
+      h.ctx.save.saveScreenOpen = true;
+      h.controller.navigateByKey(action);
+      expect(overlayCalls(h.calls)).toEqual(["closeSaveScreen"]);
+      expect(h.calls[0]).toBe("closeSaveScreen");
+      expect(h.ctx.station.stationScreen).toBe(screen);
+    },
+  );
+
+  it("F2 leaves the chart for the Save/Load screen and is ignored on its own screen", () => {
+    const h = navHarness();
+    h.ctx.chart.chartOpen = true;
+    h.controller.navigateByKey("saveLoad");
+    expect(h.calls).toEqual(["closeChart", "openSaveScreen"]);
+
+    const own = navHarness();
+    own.ctx.save.saveScreenOpen = true;
+    own.controller.navigateByKey("saveLoad");
+    expect(own.calls).toEqual([]);
+  });
+
+  it("F6 leaves the Save/Load screen for the chart and does nothing on an open chart", () => {
+    const h = navHarness();
+    h.ctx.save.saveScreenOpen = true;
+    h.controller.navigateByKey("chart");
+    expect(h.calls).toEqual(["closeSaveScreen", "openChart"]);
+
+    const open = navHarness();
+    open.ctx.chart.chartOpen = true;
+    open.ctx.chart.chartPreset = "galaxy";
+    const camera = { centre: { x: 40, y: 30 }, spanX: 120 };
+    open.ctx.chart.chartCamera = camera;
+    // Owner decision 2026-11-24 (FIDELITY E-184): F6 on an open chart is a
+    // no-op, twice and three times. It never closes the chart (the owner's
+    // F4 -> F6 -> F6 report) and never moves its preset or camera.
+    open.controller.navigateByKey("chart");
+    open.controller.navigateByKey("chart");
+    open.controller.navigateByKey("chart");
+    expect(open.calls).toEqual([]);
+    expect(open.ctx.chart.chartOpen).toBe(true);
+    expect(open.ctx.chart.chartPreset).toBe("galaxy");
+    expect(open.ctx.chart.chartCamera).toBe(camera);
+    expect(open.context()).toBe("dockHome");
+  });
+
+  it("F2 and F6 open their overlays from a section screen", () => {
+    const h = navHarness();
+    h.ctx.station.stationScreen = "market";
+    h.controller.navigateByKey("chart");
+    h.controller.navigateByKey("saveLoad");
+    expect(h.calls).toEqual(["openChart", "openSaveScreen"]);
+  });
+
+  it("in flight no key acts on the open chart; nothing opens a station screen", () => {
+    const h = navHarness();
+    const state = initFlightState(layout);
+    state.mode = "inFlight";
+    h.ctx.core.state = state;
+    h.ctx.chart.chartOpen = true;
+    for (const [action] of SECTION_KEYS) h.controller.navigateByKey(action);
+    h.controller.navigateByKey("saveLoad");
+    expect(h.calls).toEqual([]);
+    h.controller.navigateByKey("chart");
+    expect(h.calls).toEqual([]);
+    expect(h.ctx.chart.chartOpen).toBe(true);
+    expect(h.ctx.station.stationScreen).toBe("home");
+  });
+
+  it("ignores any other action, so it never closes an overlay for nothing", () => {
+    const h = navHarness();
+    h.ctx.chart.chartOpen = true;
+    h.controller.navigateByKey("stationConfirm");
+    h.controller.navigateByKey("launch");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("opens nothing during the launch pre-roll, while paused or after death", () => {
+    for (const setup of [
+      (h: ReturnType<typeof navHarness>) => {
+        h.preRoll.preRolling = true;
+      },
+      (h: ReturnType<typeof navHarness>) => {
+        h.ctx.runtime.paused = true;
+      },
+      (h: ReturnType<typeof navHarness>) => {
+        h.ctx.runtime.gameOver = true;
+      },
+    ]) {
+      const h = navHarness();
+      setup(h);
+      for (const [action] of SECTION_KEYS) h.controller.navigateByKey(action);
+      h.controller.navigateByKey("saveLoad");
+      h.controller.navigateByKey("chart");
+      expect(h.calls).toEqual([]);
+      expect(h.ctx.station.stationScreen).toBe("home");
+    }
+  });
+});
+
 describe("sortMarket (quick task 261118-cyo)", () => {
   function sortedKeys(h: Harness, column: "price" | "name"): string[] {
     const goods = [...h.market.goods];

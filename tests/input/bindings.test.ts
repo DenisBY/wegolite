@@ -509,12 +509,15 @@ describe("chart and hyperspace bindings", () => {
     ] as const) {
       expect(ACTION_CONTEXTS[action]).toEqual(["chart"]);
     }
-    // The open/close toggle works in flight, docked and chart.
+    // F6 opens the chart in flight and from every docked screen, the F2
+    // screen included; on the chart it stays live and the session ignores it
+    // (owner decision 2026-11-24, docked-f-keys).
     expect(ACTION_CONTEXTS.chart).toEqual([
       "flight",
       "dockHome",
       "dockScreen",
       "chart",
+      "saveScreen",
     ]);
     // H is flight-scoped: inert while docked.
     expect(ACTION_CONTEXTS.hyperspace).toEqual(["flight"]);
@@ -575,14 +578,25 @@ describe("chart and hyperspace bindings", () => {
     expect(legacy.consumePauseToggle()).toBe(true);
   });
 
-  it("F6 opens and closes in flight and dockHome", () => {
+  it("F6 queues in flight and goes to the synchronous sink everywhere else", () => {
     const state = createInputState();
+    const sunk: string[] = [];
+    state.setStationScreenHandler((action) => sunk.push(action));
     state.keyDown("F6");
     expect(state.drainChartActions()).toEqual(["chart"]);
+    expect(sunk).toEqual([]);
 
-    state.setContext("chart");
-    state.keyDown("F6");
-    expect(state.drainChartActions()).toEqual(["chart"]);
+    for (const context of [
+      "dockHome",
+      "dockScreen",
+      "chart",
+      "saveScreen",
+    ] as const) {
+      state.setContext(context);
+      expect(state.keyDown("F6")).toBe(true);
+      expect(state.drainChartActions()).toEqual([]);
+    }
+    expect(sunk).toEqual(["chart", "chart", "chart", "chart"]);
   });
 });
 
@@ -616,8 +630,13 @@ describe("save screen bindings", () => {
     ] as const) {
       expect(ACTION_CONTEXTS[action]).toEqual(["saveScreen"]);
     }
-    // F2 is docked-only: never in flight, never over the chart or itself.
-    expect(ACTION_CONTEXTS.saveLoad).toEqual(["dockHome", "dockScreen"]);
+    // F2 is docked-only: never in flight and inert on its own screen; over
+    // the chart it is live (docked-f-keys).
+    expect(ACTION_CONTEXTS.saveLoad).toEqual([
+      "dockHome",
+      "dockScreen",
+      "chart",
+    ]);
     expect(ACTION_CONTEXTS.pause).toContain("saveScreen");
   });
 
@@ -629,19 +648,24 @@ describe("save screen bindings", () => {
     expect(map.saveScreenConfirm).toEqual(["KeyY"]);
   });
 
-  it("queues F2 in the station contexts and keeps it inert in flight", () => {
+  it("sends F2 to the synchronous sink from home, a section and the chart, never in flight or on its own screen", () => {
     const state = createInputState();
-    state.setContext("dockHome");
-    state.keyDown("F2");
-    expect(state.drainSaveScreenActions()).toEqual(["saveLoad"]);
+    const sunk: string[] = [];
+    state.setStationScreenHandler((action) => sunk.push(action));
+    for (const context of ["dockHome", "dockScreen", "chart"] as const) {
+      state.setContext(context);
+      expect(state.keyDown("F2")).toBe(true);
+      expect(state.drainSaveScreenActions()).toEqual([]);
+    }
+    expect(sunk).toEqual(["saveLoad", "saveLoad", "saveLoad"]);
 
-    state.setContext("dockScreen");
-    state.keyDown("F2");
-    expect(state.drainSaveScreenActions()).toEqual(["saveLoad"]);
-
-    state.setContext("flight");
-    expect(state.keyDown("F2")).toBe(true);
-    expect(state.drainSaveScreenActions()).toEqual([]);
+    for (const context of ["flight", "saveScreen"] as const) {
+      state.setContext(context);
+      // Still a reserved key: handled, so the browser never takes it.
+      expect(state.keyDown("F2")).toBe(true);
+      expect(state.drainSaveScreenActions()).toEqual([]);
+    }
+    expect(sunk).toHaveLength(3);
   });
 
   it("Escape in saveScreen is Return and never pause; KeyP still pauses", () => {
@@ -709,9 +733,9 @@ describe("save screen bindings", () => {
 
   it("clears a queued save edge on a context change", () => {
     const state = createInputState();
-    state.setContext("dockHome");
-    state.keyDown("F2");
     state.setContext("saveScreen");
+    state.keyDown("ArrowDown");
+    state.setContext("dockHome");
     expect(state.drainSaveScreenActions()).toEqual([]);
   });
 });
@@ -723,6 +747,8 @@ describe("interfaces screen action", () => {
     expect(ACTION_CONTEXTS.stationInterfaces).toEqual([
       "dockHome",
       "dockScreen",
+      "chart",
+      "saveScreen",
     ]);
     expect(STATION_SCREEN_ACTIONS.has("stationInterfaces")).toBe(true);
     expect(ACTION_LABELS.stationInterfaces).toBe("Interfaces");
@@ -741,7 +767,12 @@ describe("interfaces screen action", () => {
 
   it("opens through the synchronous station-screen handler", () => {
     for (const code of ["F4", "Digit4"]) {
-      for (const context of ["dockHome", "dockScreen"] as const) {
+      for (const context of [
+        "dockHome",
+        "dockScreen",
+        "chart",
+        "saveScreen",
+      ] as const) {
         const state = createInputState();
         const opened: string[] = [];
         state.setStationScreenHandler((action) => opened.push(action));

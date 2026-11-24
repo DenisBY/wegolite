@@ -18,7 +18,9 @@
  * rebind capture stops propagation, so the game listener must not fire first.
  * A separate narrow capture listener only calls `preventDefault()` for the eight
  * browser-reserved F-keys (F1, F2, F3, F4, F5, F6, F7, F8); it never dispatches
- * and never stops propagation.
+ * and never stops propagation. Those eight keys are never text input: a
+ * focused text field (the chart's Find planet box) keeps every other key, but
+ * an F-key still reaches the game and never reaches the browser.
  *
  * `createInputState` is the DOM-free core: Vitest drives keydown/keyup directly
  * without a browser, and `createKeyboardInputSource` is the thin listener layer.
@@ -33,7 +35,7 @@ import {
   RESERVED_F_KEYS,
   SHIFT_REQUIRED_ACTIONS,
   SHIFT_VARIANT_ACTIONS,
-  STATION_SCREEN_ACTIONS,
+  STATION_NAV_ACTIONS,
 } from "./actions.js";
 import type { ActionId, InputContext } from "./actions.js";
 import { createBindingMap } from "./bindings.js";
@@ -113,9 +115,11 @@ export interface InputState {
   /** While paused only `pause` resolves; every other code is ignored. */
   setPaused(paused: boolean): void;
   /**
-   * Register the synchronous sink for the five screen-open actions. The session
-   * opens the section and switches context inside the same key event, so a
-   * following same-frame arrow resolves against `dockScreen`.
+   * Register the synchronous sink for the docked screen keys
+   * (`STATION_NAV_ACTIONS`: F2, F3, F4, F5, F6 and F8) in every context but
+   * `flight`. The session closes an open overlay, opens the target and
+   * switches context inside the same key event, so a following same-frame key
+   * resolves against the new screen.
    */
   setStationScreenHandler(handler: (action: ActionId) => void): void;
 }
@@ -207,9 +211,10 @@ export function createInputState(
           pauseToggle = true;
           continue;
         }
-        if (STATION_SCREEN_ACTIONS.has(action)) {
+        if (STATION_NAV_ACTIONS.has(action) && context !== "flight") {
           // Synchronous: the session switches context before this key event
-          // returns, so the next same-frame key resolves against the section.
+          // returns, so the next same-frame key resolves against the new
+          // screen. In flight the chart key keeps its queued open path.
           onStationScreen?.(action);
           continue;
         }
@@ -330,8 +335,9 @@ export interface KeyboardInputSource extends InputState {
 }
 
 /**
- * A text field owns every key: rebinding and browser typing must not become
- * game input. The HTMLElement guard keeps the predicate usable in Node tests.
+ * A text field owns every key but the reserved F-keys: rebinding and browser
+ * typing must not become game input. The HTMLElement guard keeps the predicate
+ * usable in Node tests.
  */
 function isTextTarget(target: EventTarget | null): boolean {
   if (typeof HTMLElement === "undefined") return false;
@@ -359,21 +365,21 @@ export interface ReservedKeyState {
   readonly altKey: boolean;
   /** True while the Controls panel is capturing (body.dataset.capture). */
   readonly capturing: boolean;
-  readonly textTarget: boolean;
 }
 
 /**
  * Whether the capture-phase guard should cancel this key's browser default.
  *
- * Only the eight reserved F-keys in `RESERVED_F_KEYS` (F1 to F8) qualify. A Ctrl/Meta/Alt
- * chord belongs to the browser (Ctrl+F5 is a hard reload), a capture session is
- * rebinding, and a text field is typing; none may be intercepted.
+ * Only the eight reserved F-keys in `RESERVED_F_KEYS` (F1 to F8) qualify. A
+ * Ctrl/Meta/Alt chord belongs to the browser (Ctrl+F5 is a hard reload) and a
+ * capture session is rebinding; neither may be intercepted. A focused text
+ * field does not exempt the key: an F-key types nothing, and from the chart's
+ * Find planet box F5 must not reload the page.
  */
 export function shouldCancelReservedKey(state: ReservedKeyState): boolean {
   if (!RESERVED_F_KEYS.has(state.code)) return false;
   if (state.capturing) return false;
   if (state.ctrlKey || state.metaKey || state.altKey) return false;
-  if (state.textTarget) return false;
   return true;
 }
 
@@ -383,7 +389,6 @@ export interface ReservedKeyEvent {
   readonly ctrlKey: boolean;
   readonly metaKey: boolean;
   readonly altKey: boolean;
-  readonly target: EventTarget | null;
   preventDefault(): void;
 }
 
@@ -399,7 +404,6 @@ export function cancelReservedKey(
       metaKey: event.metaKey,
       altKey: event.altKey,
       capturing,
-      textTarget: isTextTarget(event.target),
     })
   ) {
     event.preventDefault();
@@ -441,7 +445,9 @@ export function createKeyboardInputSource(
   let attached = false;
 
   function onKeyDown(event: KeyboardEvent): void {
-    if (isTextTarget(event.target)) return;
+    // An F-key types nothing, so a focused text field (the chart's Find planet
+    // box) does not keep it from the game (Oolite has no text box there).
+    if (isTextTarget(event.target) && !RESERVED_F_KEYS.has(event.code)) return;
     if (
       !allowsChordKey(
         event,

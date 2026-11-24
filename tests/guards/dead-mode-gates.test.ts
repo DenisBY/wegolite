@@ -82,7 +82,9 @@ const PINNED: Readonly<Record<string, number>> = Object.freeze({
   "src/app/session/save-controller.ts": 2,
   "src/app/session/sim-driver.ts": 2,
   "src/app/session/start-session.ts": 3,
-  "src/app/session/station-controller.ts": 4,
+  // docked-f-keys: navigateByKey opens nothing unless docked, so "dead",
+  // "launching" and "inFlight" all fail closed (reviewed 2026-11-24).
+  "src/app/session/station-controller.ts": 5,
   "src/persistence/autosave.ts": 0,
   "src/persistence/save.ts": 0,
   "src/sim/combat/collide.ts": 0,

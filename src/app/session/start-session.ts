@@ -150,7 +150,7 @@ export interface LifecycleDeps {
   readonly syncStationNav: StationController["syncStationNav"];
   readonly fitContext: StationController["fitContext"];
   readonly commitProfile: StationController["commitProfile"];
-  readonly openStationScreen: StationController["openStationScreen"];
+  readonly navigateByKey: StationController["navigateByKey"];
   readonly navigateStation: StationController["navigateStation"];
   readonly setStationPage: StationController["setStationPage"];
   readonly sortMarket: StationController["sortMarket"];
@@ -358,7 +358,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     syncStationNav,
     fitContext,
     commitProfile,
-    openStationScreen,
+    navigateByKey,
     navigateStation,
     setStationPage,
     sortMarket,
@@ -759,8 +759,10 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     });
 
     ctx.runtime.input = createKeyboardInputSource(bindingMap);
+    // The docked screen keys (F2 to F6, F8) from every docked screen, the
+    // chart and the F2 screen included.
     ctx.runtime.input.setStationScreenHandler((action) => {
-      openStationScreen(action);
+      navigateByKey(action);
     });
     ctx.runtime.input.setContext(restoredInFlight ? "flight" : "dockHome");
     ctx.runtime.input.setPaused(false);

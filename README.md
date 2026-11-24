@@ -78,10 +78,10 @@ for that action.
 
 The chart opens on the local view around the current system; Tab toggles the
 whole-galaxy view, the mouse wheel zooms around the cursor, and dragging with
-the left button pans. Find planet (`/`) searches by the start of a name: the
-first match is selected and every match is boxed; Down and Up step through the
-matches, Enter sets the selection as the destination and Esc clears the
-search.
+the left button pans. F6 on an open chart does nothing (Esc closes it). Find
+planet (`/`) searches by the start of a name: the first match is selected and
+every match is boxed; Down and Up step through the matches, Enter sets the
+selection as the destination and Esc clears the search.
 
 **Docked station**
 
