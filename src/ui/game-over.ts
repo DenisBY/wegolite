@@ -9,6 +9,15 @@
  * `pollGameOverControls` (`PlayerEntityControls.m:4016-4027` at the pin)
  * restarts on a Space press that was not already down, so the auto-repeat of a
  * key held from before the view is ignored here as well (`event.repeat`).
+ *
+ * The four lines sit on a dark translucent panel (`data-game-over-panel`) so
+ * they stay legible over a bright sun or a lit station (owner 2026-11-24,
+ * G-20-2; a recorded divergence, since Oolite draws no backdrop while the
+ * player is dead, `GuiDisplayGen.m:1344-1349`). The panel must stay inside the
+ * root: the render driver fades the root's CSS filter (E-174), and the panel
+ * fades with the text only as a descendant of it. The text colour is Oolite's
+ * message yellow (`showGameOver` resets the message GUI, `PlayerEntity.m:3632`,
+ * which sets `yellowColor`, `HeadUpDisplay.m:440`).
  */
 
 import type { PlayerDeathCause } from "../sim/events";
@@ -37,7 +46,10 @@ export interface GameOverLines {
 }
 
 export interface GameOverOverlayOptions {
-  /** The `#game-over` element holding the four `data-game-over-line` lines. */
+  /**
+   * The `#game-over` element: it holds the `data-game-over-panel` element,
+   * which holds the four `data-game-over-line` lines.
+   */
   readonly root: HTMLElement;
   /** Where the Space keydown is heard; the window by default. */
   readonly keyTarget?: Pick<
@@ -144,8 +156,19 @@ export function buildGameOverLines(
 
 const LINE_KEYS = ["title", "cause", "score", "prompt"] as const;
 
-function requireLine(root: HTMLElement, name: string): HTMLElement {
-  const element = root.querySelector<HTMLElement>(
+/** The dark panel inside the root that holds the four lines (G-20-2). */
+function requirePanel(root: HTMLElement): HTMLElement {
+  const panel = root.querySelector<HTMLElement>("[data-game-over-panel]");
+  if (panel === null) {
+    throw new Error(
+      "Wegolite: the game-over overlay is missing its backing panel.",
+    );
+  }
+  return panel;
+}
+
+function requireLine(panel: HTMLElement, name: string): HTMLElement {
+  const element = panel.querySelector<HTMLElement>(
     `[data-game-over-line="${name}"]`,
   );
   if (element === null) {
@@ -160,11 +183,12 @@ export function createGameOverOverlay(
   options: GameOverOverlayOptions,
 ): GameOverOverlay {
   const { root } = options;
+  const panel = requirePanel(root);
   const elements = {
-    title: requireLine(root, "title"),
-    cause: requireLine(root, "cause"),
-    score: requireLine(root, "score"),
-    prompt: requireLine(root, "prompt"),
+    title: requireLine(panel, "title"),
+    cause: requireLine(panel, "cause"),
+    score: requireLine(panel, "score"),
+    prompt: requireLine(panel, "prompt"),
   };
   const keyTarget = options.keyTarget ?? window;
   const reload =

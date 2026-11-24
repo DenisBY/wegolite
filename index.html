@@ -1289,8 +1289,13 @@
       }
 
       /* The game-over view (D-02): Oolite's three lines and the cause line,
-         centred over the scene, which shows through (the background is
-         transparent). The gaps after the cause and the score stand for the
+         centred over the scene, which shows through around them (the root
+         background is transparent). The four lines sit on a dark translucent
+         panel so they stay legible over a bright sun or a lit station (owner
+         2026-11-24, G-20-2; a recorded divergence: Oolite draws no backdrop
+         while the player is dead). The panel sits inside the root so the
+         root's fade filter covers it too (E-174), and the text is Oolite's
+         message yellow. The gaps after the cause and the score stand for the
          blank message rows of Oolite's screen. It sits below the pause
          overlay; a click anywhere on it ends the view (D-07). */
       #game-over {
@@ -1303,11 +1308,16 @@
         justify-content: center;
         gap: 0;
         background: transparent;
-        color: #33ff66;
+        color: rgb(255, 255, 0);
         font: 16px/1.6 monospace;
         text-align: center;
         cursor: pointer;
         outline: none;
+      }
+
+      #game-over [data-game-over-panel] {
+        padding: 0.6em 1.4em;
+        background: rgba(0, 0, 0, 0.6);
       }
 
       #game-over p {
@@ -2140,10 +2150,12 @@
       aria-labelledby="game-over-title"
       tabindex="-1"
     >
-      <p id="game-over-title" data-game-over-line="title"></p>
-      <p data-game-over-line="cause"></p>
-      <p data-game-over-line="score"></p>
-      <p data-game-over-line="prompt"></p>
+      <div data-game-over-panel>
+        <p id="game-over-title" data-game-over-line="title"></p>
+        <p data-game-over-line="cause"></p>
+        <p data-game-over-line="score"></p>
+        <p data-game-over-line="prompt"></p>
+      </div>
     </div>
     <div
       id="pause"

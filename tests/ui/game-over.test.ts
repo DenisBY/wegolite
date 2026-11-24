@@ -30,26 +30,47 @@ class LineDouble {
   textContent = "";
 }
 
-/** A root double: an EventTarget with the surface the shell touches. */
-class RootDouble extends EventTarget {
-  hidden = true;
-  readonly style = { filter: "" };
-  focusCalls: unknown[] = [];
+/** The panel double: holds the line doubles and answers the line lookups. */
+class PanelDouble {
   readonly lines = new Map<string, LineDouble>();
 
-  constructor(names: readonly string[] = LINE_NAMES) {
-    super();
+  constructor(names: readonly string[]) {
     for (const name of names) this.lines.set(name, new LineDouble());
-  }
-
-  focus(options?: unknown): void {
-    this.focusCalls.push(options);
   }
 
   querySelector(selector: string): LineDouble | null {
     const match = /^\[data-game-over-line="(\w+)"\]$/.exec(selector);
     if (match === null) return null;
     return this.lines.get(match[1] ?? "") ?? null;
+  }
+}
+
+/**
+ * A root double: an EventTarget with the surface the shell touches. The four
+ * lines live in a panel inside it, as in the markup; the root itself answers
+ * only the panel lookup, so a line outside the panel is not found.
+ */
+class RootDouble extends EventTarget {
+  hidden = true;
+  readonly style = { filter: "" };
+  focusCalls: unknown[] = [];
+  readonly panel: PanelDouble | null;
+
+  constructor(names: readonly string[] = LINE_NAMES, withPanel = true) {
+    super();
+    this.panel = withPanel ? new PanelDouble(names) : null;
+  }
+
+  get lines(): Map<string, LineDouble> {
+    return this.panel?.lines ?? new Map<string, LineDouble>();
+  }
+
+  focus(options?: unknown): void {
+    this.focusCalls.push(options);
+  }
+
+  querySelector(selector: string): PanelDouble | null {
+    return selector === "[data-game-over-panel]" ? this.panel : null;
   }
 }
 
@@ -183,6 +204,26 @@ describe("the game-over overlay shell", () => {
     }
   });
 
+  it("throws a message naming a missing backing panel", () => {
+    const root = new RootDouble(LINE_NAMES, false);
+    expect(() =>
+      createGameOverOverlay({
+        root: root as unknown as HTMLElement,
+        keyTarget: new EventTarget(),
+      }),
+    ).toThrow("Wegolite: the game-over overlay is missing its backing panel.");
+  });
+
+  it("looks the four lines up inside the panel, not the root", () => {
+    const root = new RootDouble();
+    const overlay = createGameOverOverlay({
+      root: root as unknown as HTMLElement,
+      keyTarget: new EventTarget(),
+    });
+    overlay.show(LINES);
+    expect(root.panel?.lines.get("score")?.textContent).toBe(LINES.score);
+  });
+
   it("setFilter writes and clears the root filter, shown or not", () => {
     const { root, overlay } = fixture();
     overlay.setFilter("saturate(0.5)");
@@ -208,6 +249,44 @@ describe("the game-over constants and markup", () => {
     for (const name of LINE_NAMES) {
       expect(html.includes(`data-game-over-line="${name}"`)).toBe(true);
     }
+  });
+
+  /** The `#game-over` element's markup, from its opening tag to `#pause`. */
+  const overlayMarkup = html.slice(
+    html.indexOf('id="game-over"'),
+    html.indexOf('id="pause"'),
+  );
+
+  /** The CSS rule block that starts with `selector {`, braces excluded. */
+  function ruleBlock(selector: string): string {
+    const start = html.indexOf(`\n      ${selector} {`);
+    expect(start, `${selector} rule`).toBeGreaterThanOrEqual(0);
+    const open = html.indexOf("{", start);
+    return html.slice(open + 1, html.indexOf("}", open));
+  }
+
+  it("holds the four lines in one backing panel inside #game-over", () => {
+    const panel = overlayMarkup.indexOf("<div data-game-over-panel>");
+    expect(panel, "the panel opens inside #game-over").toBeGreaterThan(0);
+    expect(overlayMarkup.split("data-game-over-panel")).toHaveLength(2);
+    const positions = LINE_NAMES.map((name) =>
+      overlayMarkup.indexOf(`data-game-over-line="${name}"`),
+    );
+    expect(positions[0]).toBeGreaterThan(panel);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(overlayMarkup.lastIndexOf("</div>")).toBeGreaterThan(
+      positions[3] ?? 0,
+    );
+  });
+
+  it("draws the lines in Oolite's yellow on a dark translucent panel", () => {
+    const root = ruleBlock("#game-over");
+    expect(root).toContain("color: rgb(255, 255, 0);");
+    expect(root).not.toContain("#33ff66");
+    expect(root).toContain("background: transparent;");
+    const panel = ruleBlock("#game-over [data-game-over-panel]");
+    expect(panel).toContain("background: rgba(0, 0, 0, 0.6);");
+    expect(panel).toContain("padding: 0.6em 1.4em;");
   });
 
   it("hides the version and system lines for the dead view", () => {
