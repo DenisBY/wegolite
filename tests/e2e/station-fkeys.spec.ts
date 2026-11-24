@@ -351,6 +351,59 @@ async function waitForStationPage(
   );
 }
 
+test("F5 twice shows the Manifest, a third press returns, and the footer names the next press", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  const hints = page.locator('#docked [data-footer-role="hints"]');
+
+  await page.keyboard.press("F5");
+  await waitForStationPage(page, "status", 1);
+  await expect(page.locator('#docked [data-status-page="1"]')).toBeVisible();
+  await expect(hints).toContainText("F5 manifest");
+
+  await page.keyboard.press("F5");
+  await waitForStationPage(page, "status", 2);
+  await expect(page.locator('#docked [data-status-page="2"]')).toBeVisible();
+  await expect(page.locator('#docked [data-status-page="1"]')).toBeHidden();
+  await expect(hints).toContainText("F5 status");
+
+  await page.keyboard.press("F5");
+  await waitForStationPage(page, "status", 1);
+  await expect(page.locator('#docked [data-status-page="1"]')).toBeVisible();
+  await expect(hints).toContainText("F5 manifest");
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});
+
+test("the market footer names F8 and the Market Info line is not ellipsised at 1280x720", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await boot(page);
+  const hints = page.locator('#docked [data-footer-role="hints"]');
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 1);
+  await expect(hints).toContainText("F8 commodity info");
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 2);
+  await expect(hints).toContainText("F8 commodity list");
+  const sizes = await hints.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(
+    sizes.scrollWidth,
+    "the hints line is not ellipsised",
+  ).toBeLessThanOrEqual(sizes.clientWidth);
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});
+
 test("F8 twice opens Market Info for the selected commodity and a third press returns", async ({
   page,
 }) => {

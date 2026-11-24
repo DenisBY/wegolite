@@ -471,6 +471,77 @@ describe("navigateByKey: the docked screen keys from every screen (docked-f-keys
     expect(h.calls).toEqual([]);
   });
 
+  describe("the second F5 press opens the Manifest (quick 261124-nbu)", () => {
+    it("F5 opens Status, again the Manifest, a third time Status page 1", () => {
+      const h = navHarness();
+      h.controller.navigateByKey("stationStatus");
+      expect(h.ctx.station.stationScreen).toBe("status");
+      expect(h.ctx.station.stationPage).toBe(1);
+
+      h.ctx.station.stationNotice = "stale";
+      h.calls.length = 0;
+      h.controller.navigateByKey("stationStatus");
+      expect(h.ctx.station.stationScreen).toBe("status");
+      expect(h.ctx.station.stationPage).toBe(2);
+      expect(h.ctx.station.stationPending).toBeNull();
+      expect(h.ctx.station.stationNotice).toBe("");
+      expect(overlayCalls(h.calls)).toEqual([]);
+      expect(h.views[h.views.length - 1]?.keysText).toContain("F5 status");
+
+      h.controller.navigateByKey("stationStatus");
+      expect(h.ctx.station.stationPage).toBe(1);
+      expect(h.views[h.views.length - 1]?.keysText).toContain("F5 manifest");
+    });
+
+    it.each([
+      ["chart", "closeChart"],
+      ["save", "closeSaveScreen"],
+    ] as const)(
+      "F5 with the %s open over Status closes it and lands on page 1",
+      (overlay, call) => {
+        const h = navHarness();
+        h.controller.navigateByKey("stationStatus");
+        if (overlay === "chart") h.ctx.chart.chartOpen = true;
+        else h.ctx.save.saveScreenOpen = true;
+        h.calls.length = 0;
+        h.controller.navigateByKey("stationStatus");
+        expect(overlayCalls(h.calls)).toEqual([call]);
+        expect(h.ctx.station.stationScreen).toBe("status");
+        expect(h.ctx.station.stationPage).toBe(1);
+        expect(h.views[h.views.length - 1]?.keysText).toContain("F5 manifest");
+      },
+    );
+
+    it("F5 from the Market or from the Manifest of another visit opens Status page 1", () => {
+      const h = navHarness();
+      h.controller.navigateByKey("stationMarket");
+      h.controller.navigateByKey("stationStatus");
+      expect(h.ctx.station.stationScreen).toBe("status");
+      expect(h.ctx.station.stationPage).toBe(1);
+    });
+
+    it("changes nothing while paused, after death or in the launch pre-roll", () => {
+      for (const setup of [
+        (h: ReturnType<typeof navHarness>) => {
+          h.ctx.runtime.paused = true;
+        },
+        (h: ReturnType<typeof navHarness>) => {
+          h.ctx.runtime.gameOver = true;
+        },
+        (h: ReturnType<typeof navHarness>) => {
+          h.preRoll.preRolling = true;
+        },
+      ]) {
+        const h = navHarness();
+        h.ctx.station.stationScreen = "status";
+        setup(h);
+        h.controller.navigateByKey("stationStatus");
+        expect(h.ctx.station.stationPage).toBe(1);
+        expect(h.calls).toEqual([]);
+      }
+    });
+  });
+
   describe("the second F8 press opens Market Info (quick 261124-nbu)", () => {
     it("F8 opens the market, again Market Info, a third time the list with the same selection", () => {
       const h = navHarness();

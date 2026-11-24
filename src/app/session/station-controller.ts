@@ -815,6 +815,7 @@ export function createStationController(
       keysText: dockedHints(
         ctx.runtime.bindings ?? DEFAULT_BINDINGS,
         ctx.station.stationScreen,
+        ctx.station.stationPage,
       ),
       confirmText,
       noticeText,
@@ -1004,17 +1005,20 @@ export function createStationController(
     if (currentState.mode !== "docked" || launchSequence.preRolling) return;
     if (action === "saveLoad" && ctx.save.saveScreenOpen) return;
 
-    // The second press of F8 (Oolite's `pollGuiScreenControlsWithFKeyAlias`,
-    // `PlayerEntityControls.m:3955-3967`) acts only when the Market itself is
-    // the current screen: with the chart or the F2 screen open, the current
-    // GUI screen is that overlay, so the key opens the Market list instead.
+    // The second press of F5 and F8 (Oolite's `pollGuiScreenControlsWithFKeyAlias`,
+    // `PlayerEntityControls.m:3904-3916` and `:3955-3967`) acts only when
+    // Status or the Market itself is the current screen: with the chart or the
+    // F2 screen open, the current GUI screen is that overlay, so the key opens
+    // Status page 1 or the Market list instead. Without a selected commodity
+    // the Market keeps Oolite's fallback to the list.
     const overlayOpen = ctx.chart.chartOpen || ctx.save.saveScreenOpen;
     if (
       !overlayOpen &&
-      action === "stationMarket" &&
-      ctx.station.stationScreen === "market" &&
       ctx.station.stationPage === 1 &&
-      marketInfoAvailable()
+      ((action === "stationStatus" && ctx.station.stationScreen === "status") ||
+        (action === "stationMarket" &&
+          ctx.station.stationScreen === "market" &&
+          marketInfoAvailable()))
     ) {
       ctx.station.stationPage = 2;
       ctx.station.stationPending = null;

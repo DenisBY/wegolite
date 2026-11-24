@@ -6,8 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- F5 on the status screen now shows the manifest, as in Oolite, and F5 on the
+  manifest returns to the status page.
+
 ### Added
 
+- The status, manifest, market and commodity information footers show what the
+  next F5 or F8 press opens (Oolite has no such hint).
 - The market (F8) has Oolite's commodity information screen. Press F8 again on
   the market to see the selected commodity's line and Oolite's note on it
   (slaves, narcotics and firearms may not be exported from Cooperative
