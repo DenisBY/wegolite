@@ -66,7 +66,10 @@ blocked: 0
       issue: "row E-179 records the frozen dead camera and world (Oolite coasts at 160 m/s); owner judged the frozen look at UAT"
   missing:
     - "While dead, dust renders as dots (speed 0 to dust.update), with a test on the speed argument"
-    - "Owner decision on E-179: keep the frozen dead camera, or coast it render-only at Oolite's 160 m/s looking aft (sim and hash stay frozen)"
+    - "Dead camera coasts render-only at Oolite's 160 m/s looking aft on the presentation clock (sim, tick and world hash stay frozen); explosion, debris and dust move relative to it"
+    - "Revise FIDELITY.md E-179 and the PROJECT.md DIV-7 decision to match (owner decision 2026-11-24)"
+    - "Dust while dead renders as Oolite-like points or motion consistent with the coasting camera, never still random-axis dashes; test pins the speed/delta passed to dust.update while dead"
+  owner_decision: "2026-11-24: follow Oolite: the dead camera coasts at 160 m/s looking aft, render-only; revises E-179/DIV-7."
   side_findings:
     - "Phase 16 debris velocity diverges from Oolite: ShipEntity velocity includes thrustVector, so Oolite debris carries the dying ship's flight speed; debris.ts uses drift only (16-RESEARCH.md:149). Separate todo/decision; changes hashed debris velocities."
     - "Pause likely shows the same random dust dashes (zero delta, non-zero speed); inferred from code, not observed."
@@ -87,7 +90,9 @@ blocked: 0
       issue: "lines 210-212 setFilter applies the fade to the root; the backing must sit inside it"
   missing:
     - "Dark translucent backing panel behind the four lines inside the filtered #game-over root, matching other overlays"
-    - "FIDELITY.md row for the backing divergence (Oolite draws none while dead), and a decision on the green vs Oolite yellow text colour"
+    - "Game-over text colour changes from green to Oolite's yellow (showGameOver resets to yellow, PlayerEntity.m:3630-3644)"
+    - "FIDELITY.md row for the backing divergence (Oolite draws no backing while STATUS_DEAD; reason: legibility over a bright sun or lit station)"
+  owner_decision: "2026-11-24: dark translucent backing panel inside the filtered root, plus Oolite yellow text; record the backing in FIDELITY.md."
   deferred:
     - "Credits glyph rendering at 16 px is a global presentation decision (station screens too), not part of this gap"
   debug_session: ".planning/debug/game-over-lines-illegible-on-bright-background.md"
