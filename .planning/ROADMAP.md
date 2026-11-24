@@ -20,7 +20,7 @@
   - Requirements: [.planning/milestones/v2.2-REQUIREMENTS.md](milestones/v2.2-REQUIREMENTS.md)
   - Audit: [.planning/milestones/v2.2-MILESTONE-AUDIT.md](milestones/v2.2-MILESTONE-AUDIT.md) (tech_debt: 10/10 requirements, no blockers)
   - Open at archive: lasers and ident do not yet hit stations or buoys (now CBT-17 in Phase 18); Phase 14 review follow-ups (acceptance run in no gate, frozen-detector blind spot, `dt` coupling), all todos
-- ✅ **v2.3 Combat and Death** — Phases 15-20 (shipped 2026-11-24; no release tag, the latest release is `v0.7.0`)
+- ✅ **v2.3 Combat and Death** — Phases 15-20 (shipped 2026-11-24; released as `v0.8.0`, tagged 2026-11-24, the latest release; the quick tasks since it sit under `[Unreleased]`)
   - Full phase details: [.planning/milestones/v2.3-ROADMAP.md](milestones/v2.3-ROADMAP.md)
   - Requirements: [.planning/milestones/v2.3-REQUIREMENTS.md](milestones/v2.3-REQUIREMENTS.md)
   - Audit: [.planning/milestones/v2.3-MILESTONE-AUDIT.md](milestones/v2.3-MILESTONE-AUDIT.md) (tech_debt: 16/16 requirements, no blockers)
@@ -92,7 +92,7 @@ Total: 78 of 78 plans complete. Requirements 16/16. Phase directories now live i
 
 The former plan's labels (Phases 15-23 of the v2.1 Combat & Traffic plan) are history only: v2.3 reused the numbers 15-20 for its own phases. v2.3 takes destruction and player death from the former Phase 15 and the NPC fire gate from the former CBT-15 as an engine capability. Still unscheduled, in no particular order, and given fresh phase numbers when their milestone starts: hazards (sun, planet, heat and alert condition: DEATH-03, DEATH-05, DOCK-08) and docking-slot scrape damage (DOCK-09); bounties, salvage, scooping and the escape pod; audio and music; priority AI, peaceful traffic and the station queue; police, legal status and fines; pirates, hunters and rescue; missiles, ECM and defensive equipment; full traffic, asteroids and mining; performance hardening with traffic and QUAL-01. Their phase details stay in `.planning/milestones/v2.0-ROADMAP.md`, and their requirements, with IDs and the former phase mapping, in `.planning/milestones/v2.0-REQUIREMENTS.md`. When their milestone starts, the milestone workflow re-states them and re-checks them against what Phases 9-20 proved. AI-12 (collect, tractored, mining and land on planet, split from AI-01 in v2.2) stays deferred with them. The deferred requirement IDs are listed under v2 Requirements in `.planning/milestones/v2.3-REQUIREMENTS.md` (the live REQUIREMENTS.md is recreated by the next milestone).
 
-Pending todos (39, all acknowledged at the v2.3 close and listed in STATE.md Deferred Items) can run as quick tasks or join a phase by owner decision. The docked F-key bugs (`2026-11-22-bug-docked-f-keys-unreliable.md`, `2026-11-22-bug-f6-toggles-back-to-previous-screen.md`) are the first candidates.
+Pending todos (37 in `.planning/todos/pending` on 2026-11-24; 39 were acknowledged at the v2.3 close and listed in STATE.md Deferred Items) can run as quick tasks or join a phase by owner decision. The docked F-key bugs (`2026-11-22-bug-docked-f-keys-unreliable.md`, `2026-11-22-bug-f6-toggles-back-to-previous-screen.md`, now in `.planning/todos/completed`) were fixed by debug session docked-f-keys and released in `v0.8.0`.
 
 ## Progress
 

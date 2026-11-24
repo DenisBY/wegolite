@@ -463,6 +463,39 @@ describe("navigateByKey: the docked screen keys from every screen (docked-f-keys
     expect(h.ctx.station.stationScreen).toBe("home");
   });
 
+  it("every screen key does nothing while the overwrite question is open (quick 261124-pze F1)", () => {
+    const ACTIONS = [
+      "saveLoad",
+      "stationOutfitting",
+      "stationInterfaces",
+      "stationStatus",
+      "chart",
+      "stationMarket",
+    ] as const;
+    for (const action of ACTIONS) {
+      const h = navHarness();
+      h.ctx.station.stationScreen = "market";
+      h.ctx.save.saveScreenOpen = true;
+      h.ctx.save.saveLoad = {
+        isConfirming: () => true,
+      } as unknown as SessionState["save"]["saveLoad"];
+      h.controller.navigateByKey(action);
+      expect(h.calls, action).toEqual([]);
+      expect(h.ctx.save.saveScreenOpen, action).toBe(true);
+      expect(h.ctx.station.stationScreen, action).toBe("market");
+    }
+
+    // With no question open F3 still leaves the F2 screen for Outfitting.
+    const h = navHarness();
+    h.ctx.save.saveScreenOpen = true;
+    h.ctx.save.saveLoad = {
+      isConfirming: () => false,
+    } as unknown as SessionState["save"]["saveLoad"];
+    h.controller.navigateByKey("stationOutfitting");
+    expect(overlayCalls(h.calls)).toEqual(["closeSaveScreen"]);
+    expect(h.ctx.station.stationScreen).toBe("outfitting");
+  });
+
   it("ignores any other action, so it never closes an overlay for nothing", () => {
     const h = navHarness();
     h.ctx.chart.chartOpen = true;
@@ -515,6 +548,16 @@ describe("navigateByKey: the docked screen keys from every screen (docked-f-keys
     it("F5 from the Market or from the Manifest of another visit opens Status page 1", () => {
       const h = navHarness();
       h.controller.navigateByKey("stationMarket");
+      h.controller.navigateByKey("stationStatus");
+      expect(h.ctx.station.stationScreen).toBe("status");
+      expect(h.ctx.station.stationPage).toBe(1);
+
+      // The Manifest of an earlier visit (quick 261124-pze F12): F5 opens it,
+      // F8 leaves for the Market, and F5 lands on Status page 1 again.
+      h.controller.navigateByKey("stationStatus");
+      expect(h.ctx.station.stationPage).toBe(2);
+      h.controller.navigateByKey("stationMarket");
+      expect(h.ctx.station.stationScreen).toBe("market");
       h.controller.navigateByKey("stationStatus");
       expect(h.ctx.station.stationScreen).toBe("status");
       expect(h.ctx.station.stationPage).toBe(1);

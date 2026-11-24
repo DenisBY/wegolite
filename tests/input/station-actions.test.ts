@@ -369,3 +369,83 @@ describe("context conflicts", () => {
     expect(map.stationRight).toEqual(["ArrowRight"]);
   });
 });
+
+describe("same-frame key order across a docked screen key (quick 261124-pze F2)", () => {
+  it("flushes a queued Save before F3 reaches the sink", () => {
+    const state = createInputState();
+    const log: string[] = [];
+    state.setContext("saveScreen");
+    state.setQueuedEdgeFlush(() => {
+      for (const action of state.drainSaveScreenActions()) {
+        log.push(`flush:${action}`);
+      }
+    });
+    state.setStationScreenHandler((action) => log.push(`sink:${action}`));
+    expect(state.keyDown("KeyS")).toBe(true);
+    expect(state.keyDown("F3")).toBe(true);
+    expect(log).toEqual(["flush:saveScreenSave", "sink:stationOutfitting"]);
+  });
+
+  it("resolves F6 again after a flushed Escape closed the docked chart", () => {
+    const state = createInputState();
+    const log: string[] = [];
+    state.setContext("chart");
+    state.setQueuedEdgeFlush(() => {
+      for (const action of state.drainChartActions()) {
+        log.push(`flush:${action}`);
+        if (action === "chartBack") state.setContext("dockHome");
+      }
+    });
+    state.setStationScreenHandler((action) => log.push(`sink:${action}`));
+    state.keyDown("Escape");
+    expect(state.keyDown("F6")).toBe(true);
+    expect(log).toEqual(["flush:chartBack", "sink:chart"]);
+    expect(state.getContext()).toBe("dockHome");
+  });
+
+  it("on an in-flight chart, Escape then F4 is the starboard view and Escape then F6 queues the chart", () => {
+    const cases = [
+      ["F4", [{ kind: "setView", view: "starboard" }], []],
+      ["F6", [], ["chart"]],
+    ] as const;
+    for (const [code, expectCommands, expectChart] of cases) {
+      const state = createInputState();
+      const sunk: string[] = [];
+      state.setContext("chart");
+      state.setQueuedEdgeFlush(() => {
+        for (const action of state.drainChartActions()) {
+          if (action === "chartBack") state.setContext("flight");
+        }
+      });
+      state.setStationScreenHandler((action) => sunk.push(action));
+      state.keyDown("Escape");
+      expect(state.keyDown(code), code).toBe(true);
+      expect(sunk, code).toEqual([]);
+      expect(state.getContext(), code).toBe("flight");
+      expect(state.drainCommands(), code).toEqual(expectCommands);
+      expect(state.drainChartActions(), code).toEqual(expectChart);
+    }
+  });
+
+  it("never calls the flush when nothing is queued", () => {
+    const state = createInputState();
+    const log: string[] = [];
+    state.setContext("dockScreen");
+    state.setQueuedEdgeFlush(() => log.push("flush"));
+    state.setStationScreenHandler((action) => log.push(`sink:${action}`));
+    expect(state.keyDown("F3")).toBe(true);
+    expect(log).toEqual(["sink:stationOutfitting"]);
+  });
+
+  it("keeps today's behaviour with no flush registered", () => {
+    const state = createInputState();
+    const sunk: string[] = [];
+    state.setContext("saveScreen");
+    state.setStationScreenHandler((action) => sunk.push(action));
+    state.keyDown("KeyS");
+    expect(state.keyDown("F3")).toBe(true);
+    expect(sunk).toEqual(["stationOutfitting"]);
+    // Without a flush the queued Save stays for the frame drain.
+    expect(state.drainSaveScreenActions()).toEqual(["saveScreenSave"]);
+  });
+});

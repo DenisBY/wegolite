@@ -798,3 +798,67 @@ describe("interfaces screen action", () => {
     expect(state.drainStationActions()).toEqual([]);
   });
 });
+
+describe("F-keys from a focused text field (quick 261124-pze F11)", () => {
+  it("fires only the docked screen keys from a text field", () => {
+    const state = createInputState(createBindingMap({ chartRange: ["F7"] }));
+    const sunk: string[] = [];
+    state.setStationScreenHandler((action) => sunk.push(action));
+    state.setContext("chart");
+
+    // F7 bound to a chart edge: handled, but nothing fires from the box.
+    expect(state.keyDown("F7", false, { shift: false, textField: true })).toBe(
+      true,
+    );
+    expect(state.drainChartActions()).toEqual([]);
+
+    // The same key outside a text field queues the chart edge.
+    state.keyUp("F7");
+    expect(state.keyDown("F7", false, { shift: false })).toBe(true);
+    expect(state.drainChartActions()).toEqual(["chartRange"]);
+
+    // A docked screen key still reaches the synchronous sink.
+    expect(state.keyDown("F6", false, { shift: false, textField: true })).toBe(
+      true,
+    );
+    expect(sunk).toEqual(["chart"]);
+  });
+});
+
+describe("no saveLoad edge is ever queued (quick 261124-pze F3)", () => {
+  it("F2 never reaches the Save/Load queue in any context", () => {
+    for (const context of [
+      "flight",
+      "dockHome",
+      "dockScreen",
+      "chart",
+      "saveScreen",
+      "gameOver",
+    ] as const) {
+      const state = createInputState();
+      state.setStationScreenHandler(() => undefined);
+      state.setContext(context);
+      state.keyDown("F2");
+      expect(state.drainSaveScreenActions(), context).toEqual([]);
+    }
+  });
+});
+
+describe("stored blobs after the context widening (quick 261124-pze F6)", () => {
+  // The docked screen keys now also live on the chart and the Save/Load
+  // screen, so a custom table saved earlier can give a station section action
+  // and a chart or Save/Load action the same code. Alpha policy (no players):
+  // no migration, a CHANGELOG note instead. The earlier ACTION_IDS entry keeps
+  // the shared code; these cases pin which one that is.
+  it("Market on KeyS keeps the code and Save loses it", () => {
+    const map = createBindingMap({ stationMarket: ["KeyS"] });
+    expect(map.stationMarket).toEqual(["KeyS"]);
+    expect(map.saveScreenSave).toEqual([]);
+  });
+
+  it("chart up on Digit8 loses it to the Market's digit alias", () => {
+    const map = createBindingMap({ chartUp: ["Digit8"] });
+    expect(map.stationMarket).toEqual(["F8", "Digit8"]);
+    expect(map.chartUp).toEqual([]);
+  });
+});

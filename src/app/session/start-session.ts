@@ -151,6 +151,12 @@ export interface LifecycleDeps {
   readonly fitContext: StationController["fitContext"];
   readonly commitProfile: StationController["commitProfile"];
   readonly navigateByKey: StationController["navigateByKey"];
+  /**
+   * The flush of the queued screen edges (`createQueuedEdgeFlush`), registered
+   * on the input source so an edge pressed before a docked screen key in the
+   * same frame applies first (quick 261124-pze).
+   */
+  readonly flushQueuedEdges: () => void;
   readonly navigateStation: StationController["navigateStation"];
   readonly setStationPage: StationController["setStationPage"];
   readonly sortMarket: StationController["sortMarket"];
@@ -359,6 +365,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     fitContext,
     commitProfile,
     navigateByKey,
+    flushQueuedEdges,
     navigateStation,
     setStationPage,
     sortMarket,
@@ -763,6 +770,10 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // chart and the F2 screen included.
     ctx.runtime.input.setStationScreenHandler((action) => {
       navigateByKey(action);
+    });
+    // Same-frame key order: the queued edges apply before that sink runs.
+    ctx.runtime.input.setQueuedEdgeFlush(() => {
+      flushQueuedEdges();
     });
     ctx.runtime.input.setContext(restoredInFlight ? "flight" : "dockHome");
     ctx.runtime.input.setPaused(false);

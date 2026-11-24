@@ -28,7 +28,10 @@ import type { SceneManager } from "./scene-manager.js";
 import { createLaunchSequence } from "./launch-sequence.js";
 import { createRedrawGate } from "./redraw-gate.js";
 import { createSessionState } from "./session/context.js";
-import { createFrameLoop } from "./session/frame-loop.js";
+import {
+  createFrameLoop,
+  createQueuedEdgeFlush,
+} from "./session/frame-loop.js";
 import { createProbePublisher } from "./session/probe-publisher.js";
 import { createNpcModelLoader, trafficModelGlb } from "./npc-models.js";
 import { createRenderDriver } from "./session/render-driver.js";
@@ -519,6 +522,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     applyStationAction,
     updateProbe: probePublisher.updateProbe,
   });
+  // Quick 261124-pze: the input layer flushes the queued screen edges with the
+  // frame's routing before a docked screen key reaches its synchronous sink.
+  const flushQueuedEdges = createQueuedEdgeFlush(ctx, {
+    handleChartActions,
+    handleSaveScreenActions,
+    applyStationAction,
+  });
   const lifecycle = createSessionLifecycle(ctx, {
     // The loader goes down with the cache it loads through, on every teardown
     // path (an explicit dispose, pagehide and context loss all reach the
@@ -561,6 +571,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     fitContext,
     commitProfile,
     navigateByKey,
+    flushQueuedEdges,
     navigateStation,
     setStationPage,
     sortMarket,

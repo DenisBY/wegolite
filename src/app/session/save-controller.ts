@@ -409,11 +409,19 @@ export function createSaveController(
       return;
     }
     ctx.save.loadingSave = true;
+    const generation = ctx.save.saveScreenGeneration;
     try {
       const read = await saveBoot.store.read();
-      // G-8: F2 may have been closed during the IndexedDB await. A closed
-      // screen must not be overwritten by a save the player walked away from.
-      if (ctx.runtime.disposed || !ctx.save.saveScreenOpen) return;
+      // G-8: F2 may have been closed during the IndexedDB await. A closed, or
+      // a closed and reopened, screen must not receive a Load the player
+      // walked away from (quick 261124-pze F5).
+      if (
+        ctx.runtime.disposed ||
+        !ctx.save.saveScreenOpen ||
+        ctx.save.saveScreenGeneration !== generation
+      ) {
+        return;
+      }
       if (read.kind !== "ok") {
         failLoad(
           read.kind === "absent"
@@ -637,6 +645,7 @@ export function createSaveController(
   /** Hide F2 and restore the station context the player left. */
   function closeSaveScreen(): void {
     if (!ctx.save.saveScreenOpen) return;
+    ctx.save.saveScreenGeneration += 1;
     ctx.save.saveScreenOpen = false;
     ctx.save.saveLoad?.cancelOverwrite();
     ctx.save.saveLoad?.hide();
@@ -657,11 +666,9 @@ export function createSaveController(
   function applySaveScreenAction(action: ActionId): void {
     const screen = ctx.save.saveLoad;
     if (screen === undefined) return;
+    // F2 itself is never queued: it reaches `navigateByKey` synchronously, so
+    // there is no toggle arm here (quick 261124-pze F3).
     switch (action) {
-      case "saveLoad":
-        if (ctx.save.saveScreenOpen) closeSaveScreen();
-        else openSaveScreen();
-        break;
       case "saveScreenReturn":
         if (screen.isConfirming()) {
           screen.cancelOverwrite();

@@ -296,6 +296,9 @@ export function createStationShell(
       marketBody.append(tr);
     }
     marketComment.textContent = model.commentText;
+    // The line is cut with an ellipsis when it does not fit; the title keeps
+    // the full note readable on hover (empty for the default no-comment case).
+    marketComment.title = model.commentText;
     marketCashLoad.textContent = model.cashLoadText;
   }
 

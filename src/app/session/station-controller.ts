@@ -944,8 +944,13 @@ export function createStationController(
    * As in Oolite, the keys work from every docked screen, the chart and the F2
    * screen included (`pollDockedControls` calls `pollGuiScreenControls` on
    * every docked GUI screen, `PlayerEntityControls.m:4157-4165` at the pin
-   * 7437f22): an open overlay is closed first (closing the F2 screen also
-   * cancels an open overwrite dialog), then the target opens. F3 and F4
+   * 7437f22): an open overlay is closed first, then the target opens. While
+   * the Save/Load overwrite question is open every docked screen key does
+   * nothing, like the tab-strip click (quick 261124-pze, FIDELITY E-189): Oolite's
+   * `setGuiToOverwriteScreen` sets `pollControls = NO`
+   * (`PlayerEntityLoadSave.m:784` at 7437f22), and
+   * `pollGuiScreenControlsWithFKeyAlias` then returns before any F-key
+   * (`PlayerEntityControls.m:3896-3897`). F3 and F4
    * re-run their open path even on their own screen. F5 on Status page 1
    * with no overlay open opens the Manifest (page 2), elsewhere Status page 1
    * (`PlayerEntityControls.m:3904-3916`). F8 on the Market with no overlay
@@ -972,7 +977,8 @@ export function createStationController(
       ctx.runtime.contextLost ||
       ctx.runtime.paused ||
       ctx.runtime.gameOver ||
-      currentState === undefined
+      currentState === undefined ||
+      ctx.save.saveLoad?.isConfirming() === true
     ) {
       return;
     }

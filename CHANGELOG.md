@@ -13,6 +13,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - F8 on the market now does nothing; the selected commodity and an open buy or
   sell confirmation stay as they are. F8 from any other screen still opens the
   market.
+- The digit keys 3, 4, 5 and 8 (Oolite's stand-ins for F3, F4, F5 and F8) also
+  work on the chart and the Save/Load screen. This came with 0.8.0 and was not
+  noted then. Typing in the chart's search box is unchanged.
+- A custom key binding saved before 0.8.0 that gave Market, Outfitting, Status
+  or Interfaces a key the chart or the Save/Load screen also uses now keeps that
+  key for the station screen, and the other action loses it (for example,
+  Market on S leaves Save without a key). Rebind it in Controls; old settings
+  are not migrated.
 
 ### Added
 
@@ -20,7 +28,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   no such hint).
 - A line under the market list shows Oolite's note on the selected commodity
   (slaves, narcotics and firearms may not be exported from Cooperative
-  stations). It is empty for goods without a note.
+  stations). It is empty for goods without a note. Pointing at the line shows
+  the full note when it is cut short.
+
+### Fixed
+
+- Keys pressed together now apply in the order they were pressed: S then F3 on
+  the Save/Load screen saves first, and Escape then F6 on the chart opens the
+  chart again.
+- While the Save/Load overwrite question is open, the screen keys do nothing
+  until you answer it, as in Oolite.
+- A Load that was still reading when you left the Save/Load screen no longer
+  takes effect when you open the screen again.
 
 ## [0.8.0] - 2026-11-24
 

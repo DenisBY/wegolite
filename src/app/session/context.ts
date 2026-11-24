@@ -278,6 +278,13 @@ export interface SessionSaveState {
   /** A manual Save is a single confirmed request; the flag coalesces a double-press. */
   manualSavePending: boolean;
   loadingSave: boolean;
+  /**
+   * Bumped by every `closeSaveScreen` of an open F2 screen. An in-session Load
+   * captures it before its IndexedDB read and installs nothing when it changed
+   * across the await, so a Load the player walked away from never lands on a
+   * reopened screen (quick 261124-pze F5).
+   */
+  saveScreenGeneration: number;
 }
 
 /** Frame loop, input, overlays and the lifecycle flags. */
@@ -478,6 +485,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       saveSkipReason: init.saveSkipReason,
       saveUnavailable: init.saveStatus === "unavailable",
       manualSavePending: false,
+      saveScreenGeneration: 0,
       loadingSave: false,
     },
     runtime: {

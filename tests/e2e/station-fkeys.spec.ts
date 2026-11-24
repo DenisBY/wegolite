@@ -17,6 +17,12 @@
  * screen is reached through a tab click, never through a key under test.
  * Evidence is the probe, never a captured image (D-08).
  *
+ * A bubble-phase window keydown recorder, added after the game's own
+ * listeners, keeps `{ code, targetId, defaultPrevented }` for every F1 to F8
+ * press. A synthetic press never reloads the page, so the recorded
+ * `defaultPrevented` is the evidence that F5 and the other reserved keys are
+ * cancelled (quick 261124-pze F4).
+ *
  * The Firefox project runs this file too (playwright.config.ts), because the
  * owner's report names both engines.
  */
@@ -104,11 +110,59 @@ async function boot(page: Page): Promise<void> {
     { timeout: 60_000 },
   );
   await expect(page.locator("#docked")).toBeVisible();
-  // A full page load would drop this marker, so a key that reloads the page
-  // (F5 reaching the browser) fails the run.
+  // A full page load would drop this marker. It only catches a real
+  // navigation: a synthetic press never reloads the page, so the recorded
+  // `defaultPrevented` below is the evidence that F5 is cancelled.
   await page.evaluate(() => {
     (window as unknown as { __fkeysNoReload?: boolean }).__fkeysNoReload = true;
   });
+  // Bubble phase on window, registered after the game's listeners, so it sees
+  // the final `defaultPrevented` of every F1 to F8 keydown.
+  await page.evaluate(() => {
+    const log: KeyRecord[] = [];
+    (window as unknown as { __fkeysRecord?: KeyRecord[] }).__fkeysRecord = log;
+    window.addEventListener("keydown", (event) => {
+      if (!/^F[1-8]$/.test(event.code)) return;
+      const target = event.target;
+      log.push({
+        code: event.code,
+        targetId: target instanceof Element ? target.id : "",
+        defaultPrevented: event.defaultPrevented,
+      });
+    });
+  });
+}
+
+/** One F1 to F8 keydown as the window recorder saw it. */
+interface KeyRecord {
+  readonly code: string;
+  readonly targetId: string;
+  readonly defaultPrevented: boolean;
+}
+
+async function recordedKeys(page: Page): Promise<KeyRecord[]> {
+  return page.evaluate(
+    () =>
+      (window as unknown as { __fkeysRecord?: KeyRecord[] }).__fkeysRecord ??
+      [],
+  );
+}
+
+/**
+ * Dispatch a keydown then a keyup on window for each code, all inside ONE
+ * page task, so every key lands before the next animation frame.
+ */
+async function pressInOneFrame(
+  page: Page,
+  codes: readonly (readonly [string, string])[],
+): Promise<void> {
+  await page.evaluate((list) => {
+    for (const [code, key] of list) {
+      const init = { code, key, bubbles: true, cancelable: true };
+      window.dispatchEvent(new KeyboardEvent("keydown", init));
+      window.dispatchEvent(new KeyboardEvent("keyup", init));
+    }
+  }, codes);
 }
 
 async function placeOf(page: Page): Promise<Place | undefined> {
@@ -190,7 +244,8 @@ async function pressFrom(
 ): Promise<void> {
   await goTo(page, source);
   const cameraBefore = source === "chart" ? await chartCamera(page) : undefined;
-  await page.keyboard.press(code);
+  if (!(source === "saveLoad" && code === "F2"))
+    await page.keyboard.press(code);
   if (source === "chart" && code === "F6") {
     // F6 on an open chart does nothing (owner decision 2026-11-24): the chart
     // stays open and its camera does not move.
@@ -199,8 +254,29 @@ async function pressFrom(
       cameraBefore,
     );
   } else if (source === "saveLoad" && code === "F2") {
-    // Oolite ignores F2 on its own screen.
+    // Oolite ignores F2 on its own screen. A close and reopen within the
+    // frame would end on the same place, so the screen's hidden attribute is
+    // watched: any toggle fails the case.
+    await page.evaluate(() => {
+      const holder = window as unknown as { __saveLoadMutations?: number };
+      holder.__saveLoadMutations = 0;
+      const element = document.getElementById("save-load");
+      if (element === null) throw new Error("#save-load is missing");
+      new MutationObserver((records) => {
+        holder.__saveLoadMutations =
+          (holder.__saveLoadMutations ?? 0) + records.length;
+      }).observe(element, { attributes: true, attributeFilter: ["hidden"] });
+    });
+    await page.keyboard.press(code);
     await settleFrames(page);
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as { __saveLoadMutations?: number })
+            .__saveLoadMutations,
+      ),
+      "F2 on Save/Load neither hides nor shows the screen",
+    ).toBe(0);
   } else {
     await waitForPlace(page, target);
   }
@@ -222,6 +298,12 @@ async function expectNoReload(page: Page): Promise<void> {
         (window as unknown as { __fkeysNoReload?: boolean }).__fkeysNoReload,
     ),
   ).toBe(true);
+  for (const record of await recordedKeys(page)) {
+    expect(
+      record.defaultPrevented,
+      `${record.code} from #${record.targetId} is cancelled`,
+    ).toBe(true);
+  }
 }
 
 for (const source of SOURCES) {
@@ -263,6 +345,98 @@ test("the keys still work with the chart's Find planet box focused", async ({
       await expect(findInput).not.toBeFocused();
     }
   }
+
+  // F7 has no action on the chart: from the focused box it changes nothing,
+  // the box keeps focus, and the browser default is still cancelled.
+  await goTo(page, "chart");
+  await page.keyboard.press("Slash");
+  await expect(findInput).toBeFocused();
+  await page.keyboard.press("F7");
+  await settleFrames(page);
+  expect(await placeOf(page)).toBe("chart");
+  await expect(findInput).toBeFocused();
+
+  // Every key pressed from the box was seen there and cancelled.
+  const fromBox = (await recordedKeys(page)).filter(
+    (record) => record.targetId === "chart-find-input",
+  );
+  for (const code of [...KEYS.map(([key]) => key), "F7"]) {
+    const records = fromBox.filter((record) => record.code === code);
+    expect(records.length, `${code} from the Find box`).toBeGreaterThan(0);
+    for (const record of records) {
+      expect(record.defaultPrevented, `${code} from the Find box`).toBe(true);
+    }
+  }
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});
+
+test("keys pressed in one frame apply in order (quick 261124-pze)", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  const save = () => page.evaluate(() => window.__wegolite?.save);
+
+  // 1. No save yet: S writes it at once, then F3 opens Outfitting.
+  await goTo(page, "saveLoad");
+  const fresh = await save();
+  expect(fresh?.status).toBe("absent");
+  const committedBefore = fresh?.committed ?? 0;
+  await pressInOneFrame(page, [
+    ["KeyS", "s"],
+    ["F3", "F3"],
+  ]);
+  await waitForPlace(page, "outfitting");
+  await page.waitForFunction(
+    (before) => (window.__wegolite?.save?.committed ?? 0) >= before + 1,
+    committedBefore,
+    { timeout: UI_WAIT },
+  );
+  expect((await save())?.committed).toBe(committedBefore + 1);
+
+  // 2. With a save present S opens the overwrite question first, and F3 does
+  //    nothing under it (Oolite stops polling the F-keys there).
+  await goTo(page, "saveLoad");
+  await page.waitForFunction(
+    () => window.__wegolite?.save?.status === "valid",
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  await pressInOneFrame(page, [
+    ["KeyS", "s"],
+    ["F3", "F3"],
+  ]);
+  await settleFrames(page);
+  expect(
+    await page.evaluate(() => window.__wegolite?.saveScreen?.confirming),
+  ).toBe(true);
+  expect(await placeOf(page)).toBe("saveLoad");
+
+  // 3. Escape answers the question; F3 then works again.
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(
+    () => window.__wegolite?.saveScreen?.confirming === false,
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  expect(await placeOf(page)).toBe("saveLoad");
+  await page.keyboard.press("F3");
+  await waitForPlace(page, "outfitting");
+
+  // 4. On the chart (moved to the galaxy preset first), Escape then F6 in one
+  //    frame closes it and opens it again, fresh at the local preset.
+  await goTo(page, "chart");
+  await page.keyboard.press("Tab");
+  await waitForSpan(page, GALAXY_SPAN);
+  await pressInOneFrame(page, [
+    ["Escape", "Escape"],
+    ["F6", "F6"],
+  ]);
+  await settleFrames(page);
+  expect(await placeOf(page)).toBe("chart");
+  await waitForSpan(page, LOCAL_SPAN);
+
   await expectNoReload(page);
   expect(errors).toEqual([]);
 });
@@ -432,6 +606,11 @@ test("F8 on the Market does nothing and a line under the list shows the selected
   await expect(comment).toHaveText(
     "It is illegal to export this good from Cooperative stations.",
   );
+  // The full note is also the line's title, readable when it is cut short.
+  await expect(comment).toHaveAttribute(
+    "title",
+    "It is illegal to export this good from Cooperative stations.",
+  );
 
   // The line fits inside the station screen above the cash line and the
   // footer key line, is not ellipsised, and the screen does not scroll.
@@ -478,6 +657,7 @@ test("F8 on the Market does nothing and a line under the list shows the selected
     { timeout: UI_WAIT },
   );
   await expect(comment).toHaveText("");
+  await expect(comment).toHaveAttribute("title", "");
   expect(await top(cash), "the cash line has not moved").toBe(cashY);
 
   await expectNoReload(page);
