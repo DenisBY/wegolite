@@ -475,10 +475,10 @@ Plans:
 **UAT gap closure** (2026-11-24; gap-closure waves restart at 1)
 
 **Gap wave 1**
-- [ ] 20-12-PLAN.md — G-20-1, DEATH-01: the dead camera coasts render-only at Oolite's 160 m/s looking aft on the presentation clock (sim, tick and hash frozen); the dust gets the coasting camera's delta and speed (0 when the camera has not moved), pinned by Vitest; the dead view draws every frame while shown (D-01d's visibility bound withdrawn with the camera's rest); FIDELITY E-179 and DIV-7 revised, the coast row with excerpt E-181, CHANGELOG; the flyer plates are Oolite's odds (no change)
+- [ ] 20-12-PLAN.md — G-20-1, DEATH-01: the dead camera coasts render-only at Oolite's 160 m/s looking aft on the presentation clock (sim, tick and hash frozen); the dust gets the coasting camera's delta and speed (0 when the camera has not moved), pinned by Vitest; the dead view draws every frame while shown (D-01e, owner-confirmed 2026-11-24: the redraw half of D-01d withdrawn); FIDELITY E-179 and DIV-7 revised on the owner's authority (Round 3 cited if run, else "not reviewed"), the coast row with excerpt E-181, CHANGELOG; `verify-full` deferred to 20-13's phase gate; the flyer plates are Oolite's odds (no change)
 
 **Gap wave 2** *(blocked on gap wave 1 completion)*
-- [ ] 20-13-PLAN.md — G-20-2, DEATH-01, DEATH-06: the four game-over lines on a dark translucent panel inside the faded `#game-over` root, in Oolite's yellow; the backing recorded as a divergence (excerpt E-182, a new Key Decision; prerequisite: `## Round 3` reviewer verdicts in `20-REVIEWS.md`), CHANGELOG; the phase gate's remote `verify-full`; the credits glyph stays a todo
+- [ ] 20-13-PLAN.md — G-20-2, DEATH-01, DEATH-06: the four game-over lines on a dark translucent panel inside the faded `#game-over` root, in Oolite's yellow; plan-level pre-flight: `## Round 3` ACCEPT verdicts on the backing (DIV-10) in `20-REVIEWS.md` from at least two models, else nothing is committed; the backing recorded first (excerpt E-182, a new Key Decision), then the panel and CHANGELOG in one commit; the phase gate's remote `verify-full`, covering 20-12 too; the credits glyph stays a todo
 
 **UI hint**: yes
 
