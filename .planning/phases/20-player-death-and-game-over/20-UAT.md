@@ -3,7 +3,7 @@ status: diagnosed
 phase: 20-player-death-and-game-over
 source: [20-VERIFICATION.md]
 started: 2026-11-23T21:00:00Z
-updated: 2026-11-23T22:30:00Z
+updated: 2026-11-24T11:00:00Z
 ---
 
 ## Current Test
@@ -39,12 +39,33 @@ expected: The ship rams the navigation buoy as 20-01 measured and pinned it, and
 result: pass
 note: "Screenshot showed the game-over view with the cause line 'Collided with Navigation Buoy' after an idle launch."
 
+### 4. Re-test G-20-1: the coasting dead view (Chromium and Firefox)
+
+Die in flight in Chromium and Firefox (a hook-spawned Viper's laser or a ram) and watch the dead view for the full 5 s fade and after it. Also die on the docking approach.
+
+expected: The view looks aft and drifts away from the explosion at 160 m/s. The eight bursts and the flash read as an explosion. The dust streams as short lines toward the centre and never as still random dashes. Wreckage from earlier kills keeps drifting. The frame stays smooth (it now draws every frame). On the docking approach the camera passes through the station, as Oolite's does.
+result: [pending]
+
+### 5. Re-test G-20-2: the four lines over the sun and a lit station (Chromium and Firefox)
+
+Die with the sun behind the text, and again with a lit station face behind it, in Chromium and Firefox. Read all four lines at the start of the fade and at the end of the 5 s fade.
+
+expected: Game Over, the cause line, Score and Press Space read clearly in yellow on the dark panel, also after the fade to grey. Over black space the panel is barely visible. The credits sign after the score is a known, separately tracked glyph issue (todo 2026-11-24-credits-glyph-legibility), not a failure here.
+result: [pending]
+
+### 6. Owner judgement: the explosion seen through the 60 % panel
+
+Judge the receding explosion seen through the 60 % black panel at the centre of the aft view (Round 3 condition 6 of the DIV-10 review).
+
+expected: The owner accepts the dimmed explosion or asks for different panel values. The values were deliberately not tuned.
+result: [pending]
+
 ## Summary
 
-total: 3
+total: 6
 passed: 1
 issues: 2
-pending: 0
+pending: 3
 skipped: 0
 blocked: 0
 
