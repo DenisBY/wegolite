@@ -31,3 +31,15 @@ Probably related to `2026-11-22-bug-docked-f-keys-unreliable.md`; fix them toget
 
 - A second F6 on the chart does what Oolite does (or the recorded divergence), never returns to the previous
   screen; a browser spec covers F4 -> F6 -> F6.
+
+## Resolution (2026-11-24)
+
+Fixed in debug session `docked-f-keys` (`.planning/debug/resolved/docked-f-keys.md`), together with
+`2026-11-22-bug-docked-f-keys-unreliable.md`. `applyChartAction("chart")` closed an open chart and
+restored the screen under it. Owner decision 2026-11-24: F6 on an open chart does nothing; the chart
+stays open with its preset and camera, never closes and never returns to the previous screen (Esc closes
+it, Tab switches the local and the whole-galaxy preset). This is a recorded divergence, FIDELITY.md
+E-184: Oolite's repeated F6 switches the short-range and the long-range chart
+(`PlayerEntityControls.m:3921-3940`), while Wegolite has one zoomable chart. The browser spec covers
+F4 -> F6 -> F6 (and a third F6, on the galaxy preset and on a wheel-zoomed camera) and asserts the chart
+is still open with an unchanged preset and camera.

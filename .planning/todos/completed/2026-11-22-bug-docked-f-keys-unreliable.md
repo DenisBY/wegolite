@@ -34,3 +34,17 @@ Not yet reproduced or diagnosed. Things to check first:
 
 - From every docked screen, each advertised F-key opens its screen on the first press, in Chromium and Firefox.
 - A browser spec presses each key from each docked screen and asserts the screen shown.
+
+## Resolution (2026-11-24)
+
+Fixed in debug session `docked-f-keys` (`.planning/debug/resolved/docked-f-keys.md`). Three independent
+gaps: `ACTION_CONTEXTS` made F2/F3/F4/F5/F8 live only in `dockHome`/`dockScreen` and F6 not in
+`saveScreen`, so on the chart and the Save/Load screen the reserved key was swallowed and nothing fired;
+and with the chart's Find planet box focused, `onKeyDown` dropped the key and the reserved-key guard let
+it reach the browser (F5 could reload the page). The six keys are now live on every docked screen, the
+chart and Save/Load included (F2 is ignored on its own screen, as Oolite ignores it on
+`GUI_SCREEN_OPTIONS`), and outside flight they go through one synchronous sink (`navigateByKey` in
+`src/app/session/station-controller.ts`) that closes the open overlay and opens the target in press
+order; F1 to F8 are never text input. FIDELITY.md E-183 (faithful to `pollDockedControls`).
+`tests/e2e/station-fkeys.spec.ts` presses each key once from each docked screen and from the focused
+search box, in Chromium and Firefox.
