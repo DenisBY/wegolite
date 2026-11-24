@@ -425,9 +425,17 @@
         padding-bottom: 0.05rem;
       }
 
-      #docked .station-market-info {
-        margin: 0 0 0.3rem;
-        line-height: 1.4;
+      /* The selected commodity's comment under the list (quick 261124-ou6).
+         The empty and the filled line share one height (the footer's
+         reserved-line pattern) so the cash-and-load line never moves, and the
+         line neither wraps nor grows the screen. */
+      #docked .station-market-comment {
+        min-height: 1.2em;
+        margin: 0;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       #docked .station-cash-load {
@@ -1997,7 +2005,7 @@
           </div>
         </div>
         <div data-station-panel="market" hidden>
-          <h2 data-field="market-title">Market</h2>
+          <h2>Market</h2>
           <table class="station-table">
             <thead>
               <tr>
@@ -2017,11 +2025,7 @@
             </thead>
             <tbody data-market-rows></tbody>
           </table>
-          <p
-            class="station-market-info"
-            data-field="market-info-comment"
-            hidden
-          ></p>
+          <p class="station-market-comment" data-field="market-comment"></p>
           <p class="station-cash-load" data-field="market-cash-load"></p>
         </div>
         <div data-station-panel="outfitting" hidden>

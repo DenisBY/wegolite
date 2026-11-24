@@ -27,9 +27,8 @@ import { newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import {
   MARKET_COLUMNS,
-  MARKET_INFO_TITLE_TEMPLATE,
+  MARKET_NO_COMMENT_TEXT,
   MARKET_SORT_COLUMNS,
-  MARKET_TITLE,
   buildMarketModel,
   legalityText,
   nextMarketSort,
@@ -510,67 +509,60 @@ describe("market sort", () => {
   });
 });
 
-describe("Market Info (page 2)", () => {
-  function buildPage(selection: string, page: number, cargo = {}) {
-    return buildMarketModel(
-      market,
-      { ...newProfile(), cargo },
-      commodities,
-      selection,
-      { pending: null, notice: "" },
-      null,
-      page,
-    );
+describe("comment line under the list (quick 261124-ou6)", () => {
+  function buildSelected(selection: string) {
+    return buildMarketModel(market, newProfile(), commodities, selection, {
+      pending: null,
+      notice: "",
+    });
   }
 
-  it("shows the selected commodity's row, comment and title on page 2", () => {
-    const model = buildPage("food", 2);
+  it.each(["slaves", "narcotics", "firearms"])(
+    "shows the compiled comment of %s",
+    (key) => {
+      const model = buildSelected(key);
 
-    expect(model.page).toBe(2);
-    expect(model.title).toBe("Commodity: Food");
-    expect(model.info?.row).toEqual(row(model, "food"));
-    expect(model.info?.comment).toBe(commodity("food").comment);
-    expect(model.info?.comment).toBe("No additional information available");
-    expect(model.cashLoadText).toBe(build().cashLoadText);
-  });
+      expect(model.commentText).toBe(
+        "It is illegal to export this good from Cooperative stations.",
+      );
+      expect(model.commentText).toBe(commodity(key).comment);
+    },
+  );
 
-  it("carries the hold quantity on the info row", () => {
-    const model = buildPage("food", 2, { food: 3 });
-
-    expect(model.info?.row.heldText).toBe("3");
-  });
-
-  it("uses the restricted-goods comment for slaves", () => {
-    const model = buildPage("slaves", 2);
-
-    expect(model.title).toBe("Commodity: Slaves");
-    expect(model.info?.comment).toBe(
-      "It is illegal to export this good from Cooperative stations.",
-    );
+  it("is empty for Oolite's default no-comment text", () => {
+    expect(commodity("food").comment).toBe(MARKET_NO_COMMENT_TEXT);
+    expect(buildSelected("food").commentText).toBe("");
   });
 
   it.each([
     ["no selection", ""],
     ["a key outside the market", "not_a_good"],
-  ])("falls back to the list for %s", (_label, selection) => {
-    const model = buildPage(selection, 2);
-
-    expect(model.page).toBe(1);
-    expect(model.info).toBeNull();
-    expect(model.title).toBe("Market");
+  ])("is empty for %s", (_label, selection) => {
+    expect(buildSelected(selection).commentText).toBe("");
   });
 
-  it("is the old model plus page 1, the Market title and no info on page 1", () => {
-    const model = buildPage("food", 1);
+  it("is empty or the record's own comment for every market key, never the default text", () => {
+    const marketKeys = build().rows.map((entry) => entry.key);
+    expect(marketKeys).toHaveLength(17);
+    for (const key of marketKeys) {
+      const text = buildSelected(key).commentText;
+      expect(text === "" || text === commodity(key).comment).toBe(true);
+      expect(text).not.toBe(MARKET_NO_COMMENT_TEXT);
+    }
+  });
 
-    expect(model.page).toBe(1);
-    expect(model.title).toBe(MARKET_TITLE);
-    expect(model.info).toBeNull();
+  it("leaves the rest of the model as before", () => {
+    const model = buildSelected("slaves");
+
     expect(model.rows).toHaveLength(17);
-    expect(model).toEqual(build());
+    expect(model.cashLoadText).toBe(build().cashLoadText);
+    expect({ ...model, commentText: "" }).toEqual({
+      ...build(undefined, "slaves"),
+      commentText: "",
+    });
   });
 
-  it("pins the title template to the vendored descriptions.plist", () => {
+  it("pins the no-comment text to the vendored descriptions.plist", () => {
     const plist = readFileSync(
       join(process.cwd(), "third_party/oolite/Config/descriptions.plist"),
       "utf8",
@@ -578,9 +570,9 @@ describe("Market Info (page 2)", () => {
     let oolite: string | undefined;
     for (const line of plist.split("\n")) {
       const match = /^\s*"([^"]+)"\s*=\s*"(.*)";/.exec(line);
-      if (match?.[1] === "oolite-commodity-information-@") oolite = match[2];
+      if (match?.[1] === "oolite-commodity-no-comment") oolite = match[2];
     }
-    expect(oolite).toBe("Commodity: %@");
-    expect(MARKET_INFO_TITLE_TEMPLATE).toBe(oolite);
+    expect(oolite).toBe("No additional information available");
+    expect(MARKET_NO_COMMENT_TEXT).toBe(oolite);
   });
 });
