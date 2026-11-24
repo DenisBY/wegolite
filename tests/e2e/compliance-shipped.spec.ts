@@ -62,7 +62,7 @@ test("the shipped footer links the licence documents, the changelog and the sour
   const footers = page.locator("footer");
   await expect(footers).toHaveCount(1);
   const footerText = (await footers.textContent()) ?? "";
-  expect(footerText).toContain("Wegolite 0.7.0");
+  expect(footerText).toContain("Wegolite 0.8.0");
   expect(footerText).toContain("unofficial fan project");
 
   const hrefs = await page

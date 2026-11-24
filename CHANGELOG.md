@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
+Damage and death. A hit that gets through your shields can damage your
+equipment or cargo, damaged equipment is repaired at the outfitting screen, and
+your ship is destroyed when its energy reaches zero, with a Game Over screen.
+The docked F-keys now work from every station screen.
+
+**Breaking:** saves from earlier releases (save format 1 to 4) are no longer
+loaded; start a new game.
+
 ### Added
 
 - The page footer links the changelog, so you can see what changed in each
