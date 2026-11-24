@@ -30,3 +30,27 @@ and the values Phase 16 pinned, so the pins must be re-pinned with the measured
 cause recorded. If any part of the behaviour is kept different from Oolite,
 add a FIDELITY.md note for it. Add a guard test that pins debris velocity equal
 to the ship velocity plus the kick.
+
+## Related: the explosion drift (added 2026-11-24, Phase 20 Round 3 review)
+
+The same Oolite rule moves the explosions. Each fragment burst takes the dying
+ship's total velocity at the moment of the explosion: the small burst 1x
+(`OOParticleSystem.m:274` at pin 7437f22), the big burst 0.85x (`:324`), where
+the velocity is the drift plus forward x flight speed
+(`ShipEntity.m:11158-11166`). Wegolite's explosions stay where the ship died, a
+divergence FIDELITY E-173 records ("the absent velocity drift").
+
+Unlike the debris, the explosion layer is render-only and outside the world hash
+(Phase 20 D-01, `src/render/bodies/explosions.ts`), so giving the bursts the
+death velocity changes no hashed value and needs no re-pin. It matters more
+since the Phase 20 gap closure (plan 20-12, D-01e): the dead camera coasts away
+at 160 m/s, so Wegolite's fireball always recedes, while Oolite's comes toward
+the camera after a fast death. A burst centre closes the 100 m gap at `v - 160`
+(small) or `0.85 v - 160` (big), so within the burst lifetimes it reaches the
+camera only above about 227 m/s (small, 1.5 s) or 306 m/s (big, 1.0 s); at
+350 m/s it does so after 0.53 s and 0.73 s.
+
+Solution direction for this part: carry the dying ship's velocity in the
+explosion event (the player's from `killPlayer`, an NPC's from `killShip`) and
+offset each burst's centre by `velocity x t` in the layer, with the 0.85 factor
+for big bursts; update E-173 and E-179.
