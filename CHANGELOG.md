@@ -25,9 +25,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Game over: when your ship is destroyed, the Game Over screen says what
   destroyed you (for example "Destroyed by Krait" or "Collided with Navigation
   Buoy") and shows your score. The view turns to look back at your ship as it
-  explodes, the HUD disappears, and the picture fades to black and white over
-  five seconds. Press Space or click to return to the title, which offers
-  Continue from your last save. A destroyed ship is never saved.
+  explodes and drifts away from the wreck, as in Oolite, the HUD disappears,
+  and the picture fades to black and white over five seconds. Press Space or
+  click to return to the title, which offers Continue from your last save. A
+  destroyed ship is never saved.
 
 ### Changed
 
