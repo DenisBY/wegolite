@@ -5,3 +5,6 @@ dist
 test-results
 playwright-report
 *.log
+# Local agent tooling and agent worktrees: never part of an image.
+.claude
+.agents
