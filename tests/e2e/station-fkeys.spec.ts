@@ -415,6 +415,7 @@ test("F8 on the Market does nothing and a line under the list shows the selected
   expect(
     await page.evaluate(() => window.__wegolite?.station?.selectedKey),
   ).toBe("food");
+  await expect(hints).not.toContainText("F8");
   await expect(rows).toHaveCount(17);
   await expect(
     page.locator("#docked [data-market-rows] tr.selected"),

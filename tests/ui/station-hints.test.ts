@@ -40,7 +40,7 @@ describe("default hint strings", () => {
     const bindings = defaults();
     expect(dockedHints(bindings, "home")).toBe("1 launch · P pause");
     expect(dockedHints(bindings, "market")).toBe(
-      "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Enter/Y confirm · N cancel · F8 commodity info · Esc back · P pause",
+      "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause",
     );
     expect(dockedHints(bindings, "outfitting")).toBe(
       "Up/Down select · Enter/Y confirm · N cancel · Esc back · P pause",
@@ -51,7 +51,7 @@ describe("default hint strings", () => {
     expect(dockedHints(bindings, "interfaces")).toBe("Esc back · P pause");
   });
 
-  it("names the next F5 and F8 press on each page (owner decision 2026-11-24)", () => {
+  it("names the next F5 press on each Status page (owner decision 2026-11-24)", () => {
     const bindings = defaults();
     expect(dockedHints(bindings, "status", 1)).toBe(
       "Tab/PageDown next page · PageUp previous · F5 manifest · Esc back · P pause",
@@ -59,17 +59,22 @@ describe("default hint strings", () => {
     expect(dockedHints(bindings, "status", 2)).toBe(
       "Tab/PageDown next page · PageUp previous · F5 status · Esc back · P pause",
     );
-    expect(dockedHints(bindings, "market", 1)).toBe(
-      "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Enter/Y confirm · N cancel · F8 commodity info · Esc back · P pause",
-    );
-    expect(dockedHints(bindings, "market", 2)).toBe(
-      "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Enter/Y confirm · N cancel · F8 commodity list · Esc back · P pause",
-    );
+    // The market line is the 0.8.0 string on every page: it has no F8 part.
+    const market =
+      "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause";
+    expect(dockedHints(bindings, "market")).toBe(market);
+    expect(dockedHints(bindings, "market", 1)).toBe(market);
+    expect(dockedHints(bindings, "market", 2)).toBe(market);
   });
 
   it("leaves home, outfitting and interfaces unchanged for any page", () => {
     const bindings = defaults();
-    for (const screen of ["home", "outfitting", "interfaces"] as const) {
+    for (const screen of [
+      "home",
+      "market",
+      "outfitting",
+      "interfaces",
+    ] as const) {
       expect(dockedHints(bindings, screen, 2)).toBe(
         dockedHints(bindings, screen, 1),
       );
@@ -128,7 +133,7 @@ describe("rebound hint strings", () => {
     expect(saveLoadHints(map)).toContain("K save");
   });
 
-  it("follows a rebind of the F5 and F8 keys in the second-press hints", () => {
+  it("follows a rebind of the F5 key in the second-press hint", () => {
     const map = defaults();
     expect(bindAction(map, "stationStatus", "KeyV")).toEqual({ ok: true });
     expect(dockedHints(map, "status", 1)).toContain("V manifest");
@@ -136,8 +141,9 @@ describe("rebound hint strings", () => {
     expect(dockedHints(map, "status", 1)).not.toContain("F5");
 
     expect(bindAction(map, "stationMarket", "KeyM")).toEqual({ ok: true });
-    expect(dockedHints(map, "market", 1)).toContain("M commodity info");
-    expect(dockedHints(map, "market", 2)).toContain("M commodity list");
+    expect(dockedHints(map, "market", 1)).toBe(
+      dockedHints(defaults(), "market", 1),
+    );
 
     expect(unbindAction(map, "stationStatus")).toBe(true);
     expect(dockedHints(map, "status", 1)).toContain("(unbound) manifest");

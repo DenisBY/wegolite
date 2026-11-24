@@ -16,8 +16,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- The status, manifest, market and commodity information footers show what the
-  next F5 or F8 press opens (Oolite has no such hint).
+- The status and manifest footers show what the next F5 press opens (Oolite has
+  no such hint).
 - A line under the market list shows Oolite's note on the selected commodity
   (slaves, narcotics and firearms may not be exported from Cooperative
   stations). It is empty for goods without a note.

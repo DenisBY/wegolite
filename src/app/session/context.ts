@@ -226,7 +226,7 @@ export interface SessionStationState {
   stationNotice: string;
   stationMessage: string;
   stationSaveNotice: string;
-  /** Status 1 / Manifest 2, or Market 1 / Market Info 2; 1 elsewhere. */
+  /** Status 1 / Manifest 2; 1 elsewhere. */
   stationPage: 1 | 2;
   /**
    * The laser key whose facing selection is open on F3, or null on the main

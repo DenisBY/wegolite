@@ -268,6 +268,7 @@ test("F8 and F5 fit at 1280x720 without scrolling", async ({ page }) => {
   await expect(page.locator("[data-market-rows] tr")).toHaveCount(17);
   await expectInside("[data-market-rows] tr:last-child");
   await expectInside('[data-field="market-cash-load"]');
+  await expectInside('[data-field="market-comment"]');
   await expect(page.locator('[data-field="market-cash-load"]')).toHaveText(
     "Cash: 100.0 ₢. Load 0 of 20 t.",
   );
