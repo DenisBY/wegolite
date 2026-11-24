@@ -14,6 +14,9 @@ files:
   - src/sim/flight/state.ts
   - src/ui/station-model.ts
   - index.html
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

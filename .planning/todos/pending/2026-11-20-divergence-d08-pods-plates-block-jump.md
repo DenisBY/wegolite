@@ -7,6 +7,9 @@ severity: minor
 files:
   - src/sim/world/ship-field.ts
   - src/sim/npc/mass.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

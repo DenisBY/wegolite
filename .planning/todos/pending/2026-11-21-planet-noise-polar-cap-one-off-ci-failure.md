@@ -6,6 +6,9 @@ severity: minor
 files:
   - tests/render/planet-noise.test.ts
   - src/render/planet-noise.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

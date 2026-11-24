@@ -1,0 +1,2112 @@
+[0m
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/sim/combat/ledger.ts [90m[offset=1, limit=270][0m
+[0m→ [0mRead src/render/launch-camera.ts [90m[offset=90, limit=90][0m
+[0m→ [0mRead tests/e2e/helpers/save-fixtures.ts [90m[offset=1, limit=180][0m
+[0m→ [0mRead src/sim/combat/step.ts [90m[offset=730, limit=130][0m
+[0m→ [0mRead src/app/session/frame-loop.ts [90m[offset=1, limit=240][0m
+[0m$ [0mgit status --short && git rev-parse --short HEAD && rg -n "export type FlightMode|stepSim\(|stepFlight\(|snapshotForSave|PLAYER_NOT_DESTROYABLE|applyLedger\(|resolveShots|killPlayer|playerDestroyed" src tests | head -n 240
+791cec0
+src/sim/flight/step.ts:111:   * `stepPlayerCombat` and `resolveShots`. Later plans extend `CombatOptions` in
+src/sim/flight/step.ts:131:export function stepFlight(
+src/sim/flight/state.ts:18:export type FlightMode = "docked" | "launching" | "inFlight";
+tests/guards/collision-player-death.test.ts:9: * owns its death (`PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20` in
+tests/guards/collision-player-death.test.ts:15: * - (a) a non-comment `playerDestroyed` token anywhere in `src/sim`,
+tests/guards/collision-player-death.test.ts:47:const MARKER = "PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20";
+tests/guards/collision-player-death.test.ts:51:  '| { kind: "playerDestroyed"; position: Vec3 }',
+tests/guards/collision-player-death.test.ts:52:  '"playerDestroyed",',
+tests/guards/collision-player-death.test.ts:110:  // (a) Any non-comment `playerDestroyed` outside the two declaration lines.
+tests/guards/collision-player-death.test.ts:116:      if (!/\bplayerDestroyed\b/.test(line)) return;
+tests/guards/collision-player-death.test.ts:201:        `${kill}\nexport function diePlayer(events: SimEvent[], position: Vec3): void {\n  events.push({ kind: "playerDestroyed", position });\n}\n`,
+tests/guards/collision-player-death.test.ts:215:        `${events}\nexport const playerDied = (position: Vec3): SimEvent => ({\n  kind: "playerDestroyed",\n  position,\n});\n`,
+tests/guards/collision-player-death.test.ts:227:        'export const PLAYER_DEATH_KIND = "playerDestroyed" as const;\n',
+tests/guards/collision-player-death.test.ts:241:            'export type FlightMode = "docked" | "launching" | "inFlight";',
+tests/guards/collision-player-death.test.ts:242:            `export type FlightMode =\n  | "docked"\n  | "launching"\n  | "inFlight"\n  | ${added};`,
+tests/guards/collision-player-death.test.ts:260:          'export type FlightMode = "docked" | "launching" | "inFlight";',
+tests/guards/collision-player-death.test.ts:261:          'export type FlightMode = "docked" | "launching" | "inFlight" | DeathMode;',
+tests/guards/collision-player-death.test.ts:287:          "/** Reserved: `playerDestroyed` is posted by the player's death (Phase 20). */",
+tests/guards/collision-player-death.test.ts:289:          '  | { kind: "playerDestroyed"; position: Vec3 }',
+tests/guards/collision-player-death.test.ts:291:          "// playerDestroyed is listed below.",
+tests/guards/collision-player-death.test.ts:293:          '  "playerDestroyed",',
+tests/guards/collision-player-death.test.ts:309:        `${events}\nexport const DEATH_KINDS = [\n  "playerDestroyed",\n] as const;\n`,
+tests/guards/collision-player-death.test.ts:325:        'export const PLAYER_DEATH_KIND = "playerDestroyed" as const;\n',
+src/sim/sim.ts:9: * the `FlightState` in two places only, both inside `resolveShots`: the
+src/sim/sim.ts:22:import { resolveShots, stepPlayerCombat } from "./combat/step.js";
+src/sim/sim.ts:42: * `hyperspaceJumped`, `stepWorld`, then `resolveShots`. Returns the flight
+src/sim/sim.ts:53: * `resolveShots` gets the layout too: the AI events the kills post are delivered
+src/sim/sim.ts:72:export function stepSim(
+src/sim/sim.ts:87:  const events = stepFlight(
+src/sim/sim.ts:134:    ...resolveShots(
+tests/sim/precision.test.ts:51:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/dock-computer.test.ts:64:  return stepFlight(state, layout, config, ZERO_INTENT, commands, DT, options);
+tests/sim/compass-beacon.test.ts:43:    stepFlight(
+tests/sim/compass-beacon.test.ts:76:  stepFlight(state, layout, config, ZERO_INTENT, commands, DT, WITH_ASC, ships);
+tests/sim/dock-capture.test.ts:72:  return stepFlight(state, layout, config, ZERO_INTENT, commands, DT, {
+tests/sim/dock-hull.test.ts:101:  return stepFlight(state, layout, config, ZERO_INTENT, [], DT, {
+tests/sim/dock-hull.test.ts:219:    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT, {
+tests/sim/flight-speed.test.ts:36:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/flight-speed.test.ts:37:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/flight-speed.test.ts:46:  stepFlight(state, layout, config, control, [], DT);
+tests/sim/flight-attitude.test.ts:32:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/flight-attitude.test.ts:33:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/flight-attitude.test.ts:42:  stepFlight(state, layout, config, control, [], DT);
+tests/sim/launch.test.ts:78:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/launch.test.ts:94:    const events = stepFlight(
+tests/sim/launch.test.ts:133:    const events = stepFlight(
+tests/sim/launch.test.ts:152:      stepFlight(state, fixture.layout, fixture.config, ZERO_INTENT, [], DT);
+tests/sim/launch.test.ts:156:    stepFlight(
+tests/sim/launch.test.ts:174:      stepFlight(state, fixture.layout, fixture.config, ZERO_INTENT, [], DT);
+tests/sim/launch.test.ts:190:    const events = stepFlight(
+tests/sim/launch.test.ts:217:      stepFlight(state, fixture.layout, fixture.config, ZERO_INTENT, [], DT);
+tests/sim/launch.test.ts:284:    return stepFlight(
+tests/sim/launch.test.ts:296:    return stepFlight(state, layout, config, ZERO_INTENT, [], DT, {
+src/sim/events.ts:179:  | { kind: "playerDestroyed"; position: Vec3 }
+src/sim/events.ts:209: * (`shipSpawned`, `playerDestroyed`), pods (`podEjected`), legal status
+src/sim/events.ts:241:  "playerDestroyed",
+tests/sim/hyperspace-blockage.test.ts:102:    return stepFlight(
+tests/sim/hyperspace-blockage.test.ts:317:    stepFlight(
+tests/sim/hyperspace-blockage.test.ts:331:      last = stepFlight(
+tests/sim/hyperspace-blockage.test.ts:453:    stepFlight(
+tests/sim/hyperspace-blockage.test.ts:464:      last = stepFlight(atStation, crowded, config, ZERO_INTENT, [], DT, both);
+tests/sim/torus.test.ts:68:  return stepFlight(state, layout, config, intent, commands, DT);
+tests/sim/torus.test.ts:473:        stepFlight(state, layout, config, ZERO_INTENT, [], dt),
+tests/sim/player-braking.oracle.test.ts:176:        stepFlight(state, layout, config, ZERO_INTENT, [], fixture.dt);
+tests/render/launch-camera.test.ts:258:    stepFlight(
+tests/render/launch-camera.test.ts:630:    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT, {
+tests/render/launch-camera.test.ts:644:      stepFlight(state, layout, config, ZERO_INTENT, [], DT, {
+tests/sim/flight-drift.test.ts:72:  return stepFlight(state, layout, config, ZERO_INTENT, [], DT);
+tests/sim/flight-drift.test.ts:264:  return stepFlight(state, layout, config, ZERO_INTENT, [], DT, {
+tests/sim/flight-drift.test.ts:358:      stepFlight(s, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/flight-controller.test.ts:40:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/flight-controller.test.ts:41:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/flight-controller.test.ts:78:    stepFlight(
+tests/app/tracer.test.ts:49:  stepFlight(state, layout, config, intent, commands, DT);
+src/sim/world/step.ts:375: * D-04, D-12). `resolveShots` calls it between the kills and the second
+src/sim/world/step.ts:384: * discarded (fire is a think-time action; inside `resolveShots` the length on
+tests/sim/ai/test-spawn.test.ts:152:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/ai/test-spawn.test.ts:153:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/ai/test-spawn.test.ts:319:      stepSim(
+tests/sim/ai/test-spawn.test.ts:347:      stepSim(
+tests/sim/ai/test-spawn.test.ts:498:      const events = stepSim(
+tests/app/session-order.test.ts:1186:      playerDestroyed: {
+tests/app/session-order.test.ts:1187:        kind: "playerDestroyed",
+tests/sim/hyperspace.test.ts:340:    return stepFlight(
+tests/sim/hyperspace.test.ts:565:    stepFlight(state, layout, config, intent, [], DT, options);
+tests/sim/hyperspace.test.ts:581:    stepFlight(
+src/sim/world/kill.ts:12: * `resolveShots`, `../combat/step.ts`).
+tests/app/session/probe-publisher.test.ts:452:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/app/session/probe-publisher.test.ts:453:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/app/session/probe-publisher.test.ts:1001:      const events = stepSim(
+src/sim/world/world.ts:128:   * at most one entry per actor. Drained and cleared by `resolveShots` after
+tests/sim/npc/proximity.test.ts:755:        stepSim(player, world, layout, config, ZERO_INTENT, [], DT, options);
+tests/app/session/world-lifecycle.test.ts:49:import { snapshotForSave } from "../../../src/persistence/autosave.js";
+tests/app/session/world-lifecycle.test.ts:1278:      stepSim(
+tests/app/session/world-lifecycle.test.ts:1535:    snapshotForSave(
+tests/app/session/world-lifecycle.test.ts:2088:      stepSim(state, world, lave.layout, lave.config, ZERO_INTENT, [], DT);
+tests/app/session/station-controller.test.ts:30:  snapshotForSave,
+tests/app/session/station-controller.test.ts:576:      snapshotForSave(
+src/sim/combat/ledger.ts:51: * it is collected once when it reaches 0 from above; `resolveShots` then
+src/sim/combat/ledger.ts:176:export function applyLedger(
+tests/app/session/save-controller.test.ts:26:import { snapshotForSave } from "../../../src/persistence/autosave.js";
+tests/app/session/save-controller.test.ts:279:  const inputs = snapshotForSave(
+tests/app/session/save-controller.test.ts:294:  const inputs = snapshotForSave(
+tests/app/session/traffic-variants.test.ts:133:  return stepSim(
+src/sim/combat/collide.ts:240:export const PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20 = true;
+src/sim/combat/collide.ts:451:      destroyable: !PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20,
+src/sim/combat/collide.ts:515: * `resolveShots` (`./step.ts`) after the laser hits are queued and before
+src/sim/combat/step.ts:14: * - `resolveShots` runs after `stepWorld`. It resolves every queued shot in
+src/sim/combat/step.ts:27: * at one place, the fire-queue drain in `resolveShots`: heat, energy, the
+src/sim/combat/step.ts:36: * Neither function reads the clock. `resolveShots` draws no random value from
+src/sim/combat/step.ts:194: *    the world step, at the end of `resolveShots` (`updateIdentTarget`).
+src/sim/combat/step.ts:468: * Returns the beam events and the `HitRecord` list; `resolveShots` applies the
+src/sim/combat/step.ts:758:export function resolveShots(
+src/sim/combat/step.ts:798:  const lethal = applyLedger(
+tests/sim/npc/fire-route.test.ts:29:import { resolveShots } from "../../../src/sim/combat/step.js";
+tests/sim/npc/fire-route.test.ts:170:  return resolveShots(
+tests/app/session/hyperspace-controller.test.ts:374:      stepSim(state, world, lave.layout, lave.config, ZERO_INTENT, [], DT);
+tests/sim/npc/flyers.scenario.test.ts:202:    stepSim(
+tests/app/session/sim-driver.test.ts:103:      return actual.stepFlight(...args);
+tests/app/session/render-driver.test.ts:1030:    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/app/session/render-driver.test.ts:1034:      stepFlight(state, layout, config, ZERO_INTENT, [], DT);
+tests/app/session/render-driver.test.ts:1231:    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/app/session/render-driver.test.ts:1234:      stepFlight(state, layout, config, ZERO_INTENT, [], DT);
+tests/app/session/render-driver.test.ts:1248:    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT, {
+tests/sim/flight-cadence.test.ts:44:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/flight-cadence.test.ts:45:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/flight-cadence.test.ts:74:      stepFlight(state, layout, config, intentAtTick(state.tick), [], DT);
+tests/sim/npc/fire-cadence.test.ts:103:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/npc/fire-cadence.test.ts:104:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/npc/fire-cadence.test.ts:226:    const events = stepSim(
+tests/sim/dock-transitions.test.ts:150:      stepFlight(state, layout, config, ZERO_INTENT, commands, DT, options);
+tests/app/launch-sequence.test.ts:46:  stepFlight(state, layout, config, ZERO_INTENT, commands, DT);
+tests/sim/player/damaged-installed.test.ts:57:  return stepFlight(state, layout, config, ZERO_INTENT, commands, DT, options);
+tests/sim/npc/hot-weapon.test.ts:28:import { resolveShots } from "../../../src/sim/combat/step.js";
+tests/sim/npc/hot-weapon.test.ts:189:  return resolveShots(
+tests/persistence/restore-drift.test.ts:7: * Saves are unchanged by the drift: `snapshotForSave` writes no drift, and
+tests/persistence/restore-drift.test.ts:20:  snapshotForSave,
+tests/persistence/restore-drift.test.ts:60:    stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/persistence/restore-drift.test.ts:64:      stepFlight(state, layout, config, ZERO_INTENT, [], DT);
+tests/persistence/restore-drift.test.ts:70:    const inputs = snapshotForSave(
+tests/persistence/restore-drift.test.ts:99:    const inputs = snapshotForSave(
+tests/sim/npc/npc-cadence.test.ts:172:    const events = stepSim(
+tests/persistence/save-v5.test.ts:24:  snapshotForSave,
+tests/persistence/save-v5.test.ts:86:  return snapshotForSave(
+tests/persistence/save-v5.test.ts:1113:      const inputs = snapshotForSave(
+tests/persistence/save-v3.test.ts:35:  snapshotForSave,
+tests/persistence/save-v3.test.ts:131:  return snapshotForSave(
+tests/persistence/autosave.test.ts:10: * `"docked"` with the pre-launch clock. `snapshotForSave` copies the clock of the
+tests/persistence/autosave.test.ts:24:  snapshotForSave,
+tests/persistence/autosave.test.ts:120:  stepFlight(state, layout, config, intent, [{ kind: "launch" }], DT);
+tests/persistence/autosave.test.ts:126:  stepFlight(state, layout, config, intent, commands, DT);
+tests/persistence/autosave.test.ts:157:describe("snapshotForSave", () => {
+tests/persistence/autosave.test.ts:162:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:188:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:233:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:260:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:286:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:316:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:343:    const again = snapshotForSave(
+tests/persistence/autosave.test.ts:492:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:508:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:524:    const valid = snapshotForSave(
+tests/persistence/autosave.test.ts:552:    const valid = snapshotForSave(
+tests/persistence/autosave.test.ts:594:    const first = snapshotForSave(
+tests/persistence/autosave.test.ts:603:    const second = snapshotForSave(
+tests/persistence/autosave.test.ts:697:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:733:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:798:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:845:    const inputs = snapshotForSave(
+tests/persistence/autosave.test.ts:883:    const inputs = snapshotForSave(
+tests/sim/world/ship-field.test.ts:223:  return stepFlight(state, layout, config, intent, commands, DT);
+tests/sim/world/ship-field.test.ts:242:  return stepSim(
+tests/sim/world/debris-cap.test.ts:265:    stepFlight(player, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/world/debris-cap.test.ts:266:    stepFlight(
+tests/sim/world/debris-cap.test.ts:286:      events = stepSim(
+tests/sim/world/world-cadence.test.ts:265:    const events = stepSim(
+tests/sim/world/world-cadence.test.ts:499:    const events = stepSim(
+tests/sim/world/world-cadence.test.ts:785:    const events = stepSim(
+tests/sim/world/step.test.ts:107:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/world/step.test.ts:108:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/world/step.test.ts:118:  stepFlight(player, layout, config, ZERO_INTENT, [], DT);
+tests/sim/world/step.test.ts:392:      stepSim(player, world, layout, config, ZERO_INTENT, [], DT);
+tests/sim/world/step.test.ts:448:    stepFlight(flightOnly, layout, config, ZERO_INTENT, launch, DT);
+tests/sim/world/step.test.ts:449:    stepSim(noWorld, undefined, layout, config, ZERO_INTENT, launch, DT);
+tests/sim/world/step.test.ts:450:    stepSim(withWorld, world, layout, config, ZERO_INTENT, launch, DT);
+tests/sim/world/step.test.ts:451:    stepFlight(flightOnly, layout, config, ZERO_INTENT, skip, DT);
+tests/sim/world/step.test.ts:452:    stepSim(noWorld, undefined, layout, config, ZERO_INTENT, skip, DT);
+tests/sim/world/step.test.ts:453:    stepSim(withWorld, world, layout, config, ZERO_INTENT, skip, DT);
+tests/sim/world/step.test.ts:456:      stepFlight(flightOnly, layout, config, intent, [], DT);
+tests/sim/world/step.test.ts:457:      stepSim(noWorld, undefined, layout, config, intent, [], DT);
+tests/sim/world/step.test.ts:458:      stepSim(withWorld, world, layout, config, intent, [], DT);
+tests/sim/world/step.test.ts:477:    stepSim(player, world, layout, config, ZERO_INTENT, [], DT);
+tests/sim/world/step.test.ts:638:    stepSim(
+tests/sim/world/step.test.ts:654:      const events = stepSim(
+tests/sim/world/step.test.ts:1024:    const events = stepSim(player, world, layout, config, ZERO_INTENT, [], DT);
+tests/sim/world/step.test.ts:1058:      { kind: "playerDestroyed", position: origin },
+tests/sim/world/populate.test.ts:669:    stepFlight(
+tests/sim/world/populate.test.ts:677:    stepFlight(
+tests/sim/world/populate.test.ts:687:      stepFlight(player, flightLayout, config, ZERO_INTENT, [], DT);
+tests/sim/world/debris-cadence.test.ts:241:    const events = stepSim(
+tests/sim/world/debris-cadence.test.ts:546:    const events = stepSim(
+tests/sim/world/collision-cadence.test.ts:169:    const events = stepSim(
+tests/sim/combat/collision-traffic.scenario.test.ts:264:    const events = stepSim(
+tests/sim/combat/internal-damage-cadence.test.ts:99:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/combat/internal-damage-cadence.test.ts:100:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/combat/internal-damage-cadence.test.ts:152:    const events = stepSim(
+tests/sim/world/kill.test.ts:65:import { resolveShots } from "../../../src/sim/combat/step.js";
+tests/sim/world/kill.test.ts:501:    stepFlight(player, layout, config, ZERO_INTENT, [], DT);
+tests/sim/world/kill.test.ts:528:  stepFlight(player, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/world/kill.test.ts:529:  stepFlight(player, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/world/kill.test.ts:561:describe("the immediate drain inside resolveShots", () => {
+tests/sim/world/kill.test.ts:619:    const events = resolveShots(
+tests/sim/world/kill.test.ts:653:    const events = resolveShots(
+tests/sim/world/kill.test.ts:732:      events = stepSim(
+tests/sim/world/kill.test.ts:876:      stepSim(
+tests/sim/world/kill.test.ts:917:    // The tail `resolveShots` runs: kill, immediate drain, commit.
+tests/sim/combat/npc-fire.test.ts:7: * Every NPC shot passes `npcFireGate` at the one drain site of `resolveShots`
+tests/sim/combat/npc-fire.test.ts:17: * Two routes are used. The hit-rule cases hand `resolveShots` an explicit
+tests/sim/combat/npc-fire.test.ts:21: * target) and call `resolveShots` once per tick, which is the drain, the recharge
+tests/sim/combat/npc-fire.test.ts:51:import { resolveShots } from "../../../src/sim/combat/step.js";
+tests/sim/combat/npc-fire.test.ts:168:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/combat/npc-fire.test.ts:169:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/combat/npc-fire.test.ts:257:  return resolveShots(
+tests/sim/combat/npc-fire.test.ts:276:  return stepSim(
+tests/sim/combat/collision-stage.property.test.ts:81:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/combat/collision-stage.property.test.ts:82:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/world/drift.test.ts:458:          stepSim(state, world, layout, config, ZERO_INTENT, [], DT, options);
+tests/sim/combat/dock-reset.test.ts:56:  return stepSim(
+tests/sim/world/debris.test.ts:22:import { resolveShots } from "../../../src/sim/combat/step.js";
+tests/sim/world/debris.test.ts:548:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "launch" }], DT);
+tests/sim/world/debris.test.ts:549:  stepFlight(state, layout, config, ZERO_INTENT, [{ kind: "skipLaunch" }], DT);
+tests/sim/world/debris.test.ts:573:  return stepSim(
+tests/sim/world/debris.test.ts:597:    // resolveShots passes the loaded hull table, so the wrecks use the octree.
+tests/sim/world/debris.test.ts:1473:      const events = resolveShots(
+tests/sim/combat/ledger.test.ts:95:  const lethal = applyLedger(
+tests/sim/combat/ledger.test.ts:201:    const lethal = applyLedger(
+tests/sim/combat/ledger.test.ts:226:    applyLedger(
+tests/sim/combat/ledger.test.ts:243:    const lethal = applyLedger(
+tests/sim/combat/ledger.test.ts:267:    const lethal2 = applyLedger(
+tests/sim/combat/ledger.test.ts:283:    applyLedger(
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/persistence/autosave.ts [90m[offset=80, limit=70][0m
+[0m→ [0mRead src/sim/sim.ts [90m[offset=65, limit=100][0m
+[0m→ [0mRead src/sim/combat/collide.ts [90m[offset=215, limit=260][0m
+[0m→ [0mRead src/sim/combat/response.ts [90m[offset=250, limit=75][0m
+[0m→ [0mRead src/sim/combat/shields.ts [90m[offset=135, limit=90][0m
+[0m→ [0mRead src/sim/flight/step.ts [90m[offset=125, limit=90][0m
+[0m→ [0mRead src/sim/flight/step.ts [90m[offset=420, limit=75][0m
+[0m$ [0mgit merge-base --is-ancestor a5a03ce HEAD; printf 'ancestor_exit=%s\n' "$?"; git log --oneline -8; rg -n "speed|restoreFromSave|flight\.speed" src/persistence/autosave.ts src/app/session | head -n 100
+ancestor_exit=0
+791cec0 docs(20): sync state.json after planning
+9cbe6f2 docs(20): create phase plan
+a5a03ce docs(phase-20): add research and validation strategy
+8fe16b3 docs(state): record phase 20 context session
+fb26c43 docs(20): capture phase context
+43f594d docs(19): UAT passed, verification passed, Phase 19 complete
+d86addd test(19): complete UAT - 1 passed, 0 issues
+b9afb61 docs(todo): record two docked F-key bugs from the Phase 19 UAT
+src/persistence/autosave.ts:148:            speed: state.speed,
+src/persistence/autosave.ts:254: * from the layout, never stored. In-flight: the normalized saved pose, speed,
+src/persistence/autosave.ts:264:export function restoreFromSave(
+src/persistence/autosave.ts:284:    state.speed = pose.speed;
+src/app/session/start-session.ts:55:  restoreFromSave,
+src/app/session/start-session.ts:606:      const restored = restoreFromSave(restore, systemLayout, profileFromSave);
+src/app/session/start-session.ts:861:        speed: flightState.speed,
+src/app/session/save-controller.ts:31:  restoreFromSave,
+src/app/session/save-controller.ts:408:        restored = restoreFromSave(saved, savedLayout, profileFromSave);
+src/app/session/save-controller.ts:516:        speed: restored.state.speed,
+src/app/session/render-driver.ts:277:      currentState.speed,
+src/app/session/render-driver.ts:464:      speedInput: ctx.core.currentFrame.speed,
+src/app/session/event-router.ts:233:          "Arrows pitch and roll · W and S change speed",
+src/app/session/event-router.ts:393:          messages.enqueue("Hyperspeed mass-locked.", 4.5);
+src/app/session/event-router.ts:402:        messages.enqueue("Hyperspeed mass-locked.", 1.5);
+src/app/session/frame-loop.ts:146:      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+src/app/session/frame-loop.ts:164:      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+src/app/session/frame-loop.ts:190:      ctx.core.currentFrame = { pitch: 0, roll: 0, speed: 0, precision: false };
+src/app/session/probe-publisher.ts:421:      probe.speed = currentState.speed;
+src/app/session/context.ts:413:      currentFrame: { pitch: 0, roll: 0, speed: 0, precision: false },
+src/app/session/sim-driver.ts:108:  speed: 0,
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/sim/combat/step.ts [90m[offset=450, limit=240][0m
+[0m→ [0mRead src/app/session/render-driver.ts [90m[offset=140, limit=355][0m
+[0m→ [0mRead src/app/session/sim-driver.ts [90m[offset=160, limit=130][0m
+[0m→ [0mRead src/app/session/sim-driver.ts [90m[offset=400, limit=75][0m
+[0m→ [0mRead src/app/session/save-controller.ts [90m[offset=150, limit=190][0m
+[0m→ [0mRead src/app/session/event-router.ts [90m[offset=45, limit=140][0m
+[0m→ [0mRead src/app/session/event-router.ts [90m[offset=630, limit=135][0m
+[0m→ [0mRead src/app/session/context.ts [90m[offset=275, limit=95][0m
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/render/bodies/explosions.ts [90m[offset=70, limit=110][0m
+[0m→ [0mRead src/input/keyboard.ts [90m[offset=140, limit=115][0m
+[0m→ [0mRead src/input/actions.ts [90m[offset=60, limit=25][0m
+[0m→ [0mRead src/ui/pause.ts [90m[offset=1, limit=165][0m
+[0m→ [0mRead src/app/session/chart-controller.ts [90m[offset=45, limit=95][0m
+[0m→ [0mRead tests/sim/world/collision-cadence.test.ts [90m[offset=1, limit=280][0m
+[0m→ [0mRead src/app/session/settings-controller.ts [90m[offset=50, limit=100][0m
+[0m$ [0mgit -C /home/opencode/git/oolite show 7437f22:src/Core/Entities/PlayerEntity.m | sed -n '3545,3585p;3625,3650p;5680,5700p;5738,5756p;6187,6225p' && printf '\n--- controls ---\n' && git -C /home/opencode/git/oolite show 7437f22:src/Core/Entities/PlayerEntityControls.m | sed -n '4008,4032p' && printf '\n--- universe ---\n' && git -C /home/opencode/git/oolite show 7437f22:src/Core/Universe.m | sed -n '2955,2978p' && printf '\n--- strings ---\n' && git -C /home/opencode/git/oolite show 7437f22:Resources/Config/descriptions.plist | sed -n '1987,1996p' && printf '\n--- explosions ---\n' && git -C /home/opencode/git/oolite show 7437f22:src/Core/Entities/ShipEntity.m | sed -n '8300,8325p;11105,11120p;11660,11675p'
+// if cloak or ecm visual effects are playing while docking, terminate them
+    [UNIVERSE terminatePostFX:OO_POSTFX_CLOAK];
+    if ([UNIVERSE ECMVisualFXEnabled])
+        [UNIVERSE terminatePostFX:OO_POSTFX_CRTBADSIGNAL];
+}
+
+- (void)performDeadUpdates:(OOTimeDelta)delta_t
+{
+    [UNIVERSE terminatePostFX:OO_POSTFX_CLOAK];
+    if ([UNIVERSE ECMVisualFXEnabled])
+        [UNIVERSE terminatePostFX:OO_POSTFX_CRTBADSIGNAL];
+
+    [self gameOverFadeToBW];
+
+    if ([self shotTime] > kDeadResetTime) {
+        BOOL was_mouse_control_on = mouse_control_on;
+        [UNIVERSE handleGameOver]; //  we restart the UNIVERSE
+        mouse_control_on = was_mouse_control_on;
+    }
+}
+
+- (void)gameOverFadeToBW
+{
+    float secondsToBWFadeOut = [[NSUserDefaults standardUserDefaults] oo_floatForKey:@"gameover-seconds-to-bw-fadeout" defaultValue:5.0f];
+    if ([UNIVERSE detailLevel] >= DETAIL_LEVEL_SHADERS && secondsToBWFadeOut > 0.0f) {
+        MyOpenGLView* gameView = [UNIVERSE gameView];
+        static float originalColorSaturation = -1.0f;
+        if (originalColorSaturation == -1.0f)
+            originalColorSaturation = [gameView colorSaturation];
+        if ([self shotTime] < secondsToBWFadeOut) {
+            // fade to black & white within secondsToBWFadeOut, independently of
+            // frame rate and original color saturation
+            if (fps_counter != 0) {
+                [gameView adjustColorSaturation:-(originalColorSaturation * (1.0f / secondsToBWFadeOut) * [UNIVERSE timeAccelerationFactor] / fps_counter)];
+            }
+        }
+
+        if ([self shotTime] > kDeadResetTime) {
+            // make sure to subtract the current saturation because if the user presses space to skip
+            // the game over screen before the transition to b/w has been completed, whatever is left
+            // will be added to the original saturation, resulting in an oversaturated image
+
+    // Target is neither a wormhole nor a ship
+    return NO;
+}
+
+- (void)showGameOver
+{
+    [hud resetGuis:[NSDictionary dictionaryWithObject:[NSDictionary dictionary] forKey:@"message_gui"]];
+    NSString* scoreMS = [NSString stringWithFormat:OOExpandKey(@"gameoverscreen-score-@"),
+        KillCountToRatingAndKillString(ship_kills)];
+
+    [UNIVERSE displayMessage:OOExpandKey(@"gameoverscreen-game-over") forCount:kDeadResetTime];
+    [UNIVERSE displayMessage:@"" forCount:kDeadResetTime];
+    [UNIVERSE displayMessage:scoreMS forCount:kDeadResetTime];
+    [UNIVERSE displayMessage:@"" forCount:kDeadResetTime];
+    [UNIVERSE displayMessage:OOExpandKey(@"gameoverscreen-press-space") forCount:kDeadResetTime];
+    [UNIVERSE displayMessage:@" " forCount:kDeadResetTime];
+    [UNIVERSE displayMessage:@"" forCount:kDeadResetTime];
+    [self resetShotTime];
+}
+
+- (void)showShipModelWithKey:(NSString*)shipKey shipData:(NSDictionary*)shipData personality:(uint16_t)personality factorX:(GLfloat)factorX factorY:(GLfloat)factorY factorZ:(GLfloat)factorZ inContext:(NSString*)context
+{
+    if (shipKey == nil)
+        return;
+    if (shipData == nil)
+    if (cascading)
+        energy = 0.0; // explicitly set energy to zero when cascading, in case an oxp raised the energy in noteTakingDamage.
+
+    if (energy <= 0.0) // use normal ship temperature calculations for heat damage
+    {
+        if ([other isShip]) {
+            [(ShipEntity*)other noteTargetDestroyed:self];
+        }
+
+        [self getDestroyedBy:other damageType:damageType];
+    } else {
+        while (amount > 0.0) {
+            internal_damage = ((ranrot_rand() & PLAYER_INTERNAL_DAMAGE_FACTOR) < amount); // base chance of damage to systems
+            if (internal_damage) {
+                [self takeInternalDamage];
+            }
+            amount -= (PLAYER_INTERNAL_DAMAGE_FACTOR + 1);
+        }
+    }
+}
+
+            aft_shield = 0.0f;
+        } else {
+            amount = 0.0;
+        }
+    }
+
+    [super takeScrapeDamage:amount from:ent];
+
+    while (amount > 0.0) {
+        internal_damage = ((ranrot_rand() & PLAYER_INTERNAL_DAMAGE_FACTOR) < amount); // base chance of damage to systems
+        if (internal_damage) {
+            [self takeInternalDamage];
+        }
+        amount -= (PLAYER_INTERNAL_DAMAGE_FACTOR + 1);
+    }
+}
+
+- (void)takeHeatDamage:(double)amount
+{
+- (void)getDestroyedBy:(Entity*)whom damageType:(OOShipDamageType)type
+{
+    if ([self isDocked])
+        return; // Can't die while docked. (Doing so would cause breakage elsewhere.)
+
+    OOLog(@"player.ship.damage", @"Player destroyed by %@ due to %@", whom, OOStringFromShipDamageType(type));
+
+    if (![[UNIVERSE gameController] playerFileToLoad]) {
+        [[UNIVERSE gameController] setPlayerFileToLoad:save_path]; // make sure we load the correct game
+    }
+
+    energy = 0.0f;
+    afterburner_engaged = NO;
+    [self disengageAutopilot];
+
+    [UNIVERSE setDisplayText:NO];
+    [UNIVERSE setViewDirection:VIEW_AFT];
+
+    // Let scripts know the player died.
+    [self noteKilledBy:whom damageType:type]; // called before exploding, consistant with npc ships.
+
+    [self becomeLargeExplosion:4.0]; // also sets STATUS_DEAD
+    [self moveForward:100.0];
+
+    flightSpeed = 160.0f;
+    velocity = kZeroVector;
+    flightRoll = 0.0;
+    flightPitch = 0.0;
+    flightYaw = 0.0;
+    [[UNIVERSE messageGUI] clear]; // No messages for the dead.
+    [self suppressTargetLost]; // No target lost messages when dead.
+    [self playGameOver];
+    [UNIVERSE setBlockJSPlayerShipProps:YES]; // Treat JS player as stale entity.
+    [self removeAllEquipment]; // No scooping / equipment damage when dead.
+    [self loseTargetStatus];
+    [self showGameOver];
+}
+
+- (void)loseTargetStatus
+
+--- controls ---
+            }
+            switching_interface_screens = YES;
+        } else {
+            switching_interface_screens = NO;
+        }
+    }
+}
+
+- (void)pollGameOverControls:(double)delta_t
+{
+    MyOpenGLView* gameView = [UNIVERSE gameView];
+    if ([gameView isDown:32]) // look for the spacebar
+    {
+        if (!spacePressed) {
+            [UNIVERSE displayMessage:@"" forCount:1.0];
+            shot_time = INITIAL_SHOT_TIME; // forces immediate restart
+        }
+        spacePressed = YES;
+    } else
+        spacePressed = NO;
+}
+
+static BOOL toggling_music;
+static BOOL playing_music;
+static BOOL autopilot_pause;
+
+--- universe ---
+        }
+    }
+
+    _dockingClearanceProtocolActive = !!newValue;
+}
+
+- (void)handleGameOver
+{
+    if ([[self gameController] playerFileToLoad]) {
+        [[self gameController] loadPlayerIfRequired];
+    } else {
+        [self setUseAddOns:SCENARIO_OXP_DEFINITION_ALL fromSaveGame:NO forceReinit:YES]; // calls reinitAndShowDemo
+    }
+}
+
+- (void)setupIntroFirstGo:(BOOL)justCobra
+{
+    PlayerEntity* player = PLAYER;
+    ShipEntity* ship = nil;
+    Quaternion q2 = { 0.0f, 0.0f, 1.0f, 0.0f }; // w,x,y,z
+
+    // in status demo draw ships and display text
+    if (!justCobra) {
+        DESTROY(demo_ships);
+
+--- strings ---
+	"mission-screen-text-prompt-@"	= "> %@";	
+
+	// Game Over screen
+	"gameoverscreen-escape-pod"		= "Life Support Failure!";
+	"gameoverscreen-score-@"		= "Score: %@, [credits_number] ₢";
+	"gameoverscreen-game-over"		= "Game Over";
+	"gameoverscreen-press-space"	= "Press Space";
+	
+	// Screen shots
+	"snapshots-directory-name"		= "snapshots";
+
+--- explosions ---
+- (void)becomeLargeExplosion:(double)factor
+{
+
+    if ([self status] == STATUS_DEAD)
+        return;
+    [self setStatus:STATUS_DEAD];
+
+    @try {
+        // two parts to the explosion:
+        // 1. fast sparks
+        float how_many = factor;
+        while (how_many > 0.5f) {
+            [UNIVERSE addEntity:[OOSmallFragmentBurstEntity fragmentBurstFromEntity:self]];
+            how_many -= 1.0f;
+        }
+        // 2. slow clouds
+        how_many = factor;
+        while (how_many > 0.5f) {
+            [UNIVERSE addEntity:[OOBigFragmentBurstEntity fragmentBurstFromEntity:self]];
+            how_many -= 1.0f;
+        }
+
+        [self releaseCargoPodsDebris];
+
+        ShipEntity* se = nil;
+        foreach (se, [self shipSubEntityEnumerator]) {
+    } else {
+        [other adjustVelocity:vel2a];
+    }
+
+    [self adjustVelocity:vel1a];
+
+    BOOL selfDestroyed = (dam1 > energy);
+    BOOL otherDestroyed = (dam2 > [other energy]) && !otherIsStation;
+
+    if (dam1 > 0.05) {
+        [self takeScrapeDamage:dam1 from:other];
+        if (selfDestroyed) // inelastic! - take xplosion velocity damage instead
+        {
+            vel2a = vector_multiply_scalar(vel2a, -1);
+            [other adjustVelocity:vel2a];
+        }
+         * ship-asteroid impacts might, or might just vaporise it
+         * projectile weapons just get the default chance
+         */
+        if (randf() < frag_chance) {
+            being_mined = YES; // same as using a mining laser
+        }
+        if ([ent isShip]) {
+            [(ShipEntity*)ent noteTargetDestroyed:self];
+        }
+        [self getDestroyedBy:ent damageType:kOODamageTypeScrape];
+    } else {
+        // warn if I'm low on energy
+        if (energy < maxEnergy * 0.25) {
+            [self doScriptEvent:OOJSID("shipEnergyIsLow") andReactToAIMessage:@"ENERGY_LOW"];
+        }
+    }
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/app/probe.ts [90m[offset=205, limit=105][0m
+[0m→ [0mRead src/app/probe.ts [90m[offset=380, limit=145][0m
+[0m→ [0mRead tests/e2e/save-load.spec.ts [90m[offset=640, limit=90][0m
+[0m→ [0mRead tests/e2e/helpers/save-store.ts [90m[offset=1, limit=110][0m
+[0m→ [0mRead src/app/session/probe-publisher.ts [90m[offset=340, limit=105][0m
+[0m→ [0mRead src/persistence/autosave.ts [90m[offset=245, limit=80][0m
+[0m→ [0mRead tests/helpers/save-builders.ts [90m[offset=1, limit=150][0m
+[0m$ [0mrg -n "setContinueVisible|continueVisible|__wegolite|advanceTicks\(|test\.tainted|tainted" src/main.ts src/ui/title.ts src/app/probe.ts src/app/session/sim-driver.ts tests/e2e/helpers tests/e2e/save-load.spec.ts | head -n 200 && printf '\n--- blur/visibility ---\n' && rg -n "visibilitychange|blur|requestAnimationFrame" tests/e2e/settings.spec.ts tests/e2e/throttle.spec.ts | head -n 100 && printf '\n--- collision ram cases ---\n' && rg -n "250 m/s|350 m/s|destroyable|228\.6|268\.4|dam1|Krait" tests/sim/combat/collision-stage.test.ts tests/sim/combat/collision-buoy.test.ts | tail -n 150
+src/ui/title.ts:39:  setContinueVisible(visible: boolean): void;
+src/ui/title.ts:175:    setContinueVisible(visible: boolean): void {
+src/main.ts:67:  const value: unknown = Reflect.get(target, "__wegoliteFaults");
+src/main.ts:379:  title.setContinueVisible(bootSave !== undefined);
+src/main.ts:381:    probe.save.continueVisible = bootSave !== undefined;
+tests/e2e/save-load.spec.ts:8: * `window.__wegolite`; no assertion reads a pixel. The screen is docked-only,
+tests/e2e/save-load.spec.ts:77:      const hook = window.__wegolite?.test;
+tests/e2e/save-load.spec.ts:123:      const probe = window.__wegolite;
+tests/e2e/save-load.spec.ts:175:    (expected) => (window.__wegolite?.save?.committed ?? 0) >= expected,
+tests/e2e/save-load.spec.ts:269:    () => window.__wegolite?.paused === true,
+tests/e2e/save-load.spec.ts:280:    () => window.__wegolite?.paused === false,
+tests/e2e/save-load.spec.ts:327:    () => (window.__wegolite?.saveScreen?.notice ?? "").startsWith("Saved at "),
+tests/e2e/save-load.spec.ts:356:    () => window.__wegolite?.saveScreen?.confirming === true,
+tests/e2e/save-load.spec.ts:390:    () => window.__wegolite?.saveScreen?.confirming === true,
+tests/e2e/save-load.spec.ts:416:    () => window.__wegolite?.saveScreen?.confirming === true,
+tests/e2e/save-load.spec.ts:519:    () => (window.__wegolite?.save?.attempts ?? 0) >= 1,
+tests/e2e/save-load.spec.ts:547:    () => (window.__wegolite?.save?.attempts ?? 0) >= 1,
+tests/e2e/save-load.spec.ts:581:    window.__wegolite?.test?.setCredits(credits);
+tests/e2e/save-load.spec.ts:584:    (credits) => window.__wegolite?.economy?.credits === credits,
+tests/e2e/save-load.spec.ts:596:      const probe = window.__wegolite;
+tests/e2e/save-load.spec.ts:655:  // no `?test=1` hook is used, so the session stays untainted and can save
+tests/e2e/save-load.spec.ts:671:    () => window.__wegolite?.economy?.damagedEquipment !== undefined,
+tests/e2e/save-load.spec.ts:691:    () => window.__wegolite?.economy?.damagedEquipment !== undefined,
+tests/e2e/save-load.spec.ts:698:  // A test-side write, not a hook call: the session stays untainted.
+tests/e2e/save-load.spec.ts:709:      const damaged = window.__wegolite?.economy?.damagedEquipment;
+tests/e2e/save-load.spec.ts:711:        window.__wegolite?.mode === "docked" &&
+tests/e2e/save-load.spec.ts:782:    (before) => (window.__wegolite?.save?.committed ?? 0) > before,
+tests/e2e/save-load.spec.ts:787:    () => (window.__wegolite?.messages ?? 0) >= 1,
+tests/e2e/save-load.spec.ts:815:    () => window.__wegolite?.restore?.mode === "inFlight",
+tests/e2e/save-load.spec.ts:857:    const hook = window.__wegolite?.test;
+tests/e2e/save-load.spec.ts:866:      const position = window.__wegolite?.position;
+tests/e2e/save-load.spec.ts:903:    () => window.__wegolite?.saveScreen?.notice === "Save could not be read",
+tests/e2e/save-load.spec.ts:926:      window.__wegolite?.saveScreen?.notice ===
+tests/e2e/save-load.spec.ts:937:    () => window.__wegolite?.saveScreen?.notice === "No saved game to load",
+src/app/session/sim-driver.ts:21: * launch on the first step, so `advanceTicks(n)` steps exactly n ticks (D-09).
+src/app/session/sim-driver.ts:401:   * or tainted: a disposed session (checked first), a flag-less session, an `n`
+src/app/session/sim-driver.ts:406:   * The session is tainted before the first step (so the pre-launch autosave
+src/app/session/sim-driver.ts:416:   * spec). The session is already tainted, so no save can be written, and
+src/app/session/sim-driver.ts:420:  function advanceTicks(n: number): number {
+src/app/probe.ts:5: * The `window.__wegolite` probe (D-08, Pattern H).
+src/app/probe.ts:20: * `advanceTicks(n)` steps the manual clock (`?test=1&clock=manual` only).
+src/app/probe.ts:241:  continueVisible: boolean;
+src/app/probe.ts:242:  /** Why the last autosave or clear was skipped ("future", "unreadable", "unavailable", "tainted"), or "". */
+src/app/probe.ts:347:  advanceTicks(n: number): number;
+src/app/probe.ts:352:   * Marks the session tainted before it mutates the world, so no autosave can
+src/app/probe.ts:367:   * it returns false and changes nothing. It marks the session tainted before it
+src/app/probe.ts:370:   * session stays tainted with the earlier ship in the world (autosave refuses
+src/app/probe.ts:380:   * and changes nothing. It marks the session tainted before it mutates the
+src/app/probe.ts:397:   * profile tainted; the hook never persists anything.
+src/app/probe.ts:400:  /** D-10 test seam: a known catalogue key only; marks the profile tainted. */
+src/app/probe.ts:403:  tainted: boolean;
+src/app/probe.ts:539:    __wegolite?: WegoliteProbe;
+src/app/probe.ts:545:  window.__wegolite = probe;
+src/app/probe.ts:576:    tainted: false,
+src/app/probe.ts:582:      hook.tainted = true;
+src/app/probe.ts:588:      hook.tainted = true;
+src/app/probe.ts:609:      hook.tainted = true;
+src/app/probe.ts:617:      hook.tainted = true;
+src/app/probe.ts:624:      hook.tainted = true;
+src/app/probe.ts:629:      hook.tainted = true;
+src/app/probe.ts:638:    advanceTicks: (n: number) => sim.advanceTicks(n),
+src/app/probe.ts:641:      hook.tainted = true;
+src/app/probe.ts:646:      hook.tainted = true;
+src/app/probe.ts:651:      hook.tainted = true;
+src/app/probe.ts:666:  window.__wegolite = {
+tests/e2e/helpers/probe.ts:39:      const probe = window.__wegolite;
+tests/e2e/helpers/probe.ts:49:  const probe = await page.evaluate(() => window.__wegolite);
+tests/e2e/helpers/probe-shape.ts:7: * `window.__wegolite` is the contract 25 browser specs read, so its key set and
+
+--- blur/visibility ---
+tests/e2e/throttle.spec.ts:11: * dispatching the real `visibilitychange` event, and a stalled tab by a busy
+tests/e2e/throttle.spec.ts:13: * how a faked `requestAnimationFrame` interacts with this loop is unverified (A13).
+tests/e2e/throttle.spec.ts:68:          else requestAnimationFrame(tick);
+tests/e2e/throttle.spec.ts:70:        requestAnimationFrame(tick);
+tests/e2e/throttle.spec.ts:86:    document.dispatchEvent(new Event("visibilitychange"));
+tests/e2e/throttle.spec.ts:105:            requestAnimationFrame(tick);
+tests/e2e/throttle.spec.ts:115:        requestAnimationFrame(tick);
+tests/e2e/throttle.spec.ts:202:            requestAnimationFrame(tick);
+tests/e2e/throttle.spec.ts:212:        requestAnimationFrame(tick);
+tests/e2e/settings.spec.ts:197:test("blur and visibility hidden auto-pause and clear held input", async ({
+tests/e2e/settings.spec.ts:218:    window.dispatchEvent(new Event("blur"));
+tests/e2e/settings.spec.ts:243:  // The same rule applies to visibilitychange -> hidden.
+tests/e2e/settings.spec.ts:255:    document.dispatchEvent(new Event("visibilitychange"));
+tests/e2e/settings.spec.ts:267:test("the focus-loss toggle decides whether blur and a hidden tab pause the game", async ({
+tests/e2e/settings.spec.ts:297:  // d. Window blur with the toggle off: the clock keeps advancing, no overlay.
+tests/e2e/settings.spec.ts:300:    window.dispatchEvent(new Event("blur"));
+tests/e2e/settings.spec.ts:317:    document.dispatchEvent(new Event("visibilitychange"));
+tests/e2e/settings.spec.ts:339:  // g. Switch it back on: blur pauses again, the default-on path.
+tests/e2e/settings.spec.ts:346:    window.dispatchEvent(new Event("blur"));
+
+--- collision ram cases ---
+tests/sim/combat/collision-buoy.test.ts:84:  dam1: 139.7382354736328,
+tests/sim/combat/collision-buoy.test.ts:220:    expect(records[0]?.amount).toBe(FIXTURE_100.dam1);
+tests/sim/combat/collision-buoy.test.ts:253:    expect(contact[0]?.amount).toBe(FIXTURE_100.dam1);
+tests/sim/combat/collision-buoy.test.ts:257:      energyBefore - FIXTURE_100.dam1,
+tests/sim/combat/collision-buoy.test.ts:289:  it("at 250 m/s the buoy is destroyed, credited to the player; a destroyed buoy is no collider and never moves", () => {
+tests/sim/combat/collision-buoy.test.ts:305:    // dam2 = 214,737.6875 x 250^2 / 5e7 = 268.4 > 250: no nudge.
+tests/sim/combat/collision-buoy.test.ts:396:        destroyable: true,
+tests/sim/combat/collision-buoy.test.ts:403:        destroyable: true,
+tests/sim/combat/collision-buoy.test.ts:421:      ["scrape", pod, STATION_NAV_BUOY_ID, expected.dam1],
+tests/sim/combat/collision-buoy.test.ts:483:        destroyable: false,
+tests/sim/combat/collision-buoy.test.ts:490:        destroyable: true,
+tests/sim/combat/collision-buoy.test.ts:502:      [PLAYER_ID, expected.dam1],
+tests/sim/combat/collision-buoy.test.ts:505:    expect(expected.dam1).not.toBe(FIXTURE_100.dam1);
+tests/sim/combat/collision-buoy.test.ts:525:        destroyable: true,
+tests/sim/combat/collision-buoy.test.ts:532:        destroyable: true,
+tests/sim/combat/collision-buoy.test.ts:547:      ["scrape", pod, STATION_NAV_BUOY_ID, expected.dam1],
+tests/sim/combat/collision-stage.test.ts:228:/** The player 60 m behind a Krait at rest, closing at `speed`. */
+tests/sim/combat/collision-stage.test.ts:242:describe("the player rams a Krait (tracer)", () => {
+tests/sim/combat/collision-stage.test.ts:254:        destroyable: false,
+tests/sim/combat/collision-stage.test.ts:261:        destroyable: true,
+tests/sim/combat/collision-stage.test.ts:281:        amount: expected.dam1,
+tests/sim/combat/collision-stage.test.ts:293:    expect(expected.dam1).toBeCloseTo(18.658, 3);
+tests/sim/combat/collision-stage.test.ts:320:    const [onPlayer, onKrait] = contactHits;
+tests/sim/combat/collision-stage.test.ts:323:    expect(onKrait?.amount).toBeCloseTo(42.948, 3);
+tests/sim/combat/collision-stage.test.ts:325:      KRAIT_ENERGY - (onKrait?.amount ?? 0),
+tests/sim/combat/collision-stage.test.ts:334:    // Rebound: the player drifts back, the Krait is pushed ahead.
+tests/sim/combat/collision-stage.test.ts:508:        destroyable: true,
+tests/sim/combat/collision-stage.test.ts:515:        destroyable: true,
+tests/sim/combat/collision-stage.test.ts:521:      [plate, pod, expected.dam1],
+tests/sim/combat/collision-stage.test.ts:545:  it("a Krait rammed to zero is destroyed through killShip with its debris, credited to the player", () => {
+tests/sim/combat/collision-stage.test.ts:563:    // The player is never destroyable: 228.6 damage, energy floored, alive.
+tests/sim/combat/collision-stage.test.ts:569:  it("two Kraits that kill each other in one ram: both die on the same tick, credited by the ledger's same-tick rule (D-10 asymmetry)", () => {
+tests/sim/combat/collision-stage.test.ts:701:   * `stepSim` with a world holding one far Krait and the full hull table,
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/app/session/render-driver.ts [90m[offset=1, limit=140][0m
+[0m→ [0mRead src/app/redraw-gate.ts [90m[offset=1, limit=180][0m
+[0m→ [0mRead src/app/session/event-router.ts [90m[offset=1, limit=48][0m
+[0m→ [0mRead src/sim/hyperspace/arrival.ts [90m[offset=110, limit=55][0m
+[0m→ [0mRead src/sim/flight/launch.ts [90m[offset=85, limit=90][0m
+[0m→ [0mRead tests/sim/combat/collision-buoy.test.ts [90m[offset=280, limit=65][0m
+[0m→ [0mRead tests/sim/combat/collision-stage.test.ts [90m[offset=540, limit=110][0m
+[0m$ [0mrg -n "render-driver|event-router" src/app/session/context.ts src/app/session/*.ts src/app/game-session.ts | head -n 100 && printf '\n--- explosion defaults ---\n' && cat src/content/generated/explosions.json && printf '\n--- explosion update duration ---\n' && rg -n "duration|start|add\(|update\(" src/render/bodies/explosions.ts | tail -n 80 && printf '\n--- world hash combat ---\n' && sed -n '250,310p' src/sim/world/serialize.ts && sed -n '160,185p' src/sim/flight/state.ts
+src/app/session/settings-controller.ts:25:import type { RenderDriver } from "./render-driver.js";
+src/app/session/frame-loop.ts:40:import type { RenderDriver } from "./render-driver.js";
+src/app/game-session.ts:34:import { createRenderDriver } from "./session/render-driver.js";
+src/app/game-session.ts:35:import type { RenderDriver } from "./session/render-driver.js";
+src/app/game-session.ts:50:} from "./session/event-router.js";
+src/app/session/start-session.ts:90:import type { RenderDriver } from "./render-driver.js";
+src/app/session/sim-driver.ts:54:import type { EventRouter } from "./event-router.js";
+
+--- explosion defaults ---
+[
+  {
+    "alpha": 0.8500000238418579,
+    "brightness": 1,
+    "colorOrder": "rgb",
+    "count": 25,
+    "duration": 1.5,
+    "growthRate": 1.5,
+    "key": "oolite-default-ship-explosion",
+    "size": 2.5,
+    "spread": 1,
+    "texture": "oolite-particle-cloud2.png"
+  }
+]
+
+--- explosion update duration ---
+26: *   `size * 1.2 * spread` (`:107`, `OOParticleSystem.m:67-68`); its size starts
+31: * - Alpha `alpha * (1 - t / duration)` (`:186`), and the sequential channel
+38: * size starting at the ship's collision radius (`:76`, `:86`) and growing by
+46: * `t = flightTime - start` rather than integrating per frame, so a frame-rate
+74: * `add` only, never on a cold start, and the cloud's only after its name
+96:  readonly duration: number;
+144:   * radius `radius`, starting at `flightTime`. Non-finite input, a negative
+147:  add(
+157:  update(
+200:    Number.isFinite(s.duration) &&
+201:    s.duration > 0 &&
+263:  const startTime = new Float64Array(EXPLOSION_POOL).fill(Number.NaN);
+266:  const duration = new Float64Array(EXPLOSION_POOL);
+269:  // The flash: its starting size (the radius) and its growth per second.
+339:  root.add(cloud, flash);
+364:    add(position, radius, settings, flightTime): void {
+397:      startTime[slot] = flightTime;
+400:      duration[slot] = settings.duration;
+452:    update(cameraWorld, cameraQuaternion, flightTime): void {
+467:        const start = startTime[slot] ?? Number.NaN;
+468:        if (Number.isNaN(start)) continue;
+469:        const t = flightTime - start;
+470:        const life = duration[slot] ?? 0;
+473:        // Expired, or started in the future (a Load rewound the clock): the
+476:          startTime[slot] = Number.NaN;
+
+--- world hash combat ---
+ * produced), so a poisoned value can neither read as pristine nor reach `canon`
+ * (T-13-15).
+ *
+ * The static-health line (D-08, D-09) follows the world section and precedes the
+ * combat line, and prints only when `world.staticHealth` is not pristine; this
+ * holds for a never-spawned world too (its section is empty, the line still
+ * prints). The buoys line (PD-01, PD-02) follows the static-health line and
+ * precedes the combat line under the same rule, printed only when
+ * `world.buoys` is not pristine. A hash call can mutate the world:
+ * `sanitizeStaticHealth` repairs `world.staticHealth` and `sanitizeBuoyStates`
+ * repairs `world.buoys` in place before printing (so a poisoned buoy can
+ * neither reach `canon`, which throws on a non-finite number, nor read as
+ * pristine), as the existing `sanitizeCombat(combat)` call already repairs the
+ * combat state. That reaches callers that read like pure reads: the `?test=1`
+ * probe's `worldHash` (`src/app/session/probe-publisher.ts:171-179`) and the
+ * acceptance detectors (`tests/acceptance/detectors.ts`). The mutation is harmless there because it
+ * changes a value only when the state is already corrupt.
+ */
+export function hashWorld(
+  player: FlightState,
+  world: World | undefined,
+  combat?: PlayerCombatState,
+): string {
+  const section = world === undefined ? "" : serializeWorldSection(world);
+  let text = serializeFlight(player) + (section === "" ? "" : `\n${section}`);
+  if (world !== undefined) {
+    // Repair first so a poisoned value cannot reach `canon` or read as pristine.
+    sanitizeStaticHealth(world);
+    sanitizeBuoyStates(world);
+    if (!isPristineStaticHealth(world.staticHealth)) {
+      text += `\n${serializeStaticHealth(world.staticHealth)}`;
+    }
+    if (!isPristineBuoyStates(world.buoys)) {
+      text += `\n${serializeBuoyStates(world.buoys)}`;
+    }
+  }
+  if (combat !== undefined) {
+    // Repair first so a poisoned value cannot read as pristine or reach `canon`.
+    sanitizeCombat(combat);
+    if (!isPristineCombat(combat)) text += `\n${serializeCombat(combat)}`;
+  }
+  return fnv1a32(text);
+}
+
+/** A read-only snapshot for the controller and the renderer. */
+export function poseOf(state: FlightState): FlightPose {
+  return { position: state.position, orientation: state.orientation };
+}
+
+/**
+ * Canonical labelled text (Pattern C). Fixed key order, every number through
+ * `canon`, never `JSON.stringify`.
+ */
+export function serializeFlight(state: FlightState): string {
+  const lines = [
+    `mode=${state.mode}`,
+    `tick=${canon(state.tick, 0)}`,
+    `clock=${canon(state.clockSeconds, 6)}`,
+    `flightTime=${canon(state.flightTime, 6)}`,
+    `p=${canon(state.position.x)},${canon(state.position.y)},${canon(state.position.z)}`,
+    `q=${canon(state.orientation.w)},${canon(state.orientation.x)},${canon(state.orientation.y)},${canon(state.orientation.z)}`,
+    `speed=${canon(state.speed, 6)}`,
+    `pitchRate=${canon(state.pitchRate, 6)}`,
+    `rollRate=${canon(state.rollRate, 6)}`,
+    `torus=${String(state.torus.engaged)}:${canon(state.torus.factor, 6)}:${String(state.torus.massLocked)}:${canon(state.torus.lastFactor, 6)}`,
+    `hyperspaceCountdown=${canon(state.hyperspaceCountdown, 0)}`,
+    `hyperspaceTarget=${
+      state.hyperspaceTarget === null
+        ? "none"
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/ui/station-model.ts [90m[offset=525, limit=80][0m
+[0m→ [0mRead tests/app/session-order.test.ts [90m[offset=125, limit=125][0m
+[0m→ [0mRead tests/guards/collision-player-death.test.ts [90m[offset=1, limit=140][0m
+[0m→ [0mRead tests/guards/source-scan.ts [90m[offset=1, limit=160][0m
+[0m→ [0mRead tests/app/session-order.test.ts [90m[offset=1120, limit=105][0m
+[0m→ [0mRead src/main.ts [90m[offset=360, limit=35][0m
+[0m→ [0mRead src/app/probe.ts [90m[offset=530, limit=140][0m
+[0m$ [0mgit -C /home/opencode/git/oolite show 7437f22:Resources/Config/descriptions.plist | sed -n '1991p' | xxd -g1; sed -n '1992p' third_party/oolite/Config/descriptions.plist | xxd -g1; sed -n '130,150p' src/sim/player/profile.ts | cat -n; rg -n "formatRating|formatCredits|formatDecicredits" src/ui/station-model.ts src/sim/player/profile.ts
+00000000: 09 22 67 61 6d 65 6f 76 65 72 73 63 72 65 65 6e  ."gameoverscreen
+00000010: 2d 73 63 6f 72 65 2d 40 22 09 09 3d 20 22 53 63  -score-@"..= "Sc
+00000020: 6f 72 65 3a 20 25 40 2c 20 5b 63 72 65 64 69 74  ore: %@, [credit
+00000030: 73 5f 6e 75 6d 62 65 72 5d c2 a0 e2 82 a2 22 3b  s_number].....";
+00000040: 0a                                               .
+00000000: 09 22 67 61 6d 65 6f 76 65 72 73 63 72 65 65 6e  ."gameoverscreen
+00000010: 2d 67 61 6d 65 2d 6f 76 65 72 22 09 09 3d 20 22  -game-over"..= "
+00000020: 47 61 6d 65 20 4f 76 65 72 22 3b 0a              Game Over";.
+     1	 * "[value] ₢"). The integer part is grouped as Oolite's `formatCredits`
+     2	 * groups it (`groupIntegerDigits`): "10 000.0 ₢" with U+00A0.
+     3	 *
+     4	 * `toFixed` and `toLocaleString` are deliberately not used for money: the
+     5	 * first rounds through a binary fraction, the second follows the browser's
+     6	 * locale. The integer split keeps every balance the game can represent exact.
+     7	 */
+     8	export function formatDecicredits(decicredits: number): string {
+     9	  const sign = decicredits < 0 ? "-" : "";
+    10	  const absolute = Math.abs(decicredits);
+    11	  const whole = Math.trunc(absolute / 10);
+    12	  const tenth = absolute % 10;
+    13	  return `${sign}${groupIntegerDigits(whole)}.${String(tenth)} ₢`;
+    14	}
+    15	
+    16	/** Format decicredits for the panel: one decimal place, never `toLocaleString`. */
+    17	export function formatCredits(decicredits: number): string {
+    18	  return formatDecicredits(decicredits);
+    19	}
+    20	
+    21	/**
+src/sim/player/profile.ts:130: * "[value] ₢"). The integer part is grouped as Oolite's `formatCredits`
+src/sim/player/profile.ts:137:export function formatDecicredits(decicredits: number): string {
+src/sim/player/profile.ts:146:export function formatCredits(decicredits: number): string {
+src/sim/player/profile.ts:147:  return formatDecicredits(decicredits);
+src/ui/station-model.ts:59:  formatDecicredits,
+src/ui/station-model.ts:64:export { formatDecicredits };
+src/ui/station-model.ts:88: * "[value] ₢"), grouped as Oolite's `formatCredits` groups whole credits
+src/ui/station-model.ts:333:  return `${verb} ${String(pending.amount)} ${commodity.unit} ${commodity.name} for ${formatDecicredits(pending.cost)}? [Y/N]`;
+src/ui/station-model.ts:441:      priceText: formatDecicredits(good.price),
+src/ui/station-model.ts:472:    cashLoadText: `Cash: ${formatDecicredits(profile.credits)}. Load ${String(usedPods)} of ${String(capacityPods)} t.`,
+src/ui/station-model.ts:537:export function formatRating(rating: string, kills: number): string {
+src/ui/station-model.ts:587:    { label: "Cash", value: formatDecicredits(profile.credits) },
+src/ui/station-model.ts:592:    { label: "Rating", value: formatRating(labels.rating[0] ?? "", 0) },
+src/ui/station-model.ts:1034:        priceText: formatDecicredits(repairCost),
+src/ui/station-model.ts:1056:      priceText: removal ? formatWholeCredits(cost) : formatDecicredits(cost),
+src/ui/station-model.ts:1096:      priceText: formatDecicredits(cost),
+src/ui/station-model.ts:1173:      priceText: formatDecicredits(cost),
+src/ui/station-model.ts:1189:      priceText: selected?.priceText ?? formatDecicredits(cost),
+src/ui/station-model.ts:1324:  const refuelCostText = fuelFull ? "FULL" : formatDecicredits(refuelCost);
+src/ui/station-model.ts:1409:          priceText: formatDecicredits(quote.price),
+src/ui/station-model.ts:1421:          priceText: formatDecicredits(quote.price),
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/app/session/start-session.ts [90m[offset=590, limit=85][0m
+[0m→ [0mRead src/app/session/start-session.ts [90m[offset=750, limit=65][0m
+[0m→ [0mRead src/app/session/start-session.ts [90m[offset=1000, limit=60][0m
+[0m→ [0mRead index.html [90m[offset=45, limit=25][0m
+[0m→ [0mRead src/app/game-session.ts [90m[offset=400, limit=70][0m
+[0m$ [0mrg -n "GAME_OVER_SCORE_TEMPLATE|Score: %@|formatDecicredits|trailing" .planning/phases/20-player-death-and-game-over/20-05-PLAN.md | head -n 40 && sed -n '/GAME_OVER_SCORE_TEMPLATE/p' .planning/phases/20-player-death-and-game-over/20-05-PLAN.md | xxd -g1 | head -n 20 && rg -n "credits_number" src tests third_party/oolite/Config/descriptions.plist | head -n 50
+22:    - "D-02: the game-over view shows Oolite's three lines from `descriptions.plist` at the pin (`gameoverscreen-game-over` \"Game Over\", `gameoverscreen-score-@` \"Score: %@, [credits_number] ₢\", `gameoverscreen-press-space` \"Press Space\") plus one cause-of-death line, in the order title, cause, score, prompt, centred over the scene"
+24:    - "D-05: the score line is `formatRating(rating, 0)` and the credits: for a new commander \"Score: Harmless   (0), 100.0 ₢\", with exactly one ₢ and the credit grouping of `formatDecicredits`"
+31:      exports: ["buildGameOverLines", "resolveCulpritName", "createGameOverOverlay", "GAME_OVER_TITLE", "GAME_OVER_SCORE_TEMPLATE", "GAME_OVER_PRESS_SPACE"]
+44:      via: "the credits number uses formatDecicredits without its trailing sign"
+45:      pattern: "formatDecicredits\\("
+91:src/sim/player/profile.ts:137-148 `formatDecicredits(decicredits)` -> "<grouped>.<tenth> ₢" (U+00A0 grouping)
+116:| 20-05 * | 2 | `src/ui/game-over.ts` (new), `index.html`, `tests/ui/game-over.test.ts` (new) | `GAME_OVER_TITLE`, `GAME_OVER_SCORE_TEMPLATE`, `GAME_OVER_PRESS_SPACE`, `CAUSE_DESTROYED_BY_TEMPLATE`, `CAUSE_COLLIDED_WITH_TEMPLATE`, `CAUSE_DESTROYED`, `CAUSE_DESTROYED_IN_COLLISION`, `GameOverLines`, `buildGameOverLines`, `resolveCulpritName`, `GameOverOverlayOptions`, `GameOverOverlay`, `createGameOverOverlay`; `#game-over` markup; `#hud[data-dead]` CSS rule |
+146:    Per D-02, D-06, D-07 and D-12. Create `src/ui/game-over.ts` (SPDX header; module doc: the game-over view, Oolite's `showGameOver` lines plus the D-02 cause line; ends only on input, D-06; Space or click, D-07; reload, D-12). Export the constants `GAME_OVER_TITLE = "Game Over"`, `GAME_OVER_SCORE_TEMPLATE = "Score: %@, [credits_number] ₢"` and `GAME_OVER_PRESS_SPACE = "Press Space"`, each with its `descriptions.plist` line citation at the pin; the type `GameOverLines { title, cause, score, prompt }` (readonly strings); `GameOverOverlayOptions { root: HTMLElement; keyTarget?: Pick<EventTarget, "addEventListener" | "removeEventListener">; reload?: () => void }`; `GameOverOverlay { show(lines): void; isShown(): boolean; dispose(): void }`; and `createGameOverOverlay(options)`. The factory looks up `[data-game-over-line="title"|"cause"|"score"|"prompt"]` under the root and throws `Wegolite: the game-over overlay is missing its "<name>" line.` when one is absent. `show` is idempotent (a second call while shown does nothing), writes each line with `textContent` only (never by HTML parsing), sets `root.hidden = false`, calls `root.focus({ preventScroll: true })`, and only then attaches, through one `AbortController`, a keydown listener on `keyTarget` (default `window`, resolved inside the factory) that acts on `event.code === "Space" && !event.repeat` with `preventDefault()`, and a click listener on the root; both call one guarded trigger that runs `reload` (default `() => { window.location.reload(); }`) at most once. `dispose` aborts the listeners and hides the root. In `index.html` add, beside the `#pause` markup, `<div id="game-over" hidden role="dialog" aria-modal="true" aria-labelledby="game-over-title" tabindex="-1">` holding four `<p>` elements with `data-game-over-line` title (with `id="game-over-title"`), cause, score and prompt; add CSS for `#game-over` (absolute, inset 0, centred column, transparent background so the scene shows, the pause overlay's `#33ff66` monospace text, a gap after the cause and after the score as Oolite's blank message rows, `cursor: pointer`, a z-index below `#pause`); and extend the rule at lines 58-61 with `#hud[data-dead] ~ #overlay #title` and `#hud[data-dead] ~ #overlay #status` (the render driver sets that attribute in 20-08). Create `tests/ui/game-over.test.ts` with the shell behaviour above (Node `EventTarget` doubles; key events built as `Event` objects with `code`, `repeat` and a recorded `preventDefault`).
+179:    - Credits 123456789 decicredits give the grouped number of `formatDecicredits` with its U+00A0 separators and exactly one "₢" at the end of the score line; title and prompt equal the constants
+183:    Per D-02, D-03 and D-05. In `src/ui/game-over.ts` export the cause strings `CAUSE_DESTROYED_BY_TEMPLATE = "Destroyed by %@"`, `CAUSE_COLLIDED_WITH_TEMPLATE = "Collided with %@"`, `CAUSE_DESTROYED = "Destroyed"` and `CAUSE_DESTROYED_IN_COLLISION = "Destroyed in a collision"` (doc: Wegolite text for the D-02 cause line, the owner's divergence; no Oolite source); `resolveCulpritName(key, catalogue, targetNames): string | undefined` that returns the catalogue record's `name`, else the `targetNames` entry, else `undefined`; and `buildGameOverLines(cause, culpritName, creditsDecicredits, ratingLabel): GameOverLines` that fills the cause from the damage kind and the name, and the score from `GAME_OVER_SCORE_TEMPLATE` with `%@` replaced by `formatRating(ratingLabel, 0)` and `[credits_number]` by `formatDecicredits(creditsDecicredits)` without its trailing " ₢" (assert the suffix is there before cutting it; the template supplies the sign). Add the behaviour above to `tests/ui/game-over.test.ts`.
+00000000: 20 20 20 20 20 20 65 78 70 6f 72 74 73 3a 20 5b        exports: [
+00000010: 22 62 75 69 6c 64 47 61 6d 65 4f 76 65 72 4c 69  "buildGameOverLi
+00000020: 6e 65 73 22 2c 20 22 72 65 73 6f 6c 76 65 43 75  nes", "resolveCu
+00000030: 6c 70 72 69 74 4e 61 6d 65 22 2c 20 22 63 72 65  lpritName", "cre
+00000040: 61 74 65 47 61 6d 65 4f 76 65 72 4f 76 65 72 6c  ateGameOverOverl
+00000050: 61 79 22 2c 20 22 47 41 4d 45 5f 4f 56 45 52 5f  ay", "GAME_OVER_
+00000060: 54 49 54 4c 45 22 2c 20 22 47 41 4d 45 5f 4f 56  TITLE", "GAME_OV
+00000070: 45 52 5f 53 43 4f 52 45 5f 54 45 4d 50 4c 41 54  ER_SCORE_TEMPLAT
+00000080: 45 22 2c 20 22 47 41 4d 45 5f 4f 56 45 52 5f 50  E", "GAME_OVER_P
+00000090: 52 45 53 53 5f 53 50 41 43 45 22 5d 0a 7c 20 32  RESS_SPACE"].| 2
+000000a0: 30 2d 30 35 20 2a 20 7c 20 32 20 7c 20 60 73 72  0-05 * | 2 | `sr
+000000b0: 63 2f 75 69 2f 67 61 6d 65 2d 6f 76 65 72 2e 74  c/ui/game-over.t
+000000c0: 73 60 20 28 6e 65 77 29 2c 20 60 69 6e 64 65 78  s` (new), `index
+000000d0: 2e 68 74 6d 6c 60 2c 20 60 74 65 73 74 73 2f 75  .html`, `tests/u
+000000e0: 69 2f 67 61 6d 65 2d 6f 76 65 72 2e 74 65 73 74  i/game-over.test
+000000f0: 2e 74 73 60 20 28 6e 65 77 29 20 7c 20 60 47 41  .ts` (new) | `GA
+00000100: 4d 45 5f 4f 56 45 52 5f 54 49 54 4c 45 60 2c 20  ME_OVER_TITLE`, 
+00000110: 60 47 41 4d 45 5f 4f 56 45 52 5f 53 43 4f 52 45  `GAME_OVER_SCORE
+00000120: 5f 54 45 4d 50 4c 41 54 45 60 2c 20 60 47 41 4d  _TEMPLATE`, `GAM
+00000130: 45 5f 4f 56 45 52 5f 50 52 45 53 53 5f 53 50 41  E_OVER_PRESS_SPA
+third_party/oolite/Config/descriptions.plist:24:		              credits_number
+third_party/oolite/Config/descriptions.plist:1991:	"gameoverscreen-score-@"		= "Score: %@, [credits_number] ₢";
+[0m$ [0mrg -n "function playerAt|const playerAt|function flyingPlayer|const flyingPlayer|forwardShield|energy =|fwdShield" tests/sim/combat/collision-buoy.test.ts tests/sim/combat/collision-stage.test.ts | head -n 100 && sed -n '35,100p' tests/sim/combat/collision-buoy.test.ts && sed -n '215,245p' tests/sim/combat/collision-stage.test.ts
+tests/sim/combat/collision-stage.test.ts:86:function flyingPlayer(speed = 0): FlightState {
+tests/sim/combat/collision-stage.test.ts:302:    const shieldBefore = combat.fwdShield;
+tests/sim/combat/collision-stage.test.ts:328:    expect(combat.fwdShield).toBeCloseTo(
+tests/sim/combat/collision-buoy.test.ts:107:function playerAt(position: Vec3, speed: number): FlightState {
+tests/sim/combat/collision-buoy.test.ts:242:    const energyBefore = combat.energy + combat.fwdShield + combat.aftShield;
+tests/sim/combat/collision-buoy.test.ts:256:    expect(combat.energy + combat.fwdShield + combat.aftShield).toBeCloseTo(
+import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
+import { initFlightState } from "../../../src/sim/flight/state.js";
+import type { FlightState } from "../../../src/sim/flight/state.js";
+import { stepFlight } from "../../../src/sim/flight/step.js";
+import type { StepOptions } from "../../../src/sim/flight/step.js";
+import {
+  BUOY_SUBENTITY_MASS,
+  NAV_BUOY_HULL_MASS,
+  NAV_BUOY_MASS,
+} from "../../../src/sim/hyperspace/countdown.js";
+import { identity, vec } from "../../../src/sim/math.js";
+import type { Vec3 } from "../../../src/sim/math.js";
+import { stepSim } from "../../../src/sim/sim.js";
+import { DT } from "../../../src/sim/time.js";
+import {
+  DEBRIS_MAX_ENERGY,
+  debrisMassOf,
+} from "../../../src/sim/world/debris.js";
+import {
+  NAV_BUOY_SUBENTITY_ID,
+  PLAYER_ID,
+  STATION_NAV_BUOY_ID,
+} from "../../../src/sim/world/ids.js";
+import type { EntityId } from "../../../src/sim/world/ids.js";
+import {
+  hashWorld,
+  serializeBuoyStates,
+  serializeStaticHealth,
+} from "../../../src/sim/world/serialize.js";
+import { buoyOrientation } from "../../../src/sim/world/statics.js";
+import {
+  createWorld,
+  isPristineBuoyStates,
+  isPristineStaticHealth,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
+import type { World } from "../../../src/sim/world/world.js";
+import { debrisFixture, FIXTURE_POD } from "../../helpers/debris-fixture.js";
+import { fullHullTable } from "../../helpers/hull-table.js";
+import { laveFixture } from "../../helpers/lave.js";
+import { realNpcFlightTable } from "../../helpers/npc-flight.js";
+
+const { layout, config } = laveFixture();
+const HULLS: HullTable = fullHullTable();
+const DEBRIS = debrisFixture();
+const NAV_BUOY = layout.navBuoy.position;
+
+/** `collide-player-buoy-100` (18-03): the C's numbers for a 100 m/s ram. */
+const FIXTURE_100 = {
+  dam1: 139.7382354736328,
+  dam2: 42.94753646850586,
+  v1a: 180.3800506591797,
+  nudgeOther: 8.333333969116211,
+  nudgeSelf: 15.031671524047852,
+};
+/** `brake-ship-buoy-thrust-100-from-100` (18-03): the braked drift. */
+const BUOY_BRAKE_FROM_100 = 9.583335928122201;
+
+/** The app's options: hulls with the statics, the flight table, debris. */
+function options(hulls: HullTable = HULLS): StepOptions {
+  return {
+    npcFlight: realNpcFlightTable(),
+    combat: {
+      mounts: DEFAULT_LASER_MOUNTS,
+      hulls,
+      debris: DEBRIS,
+      (s, o, part) => {
+        calls.push(`${s}-${o}`);
+        parts.push(part);
+        // Only the player's call against body 2 separates.
+        return !(s === 0 && o === 2);
+      },
+    );
+    expect(calls).toEqual(["0-1", "0-2", "1-2", "2-0"]);
+    expect(parts[1]).toEqual({ kind: "subentity", index: 0 });
+    expect(parts[3]).toEqual({ kind: "hull" });
+  });
+});
+
+/** The player 60 m behind a Krait at rest, closing at `speed`. */
+function ramScene(speed: number): {
+  player: FlightState;
+  combat: PlayerCombatState;
+  world: World;
+  krait: EntityId;
+} {
+  const player = flyingPlayer(speed);
+  const combat = createPlayerCombatState();
+  const world = createWorld(7);
+  const krait = spawnShip(world, vec(FAR.x, FAR.y, FAR.z - 60));
+  return { player, combat, world, krait };
+}
+
+describe("the player rams a Krait (tracer)", () => {
+  it("applies collideWithShip's response at once, the player as self, and queues two scrape records", () => {
+    const { player, combat, world, krait } = ramScene(100);
+    const kraitEntity = entityOf(world, krait);
+[0m$ [0mrg -n "PlayerDeath|player energy|death|collision" .planning/PROJECT.md | head -n 70 && sed -n '272,286p' .planning/PROJECT.md && sed -n '327,337p' .planning/PROJECT.md && sed -n '165,183p' FIDELITY.md && sed -n '1,50p' tests/contract/fidelity.test.ts
+| Buoys block a completing jump (Phase 18, D-09) | Supersedes "Keep the buoys non-blocking in Phase 12". Oolite's `checkShipsInVicinityForWitchJumpExit` tests every ship but the player, whatever its scan class, by `0.1 x [ship mass] > d^2` and `d^2 < SCANNER_MAX_RANGE2` (`ShipEntity.m:12498-12531`), so the witchpoint beacon and the nav buoy block; quick task 261117-lka measured the nav buoy blocking at 263.3 m and clear at 265.3 m. Wegolite: both buoys use `NAV_BUOY_MASS` = 698,691.1875 (the composite compiled into `ships-client.json` entry `buoy`, pinned by a test; blockage radius 264.33 m). PD-02: the check uses the buoy's live position, its layout position plus `World.buoys.<key>.offset`. PD-01: its live mass; once its subentity is detached Oolite's GLfloat `mass -= [sub mass]` (`ShipEntity.m:8194`) leaves the float32 691,044.375 (`NAV_BUOY_HULL_MASS`, equal to the compiled hull-only mass), radius 262.88 m. D-05: a destroyed buoy never blocks. Liveness, offset and attachment come from the previous tick's world through `ShipField.buoy(key)`, as every field query does; without a world both buoys count as alive, unmoved and whole. Order: the station, the witchpoint buoy, the nav buoy, then NPC ships; each refusal clears the target and spends no fuel or jump time. The mass reaches the step as `StepOptions.hyperspace.buoyMass`, exactly as `stationMass`: `buildStepOptions` always supplies it, and world-less unit flights and the frozen worlds omit it, so their pins hold; a missing, non-finite or non-positive mass blocks nothing. The HUD names the blocker as Oolite's `witch-blocked` string does: "Witchspace jump aborted: too close to Navigation Buoy" (53 characters) and "Witchspace jump aborted: too close to Witchpoint Beacon" (55). The beacon wording is final by owner decision 2026-11-20, which raised the HUD message budget `MAX_MESSAGE_CHARS` from 54 to 55 (55 glyphs at 23.2 px and 0.6 em are 765.6 design px, centred on x = 1248 of 1920; raised again to 60 the same day by owner decision, so the two docking bounce lines and the default pitch/roll hint fit whole); the 18-07 executor's interim "too near Witchpoint Beacon" (51) is gone. Oolite's own "Witchspace jump aborted (too close to [blockerName])." (`descriptions.plist:503`) waits for the HUD word wrap (`printLongText:`, `GuiDisplayGen.m:736-794`): todo 2026-11-20-hud-message-word-wrap-like-oolite, with the tripwire `tests/guards/hud-message-length.test.ts`. Arrival: Oolite places every arrival at least `safeWitchspaceExitDistance`, the witchpoint buoy's collision radius plus 750 m = 809.14 m, from it (`PlayerEntity.m:6913-6928`, `Universe.m:2843-2851`), so an immediate re-jump after arrival is not refused by the witchpoint buoy, and Wegolite matches; every arrival, launch and Load creates a new world whose buoys are pristine, so a buoy moved in one world cannot reach the next arrival. `tests/sim/world/buoy-clearance.test.ts` sweeps all 2,048 layouts: the whole arrival shell and the launch pose stay farther than the blockage radius plus both hull radii (396.16 m) from both buoys. D-08: pods and plates never block (they have no entry in the NPC mass list) and never mass-lock, and buoys never mass-lock (`CLASS_CARGO`, `CLASS_BUOY`, `PlayerEntity.m:3044-3061`); Oolite's loop is class-free, so a pod within 9.97 m and a plate within 5.23 m of the player's centre would block there (plan 18-20 measured the rule on a cargo-class surrogate), a divergence that can matter only while the piece sits inside the Cobra's hull. Follow-up: the torus factor's nearest surface (`src/sim/flight/torus.ts:53-71`) still reads the layout buoys, so a destroyed witchpoint beacon still caps the factor and a moved buoy counts at its layout position, while Oolite takes the nearest live collidable entity (`PlayerEntity.m:2917-2924`); recorded in FIDELITY.md and the todo 2026-11-20-torus-nearest-surface-live-buoys. Reversible: an option and two blocker kinds | ✓ Phase 18 plan 18-07 (D-05, D-08, D-09, PD-01, PD-02; beacon copy final, owner decision 2026-11-20) |
+| The hyperspace-failure fixture pose leaves the witchpoint buoy (Phase 18, D-06, owner sanction) | With blocking buoys, `tests/e2e/hyperspace-failure.spec.ts` would complete its countdown 0 m from the witchpoint buoy and be refused. The owner sanctioned one edit (D-06): `ORIGIN_POSE.position` moves from `[0, 0, 0]` to `[1000, 0, 0]`, with its comment, and nothing else in the spec changes; the spec's own pre-H assertion (more than 7,000 m from the station) stays. At Lave the new pose is 1,000 m from the witchpoint buoy (outside its 59.14 m hull and the 264.3 m blockage radius plus both hull radii, 396.1 m), 434,885 m from the station (blockage radius 7,179.7 m) and 436,269 m from the nav buoy. The spec is traffic-off, so no hull table loads and no collision can move the buoy. The pose is justified for Lave only, where the spec parks the player; the generality check is the 2,048-layout clearance sweep of `tests/sim/world/buoy-clearance.test.ts`. It is the only browser-spec edit of Phase 18 | ✓ Phase 18 plan 18-07 (owner sanction D-06) |
+| Keep Wegolite's compass cycle and skip a destroyed witchpoint beacon (Phase 18, D-05, A7) | Oolite cycles PLANET -> STATION or SUN -> TARGET -> BEACONS -> PLANET (`setNextCompassMode`, `PlayerEntity.m:4761-4808`), walking only the beacons still in the universe: a destroyed one is cleared from the beacon list (`Universe.m:3446-3463`, `9615-9619`). Wegolite has no sun, target or beacon-list compass modes and keeps its own cycle, auto -> planet -> station -> witchpoint -> auto (`nextCompassMode`, `src/sim/world/aegis.ts`). D-05's destroyed-beacon effect is ported into that model: with the witchpoint buoy destroyed the cycle skips it (`station -> auto`), and a compass left on it turns to the planet, mode and target, on the first stepped tick that sees the destruction and for the life of the world, as Oolite's `validateCompassTarget` does (`PlayerEntity.m:4655-4659`). The nav buoy has no compass mode, so a destroyed nav buoy changes only the scanner and the view. Planner ruling A7 and the orchestrator's revision-2 ruling for plan 18-08; FIDELITY.md 'Compass cycle model' (E-126) | ✓ Phase 18 plan 18-08 (D-05) |
+| Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18) | The collision stage (`resolveCollisions`, `src/sim/combat/collide.ts`) runs inside `resolveShots` after the laser hits are queued and before the one ledger, and only with `CombatOptions.collisions`: the app sets it in `buildStepOptions`, the frozen acceptance harness never does, so its worlds stay byte-identical (PITFALLS 4, QUAL-11). Colliders: the in-flight player with its hull (excluded while launching, A3, a divergence: Oolite's player `canCollide` is YES while launching, `PlayerEntity.m:2242-2254`), live NPC ships with a hull and a compiled mass, and live pods and plates with their `debrisMassOf` mass; never a wreck (`canCollide`). Broad phase: a sweep on x with Oolite's strict sphere test `d^2 < (r1 + r2)^2` (`CollisionRegion.m`), then `doOctreesCollide` with Oolite's prime, the body first in the z list (the row "The octree test's prime follows Oolite's z order" below; plan 18-11 had made the lower-ranked body the prime, corrected by owner decision 2026-11-20). Order: `colliderRank` puts the player first and every other body by ascending squared distance from the player, ties by id, a non-finite distance last, after Oolite's update order over `sortedEntities` (`Universe.m:6439, 6534`, kept sorted by `zero_distance` at `6557-6567`, an exact sort here); each body then runs its own collision list in rank order, as `manageCollisions` does (`ShipEntity.m:10991-11017`): a call that collides removes self from the other's list (`11149-11150`), a call that returns early because the pair separates faster than 1 m/s leaves it, and the other calls in its own turn. Response: `collideWithShip` (plan 18-16, `ShipEntity.m:11020-11152`): velocity and position changes apply at once in call order while the damage joins the one ledger as `"scrape"` records after the laser records (A5), each with a copy of the source's position at queue time (the Phase 15 `sourcePosition` rule); the player's share goes through `routeScrapeDamage` (the shield on the other's side, then energy, no cabin heat). A ship at 0 dies through `killShip` with its debris, a pod or plate is removed, and a same-tick mutual ram kill keeps the existing ledger credit rule (the D-10 asymmetry). The destroyed flags read each body's energy before this tick's ledger. The station is not a collider: touching its hull stays the dock's damage-free contact (DOCK-09) and NPCs and pods pass through it. The player is never `destroyable` before Phase 20 (`PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20`). No `shipCollided` script event or `COLLISION` AI message (RESEARCH A8). No random draw: `takeScrapeDamage`'s fragment roll only sets `being_mined`, which only asteroids read (`ShipEntity.m:11659-11667`). PD-05: `canScoop` (`ShipEntity.m:11022-11027, 11183-11197`) is out of phase, so a rammed pod takes damage and dies above 15.3 m/s against the player. Since plan 18-18 the two buoys are colliders as Oolite's movers (PD-02): each live buoy whose `buoy` hull is loaded joins with its static id (4, 5), its pose `buoyPosition` and `buoyOrientation(flightTime)`, its drift as total velocity, its `World.staticHealth` as energy and `destroyable`; its share of a response goes to `World.buoys.<key>.velocity` (held to `MAX_ENTITY_VELOCITY`) and `.offset` (held to `MAX_BUOY_OFFSET`), and it then brakes by its own thrust (plan 18-17), so a 100 m/s ram carries the nav buoy the 8.333 m nudge plus 9.583 m of braking. A ram above about 241.3 m/s by the player (`dam2 = 214,737.6875 v^2 / 5e7 > 250`) destroys the buoy through `destroyBuoy`, credited to the player; a destroyed buoy is no collider and never moves. The frangible subentity answers a contact the hull does not make (PD-01): the other party is then the subentity (mass `BUOY_SUBENTITY_MASS` 7,646.7861328125, energy `subentityEnergy`, the buoy's velocity as the parent's, `ShipEntity.m:11057-11067`), dam2 goes whole to the subentity's id (6, 7) as a scrape record with no 1 % bleed-through on the buoy (`ShipEntity.m:11123-11128`; `takeScrapeDamage` has none, `11639-11673`; the bleed is the laser rule), and the buoy takes `dvOtherBody`, also when the rammer dies. Divergence: the C's nudge of a contacted subentity moves the subentity inside its parent (`ShipEntity.m:11143-11146`); Wegolite keeps it at its authored offset. A detached subentity takes no part, and the buoy's collision mass becomes `NAV_BUOY_HULL_MASS` (691,044.375, the float32 the C holds after `subEntityDied` subtracts the subentity's mass, `ShipEntity.m:8194`). When the buoy is self the contact is the buoy body's. Measured: only a pod or plate inside the buoy hull's cavity can touch the subentity alone; a ship's hull always meets the buoy's hull first. Buoys follow `colliderRank` like every collider; buoy-buoy pairs use the same rule and are unreachable in practice (the buoys are at least 223,595 m apart in every layout). The 18-20 anti-conjoin push is not reproduced for the buoy either (the FIDELITY row "Each body runs its own collision list"). The nav buoy 10 km ahead of the dock on the launch axis is met by a straight departure: the launch leaves the slot at 175 m/s, so with idle controls the player rams it about 54 s after launch (dam1 about 428 on the player, dam2 about 131.5 on the buoy), and at 350 m/s the ram deals the player about 1,712 damage and destroys the buoy, so `otherDestroyed` reverses the player's 631 m/s rebound and no net rebound remains, as plan 18-20 measured on real Oolite (where the player is destroyed too). Since plan 18-21 a steered NPC sees each live buoy in the proximity pass and turns away once alerted (PD-06, PD-08, the row below); contact remains possible, as in Oolite. Tripwire (owner rule 2026-11-18): the player's deferred inelastic reversal is the todo `2026-11-19-collision-reversal-on-player-death`, and `tests/guards/collision-player-death.test.ts` fails, naming it, while `PLAYER_NOT_DESTROYABLE_UNTIL_PHASE_20` survives and a `playerDestroyed` producer, a new `FlightMode` member or a changed ledger floor appears. Cost: `CollisionStats` pins the sweep and narrow-phase counts at the entity cap (`tests/sim/combat/collision-cost.test.ts`). Reversible: the opt-in flag | ✓ Phase 18 plan 18-11. ✓ Plan 18-18: a 100 m/s ram matches `collide-player-buoy-100` and carries the buoy 17.917 m; 250 m/s destroys it; the cavity contact damages id 7; 30/60/144 Hz hash equal (`tests/sim/combat/collision-buoy.test.ts`, `tests/sim/world/collision-cadence.test.ts`) |
+| Navigation buoys in the NPC proximity pass behind Oolite's collision chain (Phase 18, PD-06, PD-08; plan 18-21) | PD-06 (owner, 2026-11-19): every live buoy is a proximity candidate, as in Oolite (`CollisionRegion.m:308-311`; the 698,691 kg buoy is far above the 2,000 kg floor, `ShipEntity.m:6107`); the world view reports a buoy at `buoyPosition` (the layout position plus `World.buoys.<key>.offset`, unchanged at a zero offset) and omits a destroyed buoy (not a body, not valid, not scanned), so an alert naming it lapses; a buoy never holds an alert (no pilot, `ShipEntity.m:6116`). PD-08 (owner, 2026-11-19; corrected 2026-11-20 by owner decision after code verification): a pair that includes a buoy is tested only when both bodies share one z collision chain of `filterSortedLists` (`Universe.m:6713-7144`, `src/sim/npc/collision-chain.ts`), ported as it really runs: the downward walks are dead code, nothing collidable is eliminated, lists are sorted by lower edge, and the planet (collision radius `radius_km` x 10, `OOPlanetEntity.m:120`) and the sun (`OOSunEntity.m:221`, 671) are chain bodies. On a z approach a Krait is first alerted by the isolated witchpoint beacon at a centre distance in (213.66, 218.66] m, on an x approach at the 236.54 m pair trigger, and the Lave nav buoy (inside the planet's slab) at the pair trigger even along z. Scope: buoy pairs only (owner, 2026-11-20); every other pair keeps Phase 14's rule; the all-pairs version is the todo `2026-11-20-collision-chain-prefilter-all-pairs`, guarded by `tests/guards/collision-chain-scope.test.ts`. Owner setup exception (2026-11-20): five Phase 14/17 test files whose scenarios fly steered ships through the Lave witchpoint beacon at the origin (`proximity.test.ts`, `hot-weapon.test.ts`, `fire-route.test.ts`, `escort-refresh.test.ts`, `step-integration.test.ts`) mark the beacon destroyed in their scene setup, with no expected value changed. PD-07 (owner, 2026-11-19): the QUAL-11 rerun is accepted with moved values when it passes 21 of 21 under the unchanged thresholds and detectors. | ✓ Phase 18 plan 18-21 (`tests/sim/npc/buoy-proximity.test.ts`, `tests/sim/world/view.test.ts`, `tests/sim/combat/collision-traffic.scenario.test.ts`) |
+| The octree test's prime follows Oolite's z order (owner decision 2026-11-20, Phase 18, CBT-18) | Oolite tests a pair as `[e1 checkCloseCollisionWith:e2]` with `e1` the body first in the z list, sorted by `z - collision_radius` (`Entity.m:247`, `Universe.m:7044-7073`, `CollisionRegion.m:284-287, 341-343`), and the octree test is not symmetric: at one pose the onset moved by up to 24 m between the two primes. The stage had made the lower-ranked body the prime (the player in every pair with it); the 18-18 re-measure on real Oolite (11 sessions) put 5 of them outside Oolite's bracket, every one a session in which Oolite's prime was the buoy. The narrow phase now takes the prime from `compareZOrder` (`src/sim/world/sorted-lists.ts`, the one key shared with the collision-chain prefilter; Wegolite's `-z`, ties by id) for every pair. The rank order still decides who calls first; the prime's list carries the touched part, the other's the prime's hull. The station is not a collider. With the real barrel, a pod in the buoy's cavity no longer names the buoy's subentity: the buoy, first in the z list, is the prime | ✓ `tests/sim/combat/collision-prime.oolite.test.ts` holds the stage to the 11 sessions; FIDELITY E-135 |
+| Drift beside the engine speed (Phase 18, D-02) | The player carries Oolite's Newtonian `velocity` as `FlightState.drift` beside the scalar engine speed, and NPC ships and buoys carry theirs as `velocity` (plans 18-10 and 18-17). The player's drift moves the position every in-flight tick and is power-braked in float32 by the raw thrust 32 times the thrust factor with the cleanup terms (`PlayerEntity.m:3387-3405`); an NPC's by `5 x thrust x dt` only for non-zero thrust (`ShipEntity.m:5817-5824`), in one pass after the steering loop (an ordering difference from Oolite's per-entity update). A zero drift is never hashed (criterion 5) and every pose install zeroes it. The collision stage writes it (D-01). At the station, a drifting player meets the dock face through plan 18-10's own contact rule, which reflects the drift's inward part with restitution 0.5 (`BOUNCE_RESTITUTION`), where Oolite runs `collideWithShip` with the station's mass and its `adjustVelocity:` override that never moves the station (`ShipEntity.m:11089`, `StationEntity.m:1159-1163`): a divergence, kept because the station is not a collider (DOCK-09). Reversible: the drift fields are pristine-omitted | ✓ Phase 18 plans 18-10, 18-11, 18-17 |
+| The explosion blast pushes ships, buoys and the player (Phase 18, D-03, PD-02) | Supersedes "The explosion's blast pushes debris only". Oolite's `becomeExplosion` deals momentum for every exploding ship (`dealMomentumWithinDesiredRange:0.125f * mass` with `desired_range = collision_radius * 2.5f`, `ShipEntity.m:8121-8126`), and after a lethal ram `collideWithShip` reverses the survivor's own rebound (D-03), so the blast is what throws the survivor clear. Rule (`src/sim/world/debris.ts`, `blastImpulse` and `blastFrom`): every receiver whose centre is strictly within `desired_range + r` of the source (`Universe.m:5862-5868`, the C's float compare) gets `dv = amount x desired_range / d2 / m` along the unit vector from the source, with `d2 = |p|^2 - r^2` floored at 0.1 (`ShipEntity.m:7686-7690`) and `r`, `m` the RECEIVER's collision radius and mass (`addImpactMoment`, `11178-11181`); a receiver at the source's centre gets no push (a zero direction); every component is clamped at `MAX_ENTITY_VELOCITY` at the write and a zero push writes nothing, so a kill with nothing movable in range hashes as before. The magnitude stays in double, within about 1e-7 of the C's float arithmetic. Receivers, in ascending id: the two live buoys (ids 4, 5; `NAV_BUOY_MASS` while the subentity is attached, `NAV_BUOY_HULL_MASS` once detached, the layout radius, `World.buoys.<key>.velocity`), the player (id 100) only in flight, its push accumulated (`BlastPush`) and added to `FlightState.drift` once after the tick's kills, live NPC ships by their hull-table mass (a ship without one is not pushed), and every pod, plate and wreck by `debrisMassOf`. Never the victim (dead before its blast), a destroyed buoy or the station. Sources: a destroyed ship (as in Phase 16), a destroyed pod or plate (its model mass and radius, `killShip`'s cargo branch), a destroyed buoy as two sources in the C's order (its subentity while attached, from the buoy's centre with `BUOY_SUBENTITY_MASS` and `BUOY_SUBENTITY_RADIUS` 25.822647094726562, then the hull with `NAV_BUOY_HULL_MASS` 691,044.375 and the layout radius 59.13554763793945, `ShipEntity.m:8115-8126, 8185-8194`), and a buoy subentity on the tick a pulse or a ram brings it to 0 (`ShipEntity.m:7895-7904`; its parent gets no push, a zero direction). All only with debris content (traffic on); the frozen acceptance harness has none. The 18-03 fixtures (`tests/oracles/combat/response/fixtures/blast.json`), quoted: a Krait killed with the player's centre 10 m away takes the floor, `dv` (40.889225006103516, 0, 54.51896286010742), 68.15 m/s; a Krait and a Shuttle just touching, 0.026917003095149994 m/s on the Shuttle; a Krait and the player just touching, 0.0006941189058125019 m/s; a pod beside a pod 8 m away, 0.059654805809259415 m/s; a pod 5 m away, inside the receiver's radius, takes the floor, (10.872424125671387, 14.496565818786621, 0); a dying buoy: a pod at 100 m gets the hull's (0.7739403247833252, 1.0319204330444336, 0) only, the player 100 m away -0.00006094400305300951 from the subentity plus -0.012612634338438511 from the hull, -0.01267357834149152 m/s; a Shuttle at 148.23982232138232 m is out and one at 148.2398223213823 m (one ulp nearer) is in. Divergences (FIDELITY): the station is no receiver (in Oolite it is one, braked to rest within the frame; the same result); Oolite also pushes a launching player (`isInSpace` lists `STATUS_LAUNCHING`, `Entity.m:1038`); a wreck that burns out explodes in Oolite and does not here. Reversible: the receiver and source lists in `blastFrom`, `killShip`, `destroyBuoy` and `resolveShots` | ✓ Phase 18 plan 18-19: every 18-03 blast fixture passes through `blastImpulse` and the world pass (`tests/sim/world/blast.oracle.test.ts`); the hand cases in `tests/sim/world/kill.test.ts`, `tests/sim/world/debris.test.ts` and `tests/sim/combat/step.test.ts`; a kill pushing the player, a Shuttle and the nav buoy hashes equal at 30, 60 and 144 Hz (`tests/sim/world/debris-cadence.test.ts`); no pin moved |
+| Each body runs its own collision list: a call that collides removes self from the other's list, so a contact resolves once; a call that returns early because the pair separates faster than 1 m/s leaves it, and the other calls in its own turn (CBT-18)                                                                                                                                                                                         | `src/sim/combat/collide.ts:323`                   | `src/Core/Entities/ShipEntity.m:11149-11150`            | divergence: each list runs in the other's rank order, where Oolite's runs in the order the collision region found the contacts (`CollisionRegion.m:345-351`); and the stage runs once after every body has moved, not between the bodies' own updates, so the other side's call sees the same relative velocity as the first call and also returns early. The 1 m/s push that plan 18-20 measured in Oolite, where the buoy's own call in the same frame found zero relative speed after the player's call had returned early (`ShipEntity.m:11080, 11096-11099`), therefore does not occur. So too for plan 18-18's buoy rams: at 1/120 s the nudge leaves the player outside the buoy, and its call collides and leaves the buoy's list. PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                              | E-131   |
+| Destroyed flags of a collision: `dam1 > energy` and `dam2 > other energy` decide the inelastic reversal and skip the nudge (CBT-18)                                                                                                                                                                                                                                                                                                                | `src/sim/combat/collide.ts:620`                   | `src/Core/Entities/ShipEntity.m:11111-11112`            | divergence: the flags read each body's energy as it stood before this tick's ledger, because collision damage is queued and applied after the laser records; Oolite reads the energy after any earlier damage of the same frame, so when a body has two contacts, or a contact and a laser hit, in one tick the reversal and nudge decision can differ from the ledger's lethality. Deterministic. PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                      | E-132   |
+| A drifting player meets the station's dock face (CBT-18, D-02)                                                                                                                                                                                                                                                                                                                                                                                     | `src/sim/dock/step.ts:136`                        | `src/Core/Entities/StationEntity.m:1159-1163`           | divergence: the drift's inward part is reflected with restitution 0.5 by plan 18-10's own contact rule (`BOUNCE_RESTITUTION`), where Oolite runs `collideWithShip` with the station's mass (`ShipEntity.m:11089`) and the station's `adjustVelocity:` override keeps it still. The station is not a collider, so its hull stays damage-free (DOCK-09). PROJECT.md: "Drift beside the engine speed (Phase 18, D-02)"                                                                                                                                                                                                                                                                                                                                                                                                                                                        | E-133   |
+| The collision nudge: unless a side was destroyed, self moves by `loc x t x v1a` and the other by `loc x t x v2b` (CBT-18)                                                                                                                                                                                                                                                                                                                          | `src/sim/combat/response.ts:315`                  | `src/Core/Entities/ShipEntity.m:11137-11147`            | divergence: `t` is the fixed `10 x DT` with `DT = 1/120`, where Oolite's is `10 x [UNIVERSE getTimeDelta]`, which depends on the frame time (plan 18-20 measured 0.16 s frames carrying the buoy 129 m), so the nudge is equal at 30, 60 and 144 Hz. PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | E-134   |
+| The octree contact test's prime: the body first in Oolite's z list (`e1`, the lower `z - collision_radius`) is `doOctreesCollide`'s prime, for every pair (CBT-18, owner decision 2026-11-20)                                                                                                                                                                                                                                                      | `src/sim/combat/collide.ts:716`                   | `src/Core/CollisionRegion.m:341-343`                    | divergence: the prime is Oolite's (`compareZOrder`, `src/sim/world/sorted-lists.ts`, the key of Oolite's z list, `Entity.m:247`; ties by id where the C keeps list order), so the hull-on-hull onset matches Oolite on the 11 re-measure sessions (`tests/sim/combat/collision-prime.oolite.test.ts`). Two differences remain: a contact found through a subentity is resolved once, while Oolite's `removeObject:self` (`ShipEntity.m:11150`) misses a subentity entry and may process the contact a second time from the other side when the first response leaves less than 1 m/s of separation; and the station, Oolite's prime whenever it is in a pair (`CollisionRegion.m:327-340`), is not a collider. PROJECT.md: "The octree test's prime follows Oolite's z order (owner decision 2026-11-20, Phase 18, CBT-18)"                                                | E-135   |
+| A rammed pod or plate takes damage and is destroyed at 0 (PD-05, CBT-18)                                                                                                                                                                                                                                                                                                                                                                           | `src/sim/combat/collide.ts:479`                   | `src/Core/Entities/ShipEntity.m:11035-11042`            | divergence: scooping is out of phase, so the `canScoop` branch is not ported: a pod the player or a ship rams takes collision damage (above 15.3 m/s against the player it dies) where Oolite would scoop it into a ship fitted with fuel scoops. PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | E-136   |
+| The launching player is not a collider (CBT-18, A3)                                                                                                                                                                                                                                                                                                                                                                                                | `src/sim/combat/collide.ts:436`                   | `src/Core/Entities/PlayerEntity.m:2242-2254`            | divergence: Oolite's player `canCollide` is YES while launching (only docking, docked, dead, the escape sequence and game start say NO), and `takeScrapeDamage` then returns early for a launching party after the player's shields were drained; Wegolite skips any pair with the launching player, whose launch path runs inside the station where no NPC launches in this milestone. PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                 | E-137   |
+| The player's drift braking: the drift is braked every in-flight tick by `dt x thrust x thrust factor`, with the cleanup terms above 2,000 m/s (CBT-18, D-02)                                                                                                                                                                                                                                                                                       | `src/sim/flight/drift.ts:57`                      | `src/Core/Entities/PlayerEntity.m:3387-3405`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-138   |
+| A buoy is a collider and a mover: its share of a ram goes to its own velocity and position, and it then brakes by its own thrust (CBT-18, PD-02)                                                                                                                                                                                                                                                                                                   | `src/sim/combat/collide.ts:628`                   | `src/Core/Entities/ShipEntity.m:11102-11109`            | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-139   |
+| A contact on a buoy's frangible subentity: the subentity's mass and energy decide the response, all of `dam2` goes to the subentity and the buoy is pushed (CBT-18, PD-01)                                                                                                                                                                                                                                                                         | `src/sim/combat/collide.ts:731`                   | `src/Core/Entities/ShipEntity.m:11123-11128`            | divergence: the C's nudge of a contacted subentity (`[other setPosition:]` at 11143-11146 with `other` the subentity) moves the subentity inside its parent; Wegolite keeps the subentity at its authored offset and applies only the parent's `adjustVelocity:`. A ram has no 1 % bleed-through on the buoy, as in Oolite (`takeScrapeDamage:` has none, `ShipEntity.m:11639-11673`; the bleed is the laser rule). PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                     | E-140   |
+| A buoy whose subentity is detached collides with the hull's mass, 691,044.375 (CBT-18, PD-01)                                                                                                                                                                                                                                                                                                                                                      | `src/sim/combat/collide.ts:458`                   | `src/Core/Entities/ShipEntity.m:8185-8193`              | faithful                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | E-123   |
+| The player is never `destroyable` in a collision before Phase 20 (CBT-18, D-13)                                                                                                                                                                                                                                                                                                                                                                    | `src/sim/combat/collide.ts:239`                   | `src/Core/Entities/ShipEntity.m:11111-11112`            | divergence: interim until Phase 20 gives the player a death: `selfDestroyed` and `otherDestroyed` never hold for the player, so a lethal ram on the player takes no inelastic reversal and keeps the nudge, and the ledger floors its energy at 0. The tripwire `tests/guards/collision-player-death.test.ts` and the todo `2026-11-19-collision-reversal-on-player-death` hold the fix. PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                | E-132   |
+| A ram's velocity change at any closing speed, buoys included (CBT-18)                                                                                                                                                                                                                                                                                                                                                                              | `src/sim/combat/collide.ts:642`                   | `src/Core/Entities/ShipEntity.m:11173-11176`            | divergence: buoys do not mass-lock (D-08), so a ram at torus speed is possible, where Oolite's `v1a` can exceed 1e4 m/s; Wegolite holds each velocity component at `MAX_ENTITY_VELOCITY` (1e4 m/s) and each buoy offset component at `MAX_BUOY_OFFSET` (1e6 m) at the write. Deterministic. PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | E-141   |
+| Octree against octree contact, `doOctreesCollide`: the prime's hull against the other's hull, then each of the prime's solid subentities against the whole other (recursively), then the prime against each of the other's solid subentities, which names the touched subentity; each pair through `isHitByOctree` with the C's prunes and its transposed child placement (`Octree.m:552`) (CBT-18)                                                | `src/sim/combat/collide.ts:160`                   | `src/Core/Entities/ShipEntity.m:1902-1921`              | divergence: the octree maths run in float64 where Oolite's run in float32, so only boundary contacts may differ, as for the line test (E-49); the C's fourth stage, the prime's subentities against the other's subentities (`ShipEntity.m:1924-1938`), is not ported, because the second stage's recursion already returns the other's hull for such a contact, so the fourth stage can never return a result; a basis row more than 1e-6 from unit length, a pose quaternion outside `QUAT_UNIT_TOLERANCE` or a non-finite centre is no contact (plans 18-02, 18-09). PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                 | E-153   |
+| NPC ship and buoy drift: a ship's Newtonian velocity (from a ram or a blast) moves it every tick and, when its thrust is not zero, is braked by `5 x thrust x dt`; a buoy brakes by its own thrust 100 (CBT-18, D-02)                                                                                                                                                                                                                              | `src/sim/world/drift.ts:111`                      | `src/Core/Entities/ShipEntity.m:5817-5824`              | divergence: the drift runs as one pass after the whole steering loop (`src/sim/world/step.ts:143-144`), not inside each ship's own update, so a later ship's steering in the same tick reads an earlier ship's position before that ship's drift (plan 18-17). PROJECT.md: "Drift beside the engine speed (Phase 18, D-02)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | E-151   |
+| The player's drift braking at its edges: the thrust factor after a torus disengage, and a drift too small for float32 (CBT-18, D-02)                                                                                                                                                                                                                                                                                                               | `src/sim/flight/drift.ts:57`                      | `src/Core/Entities/PlayerEntity.m:3387-3405`            | divergence: Oolite brakes with `hyperspeedFactor` for as long as `flightSpeed > maxFlightSpeed`, while Wegolite resets `torus.factor` to 1 on a disengage (`src/sim/flight/torus.ts:188`) as the speed still ramps down, so those ticks brake by factor 1; and a drift whose float32 magnitude is 0 becomes the zero vector, where Oolite would keep it unbraked (plan 18-10, review L428 and L174). PROJECT.md: "Drift beside the engine speed (Phase 18, D-02)"                                                                                                                                                                                                                                                                                                                                                                                                          | E-138   |
+| Scrape damage to the player with a negative amount (CBT-18)                                                                                                                                                                                                                                                                                                                                                                                        | `src/sim/combat/shields.ts:205`                   | `src/Core/Entities/PlayerEntity.m:5710-5713`            | divergence: Oolite turns a negative amount positive and logs it; `routeScrapeDamage` treats a non-positive or non-finite amount as no damage. No caller reaches the difference, because the collision response deals scrape damage only above the 0.05 floor (plan 18-16; the oracle fixture `scrape-negative-amount-made-positive` is held to this rule). PROJECT.md: "Collisions follow Oolite's collideWithShip, octree against octree (Phase 18, CBT-18)"                                                                                                                                                                                                                                                                                                                                                                                                              | E-152   |
+| The laser hit's internal-damage loop: while the energy stays above 0 after the hit, one gate draw per 32 points that passed the shield and one `takeInternalDamage` for each draw that passes (CBT-08)                                                                                                                                                                                                                                             | `src/sim/combat/ledger.ts:221`                    | `src/Core/Entities/PlayerEntity.m:5683-5698`            | divergence: the draws come from the stateless per-tick stream `internalDamageSeed(worldSeed, tick)`, where Oolite's come from its one global `ranrot_rand`, so what a hit breaks never depends on earlier draws of the session and nothing is stored, hashed or saved. PROJECT.md: "Roll the player's internal damage on a stateless per-tick stream (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                | E-154   |
+| The collision scrape's internal-damage loop, always, whatever energy is left (CBT-08, CBT-18)                                                                                                                                                                                                                                                                                                                                                      | `src/sim/combat/ledger.ts:221`                    | `src/Core/Entities/PlayerEntity.m:5746-5752`            | divergence: the draws come from the stateless per-tick stream, as in E-154. PROJECT.md: "Roll the player's internal damage on a stateless per-tick stream (Phase 19, D-01)". Reviewers: Fable, Kimi K3.1 Pro and Qwen4 Max agree (19-REVIEWS.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | E-155   |
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * QUAL-06 and D-22: FIDELITY.md maps each ported Oolite mechanic to its
+ * Wegolite source and to the Oolite lines it follows, and quotes those lines.
+ *
+ * Two modes, one file:
+ * - Always on (every unit run and `verify`): the document's own structure and
+ *   the Wegolite side. Every row's Wegolite path exists and its line is inside
+ *   the file; every Oolite citation has exactly one excerpt with the same path
+ *   and range; every excerpt is at most 20 lines and its block is exactly its
+ *   cited range; every Fidelity cell is `faithful` or a divergence that quotes
+ *   a PROJECT.md Key Decisions row; the header commit equals
+ *   `third_party/oolite/pin.json`; and ASSETS.md carries one GPL-2.0-or-later
+ *   row for FIDELITY.md.
+ * - Verbatim (only when `OOLITE_SRC` names a directory that holds the pinned
+ *   tree, e.g. `git archive 7437f22 src` extracted there): every excerpt must
+ *   equal the cited lines of that tree. Without `OOLITE_SRC` this case is
+ *   reported as skipped, never as passed, because CI has no Oolite checkout.
+ */
+
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+const REPO_ROOT = process.cwd();
+const FIDELITY_PATH = "FIDELITY.md";
+const ASSETS_PATH = "ASSETS.md";
+const PIN_PATH = "third_party/oolite/pin.json";
+const PROJECT_PATH = ".planning/PROJECT.md";
+const OOLITE_SRC = process.env.OOLITE_SRC ?? "";
+
+const MAX_EXCERPT_LINES = 20;
+const MIN_ROWS = 3;
+const MIN_EXCERPTS = 3;
+const TABLE_HEADER = [
+  "Mechanic",
+  "Wegolite",
+  "Oolite (7437f22)",
+  "Fidelity",
+  "Excerpt",
+];
+const ROW_HEADING = /^### (E-\d{2,3}) (src\/[^:]+):(\d+)-(\d+)$/;
+const WEGOLITE_CELL = /^`(src\/[^`:]+):(\d+)`$/;
+const OOLITE_CELL = /^`(src\/Core\/[^`:]+):(\d+)-(\d+)`$/;
+const EXCERPT_CELL = /^E-\d{2,3}$/;
+
+interface Row {
+
+[showing lines 44-120 of 120; full output saved to /home/opencode/.local/share/opencode/shell/6429606f4d618cfe4f44433902fe3c6d6b7e642d/sh_2047030b20034A2OEd3wlYlQax.out]
+> plan · kimi-k3.1-pro
+[0m→ [0mRead tests/app/session/tick-parity.test.ts [90m[offset=490, limit=100][0m
+[0m→ [0mRead tests/acceptance/detectors.ts [90m[offset=1, limit=30][0m
+[0m→ [0mRead tests/app/session/tick-parity.test.ts [90m[offset=690, limit=170][0m
+[0m→ [0mRead tests/app/session/tick-flyers.test.ts [90m[offset=1, limit=180][0m
+[0m$ [0mrg -n "3600|3_600|6500|6_500|6480|6_480|collisions|buoy|ENERGY_AT_KILL|HASH_60|TWIN_|DAMAGE_|advance\(|for \(let tick" tests/app/session/tick-parity.test.ts tests/app/session/tick-flyers.test.ts tests/app/session/sim-driver.test.ts tests/sim/combat/collision-traffic.scenario.test.ts | head -n 260
+tests/sim/combat/collision-traffic.scenario.test.ts:5: * A populated, non-frozen world with collisions on (plan 18-21, review
+tests/sim/combat/collision-traffic.scenario.test.ts:7: * because QUAL-11 never enables collisions.
+tests/sim/combat/collision-traffic.scenario.test.ts:12: * `buildStepOptions` gives a traffic-on session: collisions on, the full hull
+tests/sim/combat/collision-traffic.scenario.test.ts:16: * positions no contact, kill or buoy alert happens in 4,000 ticks), so each
+tests/sim/combat/collision-traffic.scenario.test.ts:24: * kills never exceed the ships spawned, and both buoys' offsets stay within
+tests/sim/combat/collision-traffic.scenario.test.ts:26: * pair kind, kills and their causes, buoy alerts; review IN-05), so a run that
+tests/sim/combat/collision-traffic.scenario.test.ts:28: * or buoy alert at all: only epoch 202 exercises the stage, and it must keep a
+tests/sim/combat/collision-traffic.scenario.test.ts:29: * ship-ship and a ship-buoy contact.
+tests/sim/combat/collision-traffic.scenario.test.ts:111:  | "ship-buoy"
+tests/sim/combat/collision-traffic.scenario.test.ts:122:  readonly buoyAlertTicks: number;
+tests/sim/combat/collision-traffic.scenario.test.ts:124:  readonly buoyOffsets: { witchpoint: number; navBuoy: number };
+tests/sim/combat/collision-traffic.scenario.test.ts:125:  readonly buoysDestroyed: number;
+tests/sim/combat/collision-traffic.scenario.test.ts:133:  // the buoys (4, 5) and their frangible subentities (6, 7)
+tests/sim/combat/collision-traffic.scenario.test.ts:144:  if (isBuoyId(id)) return "buoy";
+tests/sim/combat/collision-traffic.scenario.test.ts:157:  if (pair === "buoy-ship") return "ship-buoy";
+tests/sim/combat/collision-traffic.scenario.test.ts:240:  expect(options.combat?.collisions).toBe(true);
+tests/sim/combat/collision-traffic.scenario.test.ts:244:    "ship-buoy": 0,
+tests/sim/combat/collision-traffic.scenario.test.ts:251:  let buoyAlertTicks = 0;
+tests/sim/combat/collision-traffic.scenario.test.ts:253:  let buoysDestroyed = 0;
+tests/sim/combat/collision-traffic.scenario.test.ts:318:      if (isBuoyId(event.id)) buoysDestroyed += 1;
+tests/sim/combat/collision-traffic.scenario.test.ts:324:    let buoyAlert = false;
+tests/sim/combat/collision-traffic.scenario.test.ts:336:        buoyAlert = true;
+tests/sim/combat/collision-traffic.scenario.test.ts:340:    if (buoyAlert) buoyAlertTicks += 1;
+tests/sim/combat/collision-traffic.scenario.test.ts:345:      const offset = world.buoys[key].offset;
+tests/sim/combat/collision-traffic.scenario.test.ts:353:  const killed = kills.laser + kills.collision + kills.other - buoysDestroyed;
+tests/sim/combat/collision-traffic.scenario.test.ts:361:    buoyAlertTicks,
+tests/sim/combat/collision-traffic.scenario.test.ts:363:    buoyOffsets: {
+tests/sim/combat/collision-traffic.scenario.test.ts:364:      witchpoint: length(world.buoys.witchpoint.offset),
+tests/sim/combat/collision-traffic.scenario.test.ts:365:      navBuoy: length(world.buoys.navBuoy.offset),
+tests/sim/combat/collision-traffic.scenario.test.ts:367:    buoysDestroyed,
+tests/sim/combat/collision-traffic.scenario.test.ts:373:  "ship-buoy": 0,
+tests/sim/combat/collision-traffic.scenario.test.ts:388:    buoyAlertTicks: 0,
+tests/sim/combat/collision-traffic.scenario.test.ts:390:    buoyOffsets: { witchpoint: 0, navBuoy: 0 },
+tests/sim/combat/collision-traffic.scenario.test.ts:391:    buoysDestroyed: 0,
+tests/sim/combat/collision-traffic.scenario.test.ts:396:    contacts: { ...NO_CONTACTS, "ship-ship": 10, "ship-buoy": 1 },
+tests/sim/combat/collision-traffic.scenario.test.ts:398:    buoyAlertTicks: 892,
+tests/sim/combat/collision-traffic.scenario.test.ts:400:    buoyOffsets: { witchpoint: 0, navBuoy: 0 },
+tests/sim/combat/collision-traffic.scenario.test.ts:401:    buoysDestroyed: 0,
+tests/sim/combat/collision-traffic.scenario.test.ts:405:describe("a populated world with collisions on (plan 18-21, review L191@2e0bfb3)", () => {
+tests/sim/combat/collision-traffic.scenario.test.ts:413:        expect(report.contacts["ship-buoy"]).toBeGreaterThan(0);
+tests/app/session/sim-driver.test.ts:228:        sequence.advance(dt, skipped);
+tests/app/session/sim-driver.test.ts:1535:      combat: { mounts: DEFAULT_LASER_MOUNTS, collisions: true },
+tests/app/session/sim-driver.test.ts:1544:        buoyMass: NAV_BUOY_MASS,
+tests/app/session/sim-driver.test.ts:1671:    expect(Object.keys(bare.combat ?? {})).toEqual(["mounts", "collisions"]);
+tests/app/session/sim-driver.test.ts:1682:      "collisions",
+tests/app/session/tick-parity.test.ts:433:    for (let tick = 0; tick < 601; tick += 1) {
+tests/app/session/tick-parity.test.ts:545:    for (let tick = 0; tick < 601; tick += 1) {
+tests/app/session/tick-parity.test.ts:590:        for (let tick = 0; tick < step.ticks; tick += 1) {
+tests/app/session/tick-parity.test.ts:681: * on this twin and equal to the browser spec's `TWIN_*` literals in
+tests/app/session/tick-parity.test.ts:708: * player and part of the regeneration counts. `ENERGY_AT_KILL` is pinned exactly
+tests/app/session/tick-parity.test.ts:715:const ENERGY_AT_KILL = 83.7999999999947;
+tests/app/session/tick-parity.test.ts:716:const ENERGY_AT_KILL_FLOOR = 62.4;
+tests/app/session/tick-parity.test.ts:793:    // minimum (see ENERGY_AT_KILL).
+tests/app/session/tick-parity.test.ts:795:    expect(combat.energy).toBeGreaterThanOrEqual(ENERGY_AT_KILL_FLOOR);
+tests/app/session/tick-parity.test.ts:796:    expect(combat.energy).toBeCloseTo(ENERGY_AT_KILL, 9);
+tests/app/session/tick-parity.test.ts:798:    // ident then re-locks the nav buoy on the sight line (plan 18-06: ident
+tests/app/session/tick-parity.test.ts:799:    // locks buoys; owner decision 2026-11-20).
+tests/app/session/tick-parity.test.ts:838:// Follows plan 18-05: the warm-up burst now hits the nav buoy (owner decision 2026-11-20).
+tests/app/session/tick-parity.test.ts:839:// Follows plan 18-06: ident now re-locks the nav buoy on the kill tick (owner decision 2026-11-20).
+tests/app/session/tick-parity.test.ts:840:const HASH_60_AFTER_KILL = "f6927215";
+tests/app/session/tick-parity.test.ts:936:    expect(hook.worldHash()).toBe(HASH_60_AFTER_KILL);
+tests/app/session/tick-parity.test.ts:982:const DAMAGE_ITEMS = [
+tests/app/session/tick-parity.test.ts:991:  /** The result of each `grantEquipment`, in `DAMAGE_ITEMS` order. */
+tests/app/session/tick-parity.test.ts:1037:  const granted = DAMAGE_ITEMS.map((key) => hook.grantEquipment(key));
+tests/app/session/tick-parity.test.ts:1132: * 19-13-SUMMARY.md) and equal to the browser spec's `TWIN_DAMAGE_*` literals in
+tests/app/session/tick-parity.test.ts:1151:const DAMAGE_SPAWN_DELAY = 1;
+tests/app/session/tick-parity.test.ts:1153:const DAMAGE_KILL_OFFSET = 672;
+tests/app/session/tick-parity.test.ts:1158:const DAMAGE_FIRST_OFFSET = 613;
+tests/app/session/tick-parity.test.ts:1162:const DAMAGE_DEBRIS_AT_KILL = { pods: 0, plates: 0, wrecks: 1 } as const;
+tests/app/session/tick-parity.test.ts:1163:const DAMAGE_ENTITIES_AT_KILL = 13;
+tests/app/session/tick-parity.test.ts:1165:const DAMAGE_HASH_60_AFTER_KILL = "5028fc8f";
+tests/app/session/tick-parity.test.ts:1169:    const fight = runDamageFight(DAMAGE_SPAWN_DELAY);
+tests/app/session/tick-parity.test.ts:1179:    expect(fight.killTick - fight.spawnTick).toBe(DAMAGE_KILL_OFFSET);
+tests/app/session/tick-parity.test.ts:1189:      [...DAMAGE_ITEMS].sort(),
+tests/app/session/tick-parity.test.ts:1193:    expect(fight.debris).toEqual(DAMAGE_DEBRIS_AT_KILL);
+tests/app/session/tick-parity.test.ts:1197:    expect(fight.entities).toBe(DAMAGE_ENTITIES_AT_KILL);
+tests/app/session/tick-parity.test.ts:1206:    expect(fight.first.tickOffset).toBe(DAMAGE_FIRST_OFFSET);
+tests/app/session/tick-parity.test.ts:1214:    expect(fight.hash60).toBe(DAMAGE_HASH_60_AFTER_KILL);
+[0m$ [0mrg -n "createPlayerCombatState" src/sim/combat/state.ts && sed -n '1,110p' src/sim/combat/state.ts && rg -n "function drain|clearAll\(|setContext\(|getContext\(" src/input/keyboard.ts | head -n 60 && sed -n '260,330p' src/input/keyboard.ts
+61:export function createPlayerCombatState(): PlayerCombatState {
+76: * Whether the state is field-for-field equal to `createPlayerCombatState()`.
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2026 Wegolite contributors
+
+/**
+ * The player's combat state (CBT-04, CBT-05, CBT-06), held beside the flight
+ * state and never inside it: `FlightState` fields enter `serializeFlight`, which
+ * every pinned golden hashes (RESEARCH Pattern 3).
+ *
+ * The ident target is an id of the current world only. Dock and jump clear it,
+ * and no code outside `src/sim` stores it, because entity ids are unique only
+ * within the world that issued them (`src/sim/world/ids.ts`).
+ */
+
+import { FACINGS, isFacing } from "./mounts.js";
+import type { Facing } from "./mounts.js";
+import {
+  BASELINE_SHIELD_LEVEL,
+  COBRA_MAX_ENERGY,
+  PLAYER_MAX_WEAPON_TEMP,
+  SHIP_MAX_CABIN_TEMP,
+  SHIP_MIN_CABIN_TEMP,
+  SHOT_TIMER_SATURATION_TICKS,
+} from "./constants.js";
+import { canon } from "../hash.js";
+import { NO_ENTITY } from "../world/ids.js";
+import type { EntityId } from "../world/ids.js";
+
+/** One value per weapon facing. */
+export type PerFacing = Record<Facing, number>;
+
+export interface PlayerCombatState {
+  /** The current cockpit view, which is also the weapon facing. */
+  view: Facing;
+  /** Forward shield, `0..BASELINE_SHIELD_LEVEL`. */
+  fwdShield: number;
+  /** Aft shield, `0..BASELINE_SHIELD_LEVEL`. */
+  aftShield: number;
+  /** Energy banks, `0..COBRA_MAX_ENERGY`. */
+  energy: number;
+  /** Cabin temperature, `0..SHIP_MAX_CABIN_TEMP`. */
+  cabinTemp: number;
+  /** Laser temperature per facing, `0..PLAYER_MAX_WEAPON_TEMP`. */
+  laserTemp: PerFacing;
+  /** Ticks since the last shot per facing, saturating at the start value. */
+  shotTicks: PerFacing;
+  /** Whether the ident system is engaged. */
+  identEngaged: boolean;
+  /** The locked ident target, `NO_ENTITY` when none. */
+  identTarget: EntityId;
+}
+
+function perFacing(value: number): PerFacing {
+  return { fore: value, aft: value, port: value, starboard: value };
+}
+
+/**
+ * A fresh docked-and-idle state: view fore, both shields full, energy full,
+ * cabin at its 60 floor, every laser cold, every shot timer at its start value
+ * (so the first shot is never gated, `PlayerEntity.m:1792-1803`), ident off.
+ */
+export function createPlayerCombatState(): PlayerCombatState {
+  return {
+    view: "fore",
+    fwdShield: BASELINE_SHIELD_LEVEL,
+    aftShield: BASELINE_SHIELD_LEVEL,
+    energy: COBRA_MAX_ENERGY,
+    cabinTemp: SHIP_MIN_CABIN_TEMP,
+    laserTemp: perFacing(0),
+    shotTicks: perFacing(SHOT_TIMER_SATURATION_TICKS),
+    identEngaged: false,
+    identTarget: NO_ENTITY,
+  };
+}
+
+/**
+ * Whether the state is field-for-field equal to `createPlayerCombatState()`.
+ *
+ * The world hash appends the combat line only for a non-pristine state, so a
+ * run that never fights hashes exactly as it did before combat existed (the
+ * same device as `isNeverSpawned`, Pattern 3).
+ */
+export function isPristineCombat(state: PlayerCombatState): boolean {
+  if (
+    state.view !== "fore" ||
+    state.fwdShield !== BASELINE_SHIELD_LEVEL ||
+    state.aftShield !== BASELINE_SHIELD_LEVEL ||
+    state.energy !== COBRA_MAX_ENERGY ||
+    state.cabinTemp !== SHIP_MIN_CABIN_TEMP ||
+    state.identEngaged ||
+    state.identTarget !== NO_ENTITY
+  ) {
+    return false;
+  }
+  for (const facing of FACINGS) {
+    if (
+      state.laserTemp[facing] !== 0 ||
+      state.shotTicks[facing] !== SHOT_TIMER_SATURATION_TICKS
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Docking (DOCK-10, F7, `PlayerEntity.m:6321-6325`): both shields and the
+ * energy banks refill, the four laser temperatures go to 0 and the cabin to 60,
+ * and the weapon facing returns to fore (the launch routine does the same,
+ * `:6439-6448`, and bookkeeping does not run while docked, so the two routes
+ * agree). The ident lock is cleared: its target id is meaningless outside the
+105:  clearAll(): void;
+111:  setContext(context: InputContext): void;
+112:  getContext(): InputContext;
+275:    clearAll() {
+290:    setContext(next) {
+301:    getContext() {
+444:        state.getContext() === "flight" && state.isBound(event.code),
+472:    state.clearAll();
+476:    if (document.visibilityState === "hidden") state.clearAll();
+480:    state.clearAll();
+513:      state.clearAll();
+    drainStationActions() {
+      const drained = stationActions.slice();
+      stationActions.length = 0;
+      return drained;
+    },
+    drainChartActions() {
+      const drained = chartActions.slice();
+      chartActions.length = 0;
+      return drained;
+    },
+    drainSaveScreenActions() {
+      const drained = saveScreenActions.slice();
+      saveScreenActions.length = 0;
+      return drained;
+    },
+    clearAll() {
+      held.clear();
+      pending.length = 0;
+      stationActions.length = 0;
+      chartActions.length = 0;
+      saveScreenActions.length = 0;
+      pauseToggle = false;
+    },
+    setBindings(next) {
+      map = next;
+      codeToActions = buildCodeToActions(next);
+    },
+    isBound(code) {
+      return codeToActions.has(code);
+    },
+    setContext(next) {
+      if (next === context) return;
+      context = next;
+      // A held flight key or a queued station action must not survive the mode
+      // change; the session revalidates each drained action as defence in depth.
+      held.clear();
+      pending.length = 0;
+      stationActions.length = 0;
+      chartActions.length = 0;
+      saveScreenActions.length = 0;
+    },
+    getContext() {
+      return context;
+    },
+    setPaused(next) {
+      paused = next;
+      if (paused) {
+        held.clear();
+        pending.length = 0;
+        stationActions.length = 0;
+        chartActions.length = 0;
+        saveScreenActions.length = 0;
+      }
+    },
+    setStationScreenHandler(handler) {
+      onStationScreen = handler;
+    },
+  };
+}
+
+export interface KeyboardInputSource extends InputState {
+  /** Install the window/document listeners. Safe to call twice. */
+  attach(target?: Window): void;
+  /** Remove the listeners without clearing the input state. */
+  detach(): void;
+  dispose(): void;
+}
+
+/**
+ * A text field owns every key: rebinding and browser typing must not become
+ * game input. The HTMLElement guard keeps the predicate usable in Node tests.
+> plan · kimi-k3.1-pro
+[0m$ [0mpython3 - <<'PY'
+from pathlib import Path
+for p in [Path('.planning/phases/20-player-death-and-game-over/20-05-PLAN.md'), Path('src/sim/player/profile.ts')]:
+    s=p.read_text()
+    for needle in ['GAME_OVER_SCORE_TEMPLATE =', 'without its trailing', 'return `${sign}${groupIntegerDigits(whole)}.${String(tenth)}']:
+        i=s.find(needle)
+        if i>=0:
+            chunk=s[i:i+180].split('\n')[0]
+            print(str(p), repr(chunk))
+            print([(c,hex(ord(c))) for c in chunk if c.isspace() or c=='₢'][-12:])
+PY
+.planning/phases/20-player-death-and-game-over/20-05-PLAN.md 'GAME_OVER_SCORE_TEMPLATE = "Score: %@, [credits_number] ₢"` and `GAME_OVER_PRESS_SPACE = "Press Space"`, each with its `descriptions.plist` line citation at the pin; the type `Game'
+[(' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20'), (' ', '0x20')]
+.planning/phases/20-player-death-and-game-over/20-05-PLAN.md 'without its trailing sign"'
+[(' ', '0x20'), (' ', '0x20'), (' ', '0x20')]
+src/sim/player/profile.ts 'return `${sign}${groupIntegerDigits(whole)}.${String(tenth)} ₢`;'
+[(' ', '0x20'), (' ', '0x20'), ('₢', '0x20a2')]
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/sim/world/statics.ts [90m[offset=55, limit=130][0m
+[0m→ [0mRead src/sim/world/entity.ts [90m[offset=50, limit=30][0m
+[0m→ [0mRead src/app/session/context.ts [90m[offset=120, limit=110][0m
+[0m$ [0mrg -n "records\.push|source:|applied1|applied2|other\.id|self\.id|cs\.id|co\.id" src/sim/combat/collide.ts | tail -n 100 && sed -n '610,760p' src/sim/combat/collide.ts && rg -n "staticTargetById|identKey|STATIC_TARGETS" src/sim/world/statics.ts | head -n 80
+804:    if (response.applied1) {
+805:      records.push({
+807:        target: cs.id,
+808:        source: co.id,
+813:    if (response.applied2) {
+817:          : co.id;
+818:      records.push({
+821:        source: cs.id,
+    return c.entity?.orientation ?? player.orientation;
+  };
+  const poseOf = (c: Collider): HullPose => ({
+    position: positionOf(c),
+    orientation: orientationOf(c),
+  });
+  const velocityOf = (c: Collider): Vec3 => {
+    // A buoy has no engine speed: its total velocity is its drift.
+    if (c.buoy !== undefined) return world.buoys[c.buoy].velocity;
+    const forward = rotate(orientationOf(c), LOCAL_FORWARD);
+    if (c.entity !== undefined) {
+      const { velocity, speed } = c.entity;
+      return vec(
+        velocity.x + forward.x * speed,
+        velocity.y + forward.y * speed,
+        velocity.z + forward.z * speed,
+      );
+    }
+    const { drift, impulse, speed } = player;
+    return vec(
+      drift.x + forward.x * speed + impulse.x,
+      drift.y + forward.y * speed + impulse.y,
+      drift.z + forward.z * speed + impulse.z,
+    );
+  };
+  const energyOf = (c: Collider): number => {
+    if (c.buoy !== undefined) return world.staticHealth[c.buoy];
+    return c.entity?.energy ?? combat?.energy ?? 0;
+  };
+  const addVelocity = (c: Collider, dv: Vec3): void => {
+    if (isZeroVec(dv)) return;
+    if (c.buoy !== undefined) {
+      const buoy = world.buoys[c.buoy];
+      buoy.velocity = boundVec(add(buoy.velocity, dv), MAX_ENTITY_VELOCITY);
+    } else if (c.entity !== undefined) {
+      c.entity.velocity = boundVec(
+        add(c.entity.velocity, dv),
+        MAX_ENTITY_VELOCITY,
+      );
+    } else {
+      player.drift = boundVec(add(player.drift, dv), MAX_ENTITY_VELOCITY);
+    }
+  };
+  const addPosition = (c: Collider, dp: Vec3): void => {
+    if (isZeroVec(dp)) return;
+    if (c.buoy !== undefined) {
+      const buoy = world.buoys[c.buoy];
+      buoy.offset = boundVec(add(buoy.offset, dp), MAX_BUOY_OFFSET);
+    } else if (c.entity !== undefined) {
+      c.entity.position = boundVec(
+        add(c.entity.position, dp),
+        MAX_ENTITY_MAGNITUDE,
+      );
+    } else {
+      player.position = add(player.position, dp);
+    }
+  };
+
+  // 1. Rank.
+  const order = colliderRank(
+    unranked.map((c) => ({ id: c.id, position: positionOf(c) })),
+    player.position,
+  );
+  const byId = new Map(unranked.map((c) => [c.id, c]));
+  const ranked: Collider[] = [];
+  for (const id of order) {
+    const collider = byId.get(id);
+    if (collider !== undefined) ranked.push(collider);
+  }
+
+  // 2. Broad phase: sweep on x.
+  const minX = ranked.map((c) => positionOf(c).x - c.hull.collisionRadius);
+  const sweep = ranked.map((_, i) => i);
+  sweep.sort((a, b) =>
+    compareKeys(
+      minX[a] ?? NaN,
+      ranked[a]?.id ?? 0,
+      minX[b] ?? NaN,
+      ranked[b]?.id ?? 0,
+    ),
+  );
+  const contacts: RankedContact[] = [];
+  for (let s = 0; s < sweep.length; s += 1) {
+    const a = sweep[s] ?? 0;
+    const ca = ranked[a];
+    const keyA = minX[a] ?? NaN;
+    if (ca === undefined || !Number.isFinite(keyA)) break;
+    const pa = positionOf(ca);
+    const ra = ca.hull.collisionRadius;
+    const maxX = pa.x + ra;
+    for (let t = s + 1; t < sweep.length; t += 1) {
+      const b = sweep[t] ?? 0;
+      const cb = ranked[b];
+      // A later key at or past this body's reach, or a non-finite one, ends
+      // this body's run: no later key can be nearer.
+      if (cb === undefined || !((minX[b] ?? NaN) < maxX)) break;
+      sweptPairs += 1;
+      const pb = positionOf(cb);
+      const reach = ra + cb.hull.collisionRadius;
+      const dx = pb.x - pa.x;
+      const dy = pb.y - pa.y;
+      const dz = pb.z - pa.z;
+      if (!(dx * dx + dy * dy + dz * dz < reach * reach)) continue;
+      // 3. Narrow phase, Oolite's prime (the body first in Oolite's z list)
+      // as self; a detached subentity on either side takes no part (PD-01).
+      const aFirst =
+        compareZOrder(
+          { id: ca.id, position: pa, radius: ra },
+          { id: cb.id, position: pb, radius: cb.hull.collisionRadius },
+        ) < 0;
+      const self = aFirst ? a : b;
+      const other = aFirst ? b : a;
+      const cs = ranked[self];
+      const co = ranked[other];
+      if (cs === undefined || co === undefined) continue;
+      narrowTests += 1;
+      const part = doOctreesCollide(
+        cs.hull,
+        poseOf(cs),
+        co.hull,
+        poseOf(co),
+        co.detached,
+        cs.detached,
+      );
+      if (part !== null) contacts.push({ self, other, part });
+    }
+  }
+  if (contacts.length === 0) return done(0);
+
+  // 4. and 5. Each body's own list, in rank order.
+  runContactCalls(ranked.length, contacts, (self, other, part) => {
+    const cs = ranked[self];
+    const co = ranked[other];
+    if (cs === undefined || co === undefined) return false;
+    const selfPosition = positionOf(cs);
+    const otherPose = poseOf(co);
+    const sub =
+      part.kind === "subentity" ? co.hull.subentities?.[part.index] : undefined;
+    if (part.kind === "subentity" && sub === undefined) return false;
+    // A buoy's frangible subentity (PD-01): its own mass and energy, and its
+    // own target id for dam2.
+    const buoySub =
+      sub !== undefined &&
+      co.buoy !== undefined &&
+      part.kind === "subentity" &&
+      part.index === buoySubentityTargetOf(co.buoy).subentityIndex
+        ? co.buoy
+        : undefined;
+    // A subentity contact: the subentity's absolute position and mass, its
+    // parent's velocity (`ShipEntity.m:11032, 11057-11067`).
+    const otherPosition =
+73:  readonly identKey: string;
+79:export const STATIC_TARGETS: readonly StaticTarget[] = Object.freeze([
+84:    identKey: "coriolis-station",
+91:    identKey: "buoy-witchpoint",
+98:    identKey: "buoy",
+167:export function staticTargetById(id: EntityId): StaticTarget | undefined {
+168:  for (const row of STATIC_TARGETS) {
+[0m$ [0mrg -n "targetNames|catalogue" src/app/session/context.ts src/app/session/start-session.ts src/app/game-session.ts src/app/session/event-router.ts | head -n 100 && rg -n "identName\(" src/app/session/event-router.ts && sed -n '305,340p' src/app/session/event-router.ts
+src/app/game-session.ts:117:   * The validated galaxy catalogue (plan 06-04). Every target id resolves
+src/app/game-session.ts:349:  // catalogue at call time, so a request before the catalogue arrives is
+src/app/session/event-router.ts:319: * traffic catalogue's name, else the compiled target name (the station, the
+src/app/session/event-router.ts:326:  catalogue:
+src/app/session/event-router.ts:328:  targetNames: ReadonlyMap<string, string> | undefined,
+src/app/session/event-router.ts:331:    catalogue?.find((record) => record.key === specKey)?.name ??
+src/app/session/event-router.ts:332:    targetNames?.get(specKey) ??
+src/app/session/event-router.ts:448:          // session's compiled catalogues (`identName`) and the class from the
+src/app/session/event-router.ts:450:          const catalogue = ctx.core.npcTraffic?.catalogue;
+src/app/session/event-router.ts:451:          const ship = catalogue?.find(
+src/app/session/event-router.ts:455:            name: identName(event.specKey, catalogue, ctx.core.targetNames),
+src/app/session/event-router.ts:530:          // hull's catalogue name, never an entity id.
+src/app/session/context.ts:147:   * The profile, equipment catalogue and commodities the internal-damage facts
+src/app/session/context.ts:155:        readonly catalogue: readonly Equipment[];
+src/app/session/context.ts:205:   * loaded hull chunk. Loaded with the NPC catalogue and only with traffic on,
+src/app/session/context.ts:217:  targetNames: ReadonlyMap<string, string> | undefined;
+src/app/session/context.ts:236:   * catalogue order. Session state only: not saved and not on the probe.
+src/app/session/context.ts:423:      targetNames: undefined,
+src/app/session/start-session.ts:182: * validated catalogue knows it (SAV-03/D-18, T-06-12); a restore without a
+src/app/session/start-session.ts:227:   * `startSession` installs them as `ctx.core.targetNames` (plan 18-06).
+src/app/session/start-session.ts:244: * The boot content load (plans 13-11, 16-06, 18-13). The equipment catalogue
+src/app/session/start-session.ts:245: * is the only source of a price and a tech level, the commodity catalogue the
+src/app/session/start-session.ts:246: * only source of the market coefficients (D-10/T-04-43). The NPC catalogue, the
+src/app/session/start-session.ts:423:   * handler (the ship catalogue, the scene build, a restore) is shown on the
+src/app/session/start-session.ts:447:   *   4. the ship catalogue; the equipment, commodity and label catalogues
+src/app/session/start-session.ts:530:    const catalogue = await loadShipCatalogue();
+src/app/session/start-session.ts:534:    // D-10/T-04-43, T-16-19, T-18-50: the catalogues and, with traffic on, the
+src/app/session/start-session.ts:547:    ctx.core.targetNames = targetNameMap(content.staticNames);
+src/app/session/start-session.ts:549:    const playerDef = playerShip(catalogue).shipDef;
+src/app/session/start-session.ts:550:    const stationEntry = stationShip(catalogue);
+src/app/session/start-session.ts:615:    // cold Continue both start in the catalogue order.
+src/app/session/start-session.ts:629:    // validated catalogue knows is installed (T-06-12). A new game targets the
+src/app/session/start-session.ts:891:      const catalogue = ctx.core.equipmentCatalogue;
+src/app/session/start-session.ts:893:      if (catalogue === undefined || fitCtx === undefined) return;
+src/app/session/start-session.ts:894:      const item = catalogue.find((entry) => entry.key === "EQ_FUEL");
+src/app/session/start-session.ts:1039:    ctx.core.targetNames = undefined;
+324:export function identName(
+455:            name: identName(event.specKey, catalogue, ctx.core.targetNames),
+export function formatIdentLocked(
+  template: string,
+  record: IdentRecord,
+): string {
+  const scanClass = record.scanClass.replace(/^CLASS_/, "").toLowerCase();
+  return template
+    .split("[name]")
+    .join(record.name)
+    .split("[class]")
+    .join(scanClass);
+}
+
+/**
+ * The display name of an ident lock's spec key (plan 18-06, CBT-17): the NPC
+ * traffic catalogue's name, else the compiled target name (the station, the
+ * buoys, pods and plates, from the static artifact), else the key itself.
+ * Every name comes from compiled content; with traffic off neither table is
+ * loaded and the key is the name.
+ */
+export function identName(
+  specKey: string,
+  catalogue:
+    readonly { readonly key: string; readonly name: string }[] | undefined,
+  targetNames: ReadonlyMap<string, string> | undefined,
+): string {
+  return (
+    catalogue?.find((record) => record.key === specKey)?.name ??
+    targetNames?.get(specKey) ??
+    specKey
+  );
+}
+
+/** What the HUD message subscriber calls outside the session context. */
+export interface HudMessagesDeps {
+  readonly messages: Pick<MessageQueue, "enqueue" | "clearPrevious">;
+}
+> plan · kimi-k3.1-pro
+[0m$ [0mrg -n "sourcePosition:|source: cs.id|source: co.id|target: cs.id|target: co.id|target: other" src/sim/combat/collide.ts && sed -n '760,830p' src/sim/combat/collide.ts
+807:        target: cs.id,
+808:        source: co.id,
+810:        sourcePosition: { ...otherPosition },
+821:        source: cs.id,
+823:        sourcePosition: { ...selfPosition },
+    const otherPosition =
+      sub === undefined
+        ? otherPose.position
+        : subentityPose(otherPose, sub.position).position;
+    const otherVelocity = velocityOf(co);
+    const otherMass =
+      sub === undefined
+        ? co.mass
+        : buoySub === undefined
+          ? sub.mass
+          : BUOY_SUBENTITY_MASS;
+    const otherEnergy =
+      buoySub === undefined
+        ? energyOf(co)
+        : world.buoys[buoySub].subentityEnergy;
+    const response = collideWithShip({
+      self: {
+        position: selfPosition,
+        velocity: velocityOf(cs),
+        mass: cs.mass,
+        energy: energyOf(cs),
+        destroyable: cs.destroyable,
+      },
+      other: {
+        position: otherPosition,
+        velocity: sub === undefined ? otherVelocity : ZERO_VEC,
+        mass: otherMass,
+        energy: otherEnergy,
+        destroyable: co.destroyable,
+        ...(sub === undefined
+          ? {}
+          : {
+              parentVelocity: otherVelocity,
+              parentFrangible: co.hull.frangible ?? true,
+            }),
+      },
+    });
+    if (response.kind === "separating") return false;
+    // Damage queued, self's first (`ShipEntity.m:11114-11128`). A buoy
+    // subentity takes all of dam2 on its own id (6 or 7): a ram has no 1 %
+    // bleed-through on the parent (`takeScrapeDamage`, 11639-11673; the
+    // bleed is the laser rule). A non-frangible parent takes it in the
+    // subentity's place (11124-11125); any other subentity's share goes to
+    // its parent's id (no other collider has a subentity of its own).
+    if (response.applied1) {
+      records.push({
+        kind: "scrape",
+        target: cs.id,
+        source: co.id,
+        amount: response.dam1,
+        sourcePosition: { ...otherPosition },
+      });
+    }
+    if (response.applied2) {
+      const target =
+        buoySub !== undefined && response.dam2Receiver === "other"
+          ? buoySubentityTargetOf(buoySub).id
+          : co.id;
+      records.push({
+        kind: "scrape",
+        target,
+        source: cs.id,
+        amount: response.dam2,
+        sourcePosition: { ...selfPosition },
+      });
+    }
+    // Motion at once: the other (or its parent) first, then self
+    // (`ShipEntity.m:11102-11109`), then the positions (11083, 11136-11147).
+    // For a subentity contact the parent keeps `dvOtherBody` (+vel2a) even
+    // when the rammer dies; `dvOtherSubentity` and `dpOtherSubentity` (the
+    // C's nudge of the subentity inside its parent, 11143-11146) are never
+[0m$ [0mgit -C /home/opencode/git/oolite show 7437f22:src/Core/Entities/PlayerEntity.m | sed -n '5588,5620p;5698,5715p;2235,2260p' && rg -n "\- \(BOOL\)isDocked|isDocked\]" /home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m /home/opencode/git/oolite/src/Core/Entities/Entity.m | head -n 30
+}
+
+- (void)warnAboutHostiles
+{
+    [self playHostileWarning];
+}
+
+- (BOOL)canCollide
+{
+    switch ([self status]) {
+    case STATUS_START_GAME:
+    case STATUS_DOCKING:
+    case STATUS_DOCKED:
+    case STATUS_DEAD:
+    case STATUS_ESCAPE_SEQUENCE:
+        return NO;
+
+    default:
+        return YES;
+    }
+}
+
+- (NSComparisonResult)compareZeroDistance:(Entity*)otherEntity
+{
+    return NSOrderedDescending; // always the most near
+}
+        if (hitSub && (hit_distance == 0 || hit_distance > hitSub)) {
+            hit_distance = hitSub;
+            if (hitEntity && !shields) {
+                *hitEntity = se;
+            }
+        }
+    }
+
+    return hit_distance;
+}
+
+- (void)takeEnergyDamage:(double)amount from:(Entity*)ent becauseOf:(Entity*)other weaponIdentifier:(NSString*)weaponIdentifier
+{
+    HPVector rel_pos;
+    OOScalar d_forward, d_right, d_up;
+    BOOL internal_damage = NO; // base chance
+
+    OOLog(@"player.ship.damage", @"Player took damage from %@ becauseOf %@", ent, other);
+
+    if ([self status] == STATUS_DEAD)
+        return;
+    if ([self status] == STATUS_ESCAPE_SEQUENCE)
+        return; // if the player has ejected, don't deal more damage
+    if (amount == 0.0)
+        return;
+
+    BOOL cascadeWeapon = [ent isCascadeWeapon];
+    BOOL cascading = NO;
+    if (cascadeWeapon) {
+        cascading = [self cascadeIfAppropriateWithDamageAmount:amount cascadeOwner:[ent owner]];
+    }
+
+    // make sure ent (& its position) is the attacking _ship_/missile !
+    }
+}
+
+- (void)takeScrapeDamage:(double)amount from:(Entity*)ent
+{
+    HPVector rel_pos;
+    OOScalar d_forward, d_right, d_up;
+    BOOL internal_damage = NO; // base chance
+
+    if ([self status] == STATUS_DEAD)
+        return;
+
+    if (amount < 0) {
+        OOLog(@"player.ship.damage", @"Player took negative scrape damage %.3f so we made it positive", amount);
+        amount = -amount;
+    }
+    OOLog(@"player.ship.damage", @"Player took %.3f scrape damage from %@", amount, ent);
+
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:265:    NSAssert([self isDocked], @"Cannot unload cargo pods unless docked.");
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:2422:    } else if (![self isDocked]) {
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:3235:    if ([self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:3264:    if ([self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:3283:    if ([self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:4332:    if ([self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:5173:    if ([ms isEqual:@"ECM"] && ![self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:6189:    if ([self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:7024:    if ([self isDocked] && [self dockedStation] != [UNIVERSE station]) {
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:10000:    if (![self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:10081:    if (![self isDocked])
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:11323:    if (gui_screen != GUI_SCREEN_MISSION && [dockingReport length] > 0 && [self isDocked] && ![[self dockedStation] suppressArrivalReports]) {
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:11330:    while ((theScript = [scriptEnum nextObject]) && gui_screen != GUI_SCREEN_MISSION && [self isDocked]) {
+/home/opencode/git/oolite/src/Core/Entities/PlayerEntity.m:11475:- (BOOL)isDocked
+[0m$ [0msed -n '85,125p' src/render/launch-camera.ts >/dev/null; rg -n "COBRA_VIEW_OFFSETS|view_position_aft|view_position_forward" src/render/launch-camera.ts src/content/generated/ships-client.json | head -n 30 && rg -n "PLAYER_COLLISION_RADIUS_M" src/sim/npc/stats.ts && rg -n "MAX_STEPS_PER_FRAME|DT =" src/sim/time.ts src/sim/step.ts src/sim/loop.ts
+src/content/generated/ships-client.json:811:      "view_position_aft": "0.0 6.0 -35.5",
+src/content/generated/ships-client.json:812:      "view_position_forward": "0.0 7.25 31.0",
+src/render/launch-camera.ts:53:  COBRA_VIEW_OFFSETS,
+src/render/launch-camera.ts:75:/** Oolite `view_position_forward = "0.0 7.25 31.0"` in +Z, converted to -Z. */
+src/render/launch-camera.ts:96:  fore: toWegoliteLocal(COBRA_VIEW_OFFSETS.fore),
+src/render/launch-camera.ts:97:  aft: toWegoliteLocal(COBRA_VIEW_OFFSETS.aft),
+src/render/launch-camera.ts:98:  port: toWegoliteLocal(COBRA_VIEW_OFFSETS.port),
+src/render/launch-camera.ts:99:  starboard: toWegoliteLocal(COBRA_VIEW_OFFSETS.starboard),
+109: * `PLAYER_COLLISION_RADIUS_M`.
+128:export const PLAYER_COLLISION_RADIUS_M = 72.69734954833984;
+src/sim/step.ts:8:export const DT = 1 / 120;
+src/sim/step.ts:11:export const MAX_STEPS_PER_FRAME = 5;
+src/sim/loop.ts:4:import { DT, MAX_FRAME_DELTA, MAX_STEPS_PER_FRAME, step } from "./step.js";
+src/sim/loop.ts:66:      stepsThisFrame < MAX_STEPS_PER_FRAME &&
+src/sim/loop.ts:76:    if (stepsThisFrame === MAX_STEPS_PER_FRAME) accumulator = 0;
+src/sim/time.ts:13:export { DT, MAX_FRAME_DELTA, MAX_STEPS_PER_FRAME } from "./step.js";
+[0m$ [0mrg -n "playerDestroyed|ROUTED_EVENT_KINDS|EVENT_SUBSCRIBER_ORDER|createEventRouter\(" tests/app/session-order.test.ts | head -n 60 && rg -n "createEventRouter\(" src tests | wc -l && rg -n "createEventRouter\(" src tests | head -n 60
+8: * Node only. Part one pins `EVENT_SUBSCRIBER_ORDER` and the declarative
+18: * `ROUTED_EVENT_KINDS` (typed `RoutedKind`) or after `isRoutedKind`.
+38:  EVENT_SUBSCRIBER_ORDER,
+40:  ROUTED_EVENT_KINDS,
+134:    expect([...EVENT_SUBSCRIBER_ORDER]).toEqual([
+171:    expect(ROUTED_EVENT_KINDS).toHaveLength(24);
+173:      [...ROUTED_EVENT_KINDS].sort(),
+178:    for (const kind of ROUTED_EVENT_KINDS) {
+191:    for (const kind of ROUTED_EVENT_KINDS) {
+193:        EVENT_SUBSCRIBER_ORDER.indexOf(name),
+201:    for (const kind of ROUTED_EVENT_KINDS) {
+211:      const router = createEventRouter(ctx, {
+236:    createEventRouter(ctx, {
+369:  return { ctx, log, router: createEventRouter(ctx, subscribers), settings };
+617:      const router = createEventRouter(ctx, {
+742:    for (const kind of ROUTED_EVENT_KINDS) {
+1186:      playerDestroyed: {
+1187:        kind: "playerDestroyed",
+1219:    for (const kind of ROUTED_EVENT_KINDS) {
+12
+tests/app/session-order.test.ts:211:      const router = createEventRouter(ctx, {
+tests/app/session-order.test.ts:236:    createEventRouter(ctx, {
+tests/app/session-order.test.ts:369:  return { ctx, log, router: createEventRouter(ctx, subscribers), settings };
+tests/app/session-order.test.ts:617:      const router = createEventRouter(ctx, {
+src/app/game-session.ts:447:  const router = createEventRouter(ctx, {
+tests/app/session/world-lifecycle.test.ts:179:    router: createEventRouter(ctx, {
+tests/app/session/world-lifecycle.test.ts:1370:    const real = createEventRouter(ctx, {
+tests/app/session/event-router-ident.test.ts:86:  const router = createEventRouter(ctx, {
+tests/app/session/event-router-damage.test.ts:78:  const router = createEventRouter(ctx, {
+tests/app/session/tick-parity.test.ts:313:    router: createEventRouter(ctx, {
+tests/app/session/sim-driver.test.ts:205:  const realRouter = createEventRouter(ctx, subscribers);
+src/app/session/event-router.ts:726:export function createEventRouter(
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/app/game-session.ts [90m[offset=240, limit=70][0m
+[0m→ [0mRead src/app/game-session.ts [90m[offset=540, limit=70][0m
+[0m$ [0mrg -n "autosave\(|manualSave\(|writeManualSave\(" src/app | cat && rg -n "GameSession.*(save|pause)|manualSave|autosave" src/app/game-session.ts src/main.ts | head -n 100
+src/app/game-session.ts:261:      saveController.autosave();
+src/app/game-session.ts:295:      saveController.autosave();
+src/app/probe.ts:228:   * Every trigger attempt, incremented at the top of `autosave()` before any
+src/app/session/start-session.ts:713:      manualSave();
+src/app/session/start-session.ts:719:      writeManualSave();
+src/app/session/start-session.ts:904:      autosave();
+src/app/session/save-controller.ts:243:  function autosave(): void {
+src/app/session/save-controller.ts:278:  function manualSave(): void {
+src/app/session/save-controller.ts:311:    writeManualSave();
+src/app/session/save-controller.ts:315:  function writeManualSave(): void {
+src/app/session/save-controller.ts:641:        if (ctx.save.saveScreenOpen && !screen.isConfirming()) manualSave();
+src/app/session/station-controller.ts:414:    autosave();
+src/app/session/station-controller.ts:525:    autosave();
+src/app/session/station-controller.ts:574:    autosave();
+src/app/session/station-controller.ts:631:    autosave();
+src/app/session/event-router.ts:276:        autosave();
+src/app/session/sim-driver.ts:289:    autosave();
+src/app/session/sim-driver.ts:331:        autosave();
+src/app/session/hyperspace-controller.ts:282:    autosave();
+src/main.ts:237:        // no autosave overwrite (T-04-47).
+src/main.ts:247:      // decode. Keep `unavailable`, which New game and autosave both treat as
+src/app/game-session.ts:129:  /** DOCK-07: the boot read and the store every autosave writes through. */
+src/app/game-session.ts:132:   * Plan 04-05 attaches the purchase autosave here. Called after every accepted
+src/app/game-session.ts:251:  // they take `targetSystem`; the autosave and the economy probe, whose owners
+src/app/game-session.ts:260:    autosave: () => {
+src/app/game-session.ts:261:      saveController.autosave();
+src/app/game-session.ts:294:    autosave: () => {
+src/app/game-session.ts:295:      saveController.autosave();
+src/app/game-session.ts:374:  // D-12 step 6: autosave, manual save, in-session Load, the New-game clear and
+src/app/game-session.ts:376:  // autosave and the two screen openers through call-time wrappers.
+src/app/game-session.ts:396:    autosave,
+src/app/game-session.ts:397:    manualSave,
+src/app/game-session.ts:445:  // drain, the launch filter, the pre-launch autosave and the one flight-step
+src/app/game-session.ts:458:      autosave,
+src/app/game-session.ts:478:    autosave,
+src/app/game-session.ts:557:    manualSave,
+src/app/game-session.ts:560:    autosave,
+[0m$ [0mrg -n "function statusSkipReason|statusSkipReason|saveSkipReason" src/app/session/save-controller.ts | head -n 45 && rg -n "createSessionState|paused: false|testTainted: false|contextLost: false" src/app/session/context.ts | head -n 40 && sed -n '450,485p' src/app/session/context.ts
+110:export function statusSkipReason(status: SaveStatus): string {
+194:    ctx.save.saveSkipReason = "";
+207:          ctx.save.saveSkipReason = "";
+215:          ctx.save.saveSkipReason = result.reason ?? "";
+222:          ctx.save.saveSkipReason = result.reason ?? "";
+250:      ctx.save.saveSkipReason = "recovering";
+255:      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
+260:      ctx.save.saveSkipReason = "tainted";
+266:      ctx.save.saveSkipReason = "not-ready";
+283:      ctx.save.saveSkipReason = "recovering";
+292:      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
+297:      ctx.save.saveSkipReason = "tainted";
+320:      ctx.save.saveSkipReason = "not-ready";
+490:      ctx.save.saveSkipReason = "";
+536:      ctx.save.saveSkipReason = statusSkipReason(ctx.save.saveStatus);
+547:      ctx.save.saveSkipReason = "";
+368:/** What `createSessionState` needs: the boot system and the boot save status. */
+380:export function createSessionState(init: SessionStateInit): SessionState {
+477:      paused: false,
+478:      contextLost: false,
+479:      testTainted: false,
+      saveLoad: undefined,
+      saveScreenOpen: false,
+      contextBeforeSaveScreen: "dockHome",
+      saveScreenNotice: "",
+      saveStatus: init.saveStatus,
+      saveRevision: 0,
+      saveAttempts: 0,
+      saveWrites: 0,
+      saveCommitted: 0,
+      saveCommittedRevision: 0,
+      saveLastClock: null,
+      saveSkipReason: init.saveSkipReason,
+      saveUnavailable: init.saveStatus === "unavailable",
+      manualSavePending: false,
+      loadingSave: false,
+    },
+    runtime: {
+      hud: undefined,
+      input: undefined,
+      loop: undefined,
+      settings: undefined,
+      bindings: undefined,
+      hints: undefined,
+      pauseOverlay: undefined,
+      controlsPanel: undefined,
+      settingsPanel: undefined,
+      fpsCounter: undefined,
+      paused: false,
+      contextLost: false,
+      testTainted: false,
+      testHookEnabled: false,
+      testFlags: { hook: false, manualClock: false, traffic: true },
+      lastMs: 0,
+      dockedMessageSeconds: 0,
+      rafId: 0,
+      swapRafId: 0,
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/render/launch-camera.ts [90m[offset=1, limit=90][0m
+> plan · kimi-k3.1-pro
+[0m→ [0mRead tests/e2e/helpers/chart.ts [90m[offset=1, limit=90][0m
+[0m→ [0mRead vitest.config.ts [90m[offset=1, limit=120][0m
+[0m→ [0mRead playwright.config.ts [90m[offset=1, limit=100][0m
+[0m$ [0mrg -n "save-fixtures|inFlightSaveAt|dockedSaveAt" tests --glob '*.test.ts' --glob '*.spec.ts' | head -n 100 && rg -n "@playwright/test|Page|expect" tests/e2e/helpers/chart.ts tests/e2e/helpers/save-fixtures.ts tests/e2e/helpers/save-store.ts && rg -n "projects|testDir|testMatch|unit" vitest.config.ts playwright.config.ts | head -n 100
+tests/e2e/hyperspace-failure.spec.ts:27:import { inFlightSaveAt } from "./helpers/save-fixtures.js";
+tests/e2e/hyperspace-failure.spec.ts:110:  await writeRaw(page, inFlightSaveAt("Lave", ORIGIN_POSE, "Diso"));
+tests/e2e/save-load.spec.ts:31:import { dockedSaveAt } from "./helpers/save-fixtures.js";
+tests/e2e/save-load.spec.ts:657:  const damagedRaw = dockedSaveAt("Lave", {
+tests/e2e/save-load.spec.ts:684:  await writeRaw(page, dockedSaveAt("Lave", { equipment: ["EQ_DOCK_COMP"] }));
+tests/e2e/budget.spec.ts:41:import { dockedSaveAt } from "./helpers/save-fixtures.js";
+tests/e2e/budget.spec.ts:247:  await writeRaw(page, dockedSaveAt("Diso"));
+tests/e2e/traffic.spec.ts:38:import { inFlightSaveAt } from "./helpers/save-fixtures.js";
+tests/e2e/traffic.spec.ts:690:    inFlightSaveAt("Lave", {
+tests/e2e/helpers/save-store.ts:13:import type { Page } from "@playwright/test";
+tests/e2e/helpers/save-store.ts:21:  page: Page,
+tests/e2e/helpers/save-store.ts:57:  page: Page,
+playwright.config.ts:15:  testDir: "./tests/e2e",
+playwright.config.ts:32:  projects: [
+playwright.config.ts:50:      testMatch: /(engine|core-loop)\.spec\.ts$/,
+vitest.config.ts:25:        // is not added, so this file is excluded from unit coverage.
+vitest.config.ts:74:    projects: [
+vitest.config.ts:77:          name: "unit",
+> plan · kimi-k3.1-pro
+[0m$ [0mrg -n "function profileFromSave|export function profileFromSave|damagedEquipment" src/persistence/save.ts src/persistence/autosave.ts | head -n 100 && sed -n '170,250p' src/persistence/autosave.ts && rg -n "damagedEquipment" src/persistence/save.ts | head -n 50
+src/persistence/autosave.ts:124:    damagedEquipment: [...profile.damagedEquipment],
+src/persistence/autosave.ts:216:export function profileFromSave(save: SaveV5): PlayerProfile {
+src/persistence/autosave.ts:241:    damagedEquipment: [...save.damagedEquipment],
+src/persistence/save.ts:89: * - the v5 `damagedEquipment` list, 16 keys of 64 characters:
+src/persistence/save.ts:285: * `damagedEquipment` (Phase 19): the damaged items, in damage order, never as a
+src/persistence/save.ts:300:  damagedEquipment: z
+src/persistence/save.ts:377:  readonly damagedEquipment: readonly string[];
+src/persistence/save.ts:611:  for (const key of save.damagedEquipment) {
+src/persistence/save.ts:619:    save.equipment.length + save.damagedEquipment.length >
+src/persistence/save.ts:802:    damagedEquipment: [...inputs.damagedEquipment],
+ * rejection by firing an autosave at the frame loop. The same semantic
+ * validator the parser uses runs first, so a schema-valid but over-capacity
+ * snapshot leaves the previous bytes untouched (T-05-19).
+ */
+export async function queueAutosave(
+  store: SaveStore,
+  revision: number,
+  inputs: SaveInputs,
+  allow: SaveAllowLists,
+): Promise<WriteResult> {
+  try {
+    const encoded = encodeSave(inputs);
+    // Fail closed: a snapshot this build's own parser would reject must never
+    // replace the last good blob. Reporting `invalid-save` leaves the store
+    // untouched and the previous save intact.
+    if (!isEncodedSaveValid(encoded, allow)) {
+      return { committed: false, revision, reason: "invalid-save" };
+    }
+    return await store.write(encoded, revision);
+  } catch (error) {
+    return {
+      committed: false,
+      revision,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/** The Phase 4 alias count rule: explicit plus at most one alias. */
+function effectiveCount(
+  explicit: number | undefined,
+  hasAlias: boolean,
+  fallback: number,
+): number {
+  if (explicit !== undefined) return explicit + (hasAlias ? 1 : 0);
+  return hasAlias ? 1 : fallback;
+}
+
+/**
+ * Build a profile from a validated save.
+ *
+ * A field-less Phase 4 blob defaults to an empty hold, a full tank, three
+ * missiles and no berths. The Phase 4 equipment aliases are folded into their
+ * counts and removed from the equipment list; the dump is canonical from then
+ * on.
+ */
+export function profileFromSave(save: SaveV5): PlayerProfile {
+  const equipment: string[] = [];
+  let hasBerthAlias = false;
+  let hasMissileAlias = false;
+  for (const key of save.equipment) {
+    if (key === LEGACY_BERTH_ALIAS) {
+      hasBerthAlias = true;
+      continue;
+    }
+    if (key === LEGACY_MISSILE_ALIAS) {
+      hasMissileAlias = true;
+      continue;
+    }
+    equipment.push(key);
+  }
+
+  const cargo = emptyCargo() as Record<string, number>;
+  for (const entry of save.cargo ?? []) {
+    cargo[entry.key] = entry.quantity;
+  }
+
+  return {
+    credits: save.credits,
+    equipment,
+    // Damage order is kept (SAVE-09): the list is copied, never re-sorted.
+    damagedEquipment: [...save.damagedEquipment],
+    cargo,
+    fuel: save.fuel ?? NEW_GAME_FUEL,
+    missiles: effectiveCount(save.missiles, hasMissileAlias, NEW_GAME_MISSILES),
+    passengerBerths: effectiveCount(save.passengerBerths, hasBerthAlias, 0),
+    laserMounts: { ...save.laserMounts },
+  };
+}
+
+/**
+89: * - the v5 `damagedEquipment` list, 16 keys of 64 characters:
+285: * `damagedEquipment` (Phase 19): the damaged items, in damage order, never as a
+300:  damagedEquipment: z
+377:  readonly damagedEquipment: readonly string[];
+611:  for (const key of save.damagedEquipment) {
+619:    save.equipment.length + save.damagedEquipment.length >
+802:    damagedEquipment: [...inputs.damagedEquipment],
+> plan · kimi-k3.1-pro
+[0m→ [0mRead src/sim/combat/step.ts [90m[offset=195, limit=75][0m
+> plan · kimi-k3.1-pro

@@ -7,6 +7,9 @@ files:
   - src/sim/dock/step.ts
   - tests/sim/flight-drift.test.ts
   - .planning/phases/18-stations-buoys-and-collisions/deferred-items.md
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

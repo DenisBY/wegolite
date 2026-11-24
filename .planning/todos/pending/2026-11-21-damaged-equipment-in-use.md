@@ -8,6 +8,9 @@ files:
   - src/sim/dock/computer.ts
   - src/sim/player/outfitting.ts
   - tests/guards/damaged-equipment-in-use.test.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

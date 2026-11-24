@@ -7,6 +7,9 @@ severity: minor
 files:
   - src/sim/combat/step.ts
   - src/sim/flight/state.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

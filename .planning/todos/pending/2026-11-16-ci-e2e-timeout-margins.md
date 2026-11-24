@@ -20,6 +20,9 @@ files:
   - tests/e2e/settings.spec.ts
   - tests/e2e/station.spec.ts
   - tests/e2e/helpers/probe.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "death-scene-frozen-and-flyer-no-wreckage: On player death the explosion plays, the view turns aft and fades to grey over 5 s, and wreckage from earlier kills keeps drifting and tumbling with no time limit."
 created: 2026-11-23T22:00:00Z
 updated: 2026-11-23T22:50:00Z
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
+  status: diagnosed
 ---
 
 ## Current Focus

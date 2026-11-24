@@ -6,6 +6,9 @@ severity: minor
 files:
   - src/sim/world/debris.ts
   - .planning/phases/16-wreckage-cargo-and-the-entity-cap/16-RESEARCH.md
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

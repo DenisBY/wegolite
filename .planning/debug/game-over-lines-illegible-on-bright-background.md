@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "game-over-lines-illegible-on-bright-background: All four game-over lines stay legible over any background, including a bright sun or a lit station face, through the 5 s fade."
 created: 2026-11-23T22:00:00Z
 updated: 2026-11-23T22:45:00Z
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
+  status: diagnosed
 ---
 
 ## Current Focus

@@ -8,6 +8,9 @@ files:
   - src/sim/combat/internal-damage.ts
   - src/persistence/save.ts
   - src/sim/player/profile.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

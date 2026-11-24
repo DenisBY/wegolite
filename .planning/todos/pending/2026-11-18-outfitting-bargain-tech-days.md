@@ -5,6 +5,9 @@ area: economy
 severity: minor
 files:
   - src/ui/station-model.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

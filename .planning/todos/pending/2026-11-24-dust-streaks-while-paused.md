@@ -6,6 +6,9 @@ severity: minor
 files:
   - src/app/session/render-driver.ts
   - src/render/bodies/dust.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

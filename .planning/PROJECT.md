@@ -10,7 +10,7 @@ A player can launch, fly, dock, and complete a profitable trade run between two 
 
 ## Current State
 
-**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08), v2.0 Foundation (Phase 8, completed 2026-11-13) v2.1 World Population Base (Phases 9-12, completed 2026-11-14) and v2.2 Weapons and NPC Flight (Phases 13-14, completed 2026-11-16). v2.0, v2.1 and v2.2 are not yet in a tagged release; the latest release is `v0.3.0`.
+**Shipped:** v1.0 Core Loop (Phases 1-7, released as `v0.1.0` on 2026-11-08), v2.0 Foundation (Phase 8, completed 2026-11-13), v2.1 World Population Base (Phases 9-12, completed 2026-11-14), v2.2 Weapons and NPC Flight (Phases 13-14, completed 2026-11-16) and v2.3 Combat and Death (Phases 15-20, completed 2026-11-24). GSD milestones are not release tags; the latest release is `v0.7.0`, and the v2.3 work since it sits under `[Unreleased]` in CHANGELOG.md.
 
 v2.0 changed nothing the player sees. The game plays exactly as v1 does, but `src/app/game-session.ts` is split into typed controllers behind a 532-line facade, and the simulation runs a multi-entity world: stable per-world ids, seeded per-entity streams, a world hash, restorable test snapshots, a typed `WorldView`/`ShipControl` AI seam with a scripted test pilot, and a tick-stepping test hook (`advanceTicks`, `worldHash`, `probe.sim`). The AI seam, the snapshot codec and the reserved SimEvent types have only the test pilot as a consumer, so they stay provisional until Phases 12-14 exercise them.
 
@@ -18,22 +18,13 @@ v2.1 gave the world real NPC ships, still inert: the nine role ships are compile
 
 v2.2 gave the player four views (fore, aft, port, starboard), pulse, beam, military and mining lasers bought per facing at F3 that hit ships by their Oolite octree hull, shields and energy banks that absorb and recharge damage, a HUD that shows them, and docking that restores them; Escape (double press), P and R follow Oolite. Saves are schema v4 (laser mounts). NPC ships now fly with Oolite's flight model and steer with its native behaviours (idle, tumble, fly to destination, face, intercept, attack, flee, escort, avoid collision), ported from an independent source-cited oracle (139 fixtures) and checked by a frozen 20-seed acceptance run; a dev-only AILib spike runs Oolite's original JavaScript against a stub host and is kept out of `dist` by `check:dist`. NPCs steer and warn each other but do not fire (autonomous NPC fire is out of scope). Audit: 10/10 requirements, tech_debt, no blockers (`milestones/v2.2-MILESTONE-AUDIT.md`). Phase 14's oracle choice and fidelity report were accepted by a panel of the owner's delegation and ratified by the owner on 2026-11-16.
 
-Open at close (todos): lasers and ident do not yet hit stations or buoys; Phase 14 review follow-ups (the 20-seed acceptance run is in no gate and must be rerun by hand after NPC changes, a blind spot of the frozen detectors, the `dt` coupling of the tracking curve); buoys do not yet block hyperspace; the real-Oolite mass check is deferred.
+v2.3 gave fights consequences. One damage ledger and one idempotent kill path remove a ship at zero energy on that tick (world snapshot v4, pristine-omit hashing); a destroyed ship explodes into alloy plates, cargo pods and wrecks by Oolite's cargo rule under an entity cap of 256, drawn in fixed instanced layers. NPC ships can fire lasers through Oolite's fire gate, but only when the engine or a test pilot says so: they still never attack in ordinary play. Lasers and ident hit the station and the buoys (buoys can be destroyed), and ship-ship and ship-buoy collisions damage both by mass and closing speed while the station hull stays damage-free. Hits can damage the player's equipment, saved in schema v5 (no migration) and repaired at F3. The player dies at zero energy while in flight through one death path; game over reloads the page and Continue shows only for a loadable save. Audit: 16/16 requirements, no blockers (`milestones/v2.3-MILESTONE-AUDIT.md`, tech_debt).
 
-## Current Milestone: v2.3 Combat and Death
+Open at close (todos): the docked F-key bug from the Phase 19 UAT (F2-F6 and F8 mostly do nothing; major, undiagnosed) and the F6 toggle bug; review warnings of Phases 18 and 20; the recorded Oolite divergences of Phases 18 and 19 (D-08, E-126, E-131, E-135, E-138, E-147, E-150, E-159); 39 todos in all, listed in STATE.md Deferred Items.
 
-**Goal:** Fights have consequences: NPC ships fire lasers, ships are destroyed, and the player can die.
+## Next Milestone Goals
 
-**Target features:**
-- NPC laser fire at the player and at each other by Oolite's rules (shields, energy, octree hits); no missiles, ECM or mines
-- Lasers and ident hit stations and navigation buoys (closes the open todo)
-- Ship destruction: wreckage and cargo pods by Oolite's cargo rule, an entity cap, equipment damage from internal hits (CBT-08)
-- Ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule
-- Player death at zero energy from any cause: game over and load the last save, one death path that autosave, pause and the title flow respect
-
-**Out of this milestone (stay in the backlog):** missiles and ECM; escape pod, bounties and scooping; sun, planet, heat and alert condition; docking-slot scrape damage; audio; police, law and pirates; priority AI and traffic; mining; QUAL-01.
-
-Unscheduled backlog: the former Phases 16-23 minus what this milestone takes. Their requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`. Phase numbering continues at 15.
+Not yet defined: `/gsd-new-milestone` sets them. Phase numbering continues at 21. Candidates from the backlog: fix the docked F-key bugs first; then a milestone that makes combat reachable in ordinary play (priority AI with pirates and police, bounties and legal status, scooping and the escape pod), or the hazards (sun, planet, heat, alert condition) and docking-slot scrape damage. Their former requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 
 ## Requirements
 
@@ -63,18 +54,23 @@ Unscheduled backlog: the former Phases 16-23 minus what this milestone takes. Th
 - ✓ Fore, aft, port and starboard views; lasers bought per facing hit ships by their Oolite octree hull; shields and energy banks absorb and recharge; docking restores them — v2.2 (Phase 13, CBT-04..07, DOCK-10)
 - ✓ NPC ships fly with Oolite's flight model and native steering, drawn within budget and on the scanner; a dev-only AILib spike and an owner-gated fidelity report back the oracle choice — v2.2 (Phase 14, WORLD-07, AI-01, AI-11)
 
+- ✓ One damage ledger and one idempotent kill path; no dead entity at a tick boundary; the milestone's hashed fields in one snapshot v4 bump; NPC weapon and cargo fields compiled from Oolite — v2.3 (Phase 15, FOUND-18, FOUND-19, DATA-14)
+- ✓ Destroyed ships leave alloy plates, cargo pods and wrecks by Oolite's rule, under an entity cap of 256, in fixed instanced render layers, with vendored debris assets — v2.3 (Phase 16, DATA-16, WORLD-17)
+- ✓ NPC lasers fire through Oolite's fire gate (engine and test pilots only) and hit the player through shields and energy — v2.3 (Phase 17, CBT-15, CBT-16)
+- ✓ Lasers and ident hit the station and buoys; buoys can be destroyed; ship-ship and ship-buoy collisions by mass and closing speed; station contact damage-free — v2.3 (Phase 18, DATA-15, CBT-17, CBT-18)
+- ✓ Internal hits damage equipment, persisted in save schema v5, repaired at F3 at Oolite's price — v2.3 (Phases 16 and 19, CBT-08, CBT-12, SAVE-09)
+- ✓ The player dies at zero energy while in flight through one death path; game over reloads; Continue only for a loadable save; a dead player is never autosaved; cadence hashes and the 21/21 acceptance run hold — v2.3 (Phase 20, DEATH-01, DEATH-06, QUAL-11)
+
 ### Active
 
-<!-- v2.3 scope is in "Current Milestone" above; REQ-IDs land in REQUIREMENTS.md. Later, unscheduled (former v2.1 Phases 13-23): -->
-
-- [ ] v2.3: NPC laser fire, ship destruction with wreckage and cargo, ship collisions, player death with game over
+<!-- Later, unscheduled (former v2.1 Phases 13-23); the next milestone re-states its scope here. -->
 
 - [ ] (later) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
 - [ ] (later) NPC ships fight with Oolite's priority AI, hand-ported to TypeScript
-- [ ] (later) Player can fight with lasers, shields, energy banks, missiles and ECM, and destroy or be destroyed
+- [ ] (later) Player can fight with missiles and ECM (lasers, shields, energy banks, destruction and death shipped in v2.2-v2.3)
 - [ ] (later) Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
 - [ ] (later) Player can eject in an escape pod and continue on insurance, as in Oolite
-- [ ] (later) Player can collide with the planet and the sun and overheat
+- [ ] (later) Player can collide with the planet and the sun and overheat, and take docking-slot scrape damage
 - [ ] (later) The game plays Oolite's sound effects and music, autoplay-safe
 - [ ] (later) Client maintains a steady frame rate on desktop hardware (QUAL-01, carried forward; deferred again on 2026-11-13)
 
@@ -101,6 +97,8 @@ Unscheduled backlog: the former Phases 16-23 minus what this milestone takes. Th
 **Why the browser.** The goal is zero-install access for fans on any modern desktop machine. A static site with WebGL2 is the lowest-friction delivery mechanism.
 
 **Codebase at v2.0 close (2026-11-13).** About 32,000 lines of TypeScript in `src/` and 51,000 in `tests/`; 2,407 unit tests and 128 Chromium browser specs green under `verify-full`. Known debt carried into v2.1: review WR-01 (a throwing AI module is not contained by the world step), intermittent e2e flakes under host load (Phase 8 deferred item D-2, plus `hyperspace.spec.ts:194` and the probe-shape in-flight state), `08-VALIDATION.md` still a draft, and 19 older open items acknowledged at the v2.0 close (see the Deferred Items table in `STATE.md`).
+
+**Codebase at v2.3 close (2026-11-24).** About 59,000 lines of TypeScript in `src/` and 153,000 in `tests/`. v2.3 took 730 commits over 78 plans; the release gate (`verify-full`) runs on the remote test machine, and the 20-seed acceptance run stays outside every gate and is rerun by hand after NPC or world changes. Known debt carried forward: see "Open at close" in Current State.
 
 **Container-first development.** Every process in the project — dev server, production preview, unit tests, and browser tests — runs in Docker. The host machine is only expected to provide Docker and a browser; no host Node/npm install is authoritative. Because the client is static and saves live in IndexedDB, no database service is required. If server-side persistence is ever added, it gets its own Compose service with a healthcheck rather than a host install.
 
@@ -367,4 +365,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-24 after Phase 20 (all v2.3 phases complete; UAT gaps G-20-1 and G-20-2 closed by plans 20-12 and 20-13)*
+*Last updated: 2026-11-24 after the v2.3 milestone (Combat and Death)*

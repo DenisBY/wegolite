@@ -7,6 +7,9 @@ files:
   - src/sim/npc/behaviours/attack.ts
   - src/sim/npc/target.ts
   - .planning/phases/17-npc-fire-and-hits-on-the-player/17-REVIEW.md
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

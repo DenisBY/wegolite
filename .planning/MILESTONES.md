@@ -1,5 +1,24 @@
 # Project Milestones: Wegolite
 
+## v2.3 Combat and Death (Shipped: 2026-11-24)
+
+**Phases completed:** 6 phases (15-20), 78 plans, 145 tasks
+**Delivered:** fights have consequences: NPC ships fire, ships are destroyed into wreckage, and the player can die.
+**Git range:** `278c190` (docs(15): capture phase context) to `8fe9a48` (v2.3 audit); 730 commits, 145 files changed under `src/` (+17,057 / -1,920)
+**Audit:** [v2.3-MILESTONE-AUDIT.md](milestones/v2.3-MILESTONE-AUDIT.md), tech_debt: 16/16 requirements, 9/9 integration seams, 4/4 flows, no blockers
+
+**Key accomplishments:**
+- One damage ledger applied after the world step and one idempotent `killShip`: a ship at zero energy leaves the world on that tick, AI kill events drain before the tick ends, no snapshot ever holds a dead entity, and every new hashed field arrived in one snapshot v4 bump with pristine-omit hashing (Phase 15).
+- A destroyed ship explodes into alloy plates, cargo pods and wrecks by Oolite's cargo rule, held under the entity cap of 256 (thresholds 243 and 128), drawn in fixed instanced layers within the draw-call budget, with the debris models vendored from the Oolite checkout (Phase 16).
+- NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot says so; hits on the player pass through the shields and the energy bank; NPCs still never attack in ordinary play (Phase 17).
+- Lasers and ident hit the Coriolis station and the navigation buoys by Oolite's subentity rule, buoys can be destroyed, and ship-ship and ship-buoy collisions damage both by mass and closing speed while the station hull stays damage-free (Phase 18).
+- Hits can damage the player's equipment; the damage persists in save schema v5 (`damagedEquipment`, no migration), a damaged item stops counting as installed, and F3 repairs it at Oolite's price (Phase 19).
+- The player dies at zero energy from any cause while in flight through one death path: the dead camera coasts looking aft, the game-over lines stay legible, game over reloads the page, a dead player is never autosaved, and Continue shows only for a loadable save; the cadence hashes and the 21/21 acceptance run close the milestone gates (Phase 20).
+
+**Closeout:** override_closeout. Phases 15-19 verification reads `stale` (later phases changed files their reports cover); every VERIFICATION.md is `passed` and the milestone audit is `tech_debt` with no gaps. Known verification overrides: 38 newly acknowledged (2 debug sessions already fixed by 20-12 and 20-13, 34 todos, 2 Phase 18 deferred items), 18 carried forward from a prior close (see STATE.md Deferred Items). The one major open defect is the docked F-key bug from the Phase 19 UAT (todo `2026-11-22-bug-docked-f-keys-unreliable`); it breaks no v2.3 requirement. No release tag: the project's release tags (`v0.x.0`) are separate from GSD milestones; the latest release is `v0.7.0`.
+
+---
+
 ## v2.2 Weapons and NPC Flight (Shipped: 2026-11-16)
 
 **Phases completed:** 2 phases, 35 plans, 87 tasks

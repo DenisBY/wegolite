@@ -2,39 +2,36 @@
 gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
-current_phase: 20
-current_plan: Not started
-status: completed
-stopped_at: Phase 20 complete — all phases complete
-last_updated: "2026-11-24T11:04:03.259Z"
+status: Awaiting next milestone
+stopped_at: Milestone v2.3 archived
+last_updated: "2026-11-24T13:43:23.287Z"
 last_activity: 2026-11-24
-last_activity_desc: Phase 20 complete
-state_head: e419e402f0b25119648d9a87c2814a24d706b8aa
+last_activity_desc: Milestone v2.3 completed and archived
+state_head: 8fe9a482dc0e5382b2dd1b7220fbd2ccd0a61e81
 progress:
   total_phases: 6
   completed_phases: 6
   total_plans: 78
   completed_plans: 78
   percent: 100
+current_phase: 20
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-16)
+See: .planning/PROJECT.md (updated 2026-11-24)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.3 close-out (`/gsd-complete-milestone v2.3`)
+**Current focus:** Planning the next milestone (`/gsd-new-milestone`); phase numbering continues at 21
 
 ## Current Position
 
-Phase: 20 (Player Death and Game Over) — COMPLETE (UAT 6/6 settled, verification passed)
-Current Plan: Not started
-Total Plans in Phase: 13
-Status: All phases complete
-Last activity: 2026-11-24 — Phase 20 complete
-
+Phase: Milestone v2.3 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-24 — Milestone v2.3 completed and archived
 
 ## Performance Metrics
 
@@ -724,6 +721,44 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
+| debug_sessions | death-scene-frozen-and-flyer-no-wreckage | diagnosed (fixed by 20-12, 20-13) | 2026-11-24 | v2.3 |
+| debug_sessions | game-over-lines-illegible-on-bright-background | diagnosed (fixed by 20-12, 20-13) | 2026-11-24 | v2.3 |
+| deferred_items | 18/deferred-items.md: dock straddle resolves in two contact events (18-10) | acknowledged | 2026-11-24 | v2.3 |
+| deferred_items | 18/deferred-items.md: dist-check races the purity guards' probe files (18-22) | acknowledged | 2026-11-24 | v2.3 |
+| todos | 2026-11-24-dust-streaks-while-paused.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-24-debris-inherits-ship-velocity.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-24-credits-glyph-legibility.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-22-home-screen-damaged-equipment-and-repair.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-22-bug-f6-toggles-back-to-previous-screen.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-22-bug-docked-f-keys-unreliable.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-21-retire-legacy-equipment-alias-read-tolerance.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-21-planet-noise-polar-cap-one-off-ci-failure.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-21-hull-wear-renovation-and-fuel-price.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-21-damaged-equipment-in-use.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-torus-nearest-surface-live-buoys.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-hud-message-word-wrap-like-oolite.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-dock-straddle-double-contact-event.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-divergence-e150-burnt-out-wreck-blast.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-divergence-e147-blast-launching-player.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-divergence-e138-player-drift-edges.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-divergence-e135-station-collider-and-subentity-twice.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-divergence-e131-separating-push.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-divergence-e126-compass-cycle.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-divergence-d08-pods-plates-block-jump.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-dist-check-purity-probe-race.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-collision-chain-prefilter-all-pairs.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-20-acceptance-run-with-collisions-on.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-19-player-ident-lock-in-target-targets-self.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-19-guard-scanner-hardening.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-18-wire-the-hud-altitude-bar.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-18-per-system-main-station-types.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-18-outfitting-bargain-tech-days.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-18-narrow-kill-time-ship-target-lost.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-18-mutual-kill-credit-symmetry.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-17-ui-flight-hud-differences-from-oolite.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-17-skip-shiphit-for-a-doomed-target.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-17-phase-16-review-info-items.md | open | 2026-11-24 | v2.3 |
+| todos | 2026-11-16-ci-e2e-timeout-margins.md | open | 2026-11-24 | v2.3 |
 | todos | 2026-11-15-lasers-and-ident-hit-stations-and-buoys.md | open | 2026-11-16 | v2.2 |
 | todos | 2026-11-16-phase-14-review-followups.md | open | 2026-11-16 | v2.2 |
 | todos | 2026-11-14-clear-world-when-arrival-begin-is-refused.md | open | 2026-11-14 | v2.1 |
@@ -753,11 +788,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 ## Session Continuity
 
 Last session: 2026-11-24T11:10:00Z
-Stopped at: Phase 20 complete, milestone v2.3 ready to close
+Stopped at: Milestone v2.3 completed and archived (2026-11-24)
 Resume file: None
 
 ## Operator Next Steps
 
-
-
-- Review the v2.3 roadmap (`.planning/ROADMAP.md`), then start Phase 15 with `/gsd-discuss-phase 15` or `/gsd-plan-phase 15`
+- Start the next milestone with /gsd-new-milestone

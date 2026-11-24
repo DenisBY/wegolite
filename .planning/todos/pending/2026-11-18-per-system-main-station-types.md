@@ -6,6 +6,9 @@ severity: normal
 files:
   - src/content/schemas/system.ts
   - src/sim/world/layout.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

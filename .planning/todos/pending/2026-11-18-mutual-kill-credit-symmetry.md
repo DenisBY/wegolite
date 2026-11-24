@@ -9,6 +9,9 @@ files:
   - src/sim/combat/step.ts
   - tests/guards/kill-credit-consumers.test.ts
   - .planning/phases/17-npc-fire-and-hits-on-the-player/17-CONTEXT.md
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

@@ -9,6 +9,9 @@ files:
   - tests/sim/npc/proximity.test.ts
   - tests/sim/npc/buoy-proximity.test.ts
   - tests/guards/collision-chain-scope.test.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

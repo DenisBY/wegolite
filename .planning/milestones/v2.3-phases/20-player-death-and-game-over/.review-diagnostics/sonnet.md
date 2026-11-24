@@ -1,0 +1,10 @@
+# Sonnet 5.5 targeted fidelity review (DIV-9, DIV-2, DIV-7)
+
+Concerns:
+1. 20-04 (lines 53-54): a plain cloud add keeps today's flash, but the player's seven non-first adds must pass an explicit "no flash" option. The "variant 0 and no kind" default path in 20-04:54 is the one place where the flash could leak back in, so pin the "exactly one flash across the eight adds" case in a test.
+2. Oolite's ordinary explosion flash (`OOFlashEffectEntity.m:74-76`) is sized at the entity's collisionRadius, and the plan's 1x radius matches it. The Oolite flash velocity follows the entity; the plan takes it at the death position. This is a minor point and needs no change.
+3. 20-08 (line 239): the debris extrapolation uses constant velocity with no collision, so a piece that would have hit the station or a ship in Oolite passes through. The DIV-7 row should say this explicitly, because the sim-side drift (`driftEntity`) does the same only while nothing touches the piece.
+
+- DIV-9 (one flash): ACCEPT — `becomeLargeExplosion:` (`ShipEntity.m:8300-8320`) adds only fragment bursts and no flash. The ordinary explosion pairs cloud and flash (`ShipEntity.m:7957-7964`), so a single flash, sized at the collision radius as in `OOFlashEffectEntity.m:74-76`, is a small, clearly better presentation choice that needs its FIDELITY row.
+- DIV-2 (explosion particle form, updated): ACCEPT — Oolite's two loops add `OOSmallFragmentBurstEntity` and `OOBigFragmentBurstEntity` `factor` times each (`ShipEntity.m:8308-8320`), so eight bursts of two distinct kinds with per-kind speed, lifetime and size taken from `OOParticleSystem.m` is faithful in count and kinds. Only the particle form (Phase 16 cloud) diverges.
+- DIV-7 (frozen sim, moving presentation layers, updated): ACCEPT — Oolite keeps the whole universe running while dead, so a frozen sim is a real divergence. The deterministic dead hash justifies it, and animating explosions, shots, debris and the fade on the presentation clock, with ships, buoys, station and dust standing still, narrows the gap, provided the row lists the still layers and the debris collision caveat.

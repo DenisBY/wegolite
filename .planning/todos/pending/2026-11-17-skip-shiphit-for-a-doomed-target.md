@@ -7,6 +7,9 @@ files:
   - src/sim/combat/ledger.ts
   - src/sim/combat/step.ts
   - .planning/phases/16-wreckage-cargo-and-the-entity-cap/16-VERIFICATION.md
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

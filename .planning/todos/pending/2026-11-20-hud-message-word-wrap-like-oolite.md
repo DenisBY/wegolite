@@ -12,6 +12,9 @@ files:
   - src/app/session/event-router.ts
   - tests/guards/hud-message-length.test.ts
   - tests/app/session/hyperspace-controller.test.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

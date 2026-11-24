@@ -7,6 +7,9 @@ files:
   - tools/ai-harness/dist-check.test.ts
   - tests/guards/sim-probe.ts
   - .planning/phases/18-stations-buoys-and-collisions/deferred-items.md
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

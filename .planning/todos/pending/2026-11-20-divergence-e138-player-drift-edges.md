@@ -7,6 +7,9 @@ severity: minor
 files:
   - src/sim/flight/drift.ts
   - src/sim/flight/torus.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

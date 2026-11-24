@@ -7,6 +7,9 @@ files:
   - tests/guards/source-scan.ts
   - tests/guards/fire-decision-source.test.ts
   - .planning/phases/17-npc-fire-and-hits-on-the-player/17-REVIEW.md
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

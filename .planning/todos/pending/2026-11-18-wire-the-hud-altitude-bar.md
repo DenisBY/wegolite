@@ -6,6 +6,9 @@ severity: minor
 files:
   - src/render/hud/draw.ts
   - src/app/hud-model.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

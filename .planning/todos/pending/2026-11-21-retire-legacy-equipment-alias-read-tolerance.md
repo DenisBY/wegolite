@@ -10,6 +10,9 @@ files:
   - tests/persistence/save.test.ts
   - tests/persistence/autosave.test.ts
   - tests/guards/legacy-equipment-alias.test.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

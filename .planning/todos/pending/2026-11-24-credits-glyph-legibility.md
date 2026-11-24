@@ -6,6 +6,9 @@ severity: cosmetic
 files:
   - index.html
   - src/ui/game-over.ts
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem

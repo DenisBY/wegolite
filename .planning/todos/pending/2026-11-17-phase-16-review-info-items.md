@@ -11,6 +11,9 @@ files:
   - src/sim/world/kill.ts
   - src/app/npc-models.ts
   - scripts/vendor-oolite.sh
+audit_acknowledged:
+  milestone: v2.3
+  at: 2026-11-24
 ---
 
 ## Problem
