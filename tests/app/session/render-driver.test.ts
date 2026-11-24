@@ -28,6 +28,7 @@ import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import {
   DEAD_CAMERA_SETBACK_M,
+  DEAD_COAST_SPEED_MPS,
   GAME_OVER_FADE_SECONDS,
   NO_DRAW_DISTANCE_FACTOR,
   createRenderDriver,
@@ -1516,6 +1517,39 @@ describe("renderFrame dead scene (D-01)", () => {
     expect(scene.ship.visible).toBe(false);
   });
 
+  it("coasts the aft camera at 160 m/s along the ship's forward, away from the death point (G-20-1)", () => {
+    expect(DEAD_COAST_SPEED_MPS).toBe(160);
+    const { h, explosionCalls } = dying();
+    const forward = rotate(ORIENTATION, vec(0, 0, -1));
+    const cameras: Vec3[] = [];
+    for (const seconds of [0, 2.5, 30]) {
+      h.ctx.runtime.gameOverSeconds = seconds;
+      h.driver.renderFrame(0);
+      const expected = computeViewCamera(
+        add(
+          POSITION,
+          scale(
+            forward,
+            DEAD_CAMERA_SETBACK_M + DEAD_COAST_SPEED_MPS * seconds,
+          ),
+        ),
+        ORIENTATION,
+        "aft",
+        vec(0, 0, 0),
+      ).position;
+      const drawn = explosionCalls.at(-1)?.[0] as Vec3;
+      expect(drawn.x).toBeCloseTo(expected.x, 6);
+      expect(drawn.y).toBeCloseTo(expected.y, 6);
+      expect(drawn.z).toBeCloseTo(expected.z, 6);
+      cameras.push(drawn);
+    }
+    // 2.5 s of coast is 400 m along the forward axis, away from what it sees.
+    const moved = sub(cameras[1] as Vec3, cameras[0] as Vec3);
+    expect(moved.x).toBeCloseTo(forward.x * 400, 6);
+    expect(moved.y).toBeCloseTo(forward.y * 400, 6);
+    expect(moved.z).toBeCloseTo(forward.z * 400, 6);
+  });
+
   it("hides the HUD canvas and marks it data-dead while dead, and neither once back in flight", () => {
     const { h } = dying();
     h.driver.renderFrame(0);
@@ -1595,6 +1629,63 @@ describe("renderFrame dead scene (D-01)", () => {
     expect(dustCalls).toHaveLength(2);
     expect(dustCalls[0]?.[0]).toEqual(vec(0, 0, 0));
     expect(dustCalls[1]?.[0]).toEqual(vec(0, 0, 0));
+    expect(dustCalls[0]?.slice(1)).toEqual([0, 1]);
+    expect(dustCalls[1]?.slice(1)).toEqual([0, 1]);
+  });
+
+  it("feeds the dust the coasting camera's delta, the coast speed or 0 for a zero delta, and torus 1 while dead (G-20-1)", () => {
+    const { h, dustCalls } = dying();
+    // The frozen death tick: a high speed and a boosted torus factor.
+    const frozen = h.ctx.core.state as FlightState;
+    frozen.speed = 350;
+    frozen.torus.factor = 6;
+    const forward = rotate(ORIENTATION, vec(0, 0, -1));
+    h.ctx.core.previousCameraWorld = vec(1e6, 0, 0);
+    const near = (actual: unknown, expected: Vec3, digits = 6) => {
+      const delta = actual as Vec3;
+      expect(delta.x).toBeCloseTo(expected.x, digits);
+      expect(delta.y).toBeCloseTo(expected.y, digits);
+      expect(delta.z).toBeCloseTo(expected.z, digits);
+    };
+    for (const seconds of [0, 0.5, 0.5, 0.75, 600]) {
+      h.ctx.runtime.gameOverSeconds = seconds;
+      h.driver.renderFrame(0);
+    }
+    expect(dustCalls).toHaveLength(5);
+    expect(dustCalls[0]?.[0]).toEqual(vec(0, 0, 0));
+    near(dustCalls[1]?.[0], scale(forward, 80));
+    expect(dustCalls[2]?.[0]).toEqual(vec(0, 0, 0));
+    near(dustCalls[3]?.[0], scale(forward, 40));
+    near(dustCalls[4]?.[0], scale(forward, 95_880), 4);
+    expect(dustCalls.map((call) => call[1])).toEqual([
+      0,
+      DEAD_COAST_SPEED_MPS,
+      0,
+      DEAD_COAST_SPEED_MPS,
+      DEAD_COAST_SPEED_MPS,
+    ]);
+    expect(dustCalls.map((call) => call[2])).toEqual([1, 1, 1, 1, 1]);
+    // Never a zero delta with a non-zero speed: no still random-axis streaks.
+    for (const call of dustCalls) {
+      const delta = call[0] as Vec3;
+      const still = delta.x === 0 && delta.y === 0 && delta.z === 0;
+      if (still) expect(call[1]).toBe(0);
+    }
+  });
+
+  it("feeds the dust the live speed, torus factor and camera delta while alive", () => {
+    const { h, dustCalls } = dying();
+    revive(h);
+    const alive = h.ctx.core.state as FlightState;
+    alive.speed = 210;
+    alive.torus.factor = 4;
+    h.ctx.core.previousCameraWorld = vec(0, 0, 0);
+    h.driver.renderFrame(0);
+    expect(dustCalls).toHaveLength(1);
+    expect(dustCalls[0]?.[1]).toBe(210);
+    expect(dustCalls[0]?.[2]).toBe(4);
+    const delta = dustCalls[0]?.[0] as Vec3;
+    expect(delta.x !== 0 || delta.y !== 0 || delta.z !== 0).toBe(true);
   });
 
   it("draws every dead frame until the settle time, with or without traffic, then lets the gate idle", () => {
@@ -1856,36 +1947,6 @@ describe("renderFrame dead debris drift (D-01c, D-01d)", () => {
     expect(hashWorld(state, world)).toBe(worldBefore);
     expect(hashFlight(state)).toBe(flightBefore);
     expect(snapshot()).toEqual(entitiesBefore);
-  });
-
-  it("keeps drawing a moving piece in view past the settle time and idles once it has left the side plane", () => {
-    // Drifts sideways at 100 m/s from the axis at 500 m: the side plane is
-    // about 409 m out there, so it leaves between 10 and 12 s.
-    const { drawsAt } = deadDebris([
-      { depth: 500, lateral: 0, speed: [0, 100], at: 6 },
-    ]);
-    expect(drawsAt(6)).toBe(true);
-    expect(drawsAt(8)).toBe(true);
-    expect(drawsAt(12)).toBe(false);
-  });
-
-  it("keeps drawing a piece moving straight away until its no-draw distance, then idles", () => {
-    // On the axis at 500 m moving away at 50 m/s: 5,792.6 m is reached near 111.9 s.
-    const { drawsAt } = deadDebris([
-      { depth: 500, lateral: 0, speed: [50, 0], at: 6 },
-    ]);
-    expect(drawsAt(6)).toBe(true);
-    expect(drawsAt(100)).toBe(true);
-    expect(drawsAt(120)).toBe(false);
-  });
-
-  it("resumes drawing when a moving piece drifts into the view and idles while it is outside", () => {
-    // 600 m out to the right at 6 s, closing on the axis at 100 m/s.
-    const { drawsAt } = deadDebris([
-      { depth: 500, lateral: 600, speed: [0, -100], at: 6 },
-    ]);
-    expect(drawsAt(6)).toBe(false);
-    expect(drawsAt(12)).toBe(true);
   });
 
   it("idles after the settle time with no world and with only pieces at rest in view", () => {

@@ -100,9 +100,23 @@ export const GAME_OVER_FADE_SECONDS = 5;
  * D-01: how far behind the dead ship the camera sits, along the ship's own
  * forward axis: `getDestroyedBy:` moves the player 100 m forward
  * (`moveForward:100.0`, `PlayerEntity.m:6187-6221` at the pin) and looks aft
- * (`VIEW_AFT`), so the view sees the ship it left behind.
+ * (`VIEW_AFT`), so the view sees the ship it left behind. The coast
+ * (`DEAD_COAST_SPEED_MPS`) starts from this setback.
  */
 export const DEAD_CAMERA_SETBACK_M = 100;
+
+/**
+ * G-20-1 (owner decision 2026-11-24, D-01e): the speed at which the dead camera
+ * coasts on, along the ship's forward axis. Oolite's `getDestroyedBy:` sets
+ * `flightSpeed = 160.0f` (`PlayerEntity.m:6211` at the pin) with the velocity
+ * and the turn rates zeroed (`:6212-6215`); the dead player is not docked, so
+ * `performInFlightUpdates:` (`:2419-2425`) keeps moving it by
+ * `moveForward:delta_t * flightSpeed` (`:3413-3414`) along its forward axis,
+ * while `VIEW_AFT` looks back along the opposite one: the camera travels
+ * straight away from the death point it looks at. Wegolite reproduces this
+ * render-only on the presentation clock (`gameOverSeconds`), never in the sim.
+ */
+export const DEAD_COAST_SPEED_MPS = 160;
 
 /**
  * Oolite's `NO_DRAW_DISTANCE_FACTOR` (`src/Core/Entities/Entity.h:45` at the
@@ -395,12 +409,18 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
         ctx.core.dockFeedback.shakeOffset(currentState.flightTime),
       );
     } else if (dead) {
-      // `getDestroyedBy:` moves the ship 100 m along its local -Z and looks aft;
-      // the player's own hull stays hidden below.
+      // `getDestroyedBy:` moves the ship 100 m along its local -Z and looks aft,
+      // and the ship then coasts on at 160 m/s (G-20-1, D-01e): the camera is
+      // the frozen pose plus forward x (setback + speed x presentation time),
+      // a local computed in float64 and never written to the sim. The player's
+      // own hull stays hidden below.
+      const coastDistance =
+        DEAD_CAMERA_SETBACK_M +
+        DEAD_COAST_SPEED_MPS * ctx.runtime.gameOverSeconds;
       camera = computeViewCamera(
         add(
           pose.position,
-          scale(rotate(pose.orientation, vec(0, 0, -1)), DEAD_CAMERA_SETBACK_M),
+          scale(rotate(pose.orientation, vec(0, 0, -1)), coastDistance),
         ),
         pose.orientation,
         "aft",
@@ -425,12 +445,27 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // D-04: dust is camera-local. The world delta comes from the one transform
     // path; the field wraps inside its box, so it never drifts to the origin.
     const currentDust = currentScene.dust;
-    currentDust.update(
+    const cameraDelta =
       ctx.core.previousCameraWorld === undefined
         ? vec(0, 0, 0)
-        : sub(cameraWorld, ctx.core.previousCameraWorld),
-      currentState.speed,
-      currentState.torus.factor,
+        : sub(cameraWorld, ctx.core.previousCameraWorld);
+    // While dead the flight state's speed is the frozen death-tick speed, so it
+    // is never passed: the dust gets the coast speed on a frame where the
+    // camera moved (3.2 m streaks along the motion) and 0 on a frame where it
+    // did not (the first dead frame, a repeated presentation time, a context
+    // restore), which draws the 0.5 m minimum streaks, never the frozen speed's
+    // random-axis streaks of up to 40 m (20-UAT.md G-20-1, root cause 1a). The
+    // streak form is Wegolite's flight rendering, not Oolite's `GL_POINTS`
+    // (FIDELITY E-179). The torus factor is 1: after a death at hyperspeed
+    // Oolite keeps its stale hyperspeed flag (`PlayerEntity.m:2740` is not rerun
+    // while dead) and draws warp lines (`DustEntity.m:248`, `:273`); Wegolite
+    // draws ordinary dust, a Wegolite choice.
+    const cameraMoved =
+      cameraDelta.x !== 0 || cameraDelta.y !== 0 || cameraDelta.z !== 0;
+    currentDust.update(
+      cameraDelta,
+      dead ? (cameraMoved ? DEAD_COAST_SPEED_MPS : 0) : currentState.speed,
+      dead ? 1 : currentState.torus.factor,
     );
     ctx.core.previousCameraWorld = cameraWorld;
     // The cockpit view never shows the player's own hull, the launch included.
