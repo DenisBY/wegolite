@@ -367,4 +367,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-16 after starting milestone v2.3*
+*Last updated: 2026-11-24 after Phase 20 (all v2.3 phases complete; UAT gaps G-20-1 and G-20-2 closed by plans 20-12 and 20-13)*

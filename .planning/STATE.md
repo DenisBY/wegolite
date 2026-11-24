@@ -3,20 +3,19 @@ gsd_state_version: "1.0"
 milestone: v2.3
 milestone_name: Combat and Death
 current_phase: 20
-current_phase_name: Player Death and Game Over
-current_plan: 1
-status: executing
-stopped_at: Phase 20 context gathered
-last_updated: "2026-11-24T09:31:51.737Z"
+current_plan: Not started
+status: completed
+stopped_at: Phase 20 complete — all phases complete
+last_updated: "2026-11-24T11:04:03.259Z"
 last_activity: 2026-11-24
-last_activity_desc: Phase 20 execution resumed (wave continue)
-state_head: 572c000d2491acb157795d621e2ed13f031c10fe
+last_activity_desc: Phase 20 complete
+state_head: e419e402f0b25119648d9a87c2814a24d706b8aa
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 78
-  completed_plans: 76
-  percent: 83
+  completed_plans: 78
+  percent: 100
 ---
 
 # Project State
@@ -26,21 +25,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-16)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 20 — Player Death and Game Over
+**Current focus:** Milestone v2.3 close-out (`/gsd-complete-milestone v2.3`)
 
 ## Current Position
 
-Phase: 20 (Player Death and Game Over) — EXECUTING
-Current Plan: 1
-Total Plans in Phase: 11
-Status: Executing Phase 20
-Last activity: 2026-11-24 — Phase 20 execution resumed (wave continue)
+Phase: 20 (Player Death and Game Over) — COMPLETE (UAT 6/6 settled, verification passed)
+Current Plan: Not started
+Total Plans in Phase: 13
+Status: All phases complete
+Last activity: 2026-11-24 — Phase 20 complete
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 204
+- Total plans completed: 217
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -66,6 +65,7 @@ Last activity: 2026-11-24 — Phase 20 execution resumed (wave continue)
 | 17 | 13 | - | - |
 | 18 | 22 | - | - |
 | 19 | 15 | - | - |
+| 20 | 13 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -752,9 +752,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-22T14:37:29.727Z
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-player-death-and-game-over/20-CONTEXT.md
+Last session: 2026-11-24T11:10:00Z
+Stopped at: Phase 20 complete, milestone v2.3 ready to close
+Resume file: None
 
 ## Operator Next Steps
 

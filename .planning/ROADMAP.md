@@ -86,7 +86,7 @@ Total: 35 of 35 plans complete. Requirements 10/10. Phase directories now live i
 - [x] **Phase 17: NPC Fire and Hits on the Player** - NPC ships fire lasers at the player and at each other through Oolite's fire gate when the engine or a test pilot says so; hits on the player pass through shields and energy; NPCs still never attack in ordinary play (completed 2026-11-19)
 - [x] **Phase 18: Stations, Buoys and Collisions** - Lasers and ident hit the station and the navigation buoys (buoys can be destroyed); ship-ship and ship-buoy collisions damage both by Oolite's mass and closing-speed rule; the station hull stays damage-free (completed 2026-11-20)
 - [x] **Phase 19: Equipment Damage and Repair** - Hits on the player can damage equipment; the damage persists in save schema v5, a damaged item stops counting as installed, and F3 repairs it at Oolite's price (completed 2026-11-22)
-- [ ] **Phase 20: Player Death and Game Over** - The player dies at zero energy from any cause while in flight; game over reloads the page and offers Continue only when a loadable save exists, through one death path that autosave, pause and the title flow respect; the milestone's determinism and release gates close here
+- [x] **Phase 20: Player Death and Game Over** - The player dies at zero energy from any cause while in flight; game over reloads the page and offers Continue only when a loadable save exists, through one death path that autosave, pause and the title flow respect; the milestone's determinism and release gates close here (completed 2026-11-24)
 
 **Owner decisions in force** (taken 2026-11-16 at the start of the milestone, each recorded in PROJECT.md Key Decisions by the phase named):
 
@@ -446,7 +446,7 @@ Plans:
 **Pitfalls to address**: 6 (old pins encode "the player cannot die"), 7 (autosave races a death; a dead player must not be saved as docked), 10 (one death path and everything that must stop when it fires), 19 (Oolite's death is not the whole of "game over"), 22 (closed sets), 4, 21, 25 and 26 (close-out: acceptance, test cost, provenance, changelog)
 **Decisions to settle**: the deterministic dead hash during the game-over window; the `playerDestroyed` event payload; the game-over copy; the Key Decisions amendments named under "Changes from the former plan"
 **Todos**: `2026-11-16-ci-e2e-timeout-margins.md` (apply its 60 % rule to the new specs in the same change)
-**Plans**: 13/13 plans executed in 6 waves, plus 2 UAT gap-closure plans in 2 gap waves (20-12, 20-13: owner decisions of 2026-11-24 on gaps G-20-1 and G-20-2 in `20-UAT.md`) (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
+**Plans**: 13/13 plans complete in 6 waves, plus 2 UAT gap-closure plans in 2 gap waves (20-12, 20-13: owner decisions of 2026-11-24 on gaps G-20-1 and G-20-2 in `20-UAT.md`) (owner decisions D-01..D-16 in `20-CONTEXT.md`; 20-11 is the explosion layer the owner split out of 20-04 on 2026-11-23, numbered after the existing plans so no plan id moves; D-12's page reload replaces the in-session load pipeline of the implied work above, so no `loadSavedGame` and no `loadFromSave` refactor are planned)
 
 Plans:
 **Wave 1**
@@ -528,7 +528,7 @@ Pending todos outside v2.3, which can run as quick tasks or join a phase by owne
 | 17. NPC Fire and Hits on the Player | v2.3 | 13/13 | Complete    | 2026-11-19 |
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
-| 20. Player Death and Game Over | v2.3 | 13/13 | In Progress | - |
+| 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 
 ## Backlog
 

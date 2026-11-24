@@ -1,7 +1,7 @@
 ---
 phase: 20-player-death-and-game-over
 verified: 2026-11-24T10:40:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 covered_files:
   - ".planning/phases/20-player-death-and-game-over/20-01-PLAN.md"
