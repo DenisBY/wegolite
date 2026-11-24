@@ -33,6 +33,15 @@
  * Everything else a frame does (the steps, the events, the render) lives in the
  * collaborators below, reached through `deps`. The loop reads every live field
  * through `ctx` at the moment it needs it (G-8).
+ *
+ * `createQueuedEdgeFlush` (quick 261124-pze) applies the queued screen edges
+ * between frames, with the routing rules of steps 2, 3 and 6: in the game-over
+ * state everything is drained and nothing applied; chart edges always reach the
+ * chart handler; Save/Load edges are dropped while the chart is open; docked
+ * station edges apply only with no overlay open, not paused and docked. The
+ * input layer calls it before a docked screen key reaches its synchronous sink,
+ * so a key pressed earlier in the same frame keeps its place in the order.
+ * `frame()` itself does not call it and keeps its pinned phase order.
  */
 
 import type { Command } from "../../sim/commands.js";
@@ -222,4 +231,44 @@ export function createFrameLoop(
   }
 
   return frame;
+}
+
+/**
+ * The flush of the queued screen edges the input layer runs before a docked
+ * screen key reaches its synchronous sink (quick 261124-pze). It mirrors the
+ * frame's routing: step 2 (game over drains everything), step 3 (the chart
+ * edges, then the Save/Load edges, which the open chart discards) and step 6
+ * (station edges only with no overlay open, not paused and docked).
+ */
+export function createQueuedEdgeFlush(
+  ctx: SessionState,
+  deps: Pick<
+    LoopDeps,
+    "handleChartActions" | "handleSaveScreenActions" | "applyStationAction"
+  >,
+): () => void {
+  const { handleChartActions, handleSaveScreenActions, applyStationAction } =
+    deps;
+  return () => {
+    const input = ctx.runtime.input;
+    if (input === undefined) return;
+    if (ctx.runtime.gameOver) {
+      input.drainChartActions();
+      input.drainSaveScreenActions();
+      input.drainStationActions();
+      return;
+    }
+    handleChartActions(input.drainChartActions());
+    if (ctx.chart.chartOpen) input.drainSaveScreenActions();
+    else handleSaveScreenActions(input.drainSaveScreenActions());
+    const stationActions = input.drainStationActions();
+    if (
+      !ctx.chart.chartOpen &&
+      !ctx.save.saveScreenOpen &&
+      !ctx.runtime.paused &&
+      ctx.core.state?.mode === "docked"
+    ) {
+      for (const action of stationActions) applyStationAction(action);
+    }
+  };
 }

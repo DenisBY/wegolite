@@ -22,6 +22,18 @@
  * focused text field (the chart's Find planet box) keeps every other key, but
  * an F-key still reaches the game and never reaches the browser.
  *
+ * The docked screen keys (`STATION_NAV_ACTIONS`) are synchronous outside
+ * flight, so a following same-frame key resolves against the screen they open.
+ * Every other screen key is a queued edge the frame applies later. To keep the
+ * order the keys were pressed in, a screen key first asks the session to flush
+ * the edges queued earlier in the same frame (`setQueuedEdgeFlush`, quick
+ * 261124-pze): S then F3 on the Save/Load screen saves before Outfitting opens.
+ * When that flush changes the context (Escape closed the chart), the same code
+ * is resolved again against the new context, so Escape then F6 reopens the
+ * chart and, on an in-flight chart, Escape then F4 is the starboard view. The
+ * second pass cannot flush again: the flush drains every queue and
+ * `setContext` clears them, so the recursion is at most one level deep.
+ *
  * `createInputState` is the DOM-free core: Vitest drives keydown/keyup directly
  * without a browser, and `createKeyboardInputSource` is the thin listener layer.
  */
@@ -120,8 +132,22 @@ export interface InputState {
    * `flight`. The session closes an open overlay, opens the target and
    * switches context inside the same key event, so a following same-frame key
    * resolves against the new screen.
+   *
+   * Before the sink runs, a registered `setQueuedEdgeFlush` applies the screen
+   * edges queued earlier in the same frame. When that flush switched the
+   * context, the key is resolved again against the new context instead of
+   * reaching the sink (bounded: the flush drains every queue and `setContext`
+   * clears them, so the second pass has nothing to flush).
    */
   setStationScreenHandler(handler: (action: ActionId) => void): void;
+  /**
+   * Register the session's flush of the queued screen edges (chart, Save/Load
+   * and docked station edges, quick 261124-pze). It runs before a docked screen
+   * key reaches the synchronous sink, and only when one of those queues holds
+   * an edge, so an edge pressed earlier in the same frame applies against the
+   * screen it was pressed on.
+   */
+  setQueuedEdgeFlush(flush: () => void): void;
 }
 
 export function createInputState(
@@ -138,6 +164,7 @@ export function createInputState(
   let context: InputContext = "flight";
   let paused = false;
   let onStationScreen: ((action: ActionId) => void) | undefined;
+  let flushQueued: (() => void) | undefined;
 
   function pressed(action: ActionId): boolean {
     const codes = map[action] ?? [];
@@ -148,95 +175,116 @@ export function createInputState(
     return ACTION_CONTEXTS[action]?.includes(context) === true;
   }
 
-  return {
-    keyDown(code, repeat = false, mods) {
-      // D-07: on the game-over view no action fires. The browser-reserved
-      // F1 to F8 are still reported handled (F7 has no binding, F5 and F8 are
-      // the ones a reload or browser menu would otherwise take), nothing else.
-      if (context === "gameOver") return RESERVED_F_KEYS.has(code);
-      const actions = codeToActions.get(code);
-      if (actions === undefined) return false;
+  function hasQueuedEdges(): boolean {
+    return (
+      stationActions.length > 0 ||
+      chartActions.length > 0 ||
+      saveScreenActions.length > 0
+    );
+  }
 
-      // While paused only the pause action resolves. Everything else — Tab,
-      // Enter, an arrow — must reach the pause overlay's own focus trap and
-      // button activation, so it returns false without preventDefault.
-      if (paused) {
-        if (!actions.includes("pause")) return false;
-        if (!repeat) pauseToggle = true;
-        return true;
-      }
+  function keyDown(code: string, repeat = false, mods?: KeyModifiers): boolean {
+    // D-07: on the game-over view no action fires. The browser-reserved
+    // F1 to F8 are still reported handled (F7 has no binding, F5 and F8 are
+    // the ones a reload or browser menu would otherwise take), nothing else.
+    if (context === "gameOver") return RESERVED_F_KEYS.has(code);
+    const actions = codeToActions.get(code);
+    if (actions === undefined) return false;
 
-      const contextual = actions.filter((action) => inContext(action));
-      // A browser-reserved F-key is reported handled even when no action is
-      // live in this context, so the narrow capture guard and this return agree.
-      if (contextual.length === 0) return RESERVED_F_KEYS.has(code);
-      if (repeat) return true;
-
-      // A chord is resolved explicitly: when Shift is held and the code owns a
-      // shift-required action, only those fire. Otherwise the plain actions
-      // fire, or a station shift variant when the code defines one.
-      const shiftRequired = contextual.filter((action) =>
-        SHIFT_REQUIRED_ACTIONS.has(action),
-      );
-      const useShift = mods?.shift === true && shiftRequired.length > 0;
-
-      let firing: ActionId[];
-      if (useShift) {
-        firing = shiftRequired;
-      } else if (mods?.shift === true) {
-        const variants = contextual
-          .map((action) => SHIFT_VARIANT_ACTIONS[action])
-          .filter((action): action is ActionId => action !== undefined);
-        firing =
-          variants.length > 0
-            ? variants
-            : contextual.filter(
-                (action) => !SHIFT_REQUIRED_ACTIONS.has(action),
-              );
-      } else {
-        firing = contextual.filter(
-          (action) => !SHIFT_REQUIRED_ACTIONS.has(action),
-        );
-      }
-      if (!useShift) held.add(code);
-
-      for (const action of firing) {
-        if (action === "pause") {
-          // The default table no longer binds Escape to pause (INPUT-01). A
-          // stored blob that still does keeps Escape as Back in a screen
-          // context; the paused branch above owns it as Resume. KeyP remains
-          // the universal pause key.
-          if (ESCAPE_SCREEN_CONTEXTS.has(context) && code === "Escape")
-            continue;
-          pauseToggle = true;
-          continue;
-        }
-        if (STATION_NAV_ACTIONS.has(action) && context !== "flight") {
-          // Synchronous: the session switches context before this key event
-          // returns, so the next same-frame key resolves against the new
-          // screen. In flight the chart key keeps its queued open path.
-          onStationScreen?.(action);
-          continue;
-        }
-        if (action.startsWith("chart")) {
-          chartActions.push(action);
-          continue;
-        }
-        if (action === "saveLoad" || action.startsWith("saveScreen")) {
-          saveScreenActions.push(action);
-          continue;
-        }
-        if (action.startsWith("station")) {
-          stationActions.push(action);
-          continue;
-        }
-        const command = EDGE_COMMANDS[action];
-        // A fresh object per keydown: the module-level table is never mutated,
-        // so a command can never carry state between activations (T-04-46).
-        if (command !== undefined) pending.push({ ...command });
-      }
+    // While paused only the pause action resolves. Everything else — Tab,
+    // Enter, an arrow — must reach the pause overlay's own focus trap and
+    // button activation, so it returns false without preventDefault.
+    if (paused) {
+      if (!actions.includes("pause")) return false;
+      if (!repeat) pauseToggle = true;
       return true;
-    },
+    }
+
+    const contextual = actions.filter((action) => inContext(action));
+    // A browser-reserved F-key is reported handled even when no action is
+    // live in this context, so the narrow capture guard and this return agree.
+    if (contextual.length === 0) return RESERVED_F_KEYS.has(code);
+    if (repeat) return true;
+
+    // A chord is resolved explicitly: when Shift is held and the code owns a
+    // shift-required action, only those fire. Otherwise the plain actions
+    // fire, or a station shift variant when the code defines one.
+    const shiftRequired = contextual.filter((action) =>
+      SHIFT_REQUIRED_ACTIONS.has(action),
+    );
+    const useShift = mods?.shift === true && shiftRequired.length > 0;
+
+    let firing: ActionId[];
+    if (useShift) {
+      firing = shiftRequired;
+    } else if (mods?.shift === true) {
+      const variants = contextual
+        .map((action) => SHIFT_VARIANT_ACTIONS[action])
+        .filter((action): action is ActionId => action !== undefined);
+      firing =
+        variants.length > 0
+          ? variants
+          : contextual.filter((action) => !SHIFT_REQUIRED_ACTIONS.has(action));
+    } else {
+      firing = contextual.filter(
+        (action) => !SHIFT_REQUIRED_ACTIONS.has(action),
+      );
+    }
+    if (!useShift) held.add(code);
+
+    for (const action of firing) {
+      if (action === "pause") {
+        // The default table no longer binds Escape to pause (INPUT-01). A
+        // stored blob that still does keeps Escape as Back in a screen
+        // context; the paused branch above owns it as Resume. KeyP remains
+        // the universal pause key.
+        if (ESCAPE_SCREEN_CONTEXTS.has(context) && code === "Escape") continue;
+        pauseToggle = true;
+        continue;
+      }
+      if (STATION_NAV_ACTIONS.has(action) && context !== "flight") {
+        // Key order (quick 261124-pze): an edge queued earlier in this
+        // frame applies first, against the screen it was pressed on. If
+        // that flush switched the context, this key is resolved again
+        // against the new one; the queues are empty then, so the second
+        // pass never flushes again.
+        if (flushQueued !== undefined && hasQueuedEdges()) {
+          const before: InputContext = context;
+          flushQueued();
+          if (getContext() !== before) return keyDown(code, false, mods);
+        }
+        // Synchronous: the session switches context before this key event
+        // returns, so the next same-frame key resolves against the new
+        // screen. In flight the chart key keeps its queued open path.
+        onStationScreen?.(action);
+        continue;
+      }
+      if (action.startsWith("chart")) {
+        chartActions.push(action);
+        continue;
+      }
+      if (action === "saveLoad" || action.startsWith("saveScreen")) {
+        saveScreenActions.push(action);
+        continue;
+      }
+      if (action.startsWith("station")) {
+        stationActions.push(action);
+        continue;
+      }
+      const command = EDGE_COMMANDS[action];
+      // A fresh object per keydown: the module-level table is never mutated,
+      // so a command can never carry state between activations (T-04-46).
+      if (command !== undefined) pending.push({ ...command });
+    }
+    return true;
+  }
+
+  function getContext(): InputContext {
+    return context;
+  }
+
+  return {
+    keyDown,
     keyUp(code) {
       held.delete(code);
     },
@@ -307,9 +355,7 @@ export function createInputState(
       chartActions.length = 0;
       saveScreenActions.length = 0;
     },
-    getContext() {
-      return context;
-    },
+    getContext,
     setPaused(next) {
       paused = next;
       if (paused) {
@@ -322,6 +368,9 @@ export function createInputState(
     },
     setStationScreenHandler(handler) {
       onStationScreen = handler;
+    },
+    setQueuedEdgeFlush(flush) {
+      flushQueued = flush;
     },
   };
 }
