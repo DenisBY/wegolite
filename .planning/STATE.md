@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.3
 status: Awaiting next milestone
 stopped_at: Milestone v2.3 archived
-last_updated: "2026-11-24T17:26:05.576Z"
+last_updated: "2026-11-24T18:35:16.450Z"
 last_activity: 2026-11-24
 last_activity_desc: Milestone v2.3 completed and archived
-state_head: 9fd899fd7669640188a0166f59f56b5826ae6403
+state_head: 564254a07769bb4e2f3277602f53f9bd9222bdb1
 progress:
   total_phases: 6
   completed_phases: 6
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-24)
 Phase: Milestone v2.3 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-11-24 - Completed quick task 261124-ou6: market description line replaces Market Info; F8 on the Market does nothing
+Last activity: 2026-11-24 - Completed quick task 261124-pze: code review fixes (key order, overwrite question, Load guard, docs)
 
 ## Performance Metrics
 
@@ -716,6 +716,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 64 | Exclude .claude/ agent worktrees from the Vite dev watcher | 2026-11-23 | 841f562 | — |
 | 261124-nbu | Second F5 and F8 press open Oolite's sub-screens (Manifest, Market Info) with an on-screen hint | 2026-11-24 | 7c3f32a1 | [261124-nbu-second-f5-and-f8-press-open-oolite-s-sub](./quick/261124-nbu-second-f5-and-f8-press-open-oolite-s-sub/) |
 | 261124-ou6 | Replace the Market Info page with a description line under the market list; F8 on the Market does nothing | 2026-11-24 | 9fd899fd | [261124-ou6-replace-the-market-info-page-with-a-desc](./quick/261124-ou6-replace-the-market-info-page-with-a-desc/) |
+| 261124-pze | Fix the code review findings for the docked F-keys, F5 and the market comment line | 2026-11-24 | 564254a0 | [261124-pze-fix-code-review-findings-for-the-docked-](./quick/261124-pze-fix-code-review-findings-for-the-docked-/) |
 
 ## Deferred Items
 
