@@ -12,6 +12,8 @@
  * copy.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { Commodity } from "../../src/content/types.js";
@@ -25,7 +27,9 @@ import { newProfile } from "../../src/sim/player/profile.js";
 import type { PlayerProfile } from "../../src/sim/player/profile.js";
 import {
   MARKET_COLUMNS,
+  MARKET_INFO_TITLE_TEMPLATE,
   MARKET_SORT_COLUMNS,
+  MARKET_TITLE,
   buildMarketModel,
   legalityText,
   nextMarketSort,
@@ -503,5 +507,80 @@ describe("market sort", () => {
     const plain = build();
     expect(plain.rows.map((entry) => entry.key)).toEqual(catalogueOrder);
     expect(plain.columns.every((column) => column.sort === null)).toBe(true);
+  });
+});
+
+describe("Market Info (page 2)", () => {
+  function buildPage(selection: string, page: number, cargo = {}) {
+    return buildMarketModel(
+      market,
+      { ...newProfile(), cargo },
+      commodities,
+      selection,
+      { pending: null, notice: "" },
+      null,
+      page,
+    );
+  }
+
+  it("shows the selected commodity's row, comment and title on page 2", () => {
+    const model = buildPage("food", 2);
+
+    expect(model.page).toBe(2);
+    expect(model.title).toBe("Commodity: Food");
+    expect(model.info?.row).toEqual(row(model, "food"));
+    expect(model.info?.comment).toBe(commodity("food").comment);
+    expect(model.info?.comment).toBe("No additional information available");
+    expect(model.cashLoadText).toBe(build().cashLoadText);
+  });
+
+  it("carries the hold quantity on the info row", () => {
+    const model = buildPage("food", 2, { food: 3 });
+
+    expect(model.info?.row.heldText).toBe("3");
+  });
+
+  it("uses the restricted-goods comment for slaves", () => {
+    const model = buildPage("slaves", 2);
+
+    expect(model.title).toBe("Commodity: Slaves");
+    expect(model.info?.comment).toBe(
+      "It is illegal to export this good from Cooperative stations.",
+    );
+  });
+
+  it.each([
+    ["no selection", ""],
+    ["a key outside the market", "not_a_good"],
+  ])("falls back to the list for %s", (_label, selection) => {
+    const model = buildPage(selection, 2);
+
+    expect(model.page).toBe(1);
+    expect(model.info).toBeNull();
+    expect(model.title).toBe("Market");
+  });
+
+  it("is the old model plus page 1, the Market title and no info on page 1", () => {
+    const model = buildPage("food", 1);
+
+    expect(model.page).toBe(1);
+    expect(model.title).toBe(MARKET_TITLE);
+    expect(model.info).toBeNull();
+    expect(model.rows).toHaveLength(17);
+    expect(model).toEqual(build());
+  });
+
+  it("pins the title template to the vendored descriptions.plist", () => {
+    const plist = readFileSync(
+      join(process.cwd(), "third_party/oolite/Config/descriptions.plist"),
+      "utf8",
+    );
+    let oolite: string | undefined;
+    for (const line of plist.split("\n")) {
+      const match = /^\s*"([^"]+)"\s*=\s*"(.*)";/.exec(line);
+      if (match?.[1] === "oolite-commodity-information-@") oolite = match[2];
+    }
+    expect(oolite).toBe("Commodity: %@");
+    expect(MARKET_INFO_TITLE_TEMPLATE).toBe(oolite);
   });
 });

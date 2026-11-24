@@ -43,6 +43,17 @@ const COMMODITY_NAME_PREFIX = "commodity-name ";
 /** A trade good's authored name is the bracketed localization token. */
 const COMMODITY_TOKEN = /^\[commodity-name ([^\]]+)\]$/;
 
+/**
+ * Oolite's default comment (`OOCommodityMarket.m:163` at the pin:
+ * `defaultValue:@"[oolite-commodity-no-comment]"`), used when the plist has no
+ * `comment` key and, via `PlayerEntity.m:9955-9956`, when the resolved text is
+ * empty.
+ */
+const DEFAULT_COMMENT_KEY = "oolite-commodity-no-comment";
+
+/** A comment that is exactly one bracketed `descriptions.plist` key. */
+const COMMENT_TOKEN = /^\[([^[\]]+)\]$/;
+
 interface UnitDefinition {
   readonly unit: CommodityUnit;
   readonly kilogramsPerUnit: number;
@@ -164,6 +175,27 @@ function readStringArray(
   });
 }
 
+/**
+ * The authored comment, or Oolite's default token when the key is absent. A
+ * non-string value is a SCHEMA error: Oolite would ignore it, but a silently
+ * ignored authored field hides a content mistake.
+ */
+function readComment(dict: PlistDict, construct: string): string {
+  const entry = getEntry(dict, "comment");
+  if (entry === undefined) return `[${DEFAULT_COMMENT_KEY}]`;
+  if (entry.value.kind !== "string") {
+    throw contentError("SCHEMA", FILE, construct, {
+      line: entry.keyLine,
+      column: entry.keyColumn,
+      excerpt: `"comment" must be a quoted string`,
+    });
+  }
+  // An empty string is Oolite's "no comment" too (`PlayerEntity.m:9955`).
+  return entry.value.value === ""
+    ? `[${DEFAULT_COMMENT_KEY}]`
+    : entry.value.value;
+}
+
 function project(entryKey: string, dict: PlistDict): Commodity {
   const construct = `commodities.${entryKey}`;
   const unitCode = readInteger(
@@ -229,6 +261,7 @@ function project(entryKey: string, dict: PlistDict): Commodity {
     ),
     sortOrder: readInteger(dict, "sort_order", `${construct}.sort_order`),
     tradeable: entryKey !== "alien_items",
+    comment: readComment(dict, `${construct}.comment`),
   };
 
   const result = CommoditySchema.safeParse(candidate);
@@ -298,6 +331,63 @@ function resolveName(
   return resolved;
 }
 
+/** Every string-valued `descriptions.plist` entry, for comment expansion. */
+function descriptionStrings(descriptions: PlistValue): Map<string, string> {
+  const root = requireDict(descriptions, "descriptions");
+  const strings = new Map<string, string>();
+  for (const entry of root.entries) {
+    if (entry.value.kind === "string")
+      strings.set(entry.key, entry.value.value);
+  }
+  return strings;
+}
+
+/**
+ * Resolve a commodity comment the way `commentForGood` and Market Info do:
+ * `OOExpand` of the authored string, with an empty result replaced by the
+ * no-comment text (`PlayerEntity.m:9953-9956`).
+ *
+ * Only two shapes are accepted: text with no brackets (kept verbatim) and
+ * exactly one `[key]` token that names a `descriptions.plist` string. A mixed
+ * string, an unknown key, or a resolved value that still holds a bracket is a
+ * SCHEMA error, so no raw token can reach the screen.
+ */
+function resolveComment(
+  entryKey: string,
+  authored: string,
+  strings: ReadonlyMap<string, string>,
+): string {
+  const construct = `commodities.${entryKey}.comment`;
+  const defaultText = strings.get(DEFAULT_COMMENT_KEY);
+  if (defaultText === undefined || defaultText === "") {
+    throw contentError("SCHEMA", DESCRIPTIONS_FILE, DEFAULT_COMMENT_KEY, {
+      excerpt: `missing or empty default comment for commodity "${entryKey}"`,
+    });
+  }
+  if (authored === "") return defaultText;
+  if (!authored.includes("[") && !authored.includes("]")) return authored;
+  const match = COMMENT_TOKEN.exec(authored);
+  const token = match?.[1];
+  if (token === undefined) {
+    throw contentError("SCHEMA", FILE, construct, {
+      excerpt: `comment must be plain text or a single "[key]" token, found "${authored}"`,
+    });
+  }
+  const resolved = strings.get(token);
+  if (resolved === undefined) {
+    throw contentError("SCHEMA", DESCRIPTIONS_FILE, token, {
+      excerpt: `missing description "${token}" for ${construct}`,
+    });
+  }
+  if (resolved === "") return defaultText;
+  if (resolved.includes("[") || resolved.includes("]")) {
+    throw contentError("SCHEMA", DESCRIPTIONS_FILE, token, {
+      excerpt: `description "${token}" for ${construct} still holds a token`,
+    });
+  }
+  return resolved;
+}
+
 /** Project every entry, sorted by ascending `sort_order`. */
 export function compileCommodities(
   parsed: PlistValue,
@@ -311,6 +401,7 @@ export function compileCommodities(
   }
 
   const names = commodityNames(descriptions);
+  const strings = descriptionStrings(descriptions);
   const records = root.entries.map((entry) => {
     const record = project(
       entry.key,
@@ -324,6 +415,7 @@ export function compileCommodities(
     return {
       ...record,
       name: resolveName(entry.key, record.name, names),
+      comment: resolveComment(entry.key, record.comment, strings),
     };
   });
 
@@ -385,6 +477,7 @@ export function emitCommodities(
     trumbleOpinion: record.trumbleOpinion,
     sortOrder: record.sortOrder,
     tradeable: record.tradeable,
+    comment: record.comment,
   }));
   return {
     path: COMMODITIES_PATH,

@@ -19,6 +19,7 @@
       "trumbleOpinion": 0,
       "sortOrder": 100,
       "tradeable": true,
+      "comment": "No additional information available",
       "unexpectedField": true
     },
     {
@@ -39,7 +40,8 @@
       "legalityImport": 0,
       "trumbleOpinion": 0,
       "sortOrder": 100,
-      "tradeable": true
+      "tradeable": true,
+      "comment": "No additional information available"
     }
   ]
 }

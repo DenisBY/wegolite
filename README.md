@@ -103,6 +103,10 @@ selection as the destination and Esc clears the search.
 | Sell maximum  | `Shift+Left arrow`  |
 | Buy maximum   | `Shift+Right arrow` |
 
+On the status screen, `F5` (or `5`) shows the manifest, and on the manifest it
+returns to the status page. On the market, `F8` (or `8`) shows information on
+the selected commodity, and on that screen it returns to the list, as in Oolite.
+
 **Save and load**
 
 | Action             | Keys         |

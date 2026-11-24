@@ -425,6 +425,11 @@
         padding-bottom: 0.05rem;
       }
 
+      #docked .station-market-info {
+        margin: 0 0 0.3rem;
+        line-height: 1.4;
+      }
+
       #docked .station-cash-load {
         margin: 0;
         line-height: 1.4;
@@ -1992,7 +1997,7 @@
           </div>
         </div>
         <div data-station-panel="market" hidden>
-          <h2>Market</h2>
+          <h2 data-field="market-title">Market</h2>
           <table class="station-table">
             <thead>
               <tr>
@@ -2012,6 +2017,11 @@
             </thead>
             <tbody data-market-rows></tbody>
           </table>
+          <p
+            class="station-market-info"
+            data-field="market-info-comment"
+            hidden
+          ></p>
           <p class="station-cash-load" data-field="market-cash-load"></p>
         </div>
         <div data-station-panel="outfitting" hidden>

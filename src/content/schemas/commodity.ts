@@ -14,7 +14,10 @@
  * metadata for Phase 5 and is never applied here. `name` is the resolved
  * human-readable display string compiled from `descriptions.plist`; `key` stays
  * the identity (D-21). `peakExport`/`peakImport` are Oolite's authored
- * economy peaks (0..7) and feed only the market bias formula.
+ * economy peaks (0..7) and feed only the market bias formula. `comment` is
+ * Oolite's `commentForGood` value, resolved at build time from the
+ * `trade-goods.plist` comment through `descriptions.plist` (default
+ * `[oolite-commodity-no-comment]`); it is the line Market Info shows.
  */
 
 import { z } from "zod";
@@ -44,6 +47,7 @@ export const CommoditySchema = z.strictObject({
   trumbleOpinion: z.number(),
   sortOrder: z.number().int(),
   tradeable: z.boolean(),
+  comment: z.string().min(1),
 });
 
 export type Commodity = z.infer<typeof CommoditySchema>;

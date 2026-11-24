@@ -49,10 +49,20 @@ function pairLabel(
   return `${primaryOrUnbound(bindings, first)}/${primaryOrUnbound(bindings, second)}`;
 }
 
-/** Hints for the five docked station screens. */
+/**
+ * Hints for the five docked station screens.
+ *
+ * `page` is the station page (Status 1 / Manifest 2, Market 1 / Market Info 2).
+ * The status and market lines name what the next F5 or F8 press opens
+ * (`F5 manifest`, `F5 status`, `F8 commodity info`, `F8 commodity list`). Those
+ * parts are a Wegolite addition that Oolite does not have: Oolite switches the
+ * screens on the second press with no on-screen hint (owner decision
+ * 2026-11-24, recorded in FIDELITY.md and PROJECT.md Key Decisions).
+ */
 export function dockedHints(
   bindings: BindingLookup,
   screen: StationScreen,
+  page: 1 | 2 = 1,
 ): string {
   const upDown = pairLabel(bindings, "stationUp", "stationDown");
   const pause = primaryOrUnbound(bindings, "pause");
@@ -64,6 +74,7 @@ export function dockedHints(
       "Shift max",
       `${allCodesLabel(bindings, "stationConfirm")} confirm`,
       `${primaryOrUnbound(bindings, "stationCancel")} cancel`,
+      `${primaryOrUnbound(bindings, "stationMarket")} ${page === 2 ? "commodity list" : "commodity info"}`,
       `${primaryOrUnbound(bindings, "stationBack")} back`,
       `${pause} pause`,
     ].join(" · ");
@@ -81,6 +92,7 @@ export function dockedHints(
     return [
       `${allCodesLabel(bindings, "stationPageNext")} next page`,
       `${primaryOrUnbound(bindings, "stationPagePrevious")} previous`,
+      `${primaryOrUnbound(bindings, "stationStatus")} ${page === 2 ? "status" : "manifest"}`,
       `${primaryOrUnbound(bindings, "stationBack")} back`,
       `${pause} pause`,
     ].join(" · ");
