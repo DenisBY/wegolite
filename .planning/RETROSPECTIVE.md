@@ -117,6 +117,48 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 
 ---
 
+## Milestone: v2.3 - Combat and Death
+
+**Shipped:** 2026-11-24
+**Phases:** 6 | **Plans:** 78
+
+### What Was Built
+- A damage ledger and one idempotent kill path (snapshot v4, one golden regeneration, pristine-omit hashing), so no snapshot ever holds a dead entity.
+- Wreckage, cargo pods and alloy plates by Oolite's rule under an entity cap of 256, in fixed instanced render layers, with debris assets vendored from the checkout.
+- NPC laser fire through Oolite's fire gate (engine and test pilots only) and hits on the player through shields and energy.
+- Station and buoy hits by Oolite's subentity rule, destroyable buoys, and ship-ship and ship-buoy collisions by mass and closing speed.
+- Equipment damage persisted in save schema v5 with an F3 repair, and player death through one path with a page-reload game over.
+
+### What Worked
+- Designing every hashed field of the milestone in Phase 15's first plans: no later phase bumped the snapshot, and Phases 16 and 17 ran side by side on a frozen field set.
+- One kill path that every later damage source (NPC fire, collisions, buoys, the player's death) had to route through; the milestone integration check found every seam wired.
+- Recording each divergence from Oolite in FIDELITY.md before its code, and turning each into a todo with a tripwire instead of leaving it silent.
+- Remote `verify-full` at the phase gate without an owner checkpoint (from Phase 19): no phase waited on the owner for a mechanical gate.
+
+### What Was Inefficient
+- Phase 18 took 22 plans: the collision-response oracle, the statics hull table and the subentity rule each needed more passes than planned, and 15 review Info findings stayed open.
+- UAT found presentation gaps that plan verification missed (Phase 17's gauges and fire period; Phase 20's frozen dead view and illegible game-over lines), costing five gap-closure plans (17-11 to 17-13, 20-12, 20-13).
+- A major owner-reported bug (docked F-keys, Phase 19 UAT) was captured as a todo and never diagnosed inside the milestone.
+- No milestone audit was run before the first close attempt; the close stopped and went back to audit.
+
+### Patterns Established
+- Pristine-omit hashing: a new field is hashed only when it leaves its default, so worlds that never use a feature keep their pinned hashes.
+- A behaviour that the frozen acceptance run cannot tolerate (fire, collisions) is opt-in per pilot or world, so the frozen worlds stay byte-identical.
+- Fix-later items carry a guard test that fails on the first consumer (tripwire todos).
+
+### Key Lessons
+1. Freeze the data shape of a milestone up front; parallel phases are then safe and the save and snapshot move once.
+2. Owner UAT on a visual or feel requirement is the real gate; schedule room for one gap-closure round in every phase with a dead view, HUD or screen change.
+3. A major user-facing bug reported during UAT needs a debug session in the same phase, or an explicit decision to defer it, not just a todo.
+4. Run `/gsd-audit-milestone` before `/gsd-complete-milestone`; the close relies on it.
+
+### Cost Observations
+- Model mix: not tracked
+- Sessions: not tracked
+- Notable: 730 commits in 8 days; the remote `verify-full` (147 Chromium specs) and the by-hand 20-seed acceptance run remain the dominant gate costs
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -127,6 +169,7 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 | v2.0 | not tracked | 1 | Safety nets before refactoring, gate by change type, scope cut to one phase mid-milestone |
 | v2.1 | not tracked | 4 | Technical-minimum scope, staged requirements, simulation independent of render assets |
 | v2.2 | not tracked | 2 | Independent oracle plus frozen thresholds, delegated owner checkpoints with ratification, re-verify instead of override |
+| v2.3 | not tracked | 6 | Up-front field design with one snapshot and one save bump, one kill path, divergences recorded before code, automatic remote gate |
 
 ### Cumulative Quality
 
@@ -136,6 +179,7 @@ v1.0 (Phases 1-7) closed before this file existed; its record is in `MILESTONES.
 | v2.0 | 2,407 unit, 128 Chromium specs | not recorded | 0 (no new npm packages) |
 | v2.1 | 132 Chromium specs (unit count not recorded) | not recorded | 0 |
 | v2.2 | 4,997 unit tests in 203 files | not recorded | 0 (no new npm packages) |
+| v2.3 | 7,546 unit tests, 147 Chromium specs | not recorded | 0 (no new npm packages) |
 
 ### Top Lessons (Verified Across Milestones)
 
