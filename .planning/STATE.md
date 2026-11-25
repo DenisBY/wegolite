@@ -4,12 +4,12 @@ milestone: v2.4
 milestone_name: Pirates and Police
 current_phase: 21
 current_phase_name: Roster, State Shape and Seams
-status: planning
+status: executing
 stopped_at: Phase 21 context gathered
-last_updated: "2026-11-25T23:03:41.879Z"
-last_activity: 2026-11-25
-last_activity_desc: v2.4 roadmap created (Phases 21-26, 25/25 requirements mapped)
-state_head: 0cab87fa9c78106b1f6278c8f11085c797c606b5
+last_updated: "2026-11-25T23:04:33.263Z"
+last_activity: 2026-11-26
+last_activity_desc: Phase 21 execution started
+state_head: 81c1b447ca8f8cbf0e9a497144764a9e6ee8f4e6
 progress:
   total_phases: 6
   completed_phases: 0
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-25)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Milestone v2.4 Pirates and Police — Phase 21 (Roster, State Shape and Seams) first; Phases 21 to 26 run in order
+**Current focus:** Phase 21 — Roster, State Shape and Seams
 
 ## Current Position
 
-Phase: 21 (Roster, State Shape and Seams) — READY TO EXECUTE
-Plan: —
-Status: Ready to plan (roadmap created, awaiting owner approval)
-Last activity: 2026-11-25 — v2.4 roadmap created (Phases 21-26, 25/25 requirements mapped)
+Phase: 21 (Roster, State Shape and Seams) — EXECUTING
+Plan: 1 of 19
+Status: Executing Phase 21
+Last activity: 2026-11-26 — Phase 21 execution started
 
 
 ## Performance Metrics
