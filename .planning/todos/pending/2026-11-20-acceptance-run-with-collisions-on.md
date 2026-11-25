@@ -4,6 +4,7 @@ title: Add a separate 20-seed acceptance variant with collisions on
 source: Phase 18 UAT owner decision 2026-11-20 (18-12-SUMMARY owner question 3, review L189)
 area: sim
 severity: minor
+resolves_phase: 26
 files:
   - tests/acceptance/
 audit_acknowledged:

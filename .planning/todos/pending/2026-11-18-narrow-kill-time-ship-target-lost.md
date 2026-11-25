@@ -3,6 +3,7 @@ created: 2026-11-18T09:00:00.000Z
 title: Narrow the kill-time shipTargetLost before a second AI module defines onEvent
 area: sim
 severity: minor
+resolves_phase: 23
 files:
   - src/sim/world/kill.ts
   - src/sim/ai/pilots/flight-script.ts

@@ -3,6 +3,7 @@ created: 2026-11-17T10:30:00.000Z
 title: Skip shipHit for a target already lethal in the same tick, when shipHit gets its first consumer
 area: sim, audio
 severity: minor
+resolves_phase: 23
 files:
   - src/sim/combat/ledger.ts
   - src/sim/combat/step.ts

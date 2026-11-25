@@ -3,6 +3,7 @@ created: 2026-11-19T03:00:00.000Z
 title: Let targetTargetsSelf see the player's ident lock
 area: sim
 severity: minor
+resolves_phase: 23
 files:
   - src/sim/npc/behaviours/attack.ts
   - src/sim/npc/target.ts

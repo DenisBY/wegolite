@@ -3,6 +3,7 @@ created: 2026-11-18T09:00:00.000Z
 title: Settle the asymmetric same-tick mutual-kill credit when kill credit gets its first consumer
 area: sim
 severity: minor
+resolves_phase: 25
 files:
   - src/sim/world/kill.ts
   - src/sim/combat/ledger.ts
