@@ -317,6 +317,9 @@ function sameCodes(codes: readonly string[] | undefined, expected: string[]) {
  *   visible in the controls panel) when another stored action that can fire in
  *   the same mode already holds `KeyQ`.
  *
+ * - `chart` equal to `["F6"]` and `saveLoad` equal to `["F2"]` gain their
+ *   Oolite digit aliases (`addDigitAlias`).
+ *
  * Every other entry is copied unchanged, so a customised binding survives and
  * the new action simply stays unbound where its default key is taken. The
  * result is a fresh null-prototype map; the input is never mutated. There is
@@ -354,7 +357,35 @@ export function migrateLegacyBindings(
     migrated.targetStation = keyQTaken ? [] : ["KeyQ"];
   }
 
+  addDigitAlias(bindings, migrated, "chart", "F6", "Digit6");
+  addDigitAlias(bindings, migrated, "saveLoad", "F2", "Digit2");
+
   return migrated;
+}
+
+/**
+ * Give a stored action left at its pre-alias default (`[fKey]`) Oolite's digit
+ * alias as well (quick 261125-gmc). Skipped when another stored action that can
+ * fire in the same mode already holds the digit, so a key the player gave
+ * elsewhere is never taken. A blob carries no marker for this, so an action
+ * the player rebound to exactly `fKey` also gains the alias; the alias is
+ * Oolite's own key for that screen, so that is harmless.
+ */
+function addDigitAlias(
+  bindings: Partial<Record<ActionId, readonly string[]>>,
+  migrated: Partial<Record<ActionId, string[]>>,
+  action: ActionId,
+  fKey: string,
+  digit: string,
+): void {
+  if (!sameCodes(bindings[action], [fKey])) return;
+  const digitTaken = ACTION_IDS.some(
+    (other) =>
+      other !== action &&
+      (migrated[other] ?? []).includes(digit) &&
+      contextsOverlap(other, action),
+  );
+  if (!digitTaken) migrated[action] = [fKey, digit];
 }
 
 /**

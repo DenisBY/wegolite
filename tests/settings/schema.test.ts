@@ -729,3 +729,44 @@ describe("migrateLegacyBindings", () => {
     expect(loaded.bindings.ident).toEqual(["KeyR"]);
   });
 });
+
+describe("migrateLegacyBindings digit aliases (quick 261125-gmc)", () => {
+  function merged(bindings: Bindings) {
+    return mergeDefaults({ ...defaults(), bindings }).bindings;
+  }
+
+  it("adds Digit6 to a chart and Digit2 to a Save/Load left at the old default", () => {
+    const map = merged({ chart: ["F6"], saveLoad: ["F2"] });
+
+    expect(map.chart).toEqual(["F6", "Digit6"]);
+    expect(map.saveLoad).toEqual(["F2", "Digit2"]);
+    expect(map.viewAft).toEqual(["Digit2", "F2"]);
+  });
+
+  it("leaves a customised chart binding alone", () => {
+    const map = merged({ chart: ["KeyG"], saveLoad: [] });
+
+    expect(map.chart).toEqual(["KeyG"]);
+    expect(map.saveLoad).toEqual([]);
+  });
+
+  it("does not take a digit another action in the same mode holds", () => {
+    const map = merged({ chart: ["F6"], stationMarket: ["F8", "Digit6"] });
+
+    expect(map.chart).toEqual(["F6"]);
+    expect(map.stationMarket).toEqual(["F8", "Digit6"]);
+  });
+
+  it("migrates a stored blob end to end through loadSettings", () => {
+    const storage = new FakeStorage();
+    const blob = { ...defaults(), bindings: { ...defaults().bindings } };
+    blob.bindings.chart = ["F6"];
+    blob.bindings.saveLoad = ["F2"];
+    storage.setItem(SETTINGS_KEY, JSON.stringify(blob));
+
+    const loaded = loadSettings(storage);
+
+    expect(loaded.bindings.chart).toEqual(["F6", "Digit6"]);
+    expect(loaded.bindings.saveLoad).toEqual(["F2", "Digit2"]);
+  });
+});

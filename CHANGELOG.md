@@ -24,7 +24,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The digit keys 2 and 6 now open Save/Load and the chart, as F2 and F6 do
   (Oolite's aliases). In flight 2 is still the aft view, and 6 opens the chart
-  there too; typing in the chart's search box is unchanged.
+  there too; typing in the chart's search box is unchanged. Saved key settings
+  that still have the old chart and Save/Load keys get the digits on the next
+  load, unless another key action already uses them.
 
 ## [0.8.1] - 2026-11-25
 
