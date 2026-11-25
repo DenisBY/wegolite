@@ -1,135 +1,192 @@
 # Project Research Summary
 
-**Project:** Wegolite, milestone v2.3 "Combat and Death"
-**Domain:** Deterministic browser port of Oolite; combat consequences added to an existing fixed-step, golden-hashed simulation (NPC laser fire, hits on stations and buoys, ship destruction with wreckage and cargo, ship collisions, player death and game over)
-**Researched:** 2026-11-16
-**Confidence:** HIGH on rules and integration points (read from the Oolite checkout and the Wegolite tree); MEDIUM on wreckage lifetime, per-hull cargo, the Coriolis subentity rule and effort estimates. This SUMMARY supersedes the one from the earlier milestone.
+**Project:** Wegolite, milestone v2.4 Pirates and Police (phases continue at 21)
+**Domain:** Browser port of Oolite: system populator, hand-ported priority AI, legal status and bounties, cargo scooping, combat rating
+**Researched:** 2026-11-25
+**Confidence:** HIGH for Oolite behaviour and integration points (read from the checkout at pin `7437f22` and the Wegolite tree); MEDIUM for population sizes and effort; LOW for the real-Oolite census feasibility.
+
+Detail lives in `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md` (same directory).
 
 ## Executive Summary
 
-v2.3 is a rules-porting and integration milestone, not a technology milestone. The v1 to v2.2 stack is validated, and every new capability is hand-written sim code that follows closed-form Oolite rules: damage `m * v^2 / 50,000,000`, the NPC fire gate, `becomeExplosion` and `releaseCargoPodsDebris`, `takeInternalDamage`, and `getDestroyedBy`. The only real stack work is in the content pipeline: widening the NPC record, vendoring about eight models and several textures, and emitting hulls for the Coriolis, buoy, pod and alloy plate. The expensive part is that every new rule has to pass through four constraints: determinism (own-stream draws, no frame-time gates), the frozen Phase 14 entity record and golden, the frozen 20-seed acceptance run, and a clean tick boundary (no dead entity, no queued AI event).
+v2.4 turns the inert 12-ship world into Oolite's living system. Oolite builds this from three pieces. `oolite-populator.js` is arithmetic over the economy and government of systems within 7 LY (initial groups plus a 20 s repopulation tick). `oolite-priorityai.js` is a 6.8k-line priority-list AI (about 130 to 190 reachable functions, 58 `Math.random` sites) with one script per role. The engine adds a small legal and reward layer: `markAsOffender` bit-ORs, `collectBountyFor`, `markForFines`, `getFined`. Wegolite already has the substrate: a deterministic fixed-step world, native steering, the v2.3 damage ledger, pods, the fire gate, a typed AI seam and a dev-only harness that runs Oolite's own JS. So this is a port plus integration milestone. It needs **zero new dependencies** and no Docker or image change.
 
-The recommended approach has four parts.
-1. Design all new hashed entity state once, with one `WORLD_SNAPSHOT_VERSION` 4 bump and one golden regeneration, taken in the first plan.
-2. Route all damage through one ledger, `applyDamage`, resolved after `stepWorld`, with a second `commitWorld` and an immediate AI drain so the tick boundary stays clean.
-3. Keep death as a single sim function that sets `FlightMode "dead"`, and give the app a single death flow that reuses the existing warm-Load install path instead of a second restore path.
-4. Keep explosions and effects render-only.
+Recommended approach: keep priority lists as frozen typed TS tables over flat `AiComponent.params` (no closures, so state hashes and snapshots). Run one up-front bundled hashed-shape bump (world snapshot v4 to v5, later save v5 to v6) so no later phase reopens the format. Build the populator first as a pure planner verified exactly against Oolite's own script (recorded oracle fixtures). Then the AI engine (traders and pirates), then police, hunters, legal status, bounty and rating, then repopulation, then scooping. Oracles are recorded from Oolite's original JS and replayed in CI (the checkout is not needed in CI). Headless Oolite is a sanity census only, not an oracle.
 
-Do not add a physics engine, particle library, ECS or any dependency. Do not raise `MAX_ENTITIES`. Scale Oolite's 0.95 and 0.50 debris thresholds to the current cap of 256 (243 and 128).
-
-The biggest risk is not technical. In shipped play every NPC is `ai: null`, and priority AI, pirates and police are out of scope, so nothing makes an NPC fire. Without an owner decision, "NPC fire" is reachable only through test pilots. Further risks:
-- The frozen acceptance run throws on any flyer death, and it only runs by hand on the remote machine.
-- Save and equipment-damage persistence is contested between the research files.
-- Statics (Coriolis, buoys) have no energy, hull or removal path today, and the Coriolis hull may break the hull artifact caps.
-- A dead player must never be autosaved, because `snapshotForSave` currently encodes any non-`inFlight` mode as `docked`.
-
-## OPEN FOR THE OWNER
-
-Decisions the four research files raise that the research cannot make. Ask in Russian, plain SRE/devops wording, with a recommendation.
-
-| ID | Question | Recommendation | Source |
-|----|----------|----------------|--------|
-| **OQ-1** | **Who triggers NPC fire in shipped play?** All 12 populated NPCs are `ai: null`; `AI_REGISTRY` holds only test pilots. (a) engine only, proven by test pilots and the `?test=1` hook; (b) minimal wake-on-hit "reflex" AI attached when an `ai: null` ship is hit, recorded as a divergence; (c) pull a slice of role AI from the backlog. | (a) fits "technical minimum"; (b) only if a player must see it. Never shoot-on-sight, never (c). Record in Key Decisions and FIDELITY.md. | FEATURES Q1, ARCH Q1, PITFALLS 1 |
-| **OQ-2** | **Equipment damage persistence / save v5.** STACK, ARCH, FEATURES TS-14: save v5 with `damagedEquipment`. PITFALLS: stay on v4 and remove the key (a `_DAMAGED` key is rejected by the save validator and there is no repair path). **Files disagree.** | Owner call; cheapest is key removal on v4 plus a FIDELITY.md row. Decide with OQ-3. | STACK, ARCH Q2, FEATURES TS-14, PITFALLS 13, 18 |
-| **OQ-3** | **Repair (CBT-12 slice, D-8).** Add the 50 % repair at F3 or leave damage permanent? FEATURES: add; ARCH: leave out. | If repair is out, OQ-2 leans to remove-key. | FEATURES Q3, ARCH Q4 |
-| **OQ-4** | **Statics hit model.** Port the subentity branch or bake Coriolis (faceplate, tris, dock) and buoy (core) into one merged octree? How does the buoy take damage? | Merged hull, parent energy only, recorded divergence; spike first on the Coriolis dock mouth. Station absorbs hits (25000 energy, 100/s, never destroyed); buoys (250, 2/s) hold state in a per-world `staticHealth`, hashed only when non-pristine. | FEATURES Q2, ARCH Q8, PITFALLS 11 |
-| **OQ-5** | **Entity cap 256 vs Oolite's 2048.** | Keep 256; thresholds 243 and 128; drop the frame-time term (`getTimeDelta < 0.125`) and record both; keep the scanner-range gate. | STACK, FEATURES TS-6, PITFALLS 8 |
-| **OQ-6** | **Coriolis octree vs hull caps** (`MAX_HULL_NODES` 16,384; `MAX_HULL_ARTIFACT_BYTES` 200,000; artifact already 89,673 bytes). | Measure in the `assets` container. Fits: one file, `MAX_HULLS` 32. Otherwise a separate `ships-statics-hulls.json`. Key Decisions row either way. | STACK, ARCH 13 |
-| **OQ-7** | **Snapshot design:** always-present `;wpn:` segment (ARCH) vs pristine-omit (PITFALLS); debris motion model (heading + `speed` vs bounded velocity vector). | One v4 bump, one regeneration of `inert-lave-epoch1.json`, strip-and-rehash proof to the previous golden; pristine-omit wherever a field is default for existing ships; decide the motion model in the same plan. | ARCH 6, PITFALLS 3, 9 |
-| **OQ-8** | **Vendoring new assets** (wreck1..5, oolite_alloy, oolite_barrel, textures, five particle sprites). | Copy from the local checkout via `scripts/vendor-oolite.sh`, with `CHECKSUMS.sha256`, `ASSETS.md`, `NOTICE` rows. Confirm sanctioned. | STACK, ARCH 8, PITFALLS 25 |
-| **OQ-9** | Game over: reload or in-page return to title? | Page reload (also matches Oolite). | ARCH Q5 |
-| **OQ-10** | May the player die while `launching`? | Require `inFlight`; clamp energy at 1 while launching; record divergence. | ARCH Q6, FEATURES TS-12 |
-| **OQ-11** | Station-hull contact stays damage-free (v1)? | Yes, until DOCK-09; state it in the requirements. | FEATURES Q4, PITFALLS 12 |
-| **OQ-12** | Buoy collision vs arrival/launch poses (`hyperspace-failure.spec.ts` parks at 0 m from the witchpoint buoy; buoy hull ~100 m vs sim radius 10 m). | Sanctioned fixture change with a Key Decisions row; unit test that no arrival draw overlaps the buoy hull. | FEATURES Q5 |
-| **OQ-13** | Wreckage lifetime (LOW confidence, ~E/1000 s). | Pin the formula, mark LOW in FIDELITY.md, add to the deferred todo `2026-11-14-measure-oolite-reference-in-docker`. | FEATURES Q6, PITFALLS 20 |
-| **OQ-14** | Smaller calls: (a) lasers never internally damaged; (b) `ship_trade_in_factor` not persisted; (c) subentity explosion/ring/spark polish deferred; (d) world during the 30 s game-over window. | (a) yes; (b) no; (c) defer; (d) freeze with a deterministic dead hash. | FEATURES D-6, D-9, ARCH Q3 |
+Key risks, and what the roadmap must do about them:
+1. The new populator and the 9-to-28-hull catalogue growth silently change the **frozen 20-seed acceptance run** and the inert goldens. Leave `populateInertWorld` and `INERT_POPULATION` byte-identical, add the new populator beside them, and pin the inert world hashes.
+2. **Milestone text and Oolite disagree**: Oolite pays the bounty **at the kill**, not on docking; docking pays only fines (and the deferred pod rewards). This needs an owner answer before the law phase is planned.
+3. The AI library needs **NPC removal paths** (dock, jump, land), **station behaviour** and a **hit-reaction stage** in the ledger, none of which exist. Without them traffic never turns over and legal status never triggers.
+4. Population is larger than assumed (about 40 to 65 ships on average, up to about 110 at peak in an anarchy). That presses on the 256 entity cap, the 50 draw-call budget (28 hull keys) and per-tick cost.
 
 ## Key Findings
 
-### Recommended Stack (STACK.md)
+### Recommended Stack
 
-Zero new runtime or dev dependencies, no Docker image change, no version bumps (TypeScript, Three.js 0.187.0, zod 4.6.7, Vite, Vitest, fast-check 4.10.2, Playwright stay pinned). No `docker compose down --volumes` needed.
+No package changes. Everything is plain TypeScript over data that the existing `tools/oolite-ingest` pipeline compiles from plists that are already vendored. Only models and textures are new vendored bytes (9 GLBs).
 
-- TypeScript sim (`src/sim/combat/`, `src/sim/npc/`): pure functions over `World` for damage, destruction, collision, internal damage.
-- Three.js `InstancedMesh`/`Points` pools (`src/render/bodies/`) for explosions, flashes, sparks, debris, as in `laser-shots.ts` and `npc-ships.ts`.
-- zod strict schemas: widen the NPC and hull records, never loosen.
-- Content ingest: vendor debris models, widen the NPC record, emit Coriolis/buoy/barrel/alloy hulls, compile `explosions.plist` to `explosions.json`.
-- fast-check: damage formulas, `isHitByOctree` against a brute-force reference, totality.
+**Core technologies (unchanged, with their v2.4 role):**
+- TypeScript strict 6.0.2: all sim, ingest and oracle code. New AI modules stay inside the AI lint zone (depth 2 under `src/sim/ai/`, allow-listed imports).
+- zod 4.6.7: widened strict NPC record schema (bounty, auto_ai, has_scoop, escorts, counts_as_kill, ...), save schema v6, role-categories, ai-map and comms schemas.
+- Vitest + fast-check: replay of recorded oracles; property tests (legal status never decreases except by the three Oolite rules, rating monotone in kills, spawning an unrelated ship never moves another ship's draws).
+- Vite 8.3.8 and the existing lazy-chunk pattern: new catalogue stays in the traffic-only lazy set; first-load ceiling (9 MiB) must not move.
+- tsx + `tools/ai-harness`: becomes a **recorder** (`record.ts`, `populator.ts`, `reach.ts`). Fixtures commit under `tests/oracles/{ai,population}/`. Keep the `OOLITE_SRC` mount; do **not** vendor Oolite's scripts.
+- Three.js 0.187: no new API; the risk is draw calls (one `InstancedMesh` per (model, primitive)).
 
-Rejected: physics engines, particle libraries, `three-mesh-bvh`, ECS/XState, server or database, the frame-time gate. Never `Math.random` or `Date.now` in `src/sim`.
+**Content inputs (all plists already vendored):** `shipdata` (+overrides) widened from 9 to **28 records** (verified by resolving `like_ship` over the populator roles; a 9-record catalogue skews every composition figure), `autoAImap` (role to AI key), `role-categories`, `descriptions` comms subset, `trade-goods`, `planetinfo`. Lift the converter's `aft_weapon_type` refusal (six of the 28 hulls need it). One GLB per record key, not per model.
 
-Numbers to reproduce (Oolite source): collision `dam = m_other * v^2 / 5e7`, 0.05 floor, separating faster than 1 m/s ignored, stations never moved or destroyed; `n_alloys = (mass/6000)^(1/4)`, up to 3 wrecks, pod chance 70 falling 30 (NPC) or 20 (player) per survivor, 15-pod limit, blast momentum `0.125 * mass` over `2.5 * radius`; internal damage loop `(rand & 31) < amount`, minus 32 per iteration; NPC fire gate (temperature cutout 0.85, energy, recharge, range roll, `onTarget`).
+### Expected Features
 
-### Expected Features (FEATURES.md)
+**Must have (table stakes; acceptance fails without them):**
+- DATA-20 record fields, role categories, AI map, comms strings.
+- POP-01..04: initial population by Oolite's rates, per-ship kit (weapons level, skill, bounty values; missiles inert), repopulation every 20 s with witchpoint arrivals and caps, pack leader/follower groups.
+- AI-01..08: priority controller, library subset, trader, pirate family, police, standard event handlers, autonomous fire via the existing gate, comms to the player.
+- NPC-LIFE-01/02: NPC exits (dock, jump, land) and station launches (stand-in).
+- LAW-01..07: integer legal status (Clean 0, Offender 1 to 50, Fugitive 51+, halve on arrival, zero on galactic jump), offence broadcast, police response, fine at main-station dock, docking check (docking computer and instruction text; manual docking is not refused by Oolite), station marks, kill bounty.
+- SCP-01/03: player scooping with Fuel Scoops (F3), NPC scooping for the pirate loot loop.
+- RAT-01: kill tally and rating on F5, saved (save v6).
 
-**Table stakes:** TS-1/3/15 NPC destruction at energy 0 (station exempt), NPC-vs-NPC kills, clean removal (`entityRemoved`, `identLost`); TS-2/4 NPC fire by Oolite's gate and hits on the player through shields; TS-5/6/7 pods, scrap, wreckage with the entity cap; TS-8/9 lasers and ident hit station and buoys (closes todo `2026-11-15-lasers-and-ident-hit-stations-and-buoys`); TS-10/11 ship-ship and ship-buoy collision damage; TS-12/13 player death from any cause and game over loading the last save; TS-14 player internal damage; TS-16 render-only explosion.
+**Should have (differentiators, recommended in):**
+- POP-05 light bounty hunters (law of Anarchy and Feudal, where police rate is zero).
+- RAT-02 "Right On, Commander!" every 256 kills; SCP-02 scoop HUD light if the layout fits.
 
-**Nearly free:** D-3 explosion momentum on neighbours, D-2 evasive-on-hit. Owner-gated: D-1 retaliation (OQ-1), D-8 repair (OQ-3).
+**Defer (v2.5+):**
+- Dynamic player roles (LAW-08), station defence ships (AI-09), jettison (SCP-04), trader opportunist and assassins (AI-10), medium/heavy hunter packs, missiles and ECM, escape pods and insurance, scavengers and shuttles, sun scooping, contraband penalties, rock hermits, asteroids, aegis raiders, Thargoids.
 
-**Defer:** D-4 sparks, D-5 particle fidelity, D-7 B&W fade, D-9 trade-in wear persistence, D-10 buoy core fidelity. **Out:** missiles, ECM, mines, escape pods, bounty/legal status, scooping, sun/planet/heat death, docking-slot scrape damage, audio, asteroids, server/database, raising `MAX_ENTITIES`.
+### Architecture Approach
 
-### Architecture Approach (ARCHITECTURE.md)
+The priority AI is code-as-data: frozen tree tables selected by `params.tree`, a single `think` evaluator, handler sets as data, per-ship state as about 24 flat `params` keys (limit 32, enforced by a unit test), caches recomputed per think. The populator runs inside `stepWorld` as a new phase after the final AI drain and before sanitise, driven by a hashed `World.populator` record and stateless forked RNG per roll. Player standing (legal bounty, kills) is **sim-owned and hashed** (inside the combat state, pristine-omit), not a profile mirror; the profile gets credits and the hold only. A new `retireShip` is the only non-lethal removal path. Groups are `Entity.groupId` plus a small `World.groups` table; membership is derived by scan.
 
-Everything resolves at one point of `stepSim` after `stepWorld`: player-dead early-out, `resolveCollisions`, `resolveShotHits` (returns records), `applyDamage` (ledger, ascending order), `destroyShips`, `checkPlayerDeath`, `drainAiEventsNow`, second `commitWorld`, then `updateIdentTarget`. The tick boundary is always clean. The sim decides and emits events; the app commits profile changes. Death is `FlightMode "dead"`, fail-closed in every existing mode gate.
+**Major components:**
+1. `src/sim/ai/priority/` (engine, trees per role, conditions, behaviours, responses, params) with `ai/facts.ts` injected content facts.
+2. `src/sim/world/populator/` (`facts`, `plan`, `spawn`, `repopulate`), beside the untouched inert populator.
+3. `src/sim/world/{retire,scoop}.ts`, `npc/behaviours/collect.ts` (new native COLLECT_TARGET and tractor stage).
+4. `src/sim/combat/offence.ts` plus a ledger **hit-reaction stage** (aggressor and offence broadcast for every laser hit including the lethal one; `noteTakingDamage` draw; retaliation only if energy remains).
+5. `src/sim/player/standing.ts` (`markOffender` OR, `ratingFor`, `collectBountyFor`, halve on arrival), station responder record (`World.station`, not a dynamic entity).
+6. App flows: `standing-flow`, `scoop-flow`, event-router additions (append to `EVENT_SUBSCRIBER_ORDER`, never insert).
+7. Oracle tooling: AI trace recorder, populator recorder, reachability checklist (`reachable.json`).
 
-Components: (1) `ledger.ts`/`destroy.ts`/`debris.ts`; (2) `npc/fire.ts` + `SteerContext.fire`; (3) `collision.ts` + `isHitByOctree`; (4) `static-hulls.ts` + `staticHealth`; (5) `death.ts`, `death-flow.ts`, `game-over.ts`, `loadSavedGame`; (6) `internal-damage.ts`, `damage-flow.ts`; (7) render `debris.ts`, `explosions.ts`.
+### Critical Pitfalls
 
-### Critical Pitfalls (PITFALLS.md)
+1. **Frozen acceptance and inert goldens share the production populate path and the NPC catalogue (C1).** Keep `populateInertWorld`, `INERT_POPULATION`, `createInertPopulate` untouched with an explicit nine-key record list; add a measured-before/equal-after hash pin for `laveInertWorld` epochs 1 to 20; new traffic acceptance is a **new file**, never an edit to `thresholds.ts`.
+2. **Piecemeal hashed fields (C2).** One field-design plan first: snapshot v5, pristine-omit segments, `Entity.bounty/groupId/cargoKind/podCommodity/podAmount`, per-facing weapons, `World.groups/populator/station`, `PlayerStanding` in the hashed combat line; save v6 gets only `legalStatus` and `shipKills`.
+3. **Closure state and draw order in the AI port (C3, C4, C5).** Typed `params` only; evaluate entries in `_reconsiderList` order and keep short-circuit order so draw counts match; resolve `accuracy` at spawn (the lazy sentinel -100 breaks `reconsiderNow`); strict-greater wake conversion; verify with recorded oracle traces comparing decisions, parameter writes, draw indices and wake times (not frames).
+4. **Damage path lacks the AI-visible side effects (C6) and the legal rules live in AI scripts (C7).** The doomed-target todo must not skip the offence broadcast; legal status is an integer OR-ed by AI handlers (`| 7`, `| 15`, `| 63`, `| 8`) and engine marks (`| 64`); reproduce or record the `bounty & 7 != 7` precedence bug, never fix it silently.
+5. **No removal path, silent idle fallbacks, entity cap (C10, C11, C12).** Add `retireShip` and a reachability tripwire (every behaviour a ported tree can request exists in `BEHAVIOUR_ROUTES` or is a recorded cut); make group spawns atomic; decide pod lifetime and a populator ceiling from measured data; soak-test a full anarchy with ten kills.
 
-1. Nobody pulls the trigger (OQ-1); test the whole fire route through the hook spawn.
-2. Phase 13's gate-less fire becomes 120 Hz spam once steering calls fire; port the full gate, quantise `shot_time` to integer ticks, extend oracle fixtures first (written without reading `src/sim/npc`).
-3. Every hashed field costs a snapshot bump and golden regeneration; one bump, strip-and-rehash proof, pristine-omit, wreckage lifetime reuses `Entity.energy`, bounds in `limits.ts` only.
-4. The frozen acceptance run throws on any flyer death; keep new fire and collision gated so frozen worlds are byte-identical; octree collision, never sphere-only; rerun 21 of 21 by hand on the remote machine after every plan touching `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json`; changing the harness needs the `Detector-change-approved-by-owner` trailer.
-5. Kills after the commit leave a dead entity at the tick boundary (`snapshotWorld` throws): second commit, one idempotent `killShip`, property test.
-6. Death is decided inside the damage funnel, not by polling; amend N2, the player energy floor and A7.
-7. Autosave and death: `snapshotForSave` must refuse `dead`; session latch before every autosave/manual-save guard; death-load waits for queued writes; never write on death.
-8. One death path: enumerate about 15 `paused` sites, chart, F2 screen, countdown, ident lock, held keys, focus loss, context loss; refactor `loadFromSave` out of F2 gating; handle every save status.
-9. Debris determinism: no frame-time gate, draw even when `spawnEntity` refuses at the cap, fixed spawn order, hash equal at 30/60/144 Hz.
-10. New combat code is outside AI fault containment: keep every function total, fast-check it.
+Also: three tripwires fire in this milestone (`kill-credit-consumers`, `ship-hit-consumers`, `on-event-handlers`) and must be handled in the first plan that crosses them; the missiles/ECM todo asks for a guard that fails if an NPC with `missiles > 0` reaches an AI.
+
+## Open decisions for the owner
+
+Deduplicated across all four files. Each has a recommendation; BLOCKING items must be answered before the named phase is planned.
+
+| # | Decision | Recommendation | Blocks |
+|---|----------|----------------|--------|
+| D1 | **Bounty at kill vs on docking.** Milestone text says "paid on docking"; Oolite credits `10 x bounty` at the kill (`PlayerEntity.m:6042-6092`) and pays only fines at docking. | Follow Oolite: credit at the kill with the "Bounty / Total" message; treat "on docking" as the fine and the fugitive refusal. Rewrite the acceptance sentence. Payment on docking would need `standing.pendingBounty`, a divergence row and two reviewer agreements. | **BLOCKING** Phase 21 (roadmap and requirements text), Phase 24 |
+| D2 | **Main-station responder / station AI.** `AuthorityPredicate` makes the station an authority; without it nothing marks offenders near the station and attacking it has no response. | Minimal responder only: one hashed `World.station` record (alert level, offence receiver marking `\| 63`, hit-station marking `\| 64/96`, police launch through the D3 stand-in). Defer defence ships and full `oolite-stationAI.js` (AI-09). Do not promote the Coriolis to a dynamic entity. Record in Key Decisions and `FIDELITY.md`. | Phase 21 (record shape), Phase 24 |
+| D3 | **NPC docking / departure / launch stand-in.** Traders end by docking or jumping, police and hunters return to dock, repopulation launches from the station. None exists. | Simplified stand-in with a `FIDELITY.md` row: approach dock mouth then `retireShip` (docked), witchpoint then retire (jumped), planet range then retire (landed); station launches spawn at the dock mouth, pirates from the planet by position. One seam so Oolite's docking port can replace it later. Never use `killShip` for departures. | Phase 23 |
+| D4 | **Repopulation.** Initial-only vs the 20 s timer. | Include it (about 280 lines of `random < rate` arrivals) inside `stepWorld`, armed from a forked stream, with a populator ceiling. Without it a cleared system stays empty and "pirates attack unprompted" fails after the first fight. | Phase 25 |
+| D5 | **Hull catalogue growth and aft weapons.** 9 compiled hulls vs the 28 records the populator roles resolve to; six need aft weapons. | Grow to 28 records (18 models, 9 new GLBs) and lift the `aft_weapon_type` refusal as planned work (per-facing weapon type and temperature in the one snapshot bump; aft branch in attack and the fire gate). Otherwise police vanish at TL 10+, packs are all small ships and the Oolite comparison is meaningless. Fallback if schedule forces it: nine hulls plus aft-free freighters, compare by role class, record every fallback. | **BLOCKING** Phase 21 |
+| D6 | **Draw-call budget.** 28 hull keys, each with several primitives, against the 50-call budget in `budget.spec.ts`. | Measure a full anarchy in a render spike in Phase 21 before the populator ships. Fixes in order: merge primitives per hull at build time, share textures across variants, then an owner-recorded budget raise. Do not hide it by lowering traffic. | Phase 21 (spike), Phase 22 |
+| D7 | **Pod commodity, lifetime and hold model.** Pods are anonymous; scavengers (the pod cleaners) are deferred; Oolite keeps scooped pods in a separate list until docking. | (a) Pods carry commodity and amount from a forked `"pod"` stream (one measured debris re-pin, in the Phase 21 bump). (b) Scooped pods merge into `profile.cargo` at scoop time via `cargoScooped` (no new save field; `FIDELITY.md` row; saved `heldPods` array is the fallback). (c) Add a pod expiry or debris-before-ships eviction rule, decided from soak data and recorded, since nothing else removes pods. | Phase 21 (fields), Phase 26 |
+| D8 | **Player role static vs dynamic.** Oolite drifts player roles with play; used for pirate victim choice and police forgiveness. | Static `player-unknown`, recorded divergence. Consequence: first laser hit on a clean ship is an offence with no forgiveness. Dynamic roles (LAW-08) later. | Phase 24 |
+| D9 | **Light hunters.** Owner list omits them; for governments 0 and 1 the police rate becomes light hunters. | Include light bounty hunters only (about 90 percent shared with the police AI). Exclude medium/heavy hunter packs and the leader AI. Otherwise Anarchy and Feudal have no law away from the station. | Phase 24 |
+| D10 | **Jettison / cargo demand.** Pirates say "Your cargo or your life" but there is no jettison to pay them. | No jettison in v2.4. Keep Oolite's demand line, record the divergence (demand only resolved by killing the pirate or fleeing), add a todo plus tripwire for SCP-04. A minimal `j` jettison is a cheap stretch in Phase 26 if the owner prefers. | Phase 23 (comms), Phase 26 |
+| D11 | **Mutual kill credit symmetry** (todo `2026-11-18-mutual-kill-credit-symmetry`; first consumer trips `kill-credit-consumers`). | Settle in Phase 24's first plan with a test per case. Player collects only if alive (`PlayerEntity.m:6044`); credit the damage dealer from the ledger record, not an AI event; symmetric credit for the consumers added here (bounty, tally, "attacked police" mark); NPC-vs-NPC id-order asymmetry accepted and recorded only if no consumer can observe it. Narrowing the kill-time `shipTargetLost` needs the owner's edit of the Phase 15 criterion; ask in the same breath. | Phase 24 |
+| D12 | **Acceptance run in a gate.** The 20-seed run is in no gate by decision (IN-04); v2.4 touches `src/sim/npc/**`, `src/sim/world/**`, `ships-npc.json`. | Keep the frozen run manual on the remote machine after each qualifying plan, recorded in the plan SUMMARY. Do not add to `verify-full` yet. Add a **new** traffic acceptance scenario (separate file) at Phase 27; revisit gating after. Ask once, early, whether the collisions-on and idle-flyer variants (todos IN-05, collisions-on) may be added as new files. | Phase 21 (ask), Phase 27 |
+| D13 | **Afterburner / fuel injection.** Five hulls (asp, ferdelance, krait, viper-interceptor, cobramk1-alt) have injectors; interceptor AIs speed up with them; v2.2 cut the afterburner. | Keep the cut and record the narrower pursuit speed for those hulls. Port only if the Oolite comparison shows interceptors escaping in a way that changes outcomes. | Phase 23 |
+
+Defaults the roadmapper may assume without asking: missiles forced to zero at spawn for every NPC with a tripwire guard; NPC `has_escape_pod` false; scavengers and shuttles removed from the populator table; sun-skim conditions false; equal-priority populator entries run in the script's insertion order; comms-text expansion in the UI only, never in the sim.
 
 ## Implications for Roadmap
 
-Phase numbering continues at 15. A single snapshot bump goes first; the damage funnel precedes fire, collisions and death; statics and collisions share one hull table; death comes last because it consumes every damage source.
+### Phase 21: Roster, state shape, seams
+**Rationale:** Everything depends on the 28 hulls and one bundled hashed-shape bump (v2.3 lesson: freeze the data shape up front).
+**Delivers:** Widened NPC schema and converters (bounty, auto_ai, has_scoop, escorts, counts_as_kill, role-categories, ai-map, comms), 9 new vendored GLBs with provenance, aft-weapon refusal lifted; snapshot v5 with every new field pristine-omit; `PlayerStanding` in combat state; `retireShip`; ledger hit-reaction stage and `offence.ts`; AI vocabulary and `WorldView`/`ShipControl` widening with pin tests; pod identity; inert-world isolation and hash pin; draw-call spike; guards updated.
+**Addresses:** DATA-20, groundwork for POP, AI, LAW, SCP, RAT.
+**Avoids:** C1, C2, C9, C11 (design), M6 (pod fields).
 
-- **Phase 15: Foundation, damage ledger and destruction core.** Plan 1 is the single entity-field design (weapon, cargo, `staticHealth`, motion model), snapshot v4, one golden regeneration, compiled NPC cargo/weapon fields. Then ledger, `killShip`, second commit, `drainAiEventsNow`, events, NPC death at energy 0, clean removal, `identLost`. TS-1, TS-3, TS-15. Needs OQ-7.
-- **Phase 16: Debris, cargo, wreckage, entity cap.** Pods, alloy plates, wreckage, thresholds 243/128, ballistic debris, instanced layers, `explosions.json`, vendored models with provenance. TS-5/6/7/16, D-3. Needs OQ-5, OQ-8.
-- **Phase 17: NPC fire.** `npc/fire.ts`, `SteerContext.fire`, un-skip `fireMainWeapon:` sites, cooling and shot timer, decision source per OQ-1, new oracle fixtures, end-to-end hook-spawn spec. TS-2/4, D-2. 20-seed acceptance by hand. Needs OQ-1.
-- **Phase 18: Statics as targets, and collisions.** Coriolis/buoy/barrel/alloy hulls, `static-hulls.ts` poses, laser and ident candidates, buoy `staticHealth`, `isHitByOctree` port, `collision.ts`, player `impulse` response. TS-8/9/10/11. Needs OQ-4, OQ-6, OQ-11, OQ-12.
-- **Phase 19: Player death, game over and internal damage.** `FlightMode "dead"` with fail-closed review of the 48 mode references, `deathFlow`, `GameOver` overlay and input context, `loadSavedGame`, autosave latch, probe `death` field, `internal-damage.ts`, `damage-flow.ts`, save v5 or key removal (OQ-2), F3 repair if OQ-3. TS-12/13/14. `verify-full` once at the end.
-- **Phase 20 (close-out, may fold into 19):** final acceptance (21 of 21), `verify-full`, FIDELITY.md rows and Key Decisions amendments, CHANGELOG, provenance, CI timeout margins.
+### Phase 22: Populator, initial population
+**Rationale:** Pure arithmetic with exact oracle support; composition is verified without AI noise and the AI phase gets real ships.
+**Delivers:** `populator/{facts,plan,spawn}.ts`, neighbourhood builder, group builders (traders, couriers, smugglers, independent pirates, packs, hunters, police), kit helpers, `WITCHPOINT` location, populator recorder and `tests/oracles/population/*`, `createSystemPopulate` beside the inert closure; ships still `ai: null`. Boxed spike on a real-Oolite census (start-system choice).
+**Avoids:** C1, C4 (forked streams), M7, C12 (atomic groups).
 
-Gates (AGENTS.md): pure `src/sim/` plans need `test`, `lint`, `typecheck`; browser-facing plans need `verify`; death flow and persistence need `verify-full` once. Keep browser specs to about three (death-and-reload, game-over guard, NPC-fire hook).
+### Phase 23: Priority AI engine, traders and pirates
+**Rationale:** Foundation of every role; traders and pirates first because police react to offences and standing.
+**Delivers:** Engine, params, handler sets, comms channels, groups and escorts, trader, pirate (4 variants) and escort trees, NPC exit stand-ins via `retireShip`, `COLLECT_TARGET` stub, autonomous fire, generalised harness recorder and reachability checklist, comms text via UI expander.
+**Addresses:** AI-01..03, 04, 06..08; NPC-LIFE-01.
+**Avoids:** C3, C4, C5, C10, M1..M3.
+
+### Phase 24: Police, hunters, legal status, bounty, rating (save v6)
+**Rationale:** Needs the attack events and the engine; legal rules are AI handlers plus a small engine layer.
+**Delivers:** Police and light-hunter trees, station responder, `standing.ts`, offence marks, police response by status and government, kill bounty and tally, rating and "Right On", fine at main-station docking, docking-computer refusal for fugitives, halving on arrival, save v6, `standingFlow`, F5 panel, scanner kinds, HUD message prioritisation. First plan settles D11.
+**Addresses:** AI-05, LAW-01..07, RAT-01..02, POP-05.
+**Avoids:** C6, C7, C8, M4, M9.
+
+### Phase 25: Repopulation and station launches
+**Rationale:** Arrivals and exits are AI behaviours; the population must turn over and stay bounded.
+**Delivers:** `repopulate.ts`, witchpoint arrivals, station and planet launches, police launch for station marks, populator ceiling from measured data, pod and debris cap rule, 100-ship soak recorded.
+**Addresses:** POP-03, NPC-LIFE-02, LAW-06.
+**Avoids:** C12, M5.
+
+### Phase 26: Loot and scooping
+**Rationale:** Needs pod identity (21), pirates that collect (23) and the hold; a golden-moving change belongs late and once.
+**Delivers:** `scoop.ts` tractor stage, collision scoop branch, F3 Fuel Scoops (damageable, installed-list check), `scoop-flow`, hold fact, pirate `CollectSalvage`, scanner pods, render, optional scoop light, optional jettison if D10 flips.
+**Addresses:** SCP-01..03.
+**Avoids:** M6, m6.
+
+### Phase 27: Integration, acceptance, release gate
+**Delivers:** New traffic acceptance scenario over 20 seeds (thresholds committed before the run), anarchy pirate-attack and "fire on a trader, police attack" scenarios, Playwright journey, reference census and behaviour probe comparison, real-Oolite JS hash check against the checkout, `FIDELITY.md` rows, `verify-full`, frozen acceptance rerun by hand, milestone audit before close.
+**Avoids:** M8, M10, headless-Oolite comparison traps.
+
+### Phase Ordering Rationale
+- Content and the hash bundle first, else each later phase pays a second snapshot bump and golden regeneration.
+- Populator before AI (STACK and ARCHITECTURE agree; FEATURES preferred AI first on scripted scenes, resolved by doing scripted-scene tests inside Phase 23).
+- Police and law after traders and pirates: legal marking depends on the hit-reaction stage, AI handlers and the station responder.
+- Repopulation after AI and exits exist; scooping last among features because it moves debris goldens. Scooping can run in parallel with 24 and 25 once Phase 21 pod fields land.
 
 ### Research Flags
+Needs `/gsd-plan-phase --research-phase`:
+- **Phase 21:** aft-weapon lift (per-facing temperature, attack and fire gate), 28-record converter widening, draw-call options, consolidated field design. Highest design risk.
+- **Phase 22:** `systemsInRange` neighbourhood and `bottleneck` over the galaxy graph; recorder stub scope; real-Oolite start-system spike (LOW feasibility).
+- **Phase 23:** condition-by-condition port with draw-order checks, harness stub growth per role, `reconsiderNow` and wake semantics, synchronous vs queued reactions, scan order and 32-ship cap.
+- **Phase 24:** legal flows and station responder, docking-check scope (manual docking is not refused), D11 credit cases.
+- **Phase 26:** tractor force constants and `canScoop` geometry (player underside rule), hold capacity in pods.
 
-Need research during planning: Phase 17 (OQ-1, fire gate, `onTarget` per behaviour), Phase 18 (Coriolis octree spike, subentity decision, independent octree fixtures), Phase 16 (`becomeExplosion`, `releaseCargoPodsDebris`, wreckage lifetime, per-hull cargo), Phase 19 (OQ-2, OQ-3, per-pod to commodity mapping). Standard patterns: Phase 15, the death-flow wiring after decisions, Phase 20.
+Standard patterns (skip research): **Phase 25**, **Phase 27** (except the Oolite comparison design).
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Numbers read from Oolite; open: Coriolis octree vs hull caps |
-| Features | HIGH rules, MEDIUM effort | Wreckage lifetime LOW; static subentity details MEDIUM |
-| Architecture | HIGH integration, MEDIUM fidelity | Cargo source per role, `onTarget`, Coriolis subentity, per-pod mapping need phase research |
-| Pitfalls | HIGH | Wreckage lifetime and per-hull cargo MEDIUM |
+| Stack | HIGH | No new packages; integration points cited by file and line at the pin. Population-size numbers MEDIUM (scratch runs, stubbed host). |
+| Features | HIGH | Rule numbers read from source; derived expected counts MEDIUM. Hidden dependencies (NPC exits, station, hulls) well established. |
+| Architecture | HIGH | Verified in repo; hit-reaction, standing and snapshot design consistent across files. Station record and group table MEDIUM-HIGH. |
+| Pitfalls | HIGH | Facts read from both trees. Effort and performance projections MEDIUM; "AppImage JS equals checkout JS" unverified. |
+
+**Overall confidence:** HIGH for scope and ordering; MEDIUM for effort and for population and draw-call budgets.
 
 ### Gaps to Address
-
-- Research disagreements: save v5 vs v4 key removal (OQ-2), `;wpn:` vs pristine-omit and debris motion (OQ-7), repair (OQ-3). Do not pick silently.
-- Wreckage lifetime (LOW); per-hull cargo and NPC cargo source (MEDIUM; count-only pods per PITFALLS vs market-driven per FEATURES TS-5).
-- Coriolis octree and subentity rule: measure, then decide.
-- What a destroyed buoy means for scanner, ident, witchpoint beacon and `hyperspace-failure.spec.ts`.
-- Death with a pending save write: confirm `store.read()` waits for a queued write.
-- Cadence and cap tests for worlds containing kills.
+- **Population size and entity budget:** sources disagree (about 40, 30 to 60, up to 110 live ships; about 65 mean in anarchy, 79 to 111 max). Compute the distribution over all 2,048 systems in Phase 22, then set the populator ceiling and pod rule from data.
+- **Draw-call budget with 28 hulls:** unmeasured; Phase 21 spike (D6).
+- **Real-Oolite comparison:** start-system selection via OXP scenario save unproven; reference JS may differ from the checkout (hash the AppImage scripts first); no seed means 20 to 30 runs per scenario with thresholds written first; game time slower than wall time. The player-attack acceptance is an in-Wegolite test, with Oolite giving rates only.
+- **Station responder scope** (D2): how much of `launchPolice` is in v2.4 is a Phase 24 plan-level decision.
+- **Recorder stub cost per role:** the spike reached one role; budget one stub session per role AI, with a hand-trace fallback.
+- **Hash re-pin approval:** confirm the Phase 18 standing approval covers the one v2.4 re-pin (inert world and debris pods).
+- **Process carry-overs:** docked F-key bug still open (UAT passes F5, F8, F3); e2e specs run traffic-off by default, check no spec sees an unrequested pirate.
 
 ## Sources
 
-- Primary: Oolite checkout `/home/opencode/git/oolite` (pinned `7437f22`): `ShipEntity.m`, `PlayerEntity.m`, `Universe.m`, `CollisionRegion.m`, `Octree.m`, `OOTypes.h`, `OOEquipmentType.m`, `Resources/Config/{shipdata,equipment,explosions,descriptions}.plist`; Wegolite tree at `main` `9419f1c`; `.planning/PROJECT.md`; `AGENTS.md`; Context7 `/mrdoob/three.js/r186`; npm registry (2026-11-16).
-- Secondary (MEDIUM): Wegolite effort estimates; cargo-source, `onTarget`, Coriolis-subentity details.
-- Tertiary (LOW): wreckage lifetime (about `E/1000` s).
+### Primary (HIGH)
+- Oolite checkout `/home/opencode/git/oolite`, pin `7437f22`: `Resources/Scripts/{oolite-populator,oolite-priorityai,oolite-global-prefix}.js`, `Resources/AIs/oolite-*AI.js`, `Resources/Config/{shipdata,autoAImap,role-categories,descriptions,equipment,planetinfo}.plist`, `src/Core/Universe.{h,m}`, `src/Core/Entities/{ShipEntity,PlayerEntity,StationEntity,PlayerEntityContracts}.m`, `src/Core/OOConstToString.m`.
+- Wegolite tree at `df4d01b0`: `.planning/PROJECT.md`, `AGENTS.md`, `src/sim/*`, `src/content`, `src/persistence/save.ts`, `tools/{oolite-ingest,ai-harness,oolite-reference}`, `tests/{guards,acceptance,oracles}`, the pending todos cited in PITFALLS.md.
 
-Detailed findings: `.planning/research/STACK.md`, `FEATURES.md`, `ARCHITECTURE.md`, `PITFALLS.md`.
+### Secondary (MEDIUM)
+- Scratch runs of the real populator script over galaxy-0 governments, regex reachability count over the priority library, `like_ship` resolver for the 28 keys (not committed; the recorders re-derive them); derived counts and odds in FEATURES.md R1.4 and R2.3.
+
+### Tertiary (LOW)
+- Real-Oolite census feasibility and equality of AppImage scripts with the checkout; both need a boxed spike.
 
 ---
-*Research completed: 2026-11-16*
-*Ready for roadmap: yes, once OQ-1, OQ-2, OQ-4, OQ-6 and OQ-7 are answered (or explicitly deferred into the affected phase's discuss step)*
+*Research completed: 2026-11-25*
+*Ready for roadmap: yes (blocking owner answers: D1, D5)*
