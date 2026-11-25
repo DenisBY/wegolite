@@ -29,11 +29,11 @@ Open at close (todos): the docked F-key bug from the Phase 19 UAT (F2-F6 and F8 
 **Target features:**
 - Populator for traders, pirates and police by system economy and government, as Oolite's populator does (scavengers and shuttles deferred)
 - Oolite's priority AI, hand-ported to TypeScript, for these roles; NPCs fire autonomously, lasers only (missiles and ECM deferred, recorded in FIDELITY.md)
-- Core legal status by Oolite's rules: Clean, Offender and Fugitive; penalties for firing on innocents and police; bounties for killing offenders, paid on docking; police attack an offender; the docking check
-- Cargo scooping into the hold with Fuel Scoops bought at F3 (fuel scooping at the sun stays with the hazards)
+- Core legal status by Oolite's rules: Clean, Offender and Fugitive; penalties for firing on innocents and police; bounties for killing offenders, paid at the kill as in Oolite (owner 2026-11-25), fines on docking; police attack an offender; the docking check
+- Cargo scooping with Fuel Scoops bought at F3 and cargo jettison (fuel scooping at the sun stays with the hazards)
 - Combat rating (Harmless to Elite) and the kill tally, saved and shown on F5
 
-**Acceptance:** in an anarchy, pirates attack the player unprompted; the player destroys a pirate, scoops its cargo and is paid the bounty on docking; firing on a trader makes the player an Offender and the police attack. Determinism, the gates and the 20-seed acceptance run hold, and traffic composition and behaviour are compared against headless Oolite (`tools/oolite-reference`).
+**Acceptance:** in an anarchy, pirates attack the player unprompted; the player destroys a pirate, is paid its bounty and scoops its cargo; firing on a trader makes the player an Offender and the police attack. Determinism, the gates and the 20-seed acceptance run hold, and traffic composition and behaviour are compared against headless Oolite (`tools/oolite-reference`).
 
 **Deferred:** missiles and ECM, the escape pod and insurance, scavengers and shuttles, fuel scooping and the hazards, contraband penalties (todo `2026-11-25-cargo-legality-penalties`). Phase numbering continues at 21.
 

@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v2.3 — Combat and Death",
+  "milestone": "v2.4",
   "phases": [
     {
       "number": "8",
@@ -70,9 +70,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-new-milestone",
-    "label": "Start a new milestone",
-    "reason": "All phases complete — start a new milestone"
+    "command": "/gsd-discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-11-24T11:04:03.289Z"
+  "updated_at": "2026-11-25T18:35:10.178Z"
 }
