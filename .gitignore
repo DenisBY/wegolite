@@ -9,3 +9,6 @@ playwright-report/
 # distributed (QUAL-07, research Pitfall 8; ASSETS.md "not-distributed" rows).
 .agents/
 skills-lock.json
+
+# Local skill-evaluator output.
+reports/
