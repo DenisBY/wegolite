@@ -83,11 +83,39 @@ D1 bounty at the kill (Oolite); D2 minimal station responder; D3 simplified NPC 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| FOUND-20 | Phase 21 | Pending |
+| DATA-17 | Phase 21 | Pending |
+| DATA-18 | Phase 21 | Pending |
+| WORLD-08 | Phase 22 | Pending |
+| QUAL-09 | Phase 22 | Pending |
+| AI-02 | Phase 23 | Pending |
+| AI-03 | Phase 23 | Pending |
+| CBT-19 | Phase 23 | Pending |
+| CBT-20 | Phase 23 | Pending |
+| WORLD-09 | Phase 23 | Pending |
+| CBT-11 | Phase 24 | Pending |
+| LAW-06 | Phase 24 | Pending |
+| AI-12 | Phase 24 | Pending |
+| SAVE-11 | Phase 24 | Pending |
+| AI-05 | Phase 25 | Pending |
+| AI-04 | Phase 25 | Pending |
+| LAW-01 | Phase 25 | Pending |
+| LAW-02 | Phase 25 | Pending |
+| LAW-03 | Phase 25 | Pending |
+| LAW-04 | Phase 25 | Pending |
+| LAW-08 | Phase 25 | Pending |
+| WORLD-19 | Phase 26 | Pending |
+| AI-13 | Phase 26 | Pending |
+| QUAL-12 | Phase 26 | Pending |
+| QUAL-13 | Phase 26 | Pending |
+
+Staged requirements are mapped to the phase that completes them and are not checked off earlier: QUAL-09 (render spike in Phase 21, browser proof on the real populator in Phase 22); CBT-11 (pod commodity and amount drawn from Phase 21, scooping completes it in Phase 24); AI-04 (pirate trees in Phase 23, loot collection and the met-demand break-off in Phase 24, light hunters complete it in Phase 25); AI-13 (reachability test and no-silent-idle guard built in Phase 23 and grown in Phases 24 and 25, completed in Phase 26 where the acceptance runs assert no faulted AI); QUAL-12 (a standing gate from Phase 21 on, completed in Phase 26); QUAL-13 (boxed real-Oolite census spike in Phase 22, completed in Phase 26). WORLD-09 is delivered whole in Phase 23; SAVE-11 completes in Phase 24, and LAW-08 in Phase 25 proves the live legal status and kill tally survive it.
 
 **Coverage:**
 - v2.4 requirements: 25 total
-- Mapped to phases: 0 (filled by the roadmap)
+- Mapped to phases: 25 (Phase 21: 3, Phase 22: 2, Phase 23: 5, Phase 24: 4, Phase 25: 7, Phase 26: 4)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-11-25*
-*Last updated: 2026-11-25 after initial definition*
+*Last updated: 2026-11-25 after roadmap creation (traceability filled, Phases 21-26)*

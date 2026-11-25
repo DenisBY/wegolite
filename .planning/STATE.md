@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.4
 milestone_name: Pirates and Police
 status: planning
-last_updated: "2026-11-25T18:35:10.166Z"
+last_updated: "2026-11-25T19:37:46.000Z"
 last_activity: 2026-11-25
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-24)
+See: .planning/PROJECT.md (updated 2026-11-25)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Planning the next milestone (`/gsd-new-milestone`); phase numbering continues at 21
+**Current focus:** Milestone v2.4 Pirates and Police — Phase 21 (Roster, State Shape and Seams) first; Phases 21 to 26 run in order
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 21 of 26 (Roster, State Shape and Seams) — not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-11-25 — Milestone v2.4 started
+Status: Ready to plan (roadmap created, awaiting owner approval)
+Last activity: 2026-11-25 — v2.4 roadmap created (Phases 21-26, 25/25 requirements mapped)
 
 
 ## Performance Metrics
@@ -240,6 +240,11 @@ Last activity: 2026-11-25 — Milestone v2.4 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- [v2.4 Roadmap, 2026-11-25]: Six phases, 21 to 26 (no reset), the top of the 4-6 standard-granularity guide; 25 of 25 requirements mapped, each to the phase that completes it. Phase 21 Roster, State Shape and Seams (FOUND-20, DATA-17, DATA-18); Phase 22 Initial Population (WORLD-08, QUAL-09); Phase 23 Priority AI, Traders and Pirates (AI-02, AI-03, CBT-19, CBT-20, WORLD-09); Phase 24 Loot, Scooping and Jettison (CBT-11, LAW-06, AI-12, SAVE-11); Phase 25 Police, Legal Status, Bounty and Rating (AI-05, AI-04, LAW-01 to LAW-04, LAW-08); Phase 26 Repopulation and Milestone Acceptance (WORLD-19, AI-13, QUAL-12, QUAL-13). Strictly sequential.
+- [v2.4 Roadmap, 2026-11-25]: Changes from the research's seven phases (21-27): the departure and launch stand-in (WORLD-09) is one seam and traders need it to dock or jump out, so it lands whole in Phase 23; repopulation (WORLD-19) is then one requirement and folds into the milestone acceptance (Phase 26), which needs a system that turns over and supplies the soak data for the populator ceiling. Loot comes before the law (research: after repopulation) because D7 puts the scooped-pod list in save v6 and D10 puts jettison in scope: the pirate loop closes right after Phase 23, the one save bump lands in Phase 24 with legal status and the kill tally designed in, and Phase 25's hunters find a real `CollectSalvage`. The pod commodity draw lands with its field in Phase 21 (research D7a).
+- [v2.4 Roadmap, 2026-11-25]: Staged requirements, each mapped once to the completing phase: QUAL-09 (spike 21, browser proof 22), CBT-11 (pod identity 21, scooping 24), AI-04 (pirates 23, loot 24, light hunters 25), AI-13 (reachability built 23, grown 24-25, acceptance runs 26), QUAL-12 (standing gate from 21, completed 26), QUAL-13 (boxed real-Oolite census spike 22, completed 26).
+- [v2.4 Roadmap, 2026-11-25]: Recorded decisions this milestone changes, each amended in the phase named in the same commit as its rule: the Phase 14 content refusal of `aft_weapon_type` and world snapshot v5 (21); the WORLD-15 inert populator stays for the frozen path while the live session moves to the new populator (22); the fire decision-source row and `fire-decision-source` guard, the Phase 14 cuts of fuel injection and running defense, and Phase 15 criterion 1 only if the kill-time `shipTargetLost` is narrowed (23); save v6 (24); Phase 17 D-10 asymmetric mutual-kill credit replaced by D11 (25).
+- [v2.4 Roadmap, 2026-11-25]: Research flags: Phase 21 High (aft-weapon lift, 28-record converter, draw-call options, field design); 22 Medium (`systemsInRange`/`bottleneck`, recorder stub scope, real-Oolite start-system spike); 23 High (condition-by-condition port, draw order, wake semantics, scan order; fuel injection and the stand-in); 24 Medium (tractor constants, `canScoop` geometry, hold capacity, jettison, held pods); 25 Medium (legal flows, station responder, docking-check scope, D11 cases); 26 Low except the headless-Oolite comparison design.
 - [v2.3 Roadmap, 2026-11-16]: Six phases, 15 to 20 (no reset), at the top of the 4-6 standard-granularity guide; 16 of 16 requirements mapped, each to the phase that completes it. Phase 15 Damage Ledger and Kills (FOUND-18, FOUND-19, DATA-14); Phase 16 Wreckage, Cargo and the Entity Cap (DATA-16, WORLD-17); Phase 17 NPC Fire and Hits on the Player (CBT-15, CBT-16); Phase 18 Stations, Buoys and Collisions (DATA-15, CBT-17, CBT-18); Phase 19 Equipment Damage and Repair (CBT-08, CBT-12, SAVE-09); Phase 20 Player Death and Game Over (DEATH-01, DEATH-06, QUAL-11). Order: 15, then 16 in parallel with 17, then 18, 19, 20.
 - [v2.3 Roadmap, 2026-11-16]: The research's single player-death phase was split in two because the owner put equipment damage with save v5 and the F3 repair in scope (CBT-12, 2026-11-16): equipment damage is Phase 19, death is Phase 20. The research's separate close-out phase folds into Phase 20 (determinism, the by-hand acceptance rerun, `verify-full`, FIDELITY, Key Decisions, CHANGELOG, provenance).
 - [v2.3 Roadmap, 2026-11-16]: Owner decisions in force: NPC fire from the engine and test pilots only (no reflex AI; Phase 17); equipment damage in save v5 with an F3 repair at Oolite's price (Phase 19); statics hit by porting Oolite's subentity rule after measuring the Coriolis octree against the hull caps (Phase 18); entity cap 256 with thresholds 243 and 128 (Phase 16); game over by page reload and death only while `inFlight` (Phase 20); station-hull contact stays damage-free (Phase 18); debris models vendored from the local Oolite checkout (Phase 16); one snapshot v4 bump with pristine-omit (Phase 15).
@@ -606,6 +611,20 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
+v2.4 roadmap (2026-11-25): the pending todos the phases consume (41 files in `.planning/todos/pending/`; the list below the block is the older v2.3 snapshot, kept as history).
+
+- [2026-11-17] [sim] Skip `shipHit` for a doomed target, never skipping the offence broadcast — Phase 21 (hit-reaction stage) or 23, whichever first names `shipHit` (guard `ship-hit-consumers`) — [todo file](.planning/todos/pending/2026-11-17-skip-shiphit-for-a-doomed-target.md)
+- [2026-11-24] [combat] Debris inherits the ship's velocity — candidate by owner decision, Phase 21's one debris re-pin, else decided in Phase 24 — [todo file](.planning/todos/pending/2026-11-24-debris-inherits-ship-velocity.md)
+- [2026-11-25] [combat] Missiles and ECM stay deferred — missiles forced to zero at spawn in Phase 22, tripwire guard with CBT-19 in Phase 23 — [todo file](.planning/todos/pending/2026-11-25-missiles-and-ecm.md)
+- [2026-11-18] [sim] Narrow the kill-time `shipTargetLost` before a second module defines `onEvent` — Phase 23 first plan (guard `on-event-handlers`; owner edit of Phase 15 criterion 1 if narrowed) — [todo file](.planning/todos/pending/2026-11-18-narrow-kill-time-ship-target-lost.md)
+- [2026-11-20] [ui] HUD message word wrap like Oolite — candidate in Phase 23 (comms lines) — [todo file](.planning/todos/pending/2026-11-20-hud-message-word-wrap-like-oolite.md)
+- [2026-11-25] [economy] Cargo legality penalties stay deferred (LAW-07) — scooped contraband is legal in Phase 24 — [todo file](.planning/todos/pending/2026-11-25-cargo-legality-penalties.md)
+- [2026-11-18] [sim] Mutual kill credit symmetry (D11) — Phase 25 first plan (guard `kill-credit-consumers`) — [todo file](.planning/todos/pending/2026-11-18-mutual-kill-credit-symmetry.md)
+- [2026-11-20] [tests] Acceptance run with collisions on — owner question in Phase 26 (does the traffic run close it) — [todo file](.planning/todos/pending/2026-11-20-acceptance-run-with-collisions-on.md)
+- [2026-11-14] [testing] Measure the Oolite reference in Docker — Phase 26 (headless-Oolite comparison) — [todo file](.planning/todos/pending/2026-11-14-measure-oolite-reference-in-docker.md)
+- [2026-11-20] [sim] Collision chain prefilter for all pairs — candidate in Phase 26 if the soak's per-tick cost needs it — [todo file](.planning/todos/pending/2026-11-20-collision-chain-prefilter-all-pairs.md)
+- [2026-11-16] [tests] Phase 14 review follow-ups and the CI e2e timeout margins — standing in every phase (by-hand acceptance rerun; 60 % rule for new specs) — [todo file](.planning/todos/pending/2026-11-16-phase-14-review-followups.md), [todo file](.planning/todos/pending/2026-11-16-ci-e2e-timeout-margins.md)
+
 Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16). The compassMode and fourth-pylon todos are in `.planning/todos/completed/`.
 
 - [2026-11-15] [sim] Let lasers hit, and ident lock, the station and the buoys — Phase 18 (CBT-17 closes it) — [todo file](.planning/todos/pending/2026-11-15-lasers-and-ident-hit-stations-and-buoys.md)
@@ -642,6 +661,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 - [v2.1 start] REQUIREMENTS.md is fresh for v2.1 (12 requirements); the former v2.1 Combat & Traffic requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
 - [v2.2 start] REQUIREMENTS.md is fresh for v2.2 (10 requirements, all mapped to Phases 13-14). Open owner items: where octree data ships and how the Cobra's reaches the first-load set (ceiling 9,437,184 bytes, Phase 13); the cabin-temperature inputs and what the ident lock shows on the HUD without missiles (Phase 13); the 20-seed acceptance thresholds, the spike time box and stub-host scope, and the oracle choice at the Phase 14 gate (gates the unscheduled Phase 18). In normal play NPC ships stay inert after v2.2; whether the owner wants a normal-play NPC pilot so WORLD-07 is visible outside the test hook is not planned.
 - [v2.3 start] REQUIREMENTS.md is fresh for v2.3 (16 requirements, all mapped to Phases 15-20). Open items for the phases that own them: whether the Coriolis octree fits the hull caps or needs its own file (Phase 18, measured first); what a destroyed buoy means for the scanner, the witchpoint beacon and `hyperspace-failure.spec.ts` (Phase 18); the wreckage lifetime formula, LOW confidence (Phase 16); what a pod holds, count-only against market-driven (Phase 16); whether the cargo-pod-loss branch that opens Oolite's `takeInternalDamage` roll is ported or recorded as a divergence, since the requirements name equipment only (Phase 19); whether a death with a pending save write is safe, i.e. that `store.read()` waits for a queued write (Phase 20). The frozen acceptance run throws on any flyer death, so fire and collisions must stay opt-in for the frozen worlds. `verify-full` is owner-gated per phase (render, input and persistence phases 16, 19 and 20).
+- [v2.4 start] REQUIREMENTS.md is fresh for v2.4 (25 requirements, all mapped to Phases 21-26; owner scope decisions D1-D13 of 2026-11-25). Open items for the phases that own them: whether the Phase 18 standing approval to re-pin twin hashes covers v2.4's re-pins (ask once in Phase 21's first plan; the inert world must stay byte-identical); the draw-call cost of about 28 hull keys against the 50-call budget, unmeasured (Phase 21 spike, completed in Phase 22; a raise is an owner decision); population size and the entity budget, sources disagree (about 40 to 65 ships on average, up to about 110 in an anarchy; Phase 22 computes all 2,048 systems, Phase 26 sets the ceiling); the owner's edit of Phase 15 criterion 1 if the kill-time `shipTargetLost` is narrowed, before the priority AI defines `onEvent` (Phase 23); recorder stub cost per role AI, one stub session per role with a hand-trace fallback (Phases 23 and 25); real-Oolite census feasibility LOW and the reference scripts not yet hashed against the checkout (boxed spike in Phase 22, comparison in Phase 26); whether the new traffic acceptance run closes the collisions-on variant todo (owner, Phase 26). The frozen 20-seed run stays manual on the remote machine after every plan touching `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json` (D12).
 
 ### Quick Tasks Completed
 
@@ -792,10 +812,10 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-24T11:10:00Z
-Stopped at: Milestone v2.3 completed and archived (2026-11-24)
+Last session: 2026-11-25T19:37:46Z
+Stopped at: v2.4 roadmap created (Phases 21-26, 25/25 requirements mapped); awaiting owner approval
 Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Review the v2.4 roadmap (`.planning/ROADMAP.md`), then discuss Phase 21 with /gsd-discuss-phase 21 (research flag High: plan-phase researches before planning)
