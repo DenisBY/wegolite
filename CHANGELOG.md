@@ -6,6 +6,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- On the market, a click on a commodity selects it, as Up and Down do;
+  commodities the keys cannot select ignore the click.
+
 ## [0.8.1] - 2026-11-25
 
 Station screens closer to Oolite and easier to read. A second F5 shows the

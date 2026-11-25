@@ -194,16 +194,24 @@ export function createStationController(
       .map((good) => good.key);
   }
 
+  /**
+   * Land the market selection on `key` (or keep it when `key` is undefined):
+   * a new selection drops the pending `[Y/N]` line and the notice. The keys
+   * and the row click both land here, so they cannot drift apart.
+   */
+  function landSelection(key: string | undefined): void {
+    if (key !== undefined) ctx.station.stationSelection = key;
+    ctx.station.stationPending = null;
+    ctx.station.stationNotice = "";
+  }
+
   function moveSelection(delta: number): void {
     const keys = selectableKeys();
     if (keys.length === 0) return;
     const current = keys.indexOf(ctx.station.stationSelection);
     const base = current === -1 ? 0 : current;
     const next = (base + delta + keys.length) % keys.length;
-    const nextKey = keys[next];
-    if (nextKey !== undefined) ctx.station.stationSelection = nextKey;
-    ctx.station.stationPending = null;
-    ctx.station.stationNotice = "";
+    landSelection(keys[next]);
   }
 
   /**
@@ -1073,6 +1081,47 @@ export function createStationController(
   }
 
   /**
+   * The guards of the F8 row mouse sinks (quick 261125-ewd): the Market is the
+   * visible docked screen with no chart, Save/Load screen or overwrite
+   * question over it, and the session is live, unpaused, not over and not in
+   * the launch pre-roll. A DOM event is not a trust boundary, so the sinks
+   * repeat what the input context gives the keys implicitly.
+   */
+  function marketMouseAllowed(): boolean {
+    return (
+      !ctx.runtime.disposed &&
+      !ctx.runtime.contextLost &&
+      !ctx.runtime.paused &&
+      !ctx.runtime.gameOver &&
+      ctx.core.state?.mode === "docked" &&
+      !launchSequence.preRolling &&
+      ctx.station.stationScreen === "market" &&
+      !ctx.chart.chartOpen &&
+      !ctx.save.saveScreenOpen &&
+      ctx.save.saveLoad?.isConfirming() !== true
+    );
+  }
+
+  /**
+   * The F8 row-click sink (owner decision 2026-11-25, quick 261125-ewd,
+   * FIDELITY E-191): select the clicked row exactly as Up and Down would land
+   * on it, Oolite's `mouse_click` branch of `handleGUIUpDownArrowKeys`
+   * (`PlayerEntityControls.m:743-752` at 7437f22). Only a key of the current
+   * selectable rows is accepted (the allow-list; a row the keys cannot select
+   * ignores the click), and a click on the selected row changes nothing and
+   * renders nothing, as Oolite's `setSelectedRow` on the selected row. It
+   * repeats the guards because a DOM click is not a trust boundary, like
+   * `sortMarket`.
+   */
+  function selectMarketRow(key: string): void {
+    if (!marketMouseAllowed()) return;
+    if (!selectableKeys().includes(key)) return;
+    if (key === ctx.station.stationSelection) return;
+    landSelection(key);
+    renderStation();
+  }
+
+  /**
    * Apply one drained station action. The live mode, context and screen are
    * revalidated here, so a queued action cannot apply a stale trade after a
    * screen change, a dock or a pause.
@@ -1183,6 +1232,7 @@ export function createStationController(
     navigateByKey,
     setStationPage,
     sortMarket,
+    selectMarketRow,
     applyStationAction,
   };
 }

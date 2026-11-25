@@ -828,6 +828,239 @@ describe("sortMarket (quick task 261118-cyo)", () => {
   });
 });
 
+/** A market good the keys cannot select here, found from the harness market. */
+function unselectableKey(h: Harness): string {
+  const good = h.market.goods.find(
+    (entry) => !h.controller.isSelectableGood(entry.key, entry.stock),
+  );
+  if (good === undefined) throw new Error("every Lave good is selectable");
+  return good.key;
+}
+
+/** Every guarded state of the F8 row mouse sinks, applied and undone. */
+const MOUSE_GUARDS: readonly (readonly [string, (h: Harness) => () => void])[] =
+  [
+    [
+      "paused",
+      (h) => {
+        h.ctx.runtime.paused = true;
+        return () => {
+          h.ctx.runtime.paused = false;
+        };
+      },
+    ],
+    [
+      "contextLost",
+      (h) => {
+        h.ctx.runtime.contextLost = true;
+        return () => {
+          h.ctx.runtime.contextLost = false;
+        };
+      },
+    ],
+    [
+      "disposed",
+      (h) => {
+        h.ctx.runtime.disposed = true;
+        return () => {
+          h.ctx.runtime.disposed = false;
+        };
+      },
+    ],
+    [
+      "gameOver",
+      (h) => {
+        h.ctx.runtime.gameOver = true;
+        return () => {
+          h.ctx.runtime.gameOver = false;
+        };
+      },
+    ],
+    [
+      "chartOpen",
+      (h) => {
+        h.ctx.chart.chartOpen = true;
+        return () => {
+          h.ctx.chart.chartOpen = false;
+        };
+      },
+    ],
+    [
+      "saveScreenOpen",
+      (h) => {
+        h.ctx.save.saveScreenOpen = true;
+        return () => {
+          h.ctx.save.saveScreenOpen = false;
+        };
+      },
+    ],
+    [
+      "overwrite question",
+      (h) => {
+        h.ctx.save.saveLoad = {
+          isConfirming: () => true,
+        } as unknown as SessionState["save"]["saveLoad"];
+        return () => {
+          h.ctx.save.saveLoad = undefined;
+        };
+      },
+    ],
+    [
+      "status screen",
+      (h) => {
+        h.ctx.station.stationScreen = "status";
+        return () => {
+          h.ctx.station.stationScreen = "market";
+        };
+      },
+    ],
+    [
+      "inFlight",
+      (h) => {
+        const docked = h.ctx.core.state;
+        const state = initFlightState(layout);
+        state.mode = "inFlight";
+        h.ctx.core.state = state;
+        return () => {
+          h.ctx.core.state = docked;
+        };
+      },
+    ],
+    [
+      "preRolling",
+      (h) => {
+        h.preRoll.preRolling = true;
+        return () => {
+          h.preRoll.preRolling = false;
+        };
+      },
+    ],
+  ];
+
+describe("market row click (quick 261125-ewd)", () => {
+  it("selects another selectable row, clears the line and notice, and renders once", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    expect(h.ctx.station.stationSelection).toBe("food");
+    h.controller.stepAmount(1);
+    expect(h.ctx.station.stationPending).not.toBeNull();
+    h.ctx.station.stationNotice = "stale";
+    h.views.length = 0;
+    h.calls.length = 0;
+
+    h.controller.selectMarketRow("slaves");
+
+    expect(h.ctx.station.stationSelection).toBe("slaves");
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.ctx.station.stationNotice).toBe("");
+    expect(h.calls.filter((call) => call === "render")).toEqual(["render"]);
+    const market = h.views.at(-1)?.market;
+    expect(market?.selectedKey).toBe("slaves");
+    expect(market?.commentText).not.toBe("");
+  });
+
+  it("lands where Up and Down would land: the same state as moveSelection", () => {
+    const keyed = harness();
+    keyed.controller.ensureSelection();
+    keyed.controller.moveSelection(1);
+    const target = keyed.ctx.station.stationSelection;
+
+    const clicked = harness();
+    clicked.controller.ensureSelection();
+    clicked.controller.selectMarketRow(target);
+    expect(clicked.ctx.station.stationSelection).toBe(target);
+    expect(clicked.ctx.station.stationPending).toBe(
+      keyed.ctx.station.stationPending,
+    );
+    expect(clicked.ctx.station.stationNotice).toBe(
+      keyed.ctx.station.stationNotice,
+    );
+  });
+
+  it("changes nothing and renders nothing on the selected row", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    h.controller.stepAmount(1);
+    const plan = h.ctx.station.stationPending;
+    h.ctx.station.stationNotice = "kept";
+    h.calls.length = 0;
+
+    h.controller.selectMarketRow("food");
+
+    expect(h.ctx.station.stationPending).toBe(plan);
+    expect(h.ctx.station.stationNotice).toBe("kept");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("ignores a row the keys cannot select and keys that name no row", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    h.controller.stepAmount(1);
+    const plan = h.ctx.station.stationPending;
+    h.ctx.station.stationNotice = "kept";
+    h.calls.length = 0;
+
+    for (const key of [unselectableKey(h), "", "not_a_good", "__proto__"]) {
+      h.controller.selectMarketRow(key);
+      expect(h.ctx.station.stationSelection, key).toBe("food");
+    }
+    expect(h.ctx.station.stationPending).toBe(plan);
+    expect(h.ctx.station.stationNotice).toBe("kept");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("selects a zero-stock row the hold carries, as the keys do", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    const key = unselectableKey(h);
+    h.ctx.core.profile = {
+      ...h.ctx.core.profile,
+      cargo: { ...h.ctx.core.profile.cargo, [key]: 2 },
+    };
+    h.ctx.core.market = {
+      ...h.market,
+      goods: h.market.goods.map((good) =>
+        good.key === key ? { ...good, stock: 0 } : good,
+      ),
+    };
+    expect(h.controller.selectableKeys()).toContain(key);
+
+    h.controller.selectMarketRow(key);
+
+    expect(h.ctx.station.stationSelection).toBe(key);
+  });
+
+  it("does nothing in every guarded state", () => {
+    for (const [name, apply] of MOUSE_GUARDS) {
+      const h = harness();
+      h.controller.ensureSelection();
+      h.calls.length = 0;
+      const undo = apply(h);
+      h.controller.selectMarketRow("slaves");
+      expect(h.ctx.station.stationSelection, name).toBe("food");
+      expect(h.calls, name).toEqual([]);
+      undo();
+      h.controller.selectMarketRow("slaves");
+      expect(h.ctx.station.stationSelection, `${name} undone`).toBe("slaves");
+    }
+  });
+
+  it("selects by key in the sorted order, and the keys then move from there", () => {
+    const h = harness();
+    h.ctx.station.marketSort = { column: "name", direction: "ascending" };
+    h.controller.ensureSelection();
+    const keys = h.controller.selectableKeys();
+    const target = keys[3];
+    if (target === undefined)
+      throw new Error("fewer than four selectable rows");
+
+    h.controller.selectMarketRow(target);
+    expect(h.ctx.station.stationSelection).toBe(target);
+    h.controller.moveSelection(1);
+    expect(h.ctx.station.stationSelection).toBe(keys[4]);
+  });
+});
+
 const equipmentCatalogue: readonly Equipment[] = parseEquipment(
   JSON.parse(
     readFileSync(
