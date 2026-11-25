@@ -4,7 +4,7 @@
 # baseline pinned by index digest (D-02, FOUND-04). The digest is the index
 # digest reported by `docker buildx imagetools inspect node:24-bookworm-slim`,
 # so both amd64 and arm64 resolve reproducibly.
-FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS base
+FROM node:25-bookworm-slim@sha256:81db02c4b671288a03915da9534dbd54f96d0e7c24d80ccc54f5b36b2e684370 AS base
 WORKDIR /app
 # The browser install and every later stage/test must agree on this path.
 # CI=1 keeps npm/Playwright non-interactive.
