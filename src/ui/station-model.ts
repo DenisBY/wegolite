@@ -146,6 +146,22 @@ export function legalityTitle(legalText: string): string {
 }
 
 /**
+ * The penalty line under the market list for the selected restricted good
+ * (owner decision 2026-11-25, FIDELITY E-190): Oolite's bounty on docking
+ * with goods the main station may not import and on launch with goods it may
+ * not export (`PlayerEntity.m:6340-6342`, `:6410-6413`). Empty for "—".
+ */
+export const LEGALITY_PENALTIES: Readonly<Record<string, string>> = {
+  [LEGALITY_CLEAR]: "",
+  [LEGALITY_IMPORT]:
+    "Launching with it in the hold adds to your bounty and makes you an offender.",
+  [LEGALITY_EXPORT]:
+    "Docking with it in the hold adds to your bounty and makes you an offender.",
+  [LEGALITY_NEITHER]:
+    "Docking or launching with it in the hold adds to your bounty and makes you an offender.",
+};
+
+/**
  * The F5 mark of a damaged item (Phase 19, D-07): ` (damaged)` where Oolite
  * writes ` (N/A)`. A recorded divergence; `tests/ui/station-status.test.ts`
  * pins it against `descriptions.plist` `equipment-@-not-available`.
@@ -342,6 +358,11 @@ export interface MarketModel {
    */
   readonly commentText: string;
   /**
+   * The selected commodity's penalty line under the comment
+   * (`LEGALITY_PENALTIES`); empty when nothing restricted is selected.
+   */
+  readonly penaltyText: string;
+  /**
    * Oolite's `market-cash-and-load` line under the table
    * (`descriptions.plist:1635`, `PlayerEntity.m:9979-9986`):
    * "Cash: 100.0 ₢. Load 0 of 20 t."
@@ -523,6 +544,12 @@ export function buildMarketModel(
       selectedComment === MARKET_NO_COMMENT_TEXT
         ? ""
         : selectedComment,
+    penaltyText:
+      selectedComment === undefined
+        ? ""
+        : (LEGALITY_PENALTIES[
+            rows.find((row) => row.key === selection)?.legalText ?? ""
+          ] ?? ""),
     cashLoadText: `Cash: ${formatDecicredits(profile.credits)}. Load ${String(usedPods)} of ${String(capacityPods)} t.`,
     confirmText: confirmationText(feedback.pending, byKey),
     noticeText: clampNotice === "" ? feedback.notice : clampNotice,

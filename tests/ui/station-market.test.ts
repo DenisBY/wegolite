@@ -548,6 +548,23 @@ describe("comment line under the list (quick 261124-ou6)", () => {
     },
   );
 
+  it.each(["slaves", "narcotics", "firearms"])(
+    "shows Oolite's launch penalty under the comment of %s (E-190)",
+    (key) => {
+      expect(buildSelected(key).penaltyText).toBe(
+        "Launching with it in the hold adds to your bounty and makes you an offender.",
+      );
+    },
+  );
+
+  it.each([
+    ["food", "food"],
+    ["no selection", ""],
+    ["a key outside the market", "not_a_good"],
+  ])("has no penalty line for %s", (_label, selection) => {
+    expect(buildSelected(selection).penaltyText).toBe("");
+  });
+
   it("is empty for Oolite's default no-comment text", () => {
     expect(commodity("food").comment).toBe(MARKET_NO_COMMENT_TEXT);
     expect(buildSelected("food").commentText).toBe("");

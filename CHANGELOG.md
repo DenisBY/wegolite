@@ -24,8 +24,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The market's Legal column is now headed Restricted and says what is
   forbidden: No export, No import or No trade instead of Oolite's Im, Ex and
   Re (slaves, narcotics and firearms show No export). Pointing at a value
-  explains the rule and Oolite's penalty for breaking it; Wegolite does not
-  apply that penalty yet.
+  explains the rule, and a line under the selected restricted good's note
+  states Oolite's penalty for breaking it (a bounty on launch or docking);
+  Wegolite does not apply that penalty yet.
 
 ### Added
 
