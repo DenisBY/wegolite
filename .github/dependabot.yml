@@ -1,0 +1,43 @@
+# Weekly version updates. Security updates for vulnerable packages come from
+# the repository's Dependabot alerts, separately from this schedule.
+# Each pull request runs the verify workflow before it can be merged.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      # Minor and patch bumps arrive as one pull request; a major bump stays
+      # on its own, because it can break the build or change behaviour.
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # Base images are pinned by tag and digest; Dependabot moves both.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /tools/oolite-reference
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+    groups:
+      docker-base-images:
+        patterns: ["*"]

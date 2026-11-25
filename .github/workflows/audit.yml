@@ -1,0 +1,33 @@
+# Dependency audit: known vulnerabilities in the locked npm tree.
+#
+# Deliberately outside the verify workflow, so it never gates the Pages
+# deploy: a new advisory against an unchanged lockfile, or an outage of the
+# npm advisory endpoint, must not block an unrelated release. A red run here
+# is the alarm; Dependabot alerts and pull requests carry the fix.
+name: audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mondays 06:00 UTC: new advisories land without any change in the repo.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit (high and critical)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Audit the locked dependency tree in Docker
+        run: docker compose run --rm audit

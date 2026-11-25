@@ -162,6 +162,7 @@ If Compose is not yet present (early scaffolding), creating it is part of the fi
 | CI checks job (release gate without the Chromium suite) | `docker compose run --rm verify-checks`               |
 | Lint                                                    | `docker compose run --rm lint`                        |
 | Typecheck                                               | `docker compose run --rm typecheck`                   |
+| Dependency audit (npm advisories, needs network)        | `docker compose run --rm audit`                       |
 
 ## GSD Workflow Enforcement
 

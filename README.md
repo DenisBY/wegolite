@@ -163,6 +163,7 @@ contract.
 | CI checks job (release gate without the Chromium suite) | `docker compose run --rm verify-checks`               |
 | Lint                                                    | `docker compose run --rm lint`                        |
 | Typecheck                                               | `docker compose run --rm typecheck`                   |
+| Dependency audit (npm advisories, needs network)        | `docker compose run --rm audit`                       |
 | Rebuild after dependency changes                        | `docker compose build --no-cache`                     |
 | Stop and clean up                                       | `docker compose down --volumes --remove-orphans`      |
 

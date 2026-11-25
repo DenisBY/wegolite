@@ -89,6 +89,14 @@ services:
     <<: *workspace
     command: ["npm", "run", "typecheck"]
 
+  # Known vulnerabilities in the locked dependency tree (dev tools included),
+  # from the npm registry's advisory endpoint, so it needs the network. Fails
+  # on high or critical; lower findings are listed but do not fail the run.
+  # Runs in .github/workflows/audit.yml, outside the Pages deploy gate.
+  audit:
+    <<: *workspace
+    command: ["npm", "audit", "--audit-level=high"]
+
   assets:
     <<: *workspace
     command: ["npm", "run", "assets:build"]
