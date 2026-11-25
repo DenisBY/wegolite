@@ -2,9 +2,14 @@
 gsd_state_version: "1.0"
 milestone: v2.4
 milestone_name: Pirates and Police
+current_phase: 21
+current_phase_name: Roster, State Shape and Seams
 status: planning
-last_updated: "2026-11-25T19:37:46.000Z"
+stopped_at: Phase 21 context gathered
+last_updated: "2026-11-25T20:44:36.307Z"
 last_activity: 2026-11-25
+last_activity_desc: v2.4 roadmap created (Phases 21-26, 25/25 requirements mapped)
+state_head: 29f5656f6b2642f4c189bb898317d2c5557e1de2
 progress:
   total_phases: 6
   completed_phases: 0
@@ -812,9 +817,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-25T19:37:46Z
-Stopped at: v2.4 roadmap created (Phases 21-26, 25/25 requirements mapped); awaiting owner approval
-Resume file: None
+Last session: 2026-11-25T20:44:36.234Z
+Stopped at: Phase 21 context gathered
+Resume file: .planning/phases/21-roster-state-shape-and-seams/21-CONTEXT.md
 
 ## Operator Next Steps
 
