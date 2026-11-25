@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-25
+
+Mouse support on the market and the remaining Oolite digit keys. A click picks
+a commodity and a double click sets up the trade Enter would, and 2 and 6 now
+open Save/Load and the chart as F2 and F6 do.
+
 ### Added
 
 - On the market, a click on a commodity selects it, as Up and Down do, and a
