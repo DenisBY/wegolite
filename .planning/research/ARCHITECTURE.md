@@ -1,10 +1,10 @@
-# Architecture Research: v2.3 Combat and Death
+# Architecture Research: v2.4 Pirates and Police
 
-**Domain:** NPC laser fire, ship destruction, collisions and player death, added to an existing deterministic fixed-step simulation (Wegolite, a browser reimplementation of Oolite)
-**Researched:** 2026-11-16 (supersedes the v2.0 architecture file; only the v2.3 integration is covered)
-**Confidence:** HIGH for the integration points (every claim below was read in the repository at `main`, `9419f1c`, or in the Oolite checkout `/home/opencode/git/oolite`); MEDIUM for Oolite fidelity details of cargo, internal damage and static hulls that need phase-level research (marked "research flag").
+**Domain:** a traffic populator, a hand-ported priority AI, legal status, bounties, scooping and combat rating, added to an existing deterministic fixed-step simulation (Wegolite, a browser reimplementation of Oolite)
+**Researched:** 2026-11-25 (supersedes the v2.3 architecture file; only the v2.4 integration is covered)
+**Confidence:** HIGH for the integration points (read in the repository at `main` / `df4d01b0` and in the Oolite checkout `/home/opencode/git/oolite`); MEDIUM for Oolite fidelity details marked "research flag" (they need phase-level research, not a different architecture).
 
-Scope: only how the new features plug into what exists. Out of scope here: missiles, ECM, mines, escape pod, bounties, scooping, planet/sun/heat, slot-scrape damage, audio, police/pirates, priority AI.
+Scope: only how the five target features plug into what exists. Out of scope: missiles and ECM, escape pod and insurance, scavengers and shuttles, fuel scooping at the sun, contraband penalties, the main station's own AI (see Q1).
 
 ---
 
@@ -12,438 +12,305 @@ Scope: only how the new features plug into what exists. Out of scope here: missi
 
 | # | Question | Recommendation | Confidence |
 |---|----------|----------------|------------|
-| 1 | Where does damage get applied? | One **damage ledger** resolved at one fixed point of `stepSim`, after `stepWorld`. Lasers and collisions both append `DamageRecord`s; one `applyDamage` pass applies them in a stable order; one `destroyShips` pass reads the result. Extends the existing "resolve in the same tick, ascending shooter id" rule (Key Decisions A6). | HIGH |
-| 2 | Where do ships die? | Inside the combat resolution, not in `stepWorld`. Dead ships are committed by a **second `commitWorld`** at the end of `stepSim` (`snapshotWorld` refuses an uncommitted dead entity, so the tick boundary must be clean). | HIGH |
-| 3 | AI events raised during resolution | `world.aiQueue` must be empty at every tick boundary. Resolution therefore ends with an **immediate AI drain** (new exported `drainAiEventsNow` in `world/step.ts`), never by leaving events for the next tick. | HIGH |
-| 4 | NPC weapon state (temp, shot timer, cargo count) | New `Entity` fields, **one** snapshot bump (`WORLD_SNAPSHOT_VERSION` 3 to 4) and **one** regeneration of `tests/golden/world/inert-lave-epoch1.json`, taken in the first plan of the milestone. The `;steer:` record is FROZEN by Phase 14; this is the report that rule asks for. Do not smuggle the state into `ai.params`. | HIGH |
-| 5 | Who decides an NPC fires | Firing moves **into the steering** (`fireMainWeapon:` is called from the attack behaviours in Oolite). `SteerContext` gains `fire(range)`; the Oolite gate (temperature cut-out, energy, recharge, range roll, on-target) lives in `src/sim/npc/`. `ShipControl.fire` stays as the AI-module path. | HIGH |
-| 6 | Who makes an NPC hostile | Nothing does in shipped play today: the populator spawns `ai: null` ships, and priority AI is out of scope. Recommend a tiny **retaliation reflex** AI module attached on first hit (wake-on-hit), so a hit inert ship becomes a combatant without changing the populator golden. Needs an owner decision (section 11, Q1). | MEDIUM |
-| 7 | Player death representation | `FlightMode` gains `"dead"`, set by one function, fail-closed for every existing `mode === ...` check. `stepSim` returns `[]` on a dead player. `snapshotForSave` currently encodes every non-`inFlight` mode as `docked`; it must refuse `dead` (hazard, section 7). | HIGH |
-| 8 | Death flow in the app | One `deathFlow` subscriber plus one `GameOver` overlay plus a generalised in-session load (`loadSavedGame`) that does not need the F2 screen. Autosave, manual save, pause, focus loss, chart and context recovery all test the dead mode first. | HIGH |
-| 9 | Stations and buoys as hit targets | Needs their hulls in the lazy hull artifact and a sim-side pose function (station orientation from `stationAngle`, buoy tumble from `flightTime`). The Coriolis has solid subentities; the current hit rule ports no subentity branch. Biggest content/fidelity risk of the milestone. | MEDIUM |
-| 10 | Buoy damage | A buoy has 250 energy in Oolite and can be destroyed. Statics hold no state today. Add per-world `staticHealth` (buoys only; the station absorbs hits and is never destroyed). Pristine state is not hashed. | MEDIUM |
-| 11 | Ship-ship collision | Port `Octree.m isHitByOctree` (octree against octree) behind a sphere prefilter; apply `collideWithShip`'s damage and response rule. Player response goes through the existing `FlightState.impulse` mechanism. | HIGH |
-| 12 | Equipment/cargo damage from internal hits | The sim draws the outcome and emits events; the **app** commits the profile (the profile is not sim state). Persisting damaged equipment needs save v5 (see section 6). | MEDIUM |
+| 1 | What is "the priority AI" as data? | **Tree = code, state = params.** The priority lists of the in-scope role AIs are static, frozen TypeScript tables (closed string ids for conditions, configurations, behaviours, templates, handler sets), expanded once at module load. Per-ship state is only `AiComponent` (`aiKey: "priority"`, flat `params`, `wakeTick`). Nothing closes over per-ship state; the Oolite caches are recomputed, not stored. Hashing, snapshotting and sanitising need no new codec. | HIGH |
+| 2 | Where does ongoing traffic live? | In **`stepWorld`** (sim), as a new last phase "populator" before the sanitise pass, driven by a hashed world-level `populator` record (next-roll tick, counter) and a stateless forked RNG per roll. Not in the app: the Node replay and the live session must produce one hash. Initial populate stays at world creation (`begin`/`resume`) and shares the plan module with the repopulator. | HIGH |
+| 3 | Who owns the player's legal status (bounty) and kill tally? | **Sim-owned `PlayerStanding { bounty, kills }`, held inside `PlayerCombatState`** (rides the existing plumbing: `ctx.core.combat`, `resolveShots`, `hashWorld(combat)`), hashed pristine-omit. NPC AI reads it and the police AI writes it within the tick, so it cannot be a profile mirror fed by events (one-tick lag and a replay that does not route events would split the hash). The profile gets credits only; save v6 gets `legalStatus` and `shipKills`. | HIGH |
+| 4 | How do NPCs leave the world? | New **`retireShip`** (`src/sim/world/retire.ts`): marks dead with no `shipDestroyed`, no debris, no kill credit, then the normal commit emits `entityRemoved`. `killShip` stays the only destruction path. Docking, landing, witchspace exit and out-of-range drift all use it. | HIGH |
+| 5 | Groups and escorts | `Entity.ownerId` + `steer.escortSlot` already model mother/escort. Add **`Entity.groupId`** (uint, 0 none) and **`World.groups: { id, leader }[]`** (sorted). Membership is derived by scanning entities, never stored as a list. Leader reappointment is lazy, by the AI's `AppointGroupLeader` configuration, as in Oolite. | MEDIUM-HIGH |
+| 6 | Comms between ships | Three channels, all plain data: (a) player-visible text = the existing `commsMessage` SimEvent, throttled by two tick timestamps in `params`; (b) ship-to-ship = `AiEvent` through `postAiEvent` (payload `a`, `b`, `n`); (c) Oolite's `oolite_intership` cargo-demand dictionary = **typed events** plus typed own-`params` (a ship never writes another ship's params; `ShipControl` stays actor-only). | HIGH |
+| 7 | Scooping | A pod needs identity: today **every pod is anonymous** (`debris.ts` D16-24/OC-1 skips Oolite's commodity and amount draws). Add `Entity.podCommodity`/`podAmount` (snapshot v5), a **tractor stage** in the world step (new `world/scoop.ts`), a scoop branch in `combat/collide.ts` (PD-05 removed), a `cargoScooped` sim event (already reserved) and an app `scoopFlow` that commits the profile hold. Hold fullness reaches the sim as a per-step fact, like `internalDamage`. | HIGH |
+| 8 | Hashed-shape changes | **One** bundled plan, first in the milestone: `WORLD_SNAPSHOT_VERSION` 4 to 5, every new field pristine-omit so every existing golden except the populate/debris ones keeps its bytes. `SAVE_VERSION` 5 to 6 once, in the standing phase. | HIGH |
+| 9 | Content is the hidden critical path | Only **9 NPC hulls** are compiled (`adder, cobramk1, gecko, krait, mamba, moray, shuttle, sidewinder, viper`). Oolite's populator asks for freighters, medium/heavy pirate fighters, interceptors, aegis raiders, hunters of three weights, police patrol variants and assassins. The roster, their `aiType`, `bounty`, `escorts`, `accuracy` and the role-category table must be compiled (with models, `ASSETS.md`, `NOTICE`) before the populator is meaningful. | HIGH |
+| 10 | Bounty timing | The milestone text says "paid on docking". **Oolite credits the bounty at the kill** (`PlayerEntity.m:6041-6092`, `collectBountyFor:` from `noteTargetDestroyed:`, `ShipEntity.m:8808`; message `bounty-awarded`). Docking-time payment applies only to rescued pods (`PlayerEntityContracts.m:86-130`). By the fidelity rule the default is immediate. Needs an owner decision before the standing phase is planned. | HIGH (fact), owner question |
 
 ---
 
-## 2. Current tick order and the new one
-
-### 2.1 Today (`src/sim/sim.ts` `stepSim`)
+## 2. Recommended architecture
 
 ```
-stepSim(player, world, layout, config, intent, commands, dt, options, combat)
-  1. ships = createShipField(world)                    // read-only mass lock / jump blockage field
-  2. stepFlight(...)                                   // flight events (docked, launched, hyperspaceJumped, ...)
-  3. stepPlayerCombat(...)   [only with combat]        // dock/launch reset, views, fire key -> ShotRequest[], recharge, cooling
-  4. stepWorld(...)          [world && launching|inFlight && no hyperspaceJumped]
-        update (steerShip per AI entity) -> refreshEscorts -> drainAiEvents -> think -> drainAiEvents
-        -> startPendingTrackingCurves -> runProximityPass -> sanitize -> commitWorld (entityRemoved)
-  5. resolveShots(...)                                 // NPC fireQueue drained, hits applied (NPC energy floored at 0, "N2: nothing is destroyed"),
-                                                       // player hit through routeDamage (energy floored at 0), then updateIdentTarget
+                      app (src/app/session)                          sim (src/sim, pure)
+  Lave system facts --> traffic.ts: PopulatorContent ----+
+  role/category tables  step-options.ts: facts ---------+--> stepSim(player, world, layout, ..., combat{standing})
+  hold / scoop facts ---------------------------------------+      |
+                                                                   +-> stepFlight (+ docking check reads standing.bounty)
+                                                                   +-> stepPlayerCombat
+                                                                   +-> stepWorld
+                                                                   |     update (native steering)  -> drift/debris/TRACTOR stage
+                                                                   |     drain events -> think (priority AI: reconsider) -> drain
+                                                                   |     POPULATOR phase (repop rolls, arrivals)         [NEW]
+                                                                   |     sanitise -> commit
+                                                                   +-> resolveShots (ledger -> kills)
+                                                                         + AI attack events + offence broadcast        [NEW]
+                                                                         + collectBountyFor / kills                     [NEW]
+                                                                         + scoop branch in collide.ts                   [NEW]
+  event-router -> standingFlow, scoopFlow, damageFlow, deathFlow <------- SimEvents
+  save-controller <-- combat.standing (legalStatus, shipKills) -> save v6
 ```
 
-Facts the new design depends on (all verified):
+Ordering facts the design leans on (all verified in code):
 
-- `stepWorld` never touches `FlightState`; `resolveShots` receives `player: FlightState` and `combat` but writes only `combat` and the world.
-- `world.fireQueue` is drained and cleared by `resolveShots`; `world.aiQueue` is drained inside `stepWorld` and is **empty at every tick boundary**; `snapshotWorld` refuses a non-empty queue and an uncommitted dead entity (`snapshot.ts:439`).
-- `MAX_ENTITIES = 256` non-dead dynamic entities; `spawnEntity` refuses with `storeFull`. `ENTITY_KINDS` already lists `cargo` and `wreckage`; `SCAN_CLASSES` has `CLASS_CARGO`; the mass-lock exempt list already contains `CLASS_CARGO`.
-- The router (`event-router.ts`) is table-driven: `ROUTED_EVENT_KINDS`, `EVENT_KIND_SUBSCRIBER`, `EVENT_SUBSCRIBER_ORDER` (pinned by `tests/app/session-order.test.ts`). An unrouted kind is ignored. `shipDestroyed`, `playerDestroyed`, `shipSpawned`, `entityRemoved` are reserved SimEvent kinds that nothing routes yet.
-- Combat state (`PlayerCombatState`) is outside `FlightState`, outside the save, and appended to the world hash only while non-pristine (`isPristineCombat`).
-
-### 2.2 New order
-
-```
-stepSim(...)
-  0. if player.mode === "dead" -> return []            // NEW: the sim is frozen once the player is dead
-  1-3. unchanged (ship field, stepFlight, stepPlayerCombat)
-  4. stepWorld(...)                                    // MODIFIED inside npc/: steering may call ctx.fire(range) (queues world.fireQueue)
-  5. resolveCombat(...)                                // NEW composition replacing the tail of resolveShots:
-       a. resolveCollisions(...)    -> DamageRecord[]  // NEW (worldStepped && player inFlight): sphere prefilter + octree-octree + collideWithShip maths
-       b. resolveShotHits(...)      -> DamageRecord[]  // MODIFIED: stops applying; returns records (laserFired events still emitted here)
-       c. applyDamage(records)                         // NEW: ascending order; player via routeDamage/scrape; NPC energy; internal-damage rolls
-       d. destroyShips(...)                            // NEW: energy <= 0 -> kill, debris, shipDestroyed, AI events
-       e. checkPlayerDeath(...)                        // NEW: energy <= 0 -> mode "dead", playerDestroyed
-       f. drainAiEventsNow(world)                      // NEW: reactions delivered now, queue empty at the boundary
-       g. commitWorld(world) -> entityRemoved events   // NEW second commit
-       h. updateIdentTarget(...)                       // MOVED to last (after the second commit, so a destroyed target is dropped this tick)
-```
-
-Jump-step rule (Key Decisions row (h)) is unchanged and extended: on the step that emits `hyperspaceJumped` the world is not stepped, so `resolveCollisions`, NPC shots, `destroyShips` and the AI drain all skip; only the player's own queued shot draws its beam.
-
-Order within `applyDamage` (deterministic, no container iteration order): laser records in ascending shooter id (existing rule), then collision records in ascending `(idA, idB)` pair order, where the player is id 100. No record sees another record's effect (Pitfall 7, Key Decisions A6).
+- `stepWorld` already runs update, drift, debris, drain, think, drain, tracking-curve start, proximity pass, sanitise, commit. Entities spawned during a tick land at indices at or above the length snapshot `n`, so they first act on the next tick. The populator phase therefore goes **after the second drain and before sanitise**, and needs no special case.
+- The AI queue is empty at every tick boundary; `drainAiEventsNow` runs inside `resolveShots` before the second commit. Any event the new ledger and kill code post is delivered there (bounded: 8 passes, 4096 events).
+- `ai.params` is `Record<string, ParamValue>` with scalars and flat arrays of numbers or strings only, at most `MAX_AI_PARAMS_KEYS = 32` keys, arrays at most 64 elements, strings at most 128 code units. No nested objects. This is the binding constraint on the priority AI state (section 4).
+- A module that throws becomes `ai = null` (inert) and the world continues. A ported AI inherits this containment for free; a defect in `PRIORITY_TREES` must therefore be caught by tests, not by containment, because a contained fault silently produces a ship that floats.
 
 ---
 
 ## 3. Components: new versus modified
 
-### 3.1 New
+### 3.1 New modules
 
-| Component (path) | Responsibility | Talks to |
-|---|---|---|
-| `src/sim/combat/ledger.ts` | `DamageRecord { target, source, amount, kind: "laser" \| "scrape", sourcePosition }`, ordering, `applyDamage`. Single place that lowers energy. | `shields.ts` (`routeDamage`), `world.ts`, `destroy.ts` |
-| `src/sim/combat/destroy.ts` | `destroyShips`: kill, `shipDestroyed`, debris spawn (wreckage, alloys, cargo pods), the entity-cap policy, AI events to killer and neighbours. Draws only from the dying ship's own `combat` stream. | `world.spawnEntity`, `store.kill`, `postAiEvent` |
-| `src/sim/combat/debris.ts` | The Oolite cargo and wreckage rules as pure functions: `cargoChance` (70, minus 30 per success for an NPC), jetsam limit 15, pod speed `0.1 * ((r % 200) - 100)` per axis plus the parent's velocity, `n_alloys = sqrt(sqrt(mass / 6000))`, wreckage count, lifetimes. | `destroy.ts` |
-| `src/sim/combat/collision.ts` | `resolveCollisions`: pair enumeration (ascending id), sphere prefilter (`dist^2 < (r1 + r2)^2`), octree test, then `collideWithShip` (below). Writes velocity responses and returns `DamageRecord`s. | `octree.ts`, `hit.ts` hull table, `FlightState.impulse` |
-| `src/sim/combat/octree.ts` (modified) + `isHitByOctree` | Port of `Octree.m:473-570` (octree against octree). Float64, bounded depth, never throws, as `isHitByLine`. | content hulls |
-| `src/sim/combat/internal-damage.ts` | `PLAYER_INTERNAL_DAMAGE_FACTOR` 31 loop and `takeInternalDamage` (cargo pod, then damageable equipment, then cosmetic). Pure: inputs are the facts in `StepOptions.combat` and one uint stream; output is events. | `applyDamage` |
-| `src/sim/combat/death.ts` | `checkPlayerDeath(combat, player, events)`: the one death path. Sets `player.mode = "dead"`, clears countdown and torus, emits `playerDestroyed`. Called from the one place after `applyDamage`. | `flight/state.ts` |
-| `src/sim/npc/fire.ts` | The NPC fire gate (a port of `fireWeapon:direction:range:`, `ShipEntity.m:9912-10007`): temp cut-out 0.85 of max, `energy > weapon_energy_use`, `shot_time >= recharge`, `range <= randf() * weaponRange * (accuracy + 7.5)`, `range <= weaponRange`, `onTarget`. Also the per-tick cooling and shot timer (`ShipEntity.m:2214-2221`). | `SteerContext`, `Entity.weapon` |
-| `src/sim/ai/pilots/reflex.ts` (if Q1 = yes) | A registered AI key `"reflex"`: on `shipAttacked` target the attacker and `perform ATTACK_TARGET` (or `FLEE_TARGET` when the hull has no forward weapon); on `shipTargetDestroyed` or `shipTargetLost` go idle. Plain-data state in its `AiComponent`. | `ShipControl`, `WorldView` |
-| `src/sim/world/static-hulls.ts` | Pure poses for the statics as hit/collision targets: station orientation `stationBaseQuat * axisAngle(z, player.stationAngle)` (same formula as `dock/port-frame.ts`), buoy tumble as a function of `flightTime`. `staticHealth` accessors. | `layout.ts`, `hit.ts`, `collision.ts`, `ident.ts` |
-| `src/app/session/death-flow.ts` | The `deathFlow` subscriber (`playerDestroyed`), the `GameOver` overlay wiring, the dead-mode guards. | `save-controller`, `chart-controller`, `settings-controller`, `input` |
-| `src/app/session/damage-flow.ts` | Subscriber for `equipmentDamaged` and `cargoDestroyed`: commits the profile through a new in-flight `commitDamage` (no autosave, no `renderStation`), prints Oolite's "[x] damaged." and "[x] destroyed." lines. | `ctx.core.profile`, `messages` |
-| `src/ui/game-over.ts` + DOM node in `index.html` | Game over overlay: Oolite's text, a primary "Load last save" button, a fallback "New game" (page reload) when no loadable save exists. Focus trap like `pause.ts`. | `death-flow.ts` |
-| `src/render/bodies/debris.ts` | Instanced layer for `cargo` and `wreckage` contacts (id-free), with a cosmetic tumble derived from contact index and flight time. | `system-scene.ts`, `npc-models.ts` |
-| `src/render/bodies/explosions.ts` | Pooled additive billboards/sparks fed by `shipDestroyed` (position, radius only). Render-only, bounded pool like `laser-shots.ts`. | `event-router.ts` dock-feedback-style subscriber |
-| `src/content/convert/` rows + `generated/` records | Debris models (cargo pod `oolite_barrel.dat`, `wreck1.dat`, alloy), hulls for the Coriolis and the buoy in `ships-hulls.json`, `damageProbability` typed on the equipment record, NPC `likely_cargo`/energy-use/shot-temperature fields. | content build, `ASSETS.md`, `NOTICE` |
+| Path | Responsibility | Talks to |
+|------|----------------|----------|
+| `src/sim/ai/priority/engine.ts` | The `AiModule` for key `"priority"`: `think` = reconsider (walk the tree, apply configuration, apply behaviour, schedule wake); `onEvent` = handler-set lookup. Port of `_reconsiderList` / `_reconsider` / `_resetReconsideration` (`oolite-priorityai.js:46-262`). | `tree.ts`, `behaviours.ts`, `conditions/*`, `responses.ts`, `ctl` |
+| `src/sim/ai/priority/tree.ts` | Types `PriorityEntry`, `PriorityTree`; closed unions `ConditionId`, `ConfigurationId`, `BehaviourFnId`, `HandlerSetId`, `TreeKey`; the frozen `PRIORITY_TREES` record; template expansion (`templateReturnToBase`, `templateLeadPirateMission`, `templateWitchspaceJump*`) done once at load. | engine |
+| `src/sim/ai/priority/trees/{trader,trader-opportunist,pirate,pirate-fighter,pirate-freighter,pirate-interceptor,police,police-station-patrol,police-witchpoint-patrol,bounty-hunter,bounty-hunter-leader,escort}.ts` | One file per Oolite role AI (`Resources/AIs/oolite-*.js`). Each exports a static config (the `oolite_flag_*` parameters, leader role, comms role, friendly roles) and its priority list. Variants of one script (police by `primaryRole`) are separate tree keys: setup-time branching must not survive into state. | `tree.ts` |
+| `src/sim/ai/priority/conditions/*.ts` | The 48 conditions the in-scope roles call directly (plus their utility dependencies: `oddsAssessment`, `threatAssessment`, `allied`, `friendlyStation`, `shipInRoleCategory`). Pure `(pc: PriorityCtx) => boolean`. | `PriorityCtx` only |
+| `src/sim/ai/priority/behaviours.ts` | The 18 behaviours and 19 configurations the in-scope roles use. Each makes `ctl` calls (`setTarget`, `setDestination`, `perform`, `scheduleWake`, new members of section 3.3) and writes only own `params`. | `ctl` |
+| `src/sim/ai/priority/responses.ts` | Handler sets as data: `HANDLER_SETS: Record<HandlerSetId, Partial<Record<AiEventName, ResponseFnId>>>` for `standard`, `docking`, `escort`, `scooping`, `trackPlayer`, `expectWitchspace`. `responsesAddStandard` etc. become set selection (`params.hs`). | engine |
+| `src/sim/ai/priority/context.ts` | `PriorityCtx`: the per-think facade over `AiContext` (own params typed accessors, scanner memo for this think only, `communicate`, `reconsiderNow/In`, ticks conversion). Not stored. | `types.ts` |
+| `src/sim/ai/priority/params.ts` | The closed key list and typed getters/setters for the dynamic state (section 4.2). One place, so the 32-key bound is enforced by a unit test. | all of the above |
+| `src/sim/ai/facts.ts` | `AiFacts`: static, injected content for AI decisions (role set and category membership per spec key, weapon summary, system government and economy, station facts). Type only; the AI zone may not import content. | `step-options.ts` builds it |
+| `src/sim/ai/spawn.ts` | `createPriorityAi(tick, treeKey, init)`: the one constructor of a priority `AiComponent` (sets `tree`, `fire: true` when the hull has a forward weapon, initial wake). Mirrors `createFlightScriptAi`. | populator |
+| `src/sim/world/retire.ts` | `retireShip(world, id, reason, events)`: idempotent removal with no debris and no kill credit; posts `shipTargetLost` to holders. | `world.ts`, `kill.ts` style notify |
+| `src/sim/world/populator/facts.ts` | `PopulatorFacts`: government, economy, tech level, system id, hub counts, neighbour economics, bottleneck flag. Pure function of the chart (`systemsInRange` equivalent over the galaxy list). | `src/sim/hyperspace` distance code |
+| `src/sim/world/populator/plan.ts` | Port of the rate calculation in `oolite-populator.js:228-627` (hourly rates for freighters, couriers, smugglers, pirate packs, hunters, police, assassins) and the initial group plan from the same rates. Pure, draws only from the RNG it is given. | `facts.ts` |
+| `src/sim/world/populator/spawn.ts` | Group builders (`_addGroup`, `_addShips`, leaders, escorts via `ownerId` + `escortSlot`, bounty, cargo flag, location codes, AI attach). Replaces the body of `populateInertWorld`. | `placement.ts`, `ai/spawn.ts` |
+| `src/sim/world/populator/repopulate.ts` | `stepPopulator(world, tick, ctx, events)`: every 2400 ticks (`SYSTEM_REPOPULATION_INTERVAL` 20 s, `Universe.m:6410-6418`) roll each hourly rate / 180, spawn incoming at the witchpoint or outgoing at the station/aegis; respects a populator-owned live-ship ceiling well below 256. | `plan.ts`, `spawn.ts` |
+| `src/sim/world/scoop.ts` | The tractor stage: `startTractor(world, pod, scooperId)`, `stepTractor(world, player, dt)` (port of `behaviour_tractored`, `ShipEntity.m:3729-3800`: spring forces, 250 m escape, `scoopUp` at `2 x radius`), `canScoop` (front-facing, player: underside, hold not full, `has_scoop`). Pods are `kind:"cargo"` with `ai: null`; the TRACTORED state is `nav.behaviour = "TRACTORED"` plus `ownerId` (both already hashed). | `collide.ts`, `step.ts` |
+| `src/sim/npc/behaviours/collect.ts` | Native `COLLECT_TARGET` steering (deferred in v2.2, STATE.md 2026-11-14) for pirates and police collecting salvage. | `dispatch.ts` |
+| `src/sim/player/standing.ts` | `PlayerStanding`, `markOffender(standing, bits)` (`bounty \|= bits`, `PlayerEntity.m:6024-6034`), `legalStatusName(bounty)` (0 clean, 1-50 offender, 51+ fugitive, `OOConstToString.m:404-420`), `ratingFor(kills)`, `collectBountyFor(world, victim, ...)`, `halveOnArrival`, pristine/serialise/sanitise. | `combat/state.ts`, ledger |
+| `src/sim/combat/offence.ts` | Port of `broadcastHitByLaserFrom:` (`ShipEntity.m:12280-12310`): when a hit victim has bounty 0 and an eligible scan class, post `offenceCommittedNearby(attacker, victim)` to every authority in range (police within scanner range of the victim, the main station if the victim is in aegis). | ledger, `postAiEvent` |
+| `src/app/session/standing-flow.ts` | Router subscriber: `bountyAwarded` (credits, "bounty-awarded" text), `legalStatusChanged`, `shipDestroyed` with `killer === PLAYER_ID` for the kill message, rating change text. Commits credits through the in-flight profile commit used by `damage-flow`. | `ctx.core.profile`, `messages` |
+| `src/app/session/scoop-flow.ts` | Subscriber for `cargoScooped`: adds to `profile.cargo` (units, pod rule of `economy/cargo.ts`), prints Oolite's pod-description line. | `economy/cargo.ts` |
+| `tools/ai-harness/roles.ts` (modified from `load.ts`) | Dev-only differential harness generalised from "library + shuttle AI" to "library + any in-scope role AI". Stays out of `dist` (`check:dist`). | `tests/oracles/ai/` |
+| `tests/oracles/ai/*`, `tests/oracles/traffic/*`, `tests/acceptance/traffic.acceptance.ts` | Per-condition and per-reconsideration fixtures from the harness; populator composition oracle from `tools/oolite-reference`; a **new** traffic acceptance scenario beside the frozen `npc-flight` one (the frozen thresholds are not edited). | |
 
-### 3.2 Modified
+### 3.2 Modified modules
 
-| File | Change | Risk |
-|---|---|---|
-| `src/sim/sim.ts` | Dead early-out; the new step 5 composition; second commit; event order. | Event order is pinned by tests (`tests/sim/...`, `tests/app/session-order.test.ts`). |
-| `src/sim/combat/step.ts` | `resolveShotHits` returns records instead of applying; removes the "floor at 0, nothing destroyed" branch for NPC targets; `drainFireQueue` unchanged. | Re-pins `tests/sim/combat/step.test.ts`. |
-| `src/sim/combat/shields.ts` | `routeDamage` stays the shield-then-energy kernel (also used for scrape: Oolite's `takeScrapeDamage` has the same facing shield rule, `PlayerEntity.m:5726-5742`). Energy still floors at 0; **death is `energy <= 0`**. | The Phase 13 row "Floor the player's energy at 0 until a death phase exists" is superseded; the floor stays, the check is added. |
-| `src/sim/combat/state.ts` | No new field needed for death (mode carries it). `isPristineCombat` unchanged. | none |
-| `src/sim/combat/hit.ts`, `ident.ts` | Candidate lists gain the static hull targets (station, two buoys); stage A/B rule unchanged. Station and buoys are never "dead" while their health allows. | Supersedes Key Decisions row "Statics are neither laser nor ident targets (OQ4, F10)" and two FIDELITY.md rows. |
-| `src/sim/flight/state.ts` | `FlightMode` += `"dead"`. `serializeFlight` already prints `mode`; pinned goldens never contain it. | 48 mode references in `src/app`, `src/ui`, `src/input`; fail-closed review needed (section 7). |
-| `src/sim/flight/step.ts` | Nothing for a dead player (the early-out in `stepSim` keeps it from running). The `impulse` mechanism receives collision responses. | low |
-| `src/sim/world/entity.ts`, `world.ts`, `serialize.ts`, `sanitize.ts`, `snapshot.ts`, `limits.ts` | `Entity.weapon { tempTicks.. }` and `Entity.cargo`; `World.staticHealth`; hash segment `;wpn:` after `;steer:` (always present, as the owner chose for `;steer:`); hash segment for non-pristine static health; snapshot v4; new bounds in `limits.ts`. | Third deliberate golden regeneration; bundle all fields in one plan. |
-| `src/sim/world/step.ts` | Export `drainAiEventsNow`; a kind-aware update phase: `cargo` and `wreckage` fly ballistically (position += forward * speed * dt) and lose lifetime from `energy`; they never think. | `stepWorld` today skips every entity with `ai === null` (inert), so the debris branch is a new, separate loop. |
-| `src/sim/world/contacts.ts` | Keep `npcContacts` ships-only (scanner); add `debrisContacts` (kind, specKey, pose, radius, id-free). | scanner must not show wreckage unless Oolite does (research flag). |
-| `src/sim/npc/dispatch.ts` + attack behaviours | `SteerContext.fire`; the hot-weapon branches Phase 14 cut (`weapon_temp > COMBAT_AI_WEAPON_TEMP_USABLE`, lines 4288, 4456, 4577, 4713, 4830) become live. | Changes attacker trajectories: oracle fixtures and the frozen 20-seed acceptance run are affected (section 5.3). |
-| `src/sim/ai/types.ts`, `registry.ts` | Add `"reflex"` to `AI_KEYS` and the registry (if Q1 = yes). | `AI_KEYS` is a closed vocabulary in the snapshot parser. |
-| `src/sim/events.ts` | New non-reserved kinds: `equipmentDamaged { key }`, `cargoDestroyed`, `shipCollided { speed }`. `playerDestroyed` gains `cause`; its current payload is only `position`. | Payload change to a reserved kind needs a Key Decisions row (row (g) says so). |
-| `src/app/session/step-options.ts`, `sim-driver.ts` | `StepOptions.combat` gains the facts the sim cannot read from the profile: `damageable` (equipment keys with `damageProbability > 0`), `cargoPods`, `maxCargo`, `damaged` set. Built per step like `mounts`. | `equipmentSet()` already excludes keys the profile marks damaged if built that way (section 6). |
-| `src/app/session/event-router.ts` | Route `playerDestroyed` (new subscriber `deathFlow`), `equipmentDamaged`, `cargoDestroyed` (`damageFlow`), `shipDestroyed` and `shipCollided` (dock-feedback style effect hand-off), `shipHit` for the "hit" feedback. | `EVENT_SUBSCRIBER_ORDER` is pinned: add `deathFlow` last; update `session-order.test.ts`. |
-| `src/app/session/save-controller.ts` | `autosave()` and `manualSave()` refuse in dead mode, before every other check; `loadFromSave` becomes `loadSavedGame({ source })` (section 7). | `loadFromSave` has hard preconditions on the F2 screen being open. |
-| `src/app/session/settings-controller.ts`, `frame-loop.ts`, `render-driver.ts`, `probe-publisher.ts` | `pause()`, `focusLost`, the pause toggle and `enterContextLoss` ignore the dead mode (`enterContextLoss` still sets `contextLost`); the frame loop skips `advanceFrame`; `shouldDraw` treats dead as an idle frame after settle; the probe publishes `probe.death`. | The frame-order test pins phase order. |
-| `src/input/actions.ts`, `keyboard.ts` | New `InputContext` `"gameOver"` with `gameOverLoad` and `gameOverNew` actions (rebindable, listed in the controls panel). | Settings migration rule: new actions go after the existing ones in `ACTION_IDS`. |
-| `src/render/system-scene.ts`, `bodies/buoy.ts` | Scene owns the debris and explosion layers; the buoy tumble formula moves to `src/sim/world/static-hulls.ts` and the render imports it (sim never imports render). A destroyed buoy is hidden. | buoy tumble is a function of the flight clock today, so moving it is a pure refactor. |
-| `src/app/hud-model.ts` | No new element (`HUD_ELEMENTS` stays eleven). Destroyed-buoy scanner contacts drop. | pinned layout |
-| `src/persistence/save.ts`, `autosave.ts`, profile | Only if damage persists: save v5, `damagedEquipment`; `snapshotForSave` refuses `dead`. | Section 6. |
+| Path | Change | Risk |
+|------|--------|------|
+| `src/sim/ai/types.ts` | `AI_KEYS` += `"priority"`; `AI_EVENT_NAMES` extended with the events the standard handlers use (`shipAttackerDistracted`, `cargoDumpedNearby`, `escortAccepted`, `shipAcceptedEscort`, `escortDock`, `commsMessageReceived`, `playerWillEnterWitchspace`, `approachingPlanetSurface`, `shipWillEnterWormhole`, `shipScoopedFuel`, `stationWithdrewDockingClearance`, `wormholeSuggested`, `shipWitchspaceBlocked`); `AiContext` += `facts: AiFacts`. | The snapshot parser treats both lists as closed; update `sanitize.ts` and `snapshot.ts` together. |
+| `src/sim/ai/registry.ts` | Register `"priority"`. | low |
+| `src/sim/world/view.ts`, `view-impl.ts` | `ShipView` += `bounty`, `groupId`, `energy`, `maxEnergy`, `cargo`, `accuracy`, `escortSlot`, `ownerId`; `WorldView` += `playerStanding()`, `groupLeader(groupId)`, `specKeyOf(id)`. | The exhaustive `Record<keyof WorldView, true>` pin tests must be updated deliberately (Pitfall 19 applies: this is the "later phase that needs it"). |
+| `src/sim/world/control.ts`, `control-impl.ts` | `ShipControl` += `say(key, params)`, `notify(to, name, a?, b?, n?)` (a bounded `postAiEvent` for ship-to-ship channels and group broadcast `notifyGroup`), `markOffender(target, bits)` (a ship target or `PLAYER_ID`), `setBounty(0)` (self), `joinGroup`/`leaveGroup`/`appointLeader`, `acceptEscort`/`releaseEscorts`, `requestDock`/`enterWitchspace`/`land` (all end in `retireShip` at the right range), `startScoop`. All actor-only for writes except through events. | Argument domain checks as today; one pin test. |
+| `src/sim/world/entity.ts`, `world.ts`, `serialize.ts`, `sanitize.ts`, `snapshot.ts`, `limits.ts`, `ids.ts` | New fields (section 5). `limits.ts` gains `MAX_BOUNTY`, `MAX_GROUP_ID`, `MAX_POD_AMOUNT`. | The one bundled bump. |
+| `src/sim/world/step.ts` | `stepWorld` gains the populator phase and the tractor stage (after `stepDebris`); `invoke` builds `AiContext.facts`; `NpcStepFacts` (in `npc/stats.ts`) carries `ai?: AiFacts` and `populator?: PopulatorContext`. | Populator phase must stay after the final drain so new ships act next tick. |
+| `src/sim/world/populate.ts` | `INERT_POPULATION` and `planInertPopulation` are replaced by `populator/plan.ts`; keep `pickRecord`, `parseRoleToken`, `cargoCountAtSpawn`, `isScanClass`. `populateInertWorld` is kept as a test fixture entry (12 inert ships) or retired with its golden. | Re-pins `tests/golden/world/inert-lave-epoch1.json`: plan it once. |
+| `src/sim/world/kill.ts` | `notifyKill` additionally posts `shipTargetDestroyed` etc. as today; no change to credit rules. Player kill credit stays in `resolveShots`. | low |
+| `src/sim/world/debris.ts` | Pods take a commodity and an amount from the victim's cargo kind (port of `Universe.m:3854-3878`, `3977-3996`, `getContainersOfGoods`), drawn from a **stateless fork** `forkSeed(worldSeed, victimId, "pod")`, so the victim's `combat` stream order (D16-12) is unchanged and no pod-position draw moves. | The commodity roll needs the system's market quantities for plentiful/scarce goods: add them to `DebrisContext`. |
+| `src/sim/world/contacts.ts` | `NpcContact.kind` gains `"hostile"` (and optionally `"offender"`) for scanner colour; `debrisContacts` feed the scanner for `CLASS_CARGO` (recorded gap D16-26, "deferred with scooping"). | HUD scanner model change. |
+| `src/sim/combat/ledger.ts`, `combat/step.ts` | After each applied record post `shipBeingAttacked` (victim, `a` attacker) or `shipBeingAttackedUnsuccessfully` (shield absorbed) and `shipAttackedOther` (attacker, `a` victim) to **NPC** ids; call `offence.ts`; after the kill loop call `collectBountyFor` when `killer === PLAYER_ID`; `resolveShots` takes `combat.standing`. Today **nothing in the repo posts a being-attacked event** (`ai/types.ts` lists the names, no producer exists), so every reaction of the ported AI depends on this change. | Changes event order inside `resolveShots`; pin tests in `tests/sim/combat/`. |
+| `src/sim/combat/collide.ts`, `combat/response.ts` | Add Oolite's scoop branch (`ShipEntity.m:11035-11042`) ahead of the damage rule: a scooper that `canScoop` a cargo entity tractors it instead of colliding (PD-05 comment removed). | One of two places the world side writes the player's `FlightState`; the tractor pulls nothing of the player, only the pod. |
+| `src/sim/combat/state.ts` | `PlayerCombatState.standing: PlayerStanding`; `isPristineCombat` and `serializeCombat` extended pristine-omit; `dockReset` and `launchReset` must **not** touch it. | A test that pins `dockReset` field by field must be extended. |
+| `src/sim/sim.ts` | Passes `combat?.standing` into `stepWorld`; no new step. | low |
+| `src/sim/npc/dispatch.ts`, `npc/behaviours/*` | Add `COLLECT_TARGET`; confirm `TRACTORED` and `FLY_RANGE_FROM_DESTINATION` entries; the ported AI's behaviour set stays inside the 9 native behaviours plus collect (STATE 2026-11-14). | The 20-seed acceptance run applies (section 8). |
+| `src/sim/dock/computer.ts`, `flight/step.ts` | Docking check: refuse a docking-computer request when `standing.bounty > 50` (`StationEntity.m:412`, `:1861`; `PlayerEntityControls.m:4701-4726`) with a new `DockDeniedReason` `"fugitive"`; the autopilot-dock fine roll (`:4743-4755`) is app/dock-time. Needs `standing` as a `StepOptions` fact (read-only inside `stepFlight`). | Manual docking is not refused by Oolite's clearance logic; research flag (section 9). |
+| `src/sim/hyperspace/jump.ts` or `src/app/session/hyperspace-controller.ts` | Arrival: `standing.bounty = floor(bounty / 2)` (`PlayerEntity.m:6887`). | The arrival is an app block with a synchronous install rule (world-lifecycle rule (ii)); the halve is total. |
+| `src/sim/player/outfitting.ts` | `VISIBLE_EQUIPMENT_KEYS` += `EQ_FUEL_SCOOPS` (already in the catalogue, 5250 decicredits at TL 5, `equipment.json`). | The F3 display order is pinned by tests. |
+| `src/content/**`, `tools/oolite-ingest/**` | New converter rows: full NPC roster, `aiType`, `bounty`, `escorts`, `escort_role`, `accuracy` range, `has_scoop`, `scoop_position`, `cargo_type`, `pilot_role` hints, `role-categories.plist`, comms strings (`oolite-priorityai.js` `_getCommunication`, the `descriptions.plist` keys). `src/content/schemas/ship-npc.ts` gains the fields. | Models are CC BY-NC-SA: `ASSETS.md`, `NOTICE`, `CHECKSUMS.sha256`. Lazy chunk size and the load-time budget are affected. |
+| `src/persistence/save.ts` | `SAVE_VERSION` 6: `legalStatus` (int 0..`MAX_BOUNTY`), `shipKills` (int); strict schema, no migration (D-11 precedent, alpha). Supersedes the Key Decision "no combat, law or cargo field in the save" (2026-11-13) for these two scalars only. `MAX_SAVE_CHARS` comment re-measured. | Golden saves regenerate. |
+| `src/app/session/traffic.ts` | `createInertPopulate` becomes `createPopulate`; `trafficContent` also builds `PopulatorContent`, `AiFacts`, role tables; one builder shared with `tests/helpers/tick-script.ts` (Pitfall 11). | Node-runner purity rule stays. |
+| `src/app/session/step-options.ts` | Adds `ai`, `populator`, `hold` (capacity pods, pods used, `hasScoop`) and `standing` facts to `StepOptionsInput`; built per step. | |
+| `src/app/session/event-router.ts` | Routes `bountyAwarded`, `legalStatusChanged`, `cargoScooped`, `commsMessage`, `shipDestroyed` (kill text); new subscribers `standingFlow`, `scoopFlow`. | `EVENT_SUBSCRIBER_ORDER` is pinned by `tests/app/session-order.test.ts`: append, never insert. |
+| `src/app/session/save-controller.ts`, `start-session.ts` | `snapshotForSave` reads `combat.standing`; Continue/Load seed `combat.standing` from the save (today `combat` is recreated fresh on Continue/Load). | A Continue must restore standing before the first `stepSim`. |
+| `src/app/hud-model.ts`, `src/ui/station-model.ts` | F5 shows Legal Status (`labels.legalStatus`, 3 strings already compiled) and the rating with the kill count (`formatRating(rating, kills)` exists with `kills` hard-wired 0). HUD: scoop status dial, scanner colours. | |
 
----
+### 3.3 Component boundaries
 
-## 4. The damage ledger in detail
-
-### 4.1 Why a ledger
-
-Today two code paths lower energy: `routeDamage` for the player and a direct `entity.energy = max(0, ...)` for NPCs, both inside `resolveShotHits`. Collisions add a third source and death/destruction must read the result of all of them. Applying inside each source breaks the "a hit never sees another hit of the same tick" property and makes the kill order depend on code order. The ledger keeps that property.
-
-```ts
-// src/sim/combat/ledger.ts (sketch)
-export interface DamageRecord {
-  readonly target: EntityId;          // PLAYER_ID or a dynamic ship
-  readonly source: EntityId;          // shooter or the other ship
-  readonly amount: number;            // finite, > 0 (never queued otherwise: T-13-15)
-  readonly kind: "laser" | "scrape";
-  readonly sourcePosition: Vec3;      // decides the player's shield facing
-}
-
-export function applyDamage(
-  records: readonly DamageRecord[],      // already in the deterministic order
-  world: World | undefined,
-  player: FlightState,
-  combat: PlayerCombatState | undefined,
-  internal: InternalDamageFacts | undefined,
-  events: SimEvent[],
-): { killed: KillRecord[] } { /* shields -> energy -> internal damage; NPC: energy -= amount */ }
-```
-
-### 4.2 Player damage
-
-- Laser: unchanged kernel (`routeDamage`, `PlayerEntity.m:5646-5662`). Scrape: same shield facing test (`:5726-5742`); the remainder is `energy -= amount`.
-- After the shield, `while (amount > 0) { if ((rand & 31) < amount) takeInternalDamage; amount -= 32 }` (`PlayerEntity.m:5691-5697` for lasers when the player survives, `:5746-5752` for scrape). Randomness: the **world stream** (`world.rng`, already hashed) because the player owns no per-entity stream; draws happen in ledger order, so they are deterministic. Do not add a closure-held generator (FOUND-12 forbids it; a source-scan test enforces it).
-- `takeInternalDamage` needs `n_considered = (maxCargo + mass/10000) * tradeInFactor/100`; the Cobra's compiled mass is in `ships-client.json`; `ship_trade_in_factor` is not modelled (use 100; record the divergence). The sim returns the outcome as events; the app owns the profile.
-
-### 4.3 NPC damage and destruction
-
-- NPC: `energy -= amount` (Oolite `ShipEntity.m:11431`); no shields. `energy <= 0` queues a `KillRecord { id, killer }`.
-- The player's `routeDamage` heats the cabin; NPC energy damage also heats an NPC in Oolite (`:11435`) but nothing in Wegolite reads NPC temperature, so it is not ported.
-- Scrape on an NPC: `takeScrapeDamage` (`:11641-11676`), same `energy <= 0` rule, plus the fragment chance `frag_chance = other.mass * 10 / mass` (research flag; it only affects `being_mined` debris of asteroids, which are out of scope).
-
-### 4.4 `destroyShips` (Oolite `becomeExplosion`, `ShipEntity.m:7891-8143`, and `releaseCargoPodsDebris`, `:7814-7879`)
-
-Per killed ship, ascending id, all randomness from that ship's own `rng.combat` (written back like `steerEntity` does):
-
-1. `store.kill(id)` (it leaves `live` at the second commit).
-2. Emit `shipDestroyed { id, position, radius, specKey, killer }` (already reserved), then AI events: `shipTargetDestroyed` to the killer's AI and `shipKilledOther` if it is an NPC (`AI_EVENT_NAMES` already has both).
-3. Debris, **only if the entity count allows**: Oolite adds debris only below 95 % of `UNIVERSE_MAX_ENTITIES` and wreckage only below 50 %. Wegolite's `MAX_ENTITIES` is 256, so the same ratios give 243 and 128. A `spawnEntity` refusal (`storeFull`) is skipped, as `populateInertWorld` does. That is the "entity cap" of the milestone target: it needs no new cap constant, only the two thresholds and a test that the world never exceeds `MAX_ENTITIES`.
-4. Cargo pods: `n_jetsam` is the ship's cargo count; each pod survives with probability `cargo_chance` (starts 70; minus 30 per success for an NPC), at most 15; position random in the bounding box plus `(r % 7) - 3`; velocity `parent + 0.1 * ((r % 200) - 100)` per axis; random orientation. A pod is an `Entity { kind: "cargo", scanClass: "CLASS_CARGO", specKey: "cargopod" }`.
-5. Wreckage: with `n_alloys = sqrt(sqrt(mass / 6000))`, `n_wreckage = floor(rand * (n_alloys + 2))` capped at 3; each wreck is `Entity { kind: "wreckage" }` whose `energy` is its lifetime in seconds (Oolite sets `energy = lifetime` and applies 1000 heat damage per second; Wegolite drains the energy field by `dt` per tick and removes it at 0). Then `floor(rand * n_alloys)` alloy plates as `CLASS_CARGO` pods.
-6. Debris motion without a velocity vector: an `Entity` holds `position`, `orientation`, `speed` (scalar along its nose). Make the debris orientation its **heading** and `speed` its speed; tumble is cosmetic and render-only. This avoids adding a velocity vector to the record (the one record bump already carries `weapon` and `cargo`).
-
-`cargo` on an NPC: the populator never fills cargo today, so "Oolite's cargo rule" needs a source for the count. Recommended: compile `likely_cargo` (and `max_cargo`) into `ships-npc.json` and draw the count at spawn from the ship's `combat` stream into `Entity.cargo`. Research flag: the exact Oolite derivation per role (`setUpCargo`, `cargo_carried`) before planning.
-
-### 4.5 Collisions (`ShipEntity.m:11020-11149`, `CollisionRegion.m:226-374`)
-
-Oolite: for each pair within `(r1 + r2)`, `checkCloseCollisionWith` runs `doOctreesCollide` (`ShipEntity.m:1878-1942`); then `collideWithShip`:
-
-```
-loc  = unit line of centres (other - self)
-v2b  = dot(vSelf - vOther, loc)            // closing speed along the line of centres
-if v2b < 0 and v2b < -1: return            // already separating faster than 1 m/s: no damage
-dam1 = m2 * v2b^2 / 50_000_000             // damage to self
-dam2 = m1 * v2b^2 / 50_000_000             // damage to other
-if dam1 > 0.05: self.takeScrapeDamage(dam1)
-if dam2 > 0.05: other.takeScrapeDamage(dam2)   // not the station: it cannot be destroyed
-```
-
-Integration points:
-
-- **Positions at collision time** are the post-`stepWorld` positions, so the pass sits after step 4 and before `applyDamage`. Pairs: every ascending-id pair of live ships, the player (only while `inFlight`: Oolite ignores collisions while launching, `ShipEntity.m:11646`), and the two buoys. Complexity at 256 entities is 32k sphere tests worst case; a one-axis sweep (sort by x) is the Oolite approach and also keeps the order deterministic. Skip kinds `wreckage` (`isWreckage` cannot collide, `ShipEntity.m:1865`) and keep pods out of this milestone's collision (scooping is out of scope; pods only drift).
-- **Player response**: the flight model has no velocity vector, but `FlightState.impulse` (world m/s, decays, integrated by the flight tick; Key Decisions D-07) is exactly the "transient contact velocity". Apply `vel1a` there and nudge `position` by `t * loc * v1a` as Oolite does. This keeps `stepWorld` read-only on `FlightState` because the write happens in the collision module, in `stepSim`'s own composition layer, the same layer that already passes `player` to `resolveShots`.
-- **NPC response**: `speed` is a scalar along the nose; project the response onto the nose and displace position. Record this as a divergence (Phase 14 already cut Newtonian velocity).
-- **Not in scope**: ship against the station body (the dock bounce stays), against planet and sun (todo `2026-11-10-add-planet-and-sun-collision`).
-
-### 4.6 Station and buoy hull targets
-
-- The 10 hull octrees (Cobra and nine NPC) are the only entries of `ships-hulls.json`. The build already computes octrees for the Coriolis and the buoy to derive their mass (Key Decisions rows "Coriolis blockage mass" and "Navigation buoy mass"), so the data exists at build time; it has to be emitted.
-- The Coriolis mass is the hull plus three solid subentities (faceplate, tris, dock; `ShipEntity.m:2034-2041`). Oolite's hit rule has a subentity branch (`Universe.m:5560-5568`, `:5623-5636`) that `hit.ts` explicitly does not port ("none of the ten hulls has a solid subentity"). The Coriolis and the buoy (hull plus the core subentity) do. Research flag: decide between porting the branch and baking the subentity cells into one octree. This is the largest unknown of the milestone; schedule it before anything that depends on it.
-- The station rotates: its orientation is `stationBaseQuat * axisAngle(0,0,1, player.stationAngle)` (`dock/port-frame.ts:32-37`, `flight/step.ts:368`). `hit.ts` receives `HitTarget { position, orientation }`, so the new `static-hulls.ts` supplies those two for the station from `player.stationAngle` and for the buoys from the flight clock.
-- The buoy's simulation radius stays 10 m (Key Decisions row "Draw Oolite's navigation buoy") while the model is ~100 m. A laser or collision test must use the octree and the hull radius, not the 10 m body radius. The row's "simulation radius of both bodies stays 10 m (mass lock, scanner)" remains true for those two uses.
-- The station absorbs hits: the beam stops at its hull and `shipHit` is emitted, with no destruction and no retaliation (police and station AI are out of scope). Buoys take damage against `staticHealth` (250 energy, recharge 2/s in `shipdata.plist:1018-1021`); a destroyed buoy is removed from the scene, scanner and hit candidates for the life of that world. The next `begin` or `resume` builds a fresh world, so it is restored at every launch, arrival and Load, which fits the leg-anchor save model.
+| Component | Responsibility | Communicates with |
+|-----------|---------------|-------------------|
+| Priority AI (`src/sim/ai/priority`) | Decide what to do and say; never move a ship | `ShipControl`, `WorldView`, `AiFacts` only (AI lint zone: add `facts.ts`, `priority/**` to the allow-list) |
+| Native steering (`src/sim/npc`) | Move, aim, fire (gate) | `entity.nav`, `entity.steer`, `ctx.fire` |
+| Populator (`src/sim/world/populator`) | Decide who exists and where | `world.rng`/forks, `spawnEntity`, `ai/spawn.ts` |
+| Ledger/kill (`src/sim/combat`, `world/kill.ts`, `world/retire.ts`) | One place lowers energy, one removes ships | `postAiEvent`, `standing` |
+| Standing (`src/sim/player/standing.ts`) | Legal status, kill tally, rating | ledger (writes), view/facts (reads), save (via app) |
+| App flows (`src/app/session/*-flow.ts`) | Wording, profile, persistence | SimEvents only |
 
 ---
 
-## 5. NPC fire in detail
+## 4. The priority AI as plain data
 
-### 5.1 What exists
+### 4.1 What is static and what is state
 
-- `ShipControl.fire(id)` queues the actor in `world.fireQueue` (one per actor per tick); `resolveShots` drains it, builds the ray from the hull's `forward_weapon_position`, and applies the **same** hit and damage rule as the player's shot. Phase 13 deliberately gave NPC shots "no heat, no timer, no energy cost" (Key Decisions row "NPC fire shares only the hit and damage rule"; CBT-15 was the follow-up).
-- No steering behaviour calls anything that fires. Phase 14 cut it in its scope row ("no weapon fire from steering (weapon temperature 0 and `missedShots` 0)") and in the header comments of `attack-close.ts`, `attack-evade.ts`, `evasive.ts`, `flee.ts`.
-- In shipped play every populated ship is `ai: null`. `AI_REGISTRY` holds only the test pilot and the flight-script pilot; both are test-only. So **nothing in the shipped game ever enters ATTACK_TARGET**.
+Oolite's `PriorityAIController` (`oolite-priorityai.js:38-593`) holds: the priority list (a code literal per role script), `parameters` (a dictionary), two caches (`__cache` cleared on every reconsideration, `__ltcache` cleared every 60 s), active handlers (rebuilt per behaviour), `lastCommSent/Heard`, a comms role and personality, a waypoint generator, one `Timer` (ECM). Map them:
 
-### 5.2 Design
+| Oolite thing | Port | Stored? |
+|--------------|------|---------|
+| priority list, templates | `PRIORITY_TREES[treeKey]` frozen at load | no (code, selected by `params.tree`) |
+| `oolite_flag_*` that the role script sets once | tree-level `config` constant | no |
+| `parameters` that change at run time (selected station, planet, docking station, leader id, defense targets, waypoint index, cargo demand) | typed `params` keys | yes |
+| `__cache` | scanner/odds memo inside one `think` | no |
+| `__ltcache.oolite_nearestStation` | recompute (one station in v2.4) | no |
+| `__ltcache.oolite_dockingclearpos` (a random point kept so the ship does not re-roll) | `params.dockPos` (3 numbers) | yes |
+| current behaviour function | `params.beh` (closed id) | yes |
+| active handlers (`applyHandlers`) | `params.hs` (closed handler-set id) | yes |
+| `AIScriptWakeTime` | `ai.wakeTick`, never-later rule already in `scheduleWake` | yes |
+| `lastCommSent`, `lastCommHeard` (seconds) | `params.cs`, `params.ch` (ticks) | yes |
+| comms role / personality | `params.cr` (string), `params.cp` (string); personality chosen from `entityPersonality % n`, so derive it from the entity id and spec key, store only the choice | yes |
+| waypoint generator closure | `params.wpgen` (closed id: `stationPatrol`, `witchpointPatrol`, `spacelanePatrol`) + `params.wp` (flat `[x,y,z,...]`, at most 64) | yes |
+| ECM timer | out of scope (ECM deferred); no param | no |
 
-1. `SteerContext` gains `fire(rangeToTarget: number): boolean`. `steerShip` stays free of world writes: the context closure (built in `steerEntity` in `world/step.ts`, next to `emit`) pushes the entity id to `world.fireQueue` through the same bounded, deduplicated path `createShipControl.fire` uses.
-2. The gate (`npc/fire.ts`) runs in the steering before queueing, on the entity's own `weapon` record and `ctx.draw()` (its own `combat` stream): temperature cut-out, energy, shot timer, range roll `range > randf() * weaponRange * (accuracy + 7.5)`, `range > weaponRange`, `onTarget`. On success: energy `-= weapon_energy_use`, temperature `+= weapon_shot_temperature`, shot timer reset. Cooling and the timer advance once per tick.
-3. The attack behaviours call it at the lines Oolite does (4035, 4454, 4575, 4607, 4711, 4821, 4891 of `ShipEntity.m`) and their `weapon_temp > USABLE` branches become reachable.
-4. `resolveShots` keeps draining `fireQueue`; the queued shot is therefore already gated, so `drainFireQueue` stays "no gate here" and the shared hit rule is untouched. `StepOptions.combat.npcWeapons` must also carry `energyUse`, `shotTemperature`, `rechargeTicks` (compiled from `weapon_info`/`OOWeaponType`), or the gate cannot be a pure function of its inputs.
-5. Hostility (Q1 in section 11): a `reflex` module posted `shipAttacked` events. `applyDamage` posts `shipAttacked { to: target, a: source }` and `shipAttackedOther { to: source, a: target }` for NPC targets; the AI drain at the end of the tick delivers them. For an `ai: null` target the resolution attaches the reflex AI (wake-on-hit) before posting. The populator golden is unchanged because the ship becomes an AI ship only after a hit.
+The budget is about 24 of the 32 allowed keys. A unit test enumerates the closed key list and fails past 32.
 
-### 5.3 Consequences for tests and gates
+### 4.2 `params` vocabulary (short keys, one module)
 
-- The 139 oracle fixtures and the frozen 20-seed acceptance run were recorded with weapon temperature 0 and no fire. Enabling the hot-weapon branches changes attacker trajectories. New oracle fixtures (written without reading `src/sim/npc`, per the independence rule) are needed for the hot-weapon branches; the acceptance run must be rerun by hand on the remote machine after any change under `src/sim/npc/**` (AGENTS.md). The frozen detectors may not be edited without the owner trailer.
-- `tests/acceptance/**` calls `stepSim` (verified), so the fire queue drains there; with no `npcWeapons` in that harness nothing is queued and no shot lands.
+`tree`, `beh`, `hs`, `fire` (true for any hull with a forward weapon), `tgtAlt` (remembered target id), `def` (defense target ids, at most 8), `stn` (selected station id), `pln` (selected planet id), `dock` (docking station id), `dockPos`, `wpgen`, `wp`, `wpi`, `lead` (group leader hint, re-validated), `cdm` (cargo demand amount), `cdd` (demanded of me), `cdp` (paid), `cdmet`, `cs`, `ch`, `cr`, `cp`, `wsEntry` (witchspace plan tick), `wsDest` (system id), `lastOdds` (tick), `notePlayerRole`. Every stored entity id is re-checked with `view.isValid` at each use (the flight-script precedent); `killShip` never rewrites references (documented in `kill.ts`).
 
----
+### 4.3 Reconsideration and timers
 
-## 6. Determinism, hash, snapshot and save
+`think` runs only when `wakeTick` is due: set `nextThinkTick = MAX_UINT32` at creation so the periodic 15-tick think never fires (the priority AI has none, the engine's `aiAwoken` is wake-only). `reconsider: N` seconds becomes `ticks(N)` via `ai/time.ts`; `reconsiderNow` is `0.1 + (10 - accuracy)/10` seconds (`priorityai.js:441-448`), needing `accuracy` on `ShipView`. All `Math.random()` calls become `ctx.random()` (the entity's "ai" stream) **at the same call sites and in the same order**; the harness routes `Math.random` to the host draw (`load.ts` `RANDOM_INSTALLER`), which makes the draw sequence comparable.
 
-### 6.1 Streams (no new generator)
+### 4.4 Events and responses
 
-| Draw | Stream | Why |
-|---|---|---|
-| NPC fire roll, accuracy, tumble | the ship's own `rng.combat` (existing) | `steerEntity` already copies and writes it back |
-| Debris counts, positions, velocities, cargo chance | the dying ship's own `rng.combat` | independent of other ships (D-04); debris forks its own streams at spawn |
-| Player internal damage, any draw without an entity | `world.rng` | already hashed; the player has no entity stream |
-| Cargo count at spawn | the populator's `world.rng` order | change only with the golden regeneration |
-
-The Key Decisions row on `forkSeed` warns that per-entity streams are shifted copies of one Weyl cycle: do not treat them as independent for statistics. Debris draws are few per death, so the bound there is small; do not use `rng.combat` for a high-rate draw.
-
-### 6.2 Hash
-
-- One new entity segment, always present, appended after `;steer:`: `;wpn:` carrying the forward weapon temperature, shot timer ticks and the cargo count. Same device and same owner-chosen policy as `;steer:` (uniform, injective text; no pristine-only variant). A test strips it and re-hashes to the pre-milestone text, as Phase 14 did.
-- `staticHealth` is appended only when non-pristine (the combat-line device), so a run that never damages a buoy keeps its hash.
-- The player's `mode: "dead"` is already printed by `serializeFlight`; no pinned flight golden contains it.
-- Debris is part of the entity store: it hashes like any entity and counts for `MAX_ENTITIES`, `liveEntityCount` and the probe's `entities`.
-
-### 6.3 Snapshot
-
-`WORLD_SNAPSHOT_VERSION` 3 to 4 once, with `weapon`, `cargo`, the debris kinds and the static health. The parser must keep "non-empty `aiQueue` and `fireQueue` refused" and "uncommitted dead refused"; both now hold at the tick boundary because of the second commit and the AI drain. Bounds go in `limits.ts` (single definition site); changing one later is another bump.
-
-### 6.4 Save
-
-- The combat state is not saved; death is not saved; NPCs are never saved. A death returns the player to the last anchor save, whose world is regenerated deterministically from `mix32(marketSeed, epoch)`. A repeat death at the same place is therefore reproducible (Oolite behaves the same way on reload).
-- **Equipment and cargo damage** is a profile change, and the profile is saved at the next dock, launch or arrival anchor. A damaged `EQ_DOCK_COMP` must not silently come back at the next dock. Options, in order of cost:
-  1. Persist it: `damagedEquipment: string[]` (save v5, optional additive field, ordered migration v4 to v5, validated against the equipment allow-list; `*_DAMAGED` pseudo-keys are rejected as unknown by `allow.equipment`, so do not store them in `equipment`). `equipmentSet()` (the single source of `StepOptions.equipment`) excludes damaged keys, which makes every existing consumer treat them as absent with no further change. This is the recommendation.
-  2. Not persisted, repaired on dock: cheapest, but it diverges from Oolite, where damaged equipment stays until repaired at 50 % price (`PlayerEntity.m:9025-9038`, `:9113-9118`). A repair row in F3 is a station-UI plan of its own; keep it out of this milestone unless the owner wants it (Q4).
-- Cargo destruction removes cargo from `profile.cargo` (commodity quantities, not individual pods; mapping is a research flag).
-- `snapshotForSave` currently maps every non-`inFlight` mode to `docked` (`autosave.ts:114`). A dead state would be written as a docked save. The dead guard in `autosave()` is not enough on its own: make `snapshotForSave` return `undefined` for `dead`, and add a unit test that pins it.
+`onEvent` maps `AiEvent.name` through `HANDLER_SETS[params.hs]` to a response id and runs it with the same `PriorityCtx`. Standard responses (`priorityai.js:4888-5660`) mostly call `reconsiderNow`, change target and `perform` an attack. The kill code already posts `shipTargetLost` to holders and `shipTargetDestroyed`/`shipKilledOther` to an NPC killer. New producers: ledger (being attacked, attacked other, unsuccessful), `offence.ts` (`offenceCommittedNearby`), populator (`shipLaunchedFromStation`), `ShipControl.notify` for help requests, distress, escort acceptance and cargo-demand traffic.
 
 ---
 
-## 7. App flow: the single death path
+## 5. Hash, snapshot and save changes (one bundle each)
 
-### 7.1 The path
+| Item | Where | Hash form | Why |
+|------|-------|-----------|-----|
+| `Entity.bounty` (uint) | `entity.ts`, `serialize.ts` | `;bty:n` omitted at 0 | NPC legal status is a field of every ship; it decides who police attack and what a kill pays (`ShipEntity.m:7097-7152`) |
+| `Entity.groupId` (uint) | same | `;grp:n` omitted at 0 | Group membership |
+| `Entity.cargoKind` (small enum) | same | `;ck:n` omitted at 0 | The populator's `CARGO_FLAG_*` decides what pods a dying ship releases; today only a count exists |
+| `Entity.podCommodity`, `Entity.podAmount` | same | `;pod:c,a` omitted when both 0 | Scoopable identity; both 0 means an anonymous pod, the current behaviour |
+| `World.groups: {id, leader}[]` | `world.ts`, `snapshot.ts` | one `groups:` line, omitted when empty | Leader per group |
+| `World.populator { nextTick, rolls }` | same | one `repop:` line, omitted when `nextTick === 0` ("never armed") | The repopulation clock and a counter for stateless forked draws |
+| `PlayerStanding` | `combat/state.ts` | appended to the combat line only when non-pristine | Read by the AI, written by police AI and kills |
+| `AI_KEYS`, `AI_EVENT_NAMES` | `ai/types.ts` | none (closed vocabularies) | The snapshot parser rejects an unknown key |
+| `WORLD_SNAPSHOT_VERSION` 4 to 5 | `snapshot.ts` | | The parser version check is strict; world snapshots are test-only, never in saves |
+| `SAVE_VERSION` 5 to 6 | `persistence/save.ts` | | `legalStatus`, `shipKills` |
 
-```
-sim: checkPlayerDeath  --> mode = "dead", hyperspace attempt cleared, "playerDestroyed" event (cause)
-router.dispatch(playerDestroyed) --> deathFlow
-   1. close the chart (chartController.closeChart) -- the sim runs behind the chart in flight
-   2. clear messages, input.clearAll(), input.setContext("gameOver")
-   3. launchSequence.reset(); hide the HUD canvas? (keep: energy gauge shows empty) -- decision: keep, add overlay
-   4. gameOver.show({ canLoad }) where canLoad comes from ctx.save.saveStatus === "valid"
-   5. redrawGate.request(); probe.death published
-Player action:
-   Load  --> loadSavedGame({ source: "gameOver" })   // same pipeline as boot Continue and warm Load
-   New   --> window.location.reload()                // the title flow: the title offers Continue/New game from the boot read
-```
+Golden consequences, to plan once: pristine-omit keeps `flight-hash-pins.json` and every golden whose world has none of the new fields. `tests/golden/world/inert-lave-epoch1.json` changes because the populate table changes, and the debris goldens change because pods draw a commodity (the stateless fork leaves the position draws alone). `tests/golden/save/*` regenerate at v6. The Phase 18 standing approval to re-pin twin hashes when the cause is measured and Node equals browser covers hash re-pins; confirm it extends to v2.4. The `;steer:` record stays frozen; none of these fields go inside it.
 
-### 7.2 Guards that must test the dead mode first
-
-| Place | Guard |
-|---|---|
-| `save-controller.autosave`, `manualSave` | record the attempt (`saveAttempts += 1`), set `saveSkipReason = "dead"` and return, ahead of every other check, as the `contextLost` guard does. |
-| `snapshotForSave` | refuse dead (section 6.4). |
-| `settings-controller.pause`, `focusLost`, `frame-loop` pause toggle | no pause overlay over the game over screen; focus loss only clears input. |
-| `enterContextLoss` | still sets `contextLost` and blocks Load until `exitContextLoss`; it must not open the pause overlay over the game over screen. |
-| `frame-loop` chart branch | dead state never steps behind the chart; `handleChartActions` ignores `chart` while dead. |
-| `station-controller`, `openSaveScreen` | already require `mode === "docked"`; dead fails closed. |
-| `sim-driver.advanceTicks` | returns the tick unchanged when dead (like paused) so a manual-clock spec cannot step a dead world. |
-| `redraw-gate` | `shouldDraw`: dead is idle after the settle draws. |
-
-### 7.3 The load pipeline
-
-`loadFromSave` has hard preconditions (`saveScreenOpen`, a F2 notice surface) and closes the F2 screen on success. Refactor to `loadSavedGame(options: { source: "saveScreen" | "gameOver" })` sharing the read, `parseSave`, `restoreFromSave`, `enterSystemById`, the synchronous install block and the world re-anchor (`restoreWorldAnchor`), and differing only in its guard, its failure surface (F2 notice versus the overlay's own line) and its tail (hide F2 versus hide the overlay and set the input context). The install block already resets the combat state to pristine, clears the message queue, the dock feedback and the combat message gates, and the chart. Add: hide the game over overlay, drop any live explosion effect, and clear `ctx.core.lastRefusal`.
-
-Edge cases to test:
-
-- A save write still in flight when the player dies: `store.read()` must observe the queued write (the writer serialises by revision; confirm the read waits or document the race).
-- `saveStatus` is `future`, `unreadable`, `unavailable` or `corrupt`, or the session is `testTainted` (`?test=1` mutation): no loadable save is guaranteed. The overlay then offers only New game. The tainted case still has a boot-time blob; Load reads it, which is fine.
-- Death in `launching`: Oolite lets lasers hurt a launching player but ignores scrape. Allow laser death while launching only if the owner wants it (Q6); the simplest rule is "death requires `inFlight`", and then `launching` clamps energy at 1.
-- Death on the tick that docks: `docked` comes from `stepFlight` and `dockReset` refills energy before the combat step, so no death; assert it.
-- Death on the tick of a `hyperspaceJumped`: the world is not stepped, nothing damages the player; the arrival autosave runs from the earlier event as usual.
-
-### 7.4 Title flow
-
-There is no route back to the title in a live session: `start()` is single-shot (`starting` guard) and `title.dispose()` runs only at teardown. The boot `bootSave` and `title.setContinueVisible` are computed once in `main.ts`. The fallback that respects the title flow without building a second session lifecycle is a page reload: it re-reads the store and shows Continue exactly when a loadable save exists. This is also what Oolite does after game over (it re-initialises to the start screen). If the owner wants a true in-page return to the title, that is a separate, larger change to `main.ts` and `start-session.ts` (Q5).
+Saves keep the "NPCs regenerated at the leg anchor, never saved" rule. A Continue therefore resets the traffic (pirates a player already killed reappear) and re-arms the repopulation clock from the world seed. Standing and kills persist. Record this in Key Decisions so it is not rediscovered as a bug.
 
 ---
 
-## 8. Render, HUD and probe
+## 6. Data flows
 
-- **Debris**: a second instanced layer fed by `debrisContacts` (id-free, rebuilt each rendered frame like `npcContacts`). Models arrive through the existing `NpcModelLoader` path (loaded only after the first in-flight frame, so the cold-start ceiling of 9,437,184 bytes in DATA-13 is untouched), so their records belong in `ships-npc.json` or a sibling debris record list. Three small models (cargo pod, wreck, alloy) are vendored: `ASSETS.md`, `NOTICE` and `third_party/oolite/CHECKSUMS.sha256` change, and AGENTS.md's rule against fetching Oolite files over the network applies; the vendor script is the sanctioned route and a new network fetch needs a new decision (Key Decisions row "Network vendoring exception"). Reading from the local checkout, with a checksum entry, is the cheaper path; confirm with the owner.
-- **Explosions**: render-only, driven by `shipDestroyed` (position and radius, no id), a fixed pool, `flightTime` for age. No simulation feedback.
-- **Laser beams**: `laserFired.to` already ends at the hit distance, so a beam that now stops at a station or a buoy needs no render change.
-- **Scanner**: ships only (unchanged). Destroyed ships vanish with the next frame's contacts. A destroyed buoy drops from `scannerTargets`.
-- **HUD**: no new element. The energy gauge reads 0 at death; messages "[x] damaged." and "[x] destroyed." come from `damageFlow` through `MessageQueue.enqueuePriority` (descriptions.plist `@-damaged`, `@-destroyed`); the existing one-second gate table (`CombatMessageKind`) gains `equipmentDamaged` and `cargoDestroyed`.
-- **Probe**: `probe.death { dead, cause }`; `probe.sim.entities` already counts debris through `liveEntityCount`; a `probe.combat.destroyedShips` counter helps browser specs. No entity id leaves the sim (the guard `tests/guards/entity-id-scope.test.ts` stays unchanged).
+### 6.1 Initial population (world creation)
 
----
+`world-lifecycle.begin/resume` → `populate(world, {traffic})` (`traffic.ts` closure) → `populator/plan.ts` (system facts + `world.rng`, same draw discipline: location, pick, orientation) → `populator/spawn.ts` (`spawnEntity` with `ai: createPriorityAi(...)`, `ownerId`/`escortSlot` for escorts, `groupId`, `bounty`, cargo). No ids burned with traffic off (D-01). Arming the clock: `world.populator.nextTick = tick0 + floor(u * 2400)` from a stateless fork (Oolite `next_repopulation = randf() * INTERVAL`, `Universe.m:1293`).
 
-## 9. Patterns to follow
+### 6.2 Repopulation
 
-### Pattern 1: Sim decides, app commits (equipment and cargo damage)
+`stepWorld` populator phase: `if (tick >= populator.nextTick)` → for each rate in fixed key order draw `forkSeed(worldSeed, populator.rolls++, "repop")`; spawn via `populator/spawn.ts`; `nextTick += 2400`. Incoming ships appear at the witchpoint with the AI already holding a destination; outgoing ships appear at `STATION_AEGIS`/aegis location codes. Guard: skip when live ships exceed a populator ceiling (recommend 40, tuned against the Oolite reference; debris shares the 256 cap and must keep its headroom).
 
-**What:** the sim emits `equipmentDamaged { key }` or `cargoDestroyed`, the app subscriber commits a new immutable `PlayerProfile` (`commitDamage`), with no autosave and no station render.
-**Why:** `PlayerProfile` is app-owned and immutable; the sim never imports it (`StepOptions` carries only read-only facts). It mirrors how a purchase and the dock clock delta reach the profile today.
-**Detail:** the facts the sim needs (which equipment keys are damageable and with what probability, how many cargo pods) are built per step in `buildStepOptions` from the profile, like `mounts`.
+### 6.3 An attack, a witness and an offence
 
-### Pattern 2: Fixed resolution point with a clean tick boundary
+1. NPC steering asks `ctx.fire`; the fire gate at the drain decides (exists).
+2. `resolveShotHits` produces `HitRecord`s; `applyLedger` lowers energy (exists).
+3. **New:** for each applied record the ledger posts `shipBeingAttacked` to an NPC victim and `shipAttackedOther` to an NPC shooter, and calls `offence.ts` when the victim's bounty is 0 and its scan class is eligible.
+4. `offence.ts` posts `offenceCommittedNearby(attacker, victim)` to authorities in range.
+5. `drainAiEventsNow` delivers them; the police `offenceCommittedNearby` response (`priorityai.js:5123-5170`) calls `ctl.markOffender(attacker, 7)`; for `PLAYER_ID` that writes `combat.standing.bounty |= 7` and emits `legalStatusChanged`.
+6. Police `reconsiderNow` picks `conditionScannerContainsFugitive` / `SeriousOffender` and attacks. The player's `standing.bounty` is read through `view.playerStanding()`.
 
-**What:** everything the tick's combat produces (events, spawns, kills, queued AI events) is resolved and committed before `stepSim` returns.
-**Why:** the snapshot, the hash and `advanceTicks` all assume no pending queue and no dead entity at a boundary. Verified in `snapshot.ts` and `world.ts`.
+The player is never an AI entity, so any logic Oolite runs on the player as `this.ship` has to be implemented as a handler on the other party (as here) or in the sim code that owns the player (`standing.ts`).
 
-### Pattern 3: Pristine-skipped hash segments
+### 6.4 A kill, a bounty and the tally
 
-**What:** state that exists only after a fight (buoy health, a dead mode) appears in the hash only when non-default, so a run that never fights hashes exactly as before.
-**Why:** keeps `tests/golden/flight-hash-pins.json` untouched, as `isPristineCombat` does.
+`killShip` marks the victim dead (entity still readable until the commit). Right after the kill loop in `resolveShots`: if `hit.killer === PLAYER_ID` then `collectBountyFor(world, victim, standing, events)`: score `10 * victim.bounty`; police victim marks the player `|= 64`; cargo/buoy/rock victims score a tenth and do not count; otherwise `kills++`. Events: `bountyAwarded {credits}` (new), `playerKill` (new, or reuse `shipDestroyed` plus a flag), `legalStatusChanged`. App `standingFlow` adds credits to the profile and prints text; the rating comes from `ratingFor(kills)` at display time. Credits are the only thing the profile gains; kills and bounty stay in `standing`.
 
-### Pattern 4: Ballistic debris without new record fields
+### 6.5 Scooping
 
-Use `speed` and `orientation` as heading and speed; the render adds a cosmetic tumble from contact index and `flightTime`. No velocity vector in `Entity`.
-
-### Pattern 5: Fail-closed modes
-
-A new mode must make every existing `mode === "inFlight"` gate false and every `mode === "docked"` gate false, so unreviewed code does nothing. Review the 48 mode references once and pin them with a test that sets `dead` and asserts no station action, no fire, no hyperspace, no autosave.
+`stepFlight`/`collide.ts` detects a cargo entity touching the player's `scoop_position` zone with `canScoop` true (Fuel Scoops installed, `holdPods < capacity` from the per-step hold fact, pod in front and below) → `startTractor`. `stepTractor` pulls the pod; within `2 x radius` it emits `cargoScooped {scooper, commodity, amount}`, marks the pod dead through `killShip` (no event, no debris) and posts `shipWasScooped`/`shipScoopedOther`. App `scoopFlow` commits the hold. Because events are dispatched after **every** step (`sim-driver.ts:247`) and the hold fact is rebuilt every step, the next pod sees the new hold. The Node replay does not route events, so its hold fact is a constant: scoop tests in the replay must pass the fact explicitly.
 
 ---
 
-## 10. Anti-patterns to avoid
+## 7. Patterns to follow
 
-1. **Applying damage inside each source.** Gives order-dependent kills and breaks the "no hit sees another hit of its tick" property. Use the ledger.
-2. **Leaving AI events for the next tick.** `world.aiQueue` must be empty at the boundary; the snapshot refuses it. Drain at the end of resolution.
-3. **Checking death anywhere but one place.** Oolite checks `energy <= 0` in three `take*Damage` methods. Wegolite has one function, called once per tick after the ledger.
-4. **Writing the save from a dead state.** `snapshotForSave` would encode `dead` as `docked`.
-5. **Storing weapon state in `ai.params`.** It would work without a record bump, but a faulted AI (nullAI) loses it, and it hides state from the typed sanitiser and parser.
-6. **Adding a velocity vector to `Entity` for debris.** Costs a snapshot field for a cosmetic effect.
-7. **Mutating `FlightState` from `stepWorld`.** The collision module in `stepSim`'s composition layer does it; the world step keeps its read-only contract.
-8. **A new random generator or a clock.** Every draw uses an existing seeded stream; the FOUND-12 source scan fails otherwise.
-9. **Holding an entity id outside the world** (explosion layer, game over summary, killer name). Pass spec keys and positions only.
-10. **Making buoys or the station dynamic entities.** They are `world.statics` referencing the layout; keep that, add health beside them.
+### Pattern 1: tree as data, behaviour as registry id
+**What:** `{ cond: "scannerContainsFugitive", pre: "checkScanner", config: "acquireScannedTarget", behaviour: "commenceAttackOnCurrentTarget", reconsider: 1 }` with `ConditionId` a string-literal union and the registries `Record<ConditionId, ConditionFn>`; exhaustiveness is a type error.
+**When:** every role tree. **Why:** the differential harness can name a condition and compare it one by one against the original JS.
 
----
+### Pattern 2: derive, never store, what the world already knows
+Group membership from `groupId`, escorts from `ownerId`, hostility from `nav.behaviour` plus a valid target, "has a hostile target" from the ship view. Stored copies drift when a ship dies or retires.
 
-## 11. Open decisions the roadmap must settle (owner questions, in order of impact)
+### Pattern 3: stateless fork per roll
+`forkSeed(worldSeed, counter, "repop" | "pod" | "cargo")` (the `cargoCountAtSpawn` precedent) so adding a draw to a feature never moves another feature's stream or the world stream.
 
-| Q | Question | Recommendation |
-|---|---|---|
-| Q1 | What makes an NPC hostile in shipped play? (priority AI is out of scope.) | Wake-on-hit `reflex` AI: a hit ship retaliates, flees if unarmed. Without it, NPC fire exists only for test pilots and scripts, and "NPC fire at the player" is unreachable in the shipped game. |
-| Q2 | Persist equipment damage (save v5) or lose it at the next dock? | Persist; exclude damaged keys from `equipmentSet()`. |
-| Q3 | Can internal damage hit lasers (`laserMounts`)? In Oolite weapons are ordinary equipment with default `damage_probability` 1. | Not this milestone; record the divergence. A damaged laser needs the repair UI. |
-| Q4 | Is a repair row in F3 in scope? | No; out of this milestone's target list. Damaged stays damaged until a later repair phase. This is a harsh default; confirm. |
-| Q5 | Game over's "title flow": page reload, or a real in-page return to the title? | Reload (re-reads the save, shows Continue when valid). |
-| Q6 | May the player die while `launching`? | Require `inFlight`; clamp energy at 1 while launching. |
-| Q7 | Does the station take scrape/laser damage state (it cannot be destroyed in Oolite but can be damaged)? | Absorb only. No station state. |
-| Q8 | Static hull data: bake subentities into one octree or port the subentity branch? | Research flag; decide in the first plan of the statics phase. |
-
-Decisions this milestone supersedes and must record in `PROJECT.md` Key Decisions and `FIDELITY.md`: "Statics are neither laser nor ident targets (OQ4, F10)"; "Floor the player's energy at 0 until a death phase exists" (the floor stays, the check is added); "NPC fire shares only the hit and damage rule with the player's laser" (gate added in steering); Phase 14's "no weapon fire from steering"; `RESERVED_EVENT_KINDS` payload for `playerDestroyed`; Phase 14's "snapshot record is FROZEN" (third regeneration, owner-chosen, once).
+### Pattern 4: events instead of cross-ship writes
+Anything that in Oolite writes another ship's AI dictionary (`oolite_intership.*`, `setBounty` on the player, `setFoundTarget`) becomes an `AiEvent` or a `ShipControl` method that checks its target domain; the sim stays total and the actor-only invariant of `control-impl.ts` holds.
 
 ---
 
-## 12. Suggested build order (dependencies first)
+## 8. Anti-patterns to avoid
 
-Phase numbers continue at 15. Each item lists what it needs and what it unblocks.
+### Anti-pattern 1: running the original JS in the browser
+Rejected in PROJECT.md (closure state cannot be hashed). The harness stays dev-only and out of `dist`.
 
-1. **Phase 15 plan 1: the one record bump (foundation, no behaviour).** `Entity.weapon`, `Entity.cargo`, `World.staticHealth`, hash segments, snapshot v4, bounds in `limits.ts`, the regenerated `inert-lave-epoch1.json` (strip-and-rehash proof), compiled NPC fields (`likely_cargo`, `weapon_energy`, shot temperature, recharge), `damageProbability` on the equipment record. Needs nothing. Unblocks everything, and it is the only plan allowed to move the golden.
-2. **Phase 15: damage ledger and destruction.** `ledger.ts`, `destroy.ts`, `debris.ts`, second commit, `drainAiEventsNow`, new events, the kind-aware world update for debris, the entity-cap thresholds, `debrisContacts`, the debris and explosion render layers, debris content. Needs 1. Unblocks NPC kills, player death and collisions. Test with the existing test shooter (`spawnTestShooter`) before any NPC AI fires on its own.
-3. **Phase 16: NPC fire.** `npc/fire.ts`, `SteerContext.fire`, the attack behaviours' fire calls and hot-weapon branches, the reflex AI, `shipAttacked` posting, new oracle fixtures, the by-hand acceptance rerun and its recorded result. Needs 1 and 2 (a shot must be able to kill). Research flag: Oolite fire gates and `onTarget` per behaviour, plus how the hot-weapon branches change trajectories.
-4. **Phase 17: statics as targets, and collisions.** Hull artifact additions (Coriolis, buoy), `static-hulls.ts` poses, the subentity decision (Q8), laser and ident candidates, buoy health, `isHitByOctree` port, `collision.ts`, the player `impulse` response, scrape damage through the ledger, `shipCollided`. Needs 2 (ledger). Research flag: Coriolis subentity rule, octree-octree oracle fixtures (write them independently of the port, as in Phase 14).
-5. **Phase 18: player death, game over, internal damage.** `death.ts`, `FlightMode "dead"`, the dead-mode review and its test, `deathFlow`, `GameOver` overlay, `loadSavedGame`, input context, probe, `internal-damage.ts`, `damageFlow`, save v5 if Q2 = persist. Needs 2 and 4 (any cause: lasers, collisions). The save work is last because it is the only format change outside the sim and must reuse the ordered migration chain.
+### Anti-pattern 2: storing the legal status in the profile and feeding the sim from events
+One tick of lag and a Node replay that does not route events give two worlds. The profile is for money and the hold.
 
-Why this order: the hash/snapshot change is the single most expensive thing to repeat (three goldens already moved in this repository), so it goes first and once. Destruction before NPC fire because fire is only meaningful when it can kill, and the harness for it already exists. Collisions with the statics work because both need the same hull table (the open todo says the same: "decide with the damage work so the hull table and the hit rules are built once"). Player death last because it consumes every damage source and carries the only persistence change.
+### Anti-pattern 3: spawning traffic from the app on a timer
+Wall-clock or frame-driven spawning breaks the cadence guarantee (`cadence.test.ts`) and the replay.
 
-Gate choice (AGENTS.md): plans touching only `src/sim/` need `test`, `lint`, `typecheck`; the death flow, input, render layers and `index.html` need `verify`; the save v5 and the dead-mode guards touch persistence and input, so run `verify-full` once at the end of Phase 18 (persistence trigger), as Phase 11 did. The 20-seed acceptance run is by hand after Phase 16 and after any later change under `src/sim/npc/**` or `src/sim/world/**`.
+### Anti-pattern 4: widening `WorldView` with closures over the store
+Every view object is a fresh plain copy (view.ts contract). Keep it that way; compute derived facts in AI code from copies.
 
----
+### Anti-pattern 5: letting a contained AI fault hide a port bug
+A throw makes the ship inert and emits `aiFaulted`. Acceptance runs must assert `aiFaulted` is 0 (the existing 20-seed run asserts `repairs 0`; add the fault count for the new scenario).
 
-## 13. Scaling considerations (entities and cost)
-
-| Concern | Today | v2.3 |
-|---|---|---|
-| Entity count | 12 inert ships (traffic on) | up to 256 including debris; wreckage self-expires from `energy`; debris thresholds at 50 % and 95 % of the cap |
-| Collision cost | none (proximity pass only) | one sweep over live ships plus 3 statics; sphere test first, octree test only inside `(r1 + r2)`; worst case below a few thousand sphere tests per tick |
-| Draw calls | 13 NPC primitives + shots | + 3 debris model primitives + 1 explosion pool; the 50-call budget (`budget.spec.ts`) needs one new measurement |
-| First load | ceiling 9,437,184 bytes, headroom ~580 KB | debris models load after the first in-flight frame (DATA-13); the hull artifact grows with two large octrees (gate 200,000 bytes compact; `MAX_HULL_NODES` 16,384 may need a measured raise or a separate lazy file) |
-| Snapshot size | bounded by `MAX_ENTITIES` | same bound; static health adds two numbers |
+### Anti-pattern 6: station AI creep
+Oolite's main station is itself a priority AI (`oolite-stationAI.js`: launch defence ships, patrols, traffic, alert levels). Statics hold no state and no AI today. Do not add one inside this milestone without a decision (Q1).
 
 ---
 
-## 14. Integration points summary
+## 9. Scalability and cost
 
-### Internal boundaries
+| Concern | Today | v2.4 expectation | Mitigation |
+|---------|-------|------------------|------------|
+| Live entities | 12 inert + debris, cap 256 | 15 to 40 ships plus debris | populator ceiling; debris cap unchanged |
+| AI think cost | none | about 40 ships, each reconsidering every 0.1 to 5 s; scanner calls are O(n) | per-think scanner memo; `view.scan` already sorted; budget test in `tests/sim` |
+| Event fan-out | drain bounded 8 passes / 4096 events | help/distress broadcasts to groups and authorities | existing bounds; assert `aiDropped` 0 in acceptance |
+| Hash text size | per entity line | more optional segments | pristine-omit |
+| Lazy content | 9 hulls | roughly 25 hulls plus models | the existing lazy chunks; measure first-load budget |
 
-| Boundary | Communication | Notes |
-|---|---|---|
-| steering to world | `SteerContext.fire`, `emit` | steering writes only its own entity and the fire queue |
-| world step to combat resolution | `world.fireQueue`, `aiQueue`, store | ledger sees the world as stepped |
-| combat resolution to app | `SimEvent`s only | payloads id-free except the same-tick ids already allowed |
-| sim to profile | events + per-step facts in `StepOptions.combat` | the profile is never imported by the sim |
-| app to save | `snapshotForSave` refuses dead; autosave guard order | `contextLost`, then `dead`, then status, then taint |
-| app to render | contacts, `shipDestroyed` effect hand-off | no entity id, no store handle |
-| content build to sim | generated JSON only | no parsing at runtime; `assets:check` drift gate |
+---
 
-### External
+## 10. Suggested build order
 
-None. The client stays static; no backend or database is touched (AGENTS.md constraint 3).
+Phase numbering continues at 21. Each phase is a vertical slice that keeps `docker compose run --rm test`, `lint`, `typecheck` green; browser-facing phases add `verify`; the 20-seed run is repeated by hand after any change under `src/sim/npc/**`, `src/sim/world/**` or `ships-npc.json` (AGENTS.md).
+
+| # | Phase | Contents | Depends on | Gate |
+|---|-------|----------|-----------|------|
+| 21 | **Roster, state shape and seams** | (a) Content: NPC roster, `aiType`, `bounty`, escorts, role categories, comms strings, models and provenance. (b) The one bundled hashed-shape plan: snapshot v5, `bounty`/`groupId`/`cargoKind`/pod fields, `World.groups`, `World.populator`, `PlayerStanding` in combat state, AI vocabulary, `WorldView`/`ShipControl` extensions with pin tests, `retireShip`, ledger attack events and `offence.ts`. No behaviour change: all new fields pristine; goldens hold. | none | test, lint, typecheck, `assets:check` |
+| 22 | **Populator, initial** | `populator/{facts,plan,spawn}.ts`, groups, escorts, bounty and cargo flag at spawn, replacing `INERT_POPULATION`; ships still `ai: null`. Composition checked against headless Oolite. One golden regeneration. | 21 | test; reference comparison |
+| 23 | **Priority AI engine, traders and pirates** | `ai/priority/*` engine, params, responses, comms channels, group/escort handling, `trader`, `pirate*`, `escort` trees, `collect.ts` native behaviour stub, attach AI at spawn, `fire: true`. Harness generalised; condition fixtures. | 21, 22 | test; acceptance (new traffic scenario, frozen thresholds committed first) |
+| 24 | **Police, legal status, bounty, standing** | `police*`, `bounty-hunter*` trees, `standing.ts`, `markOffender`, bounty on kill, kill tally, rating, docking check, arrival halving, save v6, `standingFlow`, F5 panel, scanner kinds. | 23 | `verify`; save goldens; acceptance |
+| 25 | **Repopulation and departures** | `repopulate.ts`, witchpoint arrivals, station launches, NPC docking (simplified approach then `retireShip`), witchspace exit, planet landing, populator ceiling. | 22, 23, 24 | `verify`; 20-seed run by hand; reference rates |
+| 26 | **Loot and scooping** | Pod identity and the cargo kind rule in `debris.ts`, `scoop.ts`, `collide.ts` scoop branch, F3 Fuel Scoops, `scoopFlow`, hold fact, pirate `CollectSalvage` and the cargo-demand protocol, scanner pods, render. | 21, 23, 24 | `verify-full` (render, input, persistence touched) |
+| 27 | **Integration, acceptance, release gate** | Traffic acceptance across 20 seeds, anarchy pirate-attack scenario, "fire on a trader, police attack" scenario, reference comparison of composition and behaviour, FIDELITY rows, `verify-full`. | 21 to 26 | `verify-full` plus acceptance |
+
+Ordering rationale:
+
+- Content and the hash bundle come first because every later phase either needs the ships or pays for a second bump and a second golden regeneration.
+- The populator before the AI lets composition be verified without behaviour noise, and gives the AI phase real ships to run on.
+- Traders and pirates before police because police behaviour is a reaction to offences and to the player's standing, which needs the attack events and the engine working first. The `standing` type exists from phase 21, so police can be developed in phase 24 without a second sim-shape change; only the **save** bump waits for phase 24.
+- Repopulation after the AI exists because arrivals and departures are AI behaviours (enter witchspace, dock, land) ending in `retireShip`.
+- Scooping last among features: it needs pod identity (a golden-moving debris change), hold facts, a new F3 item and the AI's collect behaviours; shipping it earlier would force pirates to ignore loot, which is recorded as a divergence in phase 23 only if phase 26 slips.
+
+---
+
+## 11. Open questions and research flags
+
+| Q | Question | Effect on architecture |
+|---|----------|------------------------|
+| Q1 | Does the main station launch defence ships and patrols (station AI)? Oolite's police response at a station is partly station-launched vipers. | Without it, "police attack an offender" comes only from populator-placed police. A station AI needs state on a static (new hashed field) and a launch path. Recommendation: defer, record in FIDELITY.md. |
+| Q2 | Bounty paid at the kill (Oolite) or on docking (milestone text)? | Immediate is the default and needs no state. "On docking" needs `standing.pendingBounty` (a hashed, saved scalar). Decide before phase 24. |
+| Q3 | Are hunters and assassins in v2.4? The pirate AI calls `conditionScannerContainsHunters`, and `INERT_POPULATION` already holds hunters. | Adds `bounty-hunter*` trees and assassin roles; recommend hunters yes, assassins no. |
+| Q4 | NPC docking fidelity: Oolite's multi-stage docking instructions (`StationEntity.m:401-` `dockingInstructionsForShip`) or a simplified approach-then-retire. | Recommend simplified with a FIDELITY row; the player cannot see inside the dock. |
+| Q5 | Manual docking by a fugitive: Oolite refuses clearance and the docking computer, but the slot is not a gate. | Research flag for phase 24; affects `dock/step.ts`. |
+| Q6 | Role category table and comms strings: confirm all consumed keys are in `role-categories.plist` and `descriptions.plist`. | Content phase. |
+| Q7 | Pirate cargo-demand protocol (`oolite_intership.cargodemand*`, 45 uses) needs the player as victim as well as NPCs. | Player-side demand (a comms prompt) is out of scope unless wanted; NPC-to-NPC only is consistent with "no player prompts". Decide in phase 26. |
+
+Phase-level research flags: phase 21 (roster and populator rate port: `oolite-populator.js` is 2,736 lines and `systemsInRange` needs the galaxy graph), phase 23 (condition-by-condition port, harness stub scope), phase 24 (legal flows, docking check), phase 26 (pod commodity rule, tractor force constants). Phases 22, 25 and 27 follow existing patterns.
 
 ---
 
 ## Sources
 
-Repository (read at `main`, `9419f1c`): `src/sim/sim.ts`, `src/sim/world/{world,step,store,entity,ids,limits,view,control,control-impl,contacts,ship-field,serialize,snapshot,layout}.ts`, `src/sim/combat/{step,hit,aim,octree,shields,state,constants,ident}.ts`, `src/sim/npc/{dispatch,state,stats}.ts` and `behaviours/*`, `src/sim/ai/{types,registry}.ts` and `pilots/*`, `src/sim/events.ts`, `src/sim/flight/{state,step}.ts`, `src/app/session/{sim-driver,event-router,world-lifecycle,step-options,save-controller,settings-controller,start-session,frame-loop,render-driver,context,traffic}.ts`, `src/app/game-session.ts`, `src/main.ts`, `src/persistence/autosave.ts`, `src/render/bodies/{npc-ships,laser-shots}.ts`, `.planning/PROJECT.md` (Key Decisions), `.planning/todos/pending/2026-11-15-lasers-and-ident-hit-stations-and-buoys.md`, `.planning/milestones/v2.0-REQUIREMENTS.md` (CBT-08, CBT-15, DEATH-01), `.planning/research/PITFALLS.md` (Pitfall 18, previous research, still valid for the pause and autosave interaction).
-
-Oolite checkout `/home/opencode/git/oolite/src/Core`:
-- `Entities/ShipEntity.m`: `takeEnergyDamage` 11418-11574, `takeScrapeDamage` 11641-11676, `collideWithShip` 11020-11149, `manageCollisions` 10991-11018, `doOctreesCollide` 1878-1942, `checkCloseCollisionWith` 1944-2000, `becomeExplosion` 7891-8143, `releaseCargoPodsDebris` 7814-7879, `fireWeapon:direction:range:` 9912-10007, `fireLaserShotInDirection` 10360-10466, cooling and shot timer 2214-2221.
-- `Entities/PlayerEntity.m`: `takeEnergyDamage` 5599-5699, `takeScrapeDamage` 5701-5753, `takeInternalDamage` 6097-6184, `getDestroyedBy` 6187-6223, `showGameOver` 3630-3644, equipment repair 8270, 9025-9118.
-- `CollisionRegion.m` `findCollisions` 226-374; `Universe.m` `addWreckageFrom` 5497-5526, `cargoPodFromTemplate` 3863-3878, `UNIVERSE_MAX_ENTITIES` `OOTypes.h:168`; `Resources/Config/shipdata.plist` buoy 1011-1028 (`max_energy` 250, recharge 2), cargo pod 625-639, wreckage 4236-4246; `Resources/Config/equipment.plist` `damage_probability` rows (lines 23, 32, 239, 252, 286, 383, 486) and `OOEquipmentType.m:247`.
-
-Confidence notes: the tick order, record shapes, event table, router, save and load pipeline are HIGH (read directly). The cargo count source per role, the exact `onTarget` and hot-weapon behaviour per attack mode, the Coriolis subentity hit rule and the mapping of Oolite's per-pod cargo to Wegolite's commodity quantities are MEDIUM and are flagged as phase-level research above.
-
----
-*Architecture research for: v2.3 Combat and Death (Wegolite)*
-*Researched: 2026-11-16*
+- Repository (read at `main`, `df4d01b0`): `src/sim/ai/{types,registry,time}.ts`, `src/sim/ai/pilots/flight-script.ts`, `src/sim/world/{world,entity,step,control,control-impl,view,populate,kill,debris,contacts,serialize,snapshot,limits,ids}.ts`, `src/sim/npc/{dispatch,state,escort}.ts`, `src/sim/combat/{step,ledger,state}.ts`, `src/sim/sim.ts`, `src/sim/events.ts`, `src/sim/player/{profile,outfitting}.ts`, `src/sim/economy/cargo.ts`, `src/app/session/{traffic,world-lifecycle,step-options,sim-driver,save-controller,context}.ts`, `src/persistence/save.ts`, `src/content/generated/ships-npc.json`, `tools/ai-harness/load.ts`, `.planning/PROJECT.md`, `AGENTS.md`. HIGH.
+- Oolite checkout `/home/opencode/git/oolite`: `Resources/Scripts/oolite-priorityai.js` (controller `:38-593`, conditions `:1407-2727`, behaviours `:2727-3950`, configurations `:3954-4880`, responses `:4888-6190`, templates `:6203-6470`), `Resources/Scripts/oolite-populator.js` (`:97-627`, `:1027-`), `Resources/AIs/oolite-{pirate,police,trader}AI.js` and siblings, `Resources/Config/role-categories.plist`, `src/Core/Entities/{PlayerEntity,ShipEntity,StationEntity,PlayerEntityControls,PlayerEntityContracts}.m`, `src/Core/{Universe,OOConstToString}.m`. HIGH for quoted line ranges; MEDIUM for how they compose at run time (not measured in a running Oolite).
