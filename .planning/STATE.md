@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.3
 status: Awaiting next milestone
 stopped_at: Milestone v2.3 archived
-last_updated: "2026-11-25T10:32:37.865Z"
+last_updated: "2026-11-25T10:47:18.946Z"
 last_activity: 2026-11-25
 last_activity_desc: Milestone v2.3 completed and archived
-state_head: 75adc06f5e97ba38b33c8492d51d17ba1ab68858
+state_head: 8f9e81a5c35f09eb71c8bac33f87ce6957e3367f
 progress:
   total_phases: 6
   completed_phases: 6
@@ -719,6 +719,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261124-pze | Fix the code review findings for the docked F-keys, F5 and the market comment line | 2026-11-24 | 564254a0 | [261124-pze-fix-code-review-findings-for-the-docked-](./quick/261124-pze-fix-code-review-findings-for-the-docked-/) |
 | 68 | Market Restricted column: No export / No import / No trade with rule and penalty on hover (E-190) | 2026-11-25 | a4cac883 | — |
 | 261125-ewd | Market mouse: click selects a row, double click plans Oolite's Enter trade ([Y/N]); footer hint (E-191, E-192) | 2026-11-25 | 75adc06f | .planning/quick/261125-ewd-market-mouse-row-select-and-double-click |
+| 70 | Record the market [Y/N] trade confirmation as a divergence (FIDELITY E-193) | 2026-11-25 | 8f9e81a5 | — |
 
 ## Deferred Items
 
