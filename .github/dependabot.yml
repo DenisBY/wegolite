@@ -16,6 +16,12 @@ updates:
       # on its own, because it can break the build or change behaviour.
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # The project runs on Node 24 (package.json engines, the node:24 base
+      # image); its types follow that major. Moving Node is a decision, not a
+      # weekly bump.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -41,3 +47,7 @@ updates:
     groups:
       docker-base-images:
         patterns: ["*"]
+    ignore:
+      # Stay on the Node 24 LTS line; digest and patch updates still arrive.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
