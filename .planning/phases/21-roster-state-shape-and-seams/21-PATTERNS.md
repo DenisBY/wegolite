@@ -75,7 +75,7 @@ export function planInertPopulation(
 
 ---
 
-### `tools/oolite-ingest/convert/npc-ships.ts` (converter, plans 21-03/21-04)
+### `tools/oolite-ingest/convert/npc-ships.ts` (converter, plans 21-05/21-08)
 
 **Analog:** itself. Drop only the `"aft_weapon_type"` entry; keep the other five as tripwires.
 
@@ -114,7 +114,7 @@ Widen to allow `-` (`oolite_boa-mk2.dat`). Every new field goes behind `z.strict
 
 ---
 
-### `src/sim/world/serialize.ts` (v5 hash segments, plan 21-05)
+### `src/sim/world/serialize.ts` (v5 hash segments, plans 21-03/21-06)
 
 **Analog:** itself. Optional segments append after `cargo:` in a fixed order; a pristine value prints nothing.
 
@@ -194,7 +194,7 @@ Add `pod: 6`, optionally reserve `scoop: 7`, `repop: 8`, `inj: 9`. Codes are one
 
 ---
 
-### `src/sim/world/retire.ts` (`retireShip`, plan 21-06)
+### `src/sim/world/retire.ts` (`retireShip`, plan 21-09)
 
 **Analog:** `src/sim/world/kill.ts` `killShip` (`:140-175`) and `notifyKill` (`:115-124`). Copy the "capture, `world.store.kill`, idempotent boolean" shape, drop the event, the killer pair and the debris release. Keep the imports minimal (`postAiEvent` from `./world.js`, `NO_ENTITY`/`PLAYER_ID` not needed). Do not use the word `killer` in the new file (guard `tests/guards/kill-credit-consumers.test.ts`).
 
@@ -226,7 +226,7 @@ Test analog: `tests/sim/world/kill.test.ts` (no `shipDestroyed`, no debris, targ
 
 ---
 
-### `src/sim/world/debris.ts` (D-01, pod identity; plan 21-07)
+### `src/sim/world/debris.ts` (D-01, pod identity; plans 21-14/21-15)
 
 **Analog:** itself, `releaseDebris` (`:898-1035`) and `scatter` (`:546-571`).
 
@@ -270,7 +270,7 @@ Add a `velocity` copy the same way (value copy, never an alias). Render side off
 
 ---
 
-### `src/app/npc-models.ts` (prefetch, D-07; plan 21-08)
+### `src/app/npc-models.ts` (prefetch, D-07; plan 21-11)
 
 **Analog:** itself. The loader is a latch closed until the first in-flight frame; `request()` is a no-op until `open()`:
 ```typescript
@@ -289,7 +289,7 @@ Add a `velocity` copy the same way (value copy, never an alias). Render side off
 ```
 Add a separate `prefetch(keys)` (bounded concurrency, uses `fetchKey` + `states`, not gated by `opened`), called once from the session when traffic is on and mode is menu/docked. `render-driver.ts:454` (`if (currentState.mode === "inFlight") npcModels.open();`) stays. Update the interface at `npc-models.ts:39-42`. Tests: traffic-off must still request nothing (`budget.spec.ts`); the "no NPC request before first in-flight frame" assertion in `traffic.spec.ts` becomes "before the prefetch trigger" and the ceiling is measured excluding the NPC asset set.
 
-### `src/app/probe.ts` (`spawnTestAnarchy`) and `tests/e2e/anarchy.spec.ts`
+### `src/app/probe.ts` (`spawnTestAnarchy`) and `tests/e2e/anarchy.spec.ts` (plan 21-16; budget constants, plan 21-19)
 
 **Analog:** hooks `spawnTestShooter`, `spawnTestFlyers`, `spawnTestAttacker` (`probe.ts:365-387`, shape pinned by `tests/fixtures/probe-shape.json`) and spec `tests/e2e/traffic.spec.ts` (URL `/?test=1&traffic=1&clock=manual`, `runTickScript` Node twin). Gate the new hook on `?test=1&traffic=1`. `DRAW_CALL_BUDGET = 50` is duplicated in `budget.spec.ts:56`, `traffic.spec.ts:48`, `npc-flight.spec.ts:51`, `combat.spec.ts:151`; `FIRST_LOAD_BYTES_CEILING = 9 * MIB` in `budget.spec.ts:73` and `traffic.spec.ts:55`. Move both to a shared `tests/e2e/helpers/` constant when changing.
 
@@ -297,7 +297,7 @@ Add a separate `prefetch(keys)` (bounded concurrency, uses `fetchKey` + `states`
 
 ### Pristine-omit hashing and strip-and-rehash proof
 **Source:** `src/sim/world/serialize.ts:135-175` and `:268-292`; precedent rows in `.planning/PROJECT.md` (lines ~303, 309).
-**Apply to:** every new hashed field (plan 21-05) and the pod fields (21-07). A world using none of the new fields must hash byte-identically (goldens `flight-hash-pins.json`, `inert-lave-epoch1.json`, the new epoch 1-20 file unmoved); a world setting each field prints exactly that segment and stripping it reproduces the old text. Test analogs: `tests/sim/world/hash.test.ts`, `flight-hash-pins.test.ts` (header: never regenerate to make it pass).
+**Apply to:** every new hashed field (plans 21-03 and 21-06) and the pod fields (21-14). A world using none of the new fields must hash byte-identically (goldens `flight-hash-pins.json`, `inert-lave-epoch1.json`, the new epoch 1-20 file unmoved); a world setting each field prints exactly that segment and stripping it reproduces the old text. Test analogs: `tests/sim/world/hash.test.ts`, `flight-hash-pins.test.ts` (header: never regenerate to make it pass).
 
 ### Totality: sanitize + strict parse
 **Source:** `sanitize.ts:582-625` (`cleanV4Fields`), `snapshot.ts` strict allow-list parser.
@@ -321,7 +321,7 @@ Add a separate `prefetch(keys)` (bounded concurrency, uses `fetchKey` + `states`
 
 ### Re-pin discipline (D-04)
 **Source:** CONTEXT D-04; `tests/app/session/tick-parity.test.ts`, `tests/e2e/combat.spec.ts`.
-**Apply to:** plan 21-07 only (pod identity plus D-01). Record cause, Node equals browser, comment naming the plan, SUMMARY note "owner-sanctioned". Not re-pinnable without the owner: acceptance thresholds/detectors, the epoch 1-20 pin, any unexplained move.
+**Apply to:** plan 21-15 only (the one re-pin: pod contents plus D-01). Record cause, Node equals browser, comment naming the plan, SUMMARY note "owner-sanctioned". Not re-pinnable without the owner: acceptance thresholds/detectors, the epoch 1-20 pin, any unexplained move.
 
 ## No Analog Found
 
@@ -330,6 +330,8 @@ Add a separate `prefetch(keys)` (bounded concurrency, uses `fetchKey` + `states`
 | `tests/e2e/anarchy.spec.ts` p95 frame-time sampling | test | measurement | No spec samples p95 frame time; use the sampler described in `docs/PERFORMANCE.md` on the remote GPU (one-off, D-06). Draw-call counting itself copies `traffic.spec.ts`. |
 | Commodity-per-capsule draw (cargo kind weights, plentiful/scarce, amount by unit) | service | transform | No existing code ports `getContainersOfGoods` / `getRandomAmountOfCommodity`; follow the draw-order discipline of `debris.ts` and goods data of `src/sim/economy/market.ts` (`MarketGood`, `generateMarket`) and `commodities.json`. Use RESEARCH section 6 for the Oolite rules. |
 | Prefetch with bounded concurrency | service | streaming | `npc-models.ts` has per-key fetch but no concurrency limiter; RESEARCH 8.4 designs it. |
+| `tools/oolite-ingest/convert/atlas.ts` per-hull texture atlas (plan 21-17, D-05 fix 1) | converter | transform | No atlas exists; reuse `decodePng`, `sampleNearest`, the `node:zlib` PNG encoder and the emissive bake of `textures.ts`, the cwebp profiles of `texture-encode.ts`, and the GLB writer of `glb.ts`. |
+| `src/render/bodies/npc-variant-material.ts` per-instance variant textures (plan 21-18, D-05 fix 2) | render | transform | No `onBeforeCompile` patch exists in `src/render`; follow the asset-cache ownership rule of `npc-ships.ts` (clone the material, share the textures) and the three.js docs for `onBeforeCompile` and `customProgramCacheKey`. |
 
 ## Metadata
 

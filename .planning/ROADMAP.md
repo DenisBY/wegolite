@@ -205,7 +205,50 @@ Ordering rules:
 **Pitfalls to address** (research PITFALLS.md): C1 (the frozen run and the inert goldens share the populate path and the catalogue), C2 (piecemeal hashed fields), C6 (the damage path lacks the AI-visible side effects: the hit-reaction stage), C9 (content scope: aft weapons, missiles, AI chosen by role), C11 (no non-lethal removal path), M6 (pod fields)
 **Decisions to settle**: the field set and its bounds (`src/sim/world/limits.ts` only); the draw-call fix; whether the Phase 18 standing approval to re-pin twin hashes (measured cause, Node equal to the browser) covers this milestone's re-pins (ask the owner once, in the first plan)
 **Todos**: `2026-11-17-skip-shiphit-for-a-doomed-target.md` (if the hit-reaction stage becomes the first `shipHit` consumer, the skip comes with it and must never skip the offence broadcast; guard `ship-hit-consumers`); candidate, by owner decision: `2026-11-24-debris-inherits-ship-velocity.md` (it moves the same debris pins, so if it joins the milestone it joins this phase's one re-pin; it decides where pods drift, which matters for scooping in Phase 24)
-**Plans**: TBD
+**Plans**: 19 plans in 10 waves
+
+Plans:
+**Wave 1**
+- [ ] 21-01-PLAN.md — Wave 1: measure and pin the inert world for epochs 1-20, then `INERT_RECORD_KEYS` isolation, helper hardening, D-04 recorded (FOUND-20)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 21-02-PLAN.md — Wave 2: vendor the 9 new hull models and 51 textures with provenance (DATA-18)
+- [ ] 21-03-PLAN.md — Wave 2: snapshot v5 and the per-entity field set with pristine-omit hashing, RNG purposes (FOUND-20)
+- [ ] 21-04-PLAN.md — Wave 2: hull octrees shared per model (`aliases`, `hullTable`), roster counts derived (DATA-18)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 21-05-PLAN.md — Wave 3: the new NPC record fields on the nine, the aft refusal lifted, the zero-missiles tripwire, FIDELITY rows for NPC missiles, escape pods and NPC heat (DATA-17)
+- [ ] 21-06-PLAN.md — Wave 3: `World.station`, `.groups`, `.populator`, the player's standing, the 30/60/144 Hz replay (FOUND-20)
+- [ ] 21-07-PLAN.md — Wave 3: the priority-AI vocabulary (`"priority"`, `PRIORITY_PARAM_KEYS`, event names) and its unspawned guard (FOUND-20)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 21-08-PLAN.md — Wave 4: the 29-record roster, GLBs, textures, Cobra hull aliases, first load measured (DATA-17, DATA-18)
+- [ ] 21-09-PLAN.md — Wave 4: `retireShip`, the ledger hit-reaction stage, the widened views (FOUND-20)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 21-10-PLAN.md — Wave 5: compile `autoAImap`, `role-categories` and the comms subset (DATA-17)
+- [ ] 21-11-PLAN.md — Wave 5: background prefetch of the NPC models outside the first-load ceiling, first-load record (D-07; DATA-18)
+- [ ] 21-12-PLAN.md — Wave 5: per-facing fire queue and the aft branch shape, aft tripwire (FOUND-20)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 21-13-PLAN.md — Wave 6: explosions drift with the dying ship (D-02; render-only)
+- [ ] 21-14-PLAN.md — Wave 6: pod commodity and amount from the `pod` fork in the sim, the hook's cargo kind, the fallback tripwire (FOUND-20; CBT-11 clause staged)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 21-15-PLAN.md — Wave 7: debris inherits ship velocity, live goods and system market, the one re-pin (D-01; FOUND-20; CBT-11 clause staged)
+- [ ] 21-16-PLAN.md — Wave 7: the full-anarchy draw-call spike hook and spec (DATA-18; QUAL-09 staged)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 21-17-PLAN.md — Wave 8: D-05 fix (1): each NPC hull's primitives merged at build time into one draw call through texel-exact atlases, measured on the anarchy (DATA-18; QUAL-09 staged)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 21-18-PLAN.md — Wave 9: D-05 fix (2): variant hulls share one instanced mesh set (identical content and texture variants), measured (DATA-18; QUAL-09 staged)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 21-19-PLAN.md — Wave 10: GPU p95 and triangles, the budget decision after both fixes, shared budget constants, phase gate (DATA-18; QUAL-09 staged)
+
+**Cross-cutting constraints:** <!-- gsd:generated -->
+- The frozen run is 21 of 21 (remote, recorded; `src/sim/world/**` changes)
 
 ### Phase 22: Initial Population
 
