@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Lint, typecheck, assets, unit tests, bundle checks and the seam spec
         run: docker compose run --rm verify-checks
 
@@ -53,12 +53,12 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build the browser-test bundle and run the Chromium shard
         run: docker compose run --rm e2e sh -lc "npm run build:e2e && npm run test:e2e -- --shard=${{ matrix.shard }}/4"
       # Traces and screenshots are off (D-08), so this holds only the
       # error-context files of failed tests.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-results-shard-${{ matrix.shard }}
