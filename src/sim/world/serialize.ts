@@ -39,6 +39,7 @@ import type { Vec3 } from "../math.js";
 import type { SteerComponent } from "../npc/state.js";
 import type { BuoyState, BuoyStates, Entity, StaticHealth } from "./entity.js";
 import type { EntityId } from "./ids.js";
+import { NO_SYSTEM_INDEX } from "./limits.js";
 import { sanitizeBuoyStates, sanitizeStaticHealth } from "./sanitize.js";
 import {
   isNeverSpawned,
@@ -178,6 +179,25 @@ export function serializeEntity(entity: Entity): string {
   // only when its field is not pristine, so a v5 entity that sets none of the
   // fields hashes byte-identically to its v4 text.
   if (entity.bounty !== 0) segments.push(`bty:${int(entity.bounty)}`);
+  if (entity.role !== "") {
+    segments.push(`role:${encodeHashString(entity.role)}`);
+  }
+  if (entity.groupId !== 0) segments.push(`grp:${int(entity.groupId)}`);
+  if (entity.cargoKind !== 0) segments.push(`ck:${int(entity.cargoKind)}`);
+  if (entity.podCommodity !== "" || entity.podAmount !== 0) {
+    segments.push(
+      `pod:${encodeHashString(entity.podCommodity)},${int(entity.podAmount)}`,
+    );
+  }
+  if (entity.fuel !== 0) segments.push(`fuel:${int(entity.fuel)}`);
+  if (
+    entity.homeSystem !== NO_SYSTEM_INDEX ||
+    entity.destinationSystem !== NO_SYSTEM_INDEX
+  ) {
+    segments.push(
+      `sys:${int(entity.homeSystem)},${int(entity.destinationSystem)}`,
+    );
+  }
   return segments.join(";");
 }
 

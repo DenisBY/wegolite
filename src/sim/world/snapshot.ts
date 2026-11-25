@@ -37,6 +37,7 @@ import type { AiComponent, AiKey, ParamValue } from "../ai/types.js";
 import { AI_KEYS } from "../ai/types.js";
 import { createRngState } from "../rng.js";
 import { ACCURACY_UNRESOLVED } from "../npc/state.js";
+import { CARGO_KINDS } from "./entity.js";
 import type { BuoyState, BuoyStates, Entity, EntityStreams } from "./entity.js";
 import {
   BEHAVIOUR_IDS,
@@ -51,8 +52,10 @@ import {
   BUOY_SUBENTITY_MAX_ENERGY,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
+  COMMODITY_KEY_PATTERN,
   MAX_BOUNTY,
   MAX_BUOY_OFFSET,
+  MAX_COMMODITY_KEY_LENGTH,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
@@ -60,13 +63,19 @@ import {
   MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
+  MAX_POD_AMOUNT,
+  MAX_ROLE_LENGTH,
+  MAX_SHIP_FUEL,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
+  MAX_SYSTEM_INDEX,
   MAX_UINT32,
   MAX_WEAPON_TEMPERATURE,
   MIN_ACCURACY,
+  NO_SYSTEM_INDEX,
   QUAT_UNIT_TOLERANCE,
+  ROLE_PATTERN,
   STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
 } from "./limits.js";
@@ -196,6 +205,14 @@ export interface EntitySnapshot {
   cargo: number;
   /** The v5 fields (FOUND-20); always present, pristine values included. */
   bounty: number;
+  role: string;
+  groupId: EntityId | 0;
+  cargoKind: number;
+  podCommodity: string;
+  podAmount: number;
+  fuel: number;
+  homeSystem: number;
+  destinationSystem: number;
 }
 
 /** The energy of the damageable statics (`StaticHealth` in `./entity.ts`). */
@@ -377,6 +394,12 @@ function requireFiniteEntity(entity: Entity): void {
   requireFinite(entity.weapon.missedShots, `${at}.weapon.missedShots`);
   requireFinite(entity.cargo, `${at}.cargo`);
   requireFinite(entity.bounty, `${at}.bounty`);
+  requireFinite(entity.groupId, `${at}.groupId`);
+  requireFinite(entity.cargoKind, `${at}.cargoKind`);
+  requireFinite(entity.podAmount, `${at}.podAmount`);
+  requireFinite(entity.fuel, `${at}.fuel`);
+  requireFinite(entity.homeSystem, `${at}.homeSystem`);
+  requireFinite(entity.destinationSystem, `${at}.destinationSystem`);
   if (entity.ai !== null) {
     requireFinite(entity.ai.wakeTick, `${at}.ai.wakeTick`);
     requireFinite(entity.ai.nextThinkTick, `${at}.ai.nextThinkTick`);
@@ -507,6 +530,14 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
     },
     cargo: noNegativeZero(entity.cargo),
     bounty: noNegativeZero(entity.bounty),
+    role: entity.role,
+    groupId: noNegativeZero(entity.groupId),
+    cargoKind: noNegativeZero(entity.cargoKind),
+    podCommodity: entity.podCommodity,
+    podAmount: noNegativeZero(entity.podAmount),
+    fuel: noNegativeZero(entity.fuel),
+    homeSystem: noNegativeZero(entity.homeSystem),
+    destinationSystem: noNegativeZero(entity.destinationSystem),
   };
 }
 
@@ -1161,6 +1192,48 @@ function parseBuoys(value: unknown, path: string): BuoyStatesSnapshot {
   };
 }
 
+/** A string of at most `max` characters, all in `pattern`'s class (FOUND-20). */
+function patternString(
+  value: unknown,
+  path: string,
+  max: number,
+  pattern: RegExp,
+): string {
+  if (typeof value !== "string") return fail("type", path, "expected a string");
+  if (value.length > max || !pattern.test(value)) {
+    return fail("string", path, "not a legal key");
+  }
+  return value;
+}
+
+/** An integer in `min..max`; a non-integer or an out-of-range value is `range`. */
+function integerIn(
+  value: unknown,
+  path: string,
+  min: number,
+  max: number,
+): number {
+  const n = finiteNumber(value, path);
+  if (!Number.isSafeInteger(n) || n < min || n > max) {
+    return fail(
+      "range",
+      path,
+      `expected an integer in ${String(min)}..${String(max)}`,
+    );
+  }
+  return noNegativeZero(n);
+}
+
+/** The group's founding leader: 0 (none) or a dynamic entity id. */
+function parseGroupId(value: unknown, path: string): EntityId | 0 {
+  const n = finiteNumber(value, path);
+  if (n === 0) return 0;
+  if (!Number.isSafeInteger(n) || n < FIRST_DYNAMIC_ID || n > MAX_UINT32) {
+    return fail("entity-id", path, "not 0 or a dynamic entity id");
+  }
+  return n;
+}
+
 function parseEntity(value: unknown, path: string): EntitySnapshot {
   const o = asObject(value, path, [
     "id",
@@ -1185,6 +1258,14 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     "weapon",
     "cargo",
     "bounty",
+    "role",
+    "groupId",
+    "cargoKind",
+    "podCommodity",
+    "podAmount",
+    "fuel",
+    "homeSystem",
+    "destinationSystem",
   ]);
   const id = read(o, "id");
   if (
@@ -1247,6 +1328,42 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     `${path}.bounty`,
     MAX_BOUNTY,
   );
+  const role = patternString(
+    read(o, "role"),
+    `${path}.role`,
+    MAX_ROLE_LENGTH,
+    ROLE_PATTERN,
+  );
+  const groupId = parseGroupId(read(o, "groupId"), `${path}.groupId`);
+  const cargoKind = boundedInteger(
+    read(o, "cargoKind"),
+    `${path}.cargoKind`,
+    CARGO_KINDS.length - 1,
+  );
+  const podCommodity = patternString(
+    read(o, "podCommodity"),
+    `${path}.podCommodity`,
+    MAX_COMMODITY_KEY_LENGTH,
+    COMMODITY_KEY_PATTERN,
+  );
+  const podAmount = boundedInteger(
+    read(o, "podAmount"),
+    `${path}.podAmount`,
+    MAX_POD_AMOUNT,
+  );
+  const fuel = boundedInteger(read(o, "fuel"), `${path}.fuel`, MAX_SHIP_FUEL);
+  const homeSystem = integerIn(
+    read(o, "homeSystem"),
+    `${path}.homeSystem`,
+    NO_SYSTEM_INDEX,
+    MAX_SYSTEM_INDEX,
+  );
+  const destinationSystem = integerIn(
+    read(o, "destinationSystem"),
+    `${path}.destinationSystem`,
+    NO_SYSTEM_INDEX,
+    MAX_SYSTEM_INDEX,
+  );
   return {
     id,
     kind,
@@ -1270,6 +1387,14 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     weapon,
     cargo,
     bounty,
+    role,
+    groupId,
+    cargoKind,
+    podCommodity,
+    podAmount,
+    fuel,
+    homeSystem,
+    destinationSystem,
   };
 }
 
@@ -1399,6 +1524,14 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     weapon: e.weapon,
     cargo: e.cargo,
     bounty: e.bounty,
+    role: e.role,
+    groupId: e.groupId,
+    cargoKind: e.cargoKind,
+    podCommodity: e.podCommodity,
+    podAmount: e.podAmount,
+    fuel: e.fuel,
+    homeSystem: e.homeSystem,
+    destinationSystem: e.destinationSystem,
   }));
   return {
     worldSeed: parsed.worldSeed,

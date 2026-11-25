@@ -75,15 +75,23 @@ import { identity, normalize, quat, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { ACCURACY_UNRESOLVED, createSteerComponent } from "../npc/state.js";
 import type { SavedCondition, SteerComponent } from "../npc/state.js";
+import { CARGO_KINDS } from "./entity.js";
 import type { BuoyStates, Entity } from "./entity.js";
-import { BEHAVIOUR_IDS, ENTITY_KINDS, SCAN_CLASSES } from "./ids.js";
+import {
+  BEHAVIOUR_IDS,
+  ENTITY_KINDS,
+  FIRST_DYNAMIC_ID,
+  SCAN_CLASSES,
+} from "./ids.js";
 import {
   BUOY_MAX_ENERGY,
   BUOY_SUBENTITY_MAX_ENERGY,
+  COMMODITY_KEY_PATTERN,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
   MAX_BOUNTY,
   MAX_BUOY_OFFSET,
+  MAX_COMMODITY_KEY_LENGTH,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
@@ -91,16 +99,22 @@ import {
   MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
+  MAX_POD_AMOUNT,
+  MAX_ROLE_LENGTH,
+  MAX_SHIP_FUEL,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
+  MAX_SYSTEM_INDEX,
   MAX_UINT32,
   MAX_WEAPON_TEMPERATURE,
   MIN_ACCURACY,
   MIN_QUAT_NORM_SQ,
+  NO_SYSTEM_INDEX,
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
+  ROLE_PATTERN,
   STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
 } from "./limits.js";
@@ -183,6 +197,34 @@ function cleanBoundedInteger(v: number, max: number): Cleaned<number> {
   return Number.isSafeInteger(v) && v >= 0 && v <= max
     ? { value: noNegativeZero(v), repaired: false }
     : { value: 0, repaired: true };
+}
+
+/** A group leader id: 0 or a dynamic id (101 up to `MAX_UINT32`), else 0 (a repair). */
+function cleanGroupId(v: number): Cleaned<number> {
+  return v === 0 ||
+    (Number.isSafeInteger(v) && v >= FIRST_DYNAMIC_ID && v <= MAX_UINT32)
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: 0, repaired: true };
+}
+
+/** A system index: `NO_SYSTEM_INDEX` to `MAX_SYSTEM_INDEX`, else unset (a repair). */
+function cleanSystemIndex(v: number): Cleaned<number> {
+  return Number.isSafeInteger(v) &&
+    v >= NO_SYSTEM_INDEX &&
+    v <= MAX_SYSTEM_INDEX
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: NO_SYSTEM_INDEX, repaired: true };
+}
+
+/** A key string of at most `max` characters in `pattern`'s class, else "" (a repair). */
+function cleanKeyString(
+  v: string,
+  max: number,
+  pattern: RegExp,
+): Cleaned<string> {
+  return typeof v === "string" && v.length <= max && pattern.test(v)
+    ? { value: v, repaired: false }
+    : { value: "", repaired: true };
 }
 
 /** A string of at most `MAX_SNAPSHOT_STRING_LENGTH` units, truncated otherwise. */
@@ -663,6 +705,37 @@ function cleanV5Fields(entity: Entity): boolean {
   const bounty = cleanBoundedInteger(entity.bounty, MAX_BOUNTY);
   entity.bounty = bounty.value;
   mark(bounty.repaired);
+  const role = cleanKeyString(entity.role, MAX_ROLE_LENGTH, ROLE_PATTERN);
+  entity.role = role.value;
+  mark(role.repaired);
+  const groupId = cleanGroupId(entity.groupId);
+  entity.groupId = groupId.value;
+  mark(groupId.repaired);
+  const cargoKind = cleanBoundedInteger(
+    entity.cargoKind,
+    CARGO_KINDS.length - 1,
+  );
+  entity.cargoKind = cargoKind.value;
+  mark(cargoKind.repaired);
+  const podCommodity = cleanKeyString(
+    entity.podCommodity,
+    MAX_COMMODITY_KEY_LENGTH,
+    COMMODITY_KEY_PATTERN,
+  );
+  entity.podCommodity = podCommodity.value;
+  mark(podCommodity.repaired);
+  const podAmount = cleanBoundedInteger(entity.podAmount, MAX_POD_AMOUNT);
+  entity.podAmount = podAmount.value;
+  mark(podAmount.repaired);
+  const fuel = cleanBoundedInteger(entity.fuel, MAX_SHIP_FUEL);
+  entity.fuel = fuel.value;
+  mark(fuel.repaired);
+  const homeSystem = cleanSystemIndex(entity.homeSystem);
+  entity.homeSystem = homeSystem.value;
+  mark(homeSystem.repaired);
+  const destinationSystem = cleanSystemIndex(entity.destinationSystem);
+  entity.destinationSystem = destinationSystem.value;
+  mark(destinationSystem.repaired);
   return repaired;
 }
 

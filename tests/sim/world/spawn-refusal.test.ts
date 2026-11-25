@@ -23,6 +23,7 @@ import {
   spawnEntity,
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { V5_SCALARS } from "../../helpers/v5-fields.js";
 
 function init(overrides: Record<string, unknown> = {}): SpawnInit {
   return {
@@ -322,4 +323,41 @@ describe("spawnEntity refuses malformed input (FOUND-16)", () => {
     });
     expect(snapshot(world)).toEqual(before);
   });
+});
+
+describe("the v5 SpawnInit members (FOUND-20)", () => {
+  it.each(V5_SCALARS.map((field) => [field.key, field] as const))(
+    "%s: wrong types are malformed, out-of-bound values outOfDomain, bounds spawn",
+    (key, field) => {
+      for (const bad of field.wrongType) {
+        const world = createWorld(1);
+        expect(
+          spawnEntity(world, init({ [key]: bad }), 0),
+          String(bad),
+        ).toEqual({ ok: false, reason: "malformed" });
+        expect(world.store.nextId).toBe(101);
+      }
+      for (const bad of field.outOfBound) {
+        const world = createWorld(1);
+        expect(
+          spawnEntity(world, init({ [key]: bad }), 0),
+          String(bad),
+        ).toEqual({ ok: false, reason: "outOfDomain" });
+        expect(world.store.nextId).toBe(101);
+      }
+      for (const good of field.accepted) {
+        const world = createWorld(1);
+        const result = spawnEntity(world, init({ [key]: good }), 0);
+        expect(
+          result.ok &&
+            (result.entity as unknown as Record<string, unknown>)[key],
+        ).toBe(good);
+      }
+      const world = createWorld(1);
+      const none = spawnEntity(world, init(), 0);
+      expect(
+        none.ok && (none.entity as unknown as Record<string, unknown>)[key],
+      ).toBe(field.pristine);
+    },
+  );
 });

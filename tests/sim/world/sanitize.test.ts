@@ -61,6 +61,7 @@ import {
 } from "../../../src/sim/world/world.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { V5_SCALARS } from "../../helpers/v5-fields.js";
 
 /** A clean entity with a test-pilot AI, from the real spawn path. */
 function fresh(extra: Partial<SpawnInit> = {}): Entity {
@@ -1198,6 +1199,37 @@ ROWS.push(
     delta: 1,
   },
 );
+
+// The v5 scalar fields, table-driven from the shared boundary table: a value
+// one step outside its bound, or of the wrong type, becomes the pristine value
+// with one repair and leaves every neighbour alone; a value at a bound is clean.
+for (const field of V5_SCALARS) {
+  const key = field.key;
+  for (const bad of [...field.outOfBound, ...field.wrongType]) {
+    ROWS.push({
+      name: `${key} ${typeof bad === "string" ? JSON.stringify(bad) : String(bad)} becomes pristine and leaves the neighbours alone`,
+      corrupt: (e) => {
+        e.bounty = key === "bounty" ? e.bounty : 11;
+        e.fuel = key === "fuel" ? e.fuel : 12;
+        loose(e)[key] = bad;
+      },
+      expected: (e) => {
+        expect(loose(e)[key]).toBe(field.pristine);
+        if (key !== "bounty") expect(e.bounty).toBe(11);
+        if (key !== "fuel") expect(e.fuel).toBe(12);
+      },
+      delta: 1,
+    });
+  }
+  for (const good of field.accepted) {
+    ROWS.push({
+      name: `${key} ${typeof good === "string" ? JSON.stringify(good) : String(good)} is clean`,
+      corrupt: (e) => (loose(e)[key] = good),
+      expected: (e) => expect(loose(e)[key]).toBe(good),
+      delta: 0,
+    });
+  }
+}
 
 describe("sanitizeEntity table", () => {
   for (const row of ROWS) {

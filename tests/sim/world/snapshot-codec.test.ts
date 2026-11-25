@@ -26,7 +26,6 @@ import {
   SCAN_CLASSES,
 } from "../../../src/sim/world/ids.js";
 import {
-  MAX_BOUNTY,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_AI_PARAMS_KEYS,
   MAX_ENTITY_CARGO,
@@ -74,6 +73,7 @@ import {
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { V5_SCALARS } from "../../helpers/v5-fields.js";
 
 const { layout } = laveFixture();
 
@@ -187,6 +187,14 @@ function richWorld(): World {
   a.cargo = 7;
   // The v5 fields (Phase 21, FOUND-20) away from their pristine values.
   a.bounty = 300;
+  a.role = "police-witchpoint-patrol";
+  a.groupId = b.id;
+  a.cargoKind = 4;
+  a.podCommodity = "gem_stones";
+  a.podAmount = 34;
+  a.fuel = 7;
+  a.homeSystem = 12;
+  a.destinationSystem = 255;
   const gone = spawnOk(world, shipInit(3, null), 10);
   killEntity(world, gone.id);
   commitWorld(world);
@@ -1234,39 +1242,65 @@ describe("the v5 entity fields in the snapshot (FOUND-20)", () => {
 
   it("writes every v5 field for every entity, pristine values included", () => {
     const [a, b] = snapshotWorld(richWorld()).entities;
-    expect(a?.bounty).toBe(300);
-    expect(b?.bounty).toBe(0);
+    expect(a).toMatchObject({
+      bounty: 300,
+      role: "police-witchpoint-patrol",
+      groupId: 102,
+      cargoKind: 4,
+      podCommodity: "gem_stones",
+      podAmount: 34,
+      fuel: 7,
+      homeSystem: 12,
+      destinationSystem: 255,
+    });
+    expect(b).toMatchObject({
+      bounty: 0,
+      role: "",
+      groupId: 0,
+      cargoKind: 0,
+      podCommodity: "",
+      podAmount: 0,
+      fuel: 0,
+      homeSystem: -1,
+      destinationSystem: -1,
+    });
   });
 
-  it("round-trips the bounty bounds through JSON", () => {
-    for (const bounty of [0, 1, MAX_BOUNTY]) {
+  it.each(V5_SCALARS.map((field) => [field.key, field] as const))(
+    "%s: round-trips the accepted values, refuses one step outside and the wrong type, refuses a missing key",
+    (key, field) => {
+      for (const good of field.accepted) {
+        const world = richWorld();
+        (world.store.live[0] as unknown as Plain)[key] = good;
+        const text = JSON.stringify(snapshotWorld(world));
+        const restored = restoreWorld(
+          parseWorldSnapshot(JSON.parse(text) as unknown),
+        );
+        expect((restored.store.live[0] as unknown as Plain)[key]).toBe(good);
+        expect(entityHashes(restored)).toEqual(entityHashes(world));
+        expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+      }
+      for (const bad of [...field.outOfBound, ...field.wrongType]) {
+        expect(reasonOf(withKey(key, bad)), `${key} = ${String(bad)}`).not.toBe(
+          "accepted",
+        );
+      }
+      const snapshot = jsonOf(richWorld());
+      delete (getAt(snapshot, E0) as Plain)[key];
+      expect(reasonOf(snapshot)).not.toBe("accepted");
+    },
+  );
+
+  it("refuses an unknown entity key", () => {
+    expect(reasonOf(withKey("bountyX", 1))).toBe("unknown-key");
+  });
+
+  it("refuses a non-finite v5 number when snapshotting", () => {
+    for (const key of ["bounty", "groupId", "cargoKind", "podAmount", "fuel"]) {
       const world = richWorld();
-      (world.store.live[0] as Entity).bounty = bounty;
-      const text = JSON.stringify(snapshotWorld(world));
-      const restored = restoreWorld(
-        parseWorldSnapshot(JSON.parse(text) as unknown),
-      );
-      expect((restored.store.live[0] as Entity).bounty).toBe(bounty);
-      expect(entityHashes(restored)).toEqual(entityHashes(world));
-      expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+      (world.store.live[0] as unknown as Plain)[key] = Number.NaN;
+      expect(() => snapshotWorld(world)).toThrow(SnapshotError);
     }
-  });
-
-  it.each([
-    ["bounty 65536", MAX_BOUNTY + 1, "range"],
-    ["bounty -1", -1, "range"],
-    ["bounty 1.5", 1.5, "range"],
-    ["bounty NaN", Number.NaN, "non-finite"],
-    ["bounty null (a NaN after JSON)", null, "non-finite"],
-    ["bounty a string", "7", "type"],
-  ] as const)("refuses %s", (_name, value, reason) => {
-    expect(reasonOf(withKey("bounty", value))).toBe(reason);
-  });
-
-  it("refuses a snapshot with the bounty key missing", () => {
-    const snapshot = jsonOf(richWorld());
-    delete (getAt(snapshot, E0) as Plain).bounty;
-    expect(reasonOf(snapshot)).toBe("type");
   });
 
   it("refuses a snapshot of version 4 or 6 for any entity content", () => {
@@ -2131,6 +2165,118 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       name: "removed (pristine)",
       apply: (e) => {
         e.bounty = 0;
+      },
+    },
+  ],
+  role: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.role = "trader";
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.role = "";
+      },
+    },
+  ],
+  groupId: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.groupId = e.groupId + 1;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.groupId = 0;
+      },
+    },
+  ],
+  cargoKind: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.cargoKind = e.cargoKind === 6 ? 5 : 6;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.cargoKind = 0;
+      },
+    },
+  ],
+  podCommodity: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.podCommodity = "food";
+      },
+    },
+    {
+      name: "removed (pristine commodity, amount stays)",
+      apply: (e) => {
+        e.podCommodity = "";
+      },
+    },
+  ],
+  podAmount: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.podAmount += 1;
+      },
+    },
+    {
+      name: "removed (pristine amount, commodity stays)",
+      apply: (e) => {
+        e.podAmount = 0;
+      },
+    },
+  ],
+  fuel: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.fuel += 1;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.fuel = 0;
+      },
+    },
+  ],
+  homeSystem: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.homeSystem += 1;
+      },
+    },
+    {
+      name: "removed (unset, destination stays)",
+      apply: (e) => {
+        e.homeSystem = -1;
+      },
+    },
+  ],
+  destinationSystem: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.destinationSystem -= 1;
+      },
+    },
+    {
+      name: "removed (unset, home stays)",
+      apply: (e) => {
+        e.destinationSystem = -1;
       },
     },
   ],

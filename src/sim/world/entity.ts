@@ -54,6 +54,35 @@ export interface WeaponComponent {
   missedShots: number;
 }
 
+/**
+ * The merchantman cargo kinds (FOUND-20): the index stored in `Entity.cargoKind`
+ * (0 = unset), mapped to Oolite's `OOCargoFlag` (`OOTypes.h:100-108`):
+ *
+ *  - 1 `plentiful` = `CARGO_FLAG_FULL_PLENTIFUL` 501 (`PLENTIFUL_GOODS`)
+ *  - 2 `scarce` = `CARGO_FLAG_FULL_SCARCE` 502 (`SCARCE_GOODS`)
+ *  - 3 `medical` = `CARGO_FLAG_FULL_MEDICAL` 503 (`MEDICAL_GOODS`)
+ *  - 4 `contraband` = `CARGO_FLAG_FULL_CONTRABAND` 504 (`ILLEGAL_GOODS`)
+ *  - 5 `pirate` = `CARGO_FLAG_PIRATE` 505 (`PIRATE_GOODS`)
+ *  - 6 `uniform` = `CARGO_FLAG_FULL_UNIFORM` 510
+ *
+ * `CARGO_FLAG_NONE` (400), `CARGO_FLAG_CANISTERS` (600) and
+ * `CARGO_FLAG_FULL_PASSENGERS` (700) have no index: Oolite releases no
+ * commodity pod for them and no in-scope `setCargoType` call uses them
+ * (`OOJSShip.m:2924-2930` accepts only the five `*_GOODS` names above), so
+ * "unset" covers them. Append-only: an index is never renumbered.
+ */
+export const CARGO_KINDS = Object.freeze([
+  "unset",
+  "plentiful",
+  "scarce",
+  "medical",
+  "contraband",
+  "pirate",
+  "uniform",
+] as const);
+
+export type CargoKindName = (typeof CARGO_KINDS)[number];
+
 /** A dynamic entity. `id` never changes; everything else is simulation state. */
 export interface Entity {
   readonly id: EntityId;
@@ -116,6 +145,52 @@ export interface Entity {
    * `;bty:` segment (zero omitted).
    */
   bounty: number;
+  /**
+   * The ship's resolved role (FOUND-20): 0 to `MAX_ROLE_LENGTH` characters of
+   * `[a-z0-9-]`, "" when unset. Oolite's per-ship role (`primaryRole`); set by
+   * Phase 22's populator and read by the AI and the comms tables. Hashed as the
+   * optional `;role:` segment ("" omitted).
+   */
+  role: string;
+  /**
+   * The founding leader's entity id of the ship's group, 0 for none (FOUND-20).
+   * Membership is derived by scanning the live ships for the id; plan 21-06's
+   * `World.groups` holds the leader record. A non-zero value is a dynamic id
+   * (101 and up). Hashed as the optional `;grp:` segment (0 omitted).
+   */
+  groupId: EntityId | 0;
+  /**
+   * Oolite's `cargo_flag` for a merchantman (FOUND-20): an index into
+   * `CARGO_KINDS`, 0 = unset. Phase 22 sets it, plan 21-14's release reads it.
+   * Hashed as the optional `;ck:` segment (0 omitted).
+   */
+  cargoKind: number;
+  /**
+   * A pod's contents (FOUND-20): a commodity key (0 to
+   * `MAX_COMMODITY_KEY_LENGTH` characters of `[a-z0-9_]`, "" none) and an
+   * integer amount 0 to `MAX_POD_AMOUNT`. Set only on cargo entities, by plan
+   * 21-14's release. Hashed as one optional `;pod:` segment, printed whenever
+   * either part is not pristine, so pristine-omit never hides a difference.
+   */
+  podCommodity: string;
+  podAmount: number;
+  /**
+   * The ship's fuel (FOUND-20), an integer 0 to `MAX_SHIP_FUEL`: Oolite's
+   * `fuel` (`ShipEntity.m:555`), which serves both witchspace jumps and
+   * injectors; the populator sets `fuel = 7` on traders without injectors
+   * (`oolite-populator.js:1394`, `:1683`). Hashed as the optional `;fuel:`
+   * segment (0 omitted).
+   */
+  fuel: number;
+  /**
+   * The galaxy-local system indices the populator sets at spawn
+   * (`oolite-populator.js:1391-1400` and others), -1 unset, else an integer 0
+   * to `MAX_SYSTEM_INDEX` (FOUND-20). Set by Phase 22's populator while the
+   * ships are still inert, read by Phase 23's AI. Hashed as one optional
+   * `;sys:` segment, printed whenever either is not -1.
+   */
+  homeSystem: number;
+  destinationSystem: number;
 }
 
 /** What a caller supplies to spawn an entity. */
@@ -154,6 +229,25 @@ export interface SpawnInit {
    * Phase 22's populator sets it.
    */
   bounty?: number;
+  /** The resolved role (FOUND-20): `[a-z0-9-]`, at most `MAX_ROLE_LENGTH`. Defaults to "". */
+  role?: string;
+  /** The group's founding leader id (FOUND-20): 0 or a dynamic id. Defaults to 0. */
+  groupId?: EntityId;
+  /** An index into `CARGO_KINDS` (FOUND-20). Defaults to 0 (unset). */
+  cargoKind?: number;
+  /**
+   * A pod's commodity key (FOUND-20): `[a-z0-9_]`, at most
+   * `MAX_COMMODITY_KEY_LENGTH`. Defaults to "".
+   */
+  podCommodity?: string;
+  /** A pod's amount (FOUND-20), an integer 0 to `MAX_POD_AMOUNT`. Defaults to 0. */
+  podAmount?: number;
+  /** The ship's fuel (FOUND-20), an integer 0 to `MAX_SHIP_FUEL`. Defaults to 0. */
+  fuel?: number;
+  /** The home system index (FOUND-20): -1 or 0 to `MAX_SYSTEM_INDEX`. Defaults to -1. */
+  homeSystem?: number;
+  /** The destination system index (FOUND-20): -1 or 0 to `MAX_SYSTEM_INDEX`. Defaults to -1. */
+  destinationSystem?: number;
 }
 
 /**
