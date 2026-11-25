@@ -1,0 +1,140 @@
+{
+  "name": "inert-records-nine",
+  "records": [
+    {
+      "key": "adder",
+      "roles": [
+        "trader(0.25)",
+        "trader-courier(0.5)",
+        "trader-smuggler",
+        "pirate-light-fighter(0.25)",
+        "pirate(0.2)",
+        "scavenger",
+        "shuttle",
+        "hermit-ship"
+      ],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 29.030517578125,
+      "maxEnergy": 85,
+      "energyRechargeRate": 2,
+      "likelyCargo": 2,
+      "maxCargo": 5
+    },
+    {
+      "key": "cobramk1",
+      "roles": [
+        "pirate(0.5)",
+        "pirate-medium-fighter",
+        "hunter-medium",
+        "scavenger",
+        "trader",
+        "trader-smuggler",
+        "hermit-ship",
+        "escort-medium(0.75)",
+        "escort(0.25)",
+        "assassin-light"
+      ],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 39.260494232177734,
+      "maxEnergy": 150,
+      "energyRechargeRate": 2.5,
+      "likelyCargo": 10,
+      "maxCargo": 10
+    },
+    {
+      "key": "gecko",
+      "roles": [
+        "hunter(0.75)",
+        "pirate-light-fighter(0.5)",
+        "pirate-medium-fighter(0.75)",
+        "pirate(0.5)",
+        "escort(0.25)",
+        "escort-medium(0.5)",
+        "escort-heavy"
+      ],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 31.911365509033203,
+      "maxEnergy": 250,
+      "energyRechargeRate": 4,
+      "likelyCargo": 3,
+      "maxCargo": 3
+    },
+    {
+      "key": "krait",
+      "roles": [
+        "pirate",
+        "pirate-light-fighter(0.75)",
+        "hunter(0.5)",
+        "escort(0.25)",
+        "assassin-light"
+      ],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 50.196590423583984,
+      "maxEnergy": 250,
+      "energyRechargeRate": 2.5,
+      "likelyCargo": 2,
+      "maxCargo": 2
+    },
+    {
+      "key": "mamba",
+      "roles": ["pirate", "pirate-light-fighter(0.5)", "hunter"],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 44.3935661315918,
+      "maxEnergy": 240,
+      "energyRechargeRate": 3,
+      "likelyCargo": 3,
+      "maxCargo": 4
+    },
+    {
+      "key": "moray",
+      "roles": [
+        "trader(0.5)",
+        "trader-courier(0.25)",
+        "trader-smuggler",
+        "hunter-medium",
+        "pirate-medium-fighter",
+        "pirate-interceptor(0.25)",
+        "pirate(0.5)",
+        "pirate-light-freighter(0.5)",
+        "escort-medium(0.25)",
+        "assassin-light"
+      ],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 36.18608093261719,
+      "maxEnergy": 240,
+      "energyRechargeRate": 3,
+      "likelyCargo": 5,
+      "maxCargo": 7
+    },
+    {
+      "key": "shuttle",
+      "roles": ["shuttle"],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 22.7517147064209,
+      "maxEnergy": 120,
+      "energyRechargeRate": 1,
+      "likelyCargo": 0,
+      "maxCargo": 30
+    },
+    {
+      "key": "sidewinder",
+      "roles": ["pirate(0.75)", "pirate-light-fighter(0.25)", "hunter"],
+      "scanClass": "CLASS_NEUTRAL",
+      "radius": 37.465919494628906,
+      "maxEnergy": 240,
+      "energyRechargeRate": 2,
+      "likelyCargo": 0,
+      "maxCargo": 0
+    },
+    {
+      "key": "viper",
+      "roles": ["police"],
+      "scanClass": "CLASS_POLICE",
+      "radius": 35.057655334472656,
+      "maxEnergy": 180,
+      "energyRechargeRate": 4,
+      "likelyCargo": 0,
+      "maxCargo": 0
+    }
+  ]
+}
