@@ -30,6 +30,8 @@ import type { HullOctree } from "../../src/sim/combat/octree.js";
 
 interface HullRecord {
   readonly key: string;
+  /** Further ship keys that share this entry's octree (plan 21-04, DATA-18). */
+  readonly aliases?: readonly string[];
   readonly collisionRadius: number;
   readonly octree: HullOctree;
 }
@@ -60,10 +62,13 @@ export function realHullTable(): HullTable {
   const records = readGenerated("ships-hulls.json") as HullRecord[];
   const table = new Map<string, HullData>();
   for (const record of records) {
-    table.set(record.key, {
+    const data: HullData = {
       collisionRadius: record.collisionRadius,
       octree: record.octree,
-    });
+    };
+    for (const key of [record.key, ...(record.aliases ?? [])]) {
+      table.set(key, data);
+    }
   }
   return table;
 }

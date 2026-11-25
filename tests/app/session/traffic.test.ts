@@ -403,6 +403,54 @@ describe("hullTable with the static hulls (plan 18-13)", () => {
     );
   });
 
+  it("registers an alias with the same HullData object as its entry key (plan 21-04, DATA-18)", () => {
+    const [first, second] = ships;
+    if (first === undefined || second === undefined) throw new Error("hulls");
+    const shared = [
+      { ...first, aliases: ["first-alias", "second-alias"] },
+      second,
+    ];
+    const table = hullTable(shared);
+    expect(table.get("first-alias")).toBe(table.get(first.key));
+    expect(table.get("second-alias")).toBe(table.get(first.key));
+    expect(table.get(second.key)).not.toBe(table.get(first.key));
+    expect([...table.keys()].slice(0, 4)).toEqual([
+      first.key,
+      "first-alias",
+      "second-alias",
+      second.key,
+    ]);
+  });
+
+  it("refuses an alias that repeats a ship key or another alias, naming the key", () => {
+    const [first, second] = ships;
+    if (first === undefined || second === undefined) throw new Error("hulls");
+    expect(() =>
+      hullTable([{ ...first, aliases: [second.key] }, second]),
+    ).toThrow(new RegExp(second.key));
+    expect(() =>
+      hullTable([
+        { ...first, aliases: ["dup"] },
+        { ...second, aliases: ["dup"] },
+      ]),
+    ).toThrow(/dup/);
+    expect(() => hullTable([{ ...first, aliases: [first.key] }])).toThrow(
+      new RegExp(first.key),
+    );
+  });
+
+  it("refuses a static key that repeats an alias, rather than overwrite the ship", () => {
+    const [first] = ships;
+    const [staticFirst] = statics.hulls;
+    if (first === undefined || staticFirst === undefined) throw new Error("x");
+    expect(() =>
+      hullTable(
+        [{ ...first, aliases: ["shared-alias"] }],
+        [{ ...staticFirst, key: "shared-alias" }],
+      ),
+    ).toThrow(/shared-alias/);
+  });
+
   it("is what fullHullTable() builds, entry for entry, and realHullTable() stays the ten", () => {
     const merged = hullTable(ships, statics.hulls);
     const full = fullHullTable();

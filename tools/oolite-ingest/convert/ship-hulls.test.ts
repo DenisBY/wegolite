@@ -31,6 +31,7 @@ import {
   compileShipHulls,
   emitShipHulls,
 } from "./ship-hulls.js";
+import { NPC_SHIP_KEYS } from "./npc-ships.js";
 import { MODELS_DIR, compileShips } from "./ships.js";
 import type { ShipCatalogue } from "./ships.js";
 
@@ -75,11 +76,113 @@ function capture(fn: () => unknown): ContentError {
   throw new Error("expected the call to throw");
 }
 
+/** The distinct models among the hull keys, as the catalogue resolves them. */
+function distinctModels(): Set<string> {
+  const models = new Set<string>();
+  for (const key of HULL_SHIP_KEYS) {
+    const model = catalogue.entries.find((entry) => entry.key === key)?.model;
+    if (model === undefined || model === null) {
+      throw new Error(`${key} has no model`);
+    }
+    models.add(model);
+  }
+  return models;
+}
+
+/**
+ * A synthetic catalogue over the real Cobra mesh: each `[key, model]` is a copy
+ * of the player entry under that key and model, and every model name maps to the
+ * Cobra mesh, so the grouping is the only thing the cases vary.
+ */
+function synthetic(rows: readonly (readonly [string, string])[]): {
+  catalogue: ShipCatalogue;
+  meshes: Record<string, ParsedMesh>;
+} {
+  const player = catalogue.entries.find(
+    (entry) => entry.key === PLAYER_HULL_KEY,
+  );
+  const mesh = meshes["oolite_cobra3.dat"];
+  if (player === undefined || mesh === undefined) {
+    throw new Error("the Cobra player entry or mesh is missing");
+  }
+  const models: Record<string, ParsedMesh> = {};
+  for (const [, model] of rows) models[model] = mesh;
+  return {
+    catalogue: {
+      ...catalogue,
+      entries: rows.map(([key, model]) => ({ ...player, key, model })),
+    },
+    meshes: models,
+  };
+}
+
 describe("compileShipHulls", () => {
   it("compiles the ten keys in HULL_SHIP_KEYS order, the Cobra player first", () => {
     expect(hulls.map((hull) => hull.key)).toEqual([...HULL_SHIP_KEYS]);
     expect(HULL_SHIP_KEYS[0]).toBe(PLAYER_HULL_KEY);
-    expect(HULL_SHIP_KEYS).toHaveLength(10);
+  });
+
+  it("derives the key count and the entry count from the catalogue (ten of each today)", () => {
+    // Plan 21-04: the roster grows in plan 21-08 without editing these counts.
+    expect(HULL_SHIP_KEYS).toHaveLength(1 + NPC_SHIP_KEYS.length);
+    expect(hulls).toHaveLength(distinctModels().size);
+    expect(HULL_SHIP_KEYS.length).toBeGreaterThan(0);
+  });
+
+  it("writes no aliases key on a group of one, and covers every key through entries plus aliases", () => {
+    // An aliases key never holds an empty list: it is absent for a group of one.
+    for (const hull of hulls) {
+      if ("aliases" in hull) expect(hull.aliases?.length).toBeGreaterThan(0);
+    }
+    const covered = hulls.flatMap((hull) => [
+      hull.key,
+      ...(hull.aliases ?? []),
+    ]);
+    expect(new Set(covered)).toEqual(new Set(HULL_SHIP_KEYS));
+    expect(covered).toHaveLength(HULL_SHIP_KEYS.length);
+  });
+
+  it("groups keys that share a model into one entry with sorted aliases", () => {
+    const { catalogue: fake, meshes: fakeMeshes } = synthetic([
+      ["a-two", "oolite_a.dat"],
+      ["b", "oolite_b.dat"],
+      ["a-one", "oolite_a.dat"],
+    ]);
+    const grouped = compileShipHulls(fake, fakeMeshes, ["a-two", "b", "a-one"]);
+    // The group's entry key is its first key in code-unit order, at the
+    // position of that key in the key list.
+    expect(grouped.map((hull) => hull.key)).toEqual(["b", "a-one"]);
+    const [b, aOne] = grouped;
+    expect(aOne?.aliases).toEqual(["a-two"]);
+    expect(b !== undefined && "aliases" in b).toBe(false);
+    expect(aOne?.octree).toEqual(b?.octree);
+  });
+
+  it("keeps the player key as the entry key when another key shares the Cobra model", () => {
+    const { catalogue: fake, meshes: fakeMeshes } = synthetic([
+      ["a-cobra", "oolite_cobra3.dat"],
+      [PLAYER_HULL_KEY, "oolite_cobra3.dat"],
+      ["zz-cobra", "oolite_cobra3.dat"],
+    ]);
+    const grouped = compileShipHulls(fake, fakeMeshes, [
+      PLAYER_HULL_KEY,
+      "a-cobra",
+      "zz-cobra",
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]?.key).toBe(PLAYER_HULL_KEY);
+    expect(grouped[0]?.aliases).toEqual(["a-cobra", "zz-cobra"]);
+  });
+
+  it("fails with a SCHEMA error when a key repeats in the list, so it would repeat as an alias", () => {
+    const { catalogue: fake, meshes: fakeMeshes } = synthetic([
+      ["a-one", "oolite_a.dat"],
+    ]);
+    const error = capture(() =>
+      compileShipHulls(fake, fakeMeshes, ["a-one", "a-one"]),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.message).toContain("a-one");
   });
 
   it("compiles the Cobra hull from its vendored mesh", () => {
@@ -154,6 +257,23 @@ describe("emitShipHulls", () => {
     expect(text.endsWith("]\n")).toBe(true);
     expect(text.endsWith("\n\n")).toBe(false);
     const rootLines = text.split("\n").filter((line) => /"root": /.test(line));
-    expect(rootLines).toHaveLength(HULL_SHIP_KEYS.length);
+    expect(rootLines).toHaveLength(hulls.length);
+  });
+
+  it("writes an aliases array only for an entry that has aliases, ahead of its other keys", () => {
+    expect(text.includes('"aliases"')).toBe(
+      hulls.some((hull) => hull.aliases !== undefined),
+    );
+    const { catalogue: fake, meshes: fakeMeshes } = synthetic([
+      ["a-one", "oolite_a.dat"],
+      ["a-two", "oolite_a.dat"],
+    ]);
+    const shared = Buffer.from(
+      emitShipHulls(fake, fakeMeshes, ["a-one", "a-two"]).bytes,
+    ).toString("utf8");
+    expect(shared).toContain('    "aliases": [\n      "a-two"\n    ],\n');
+    expect(JSON.parse(shared)).toEqual(
+      compileShipHulls(fake, fakeMeshes, ["a-one", "a-two"]),
+    );
   });
 });

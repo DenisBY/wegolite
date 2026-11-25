@@ -6,7 +6,7 @@
  *
  * The generated file is compiled at build time from the vendored `.dat` models
  * with the existing octree and radius ports. These cases pin that it parses
- * under the strict, bounded schema, holds exactly the ten hulls a laser can hit,
+ * under the strict, bounded schema, holds the hulls a laser can hit (ten today, one per model),
  * stays under its size gate, agrees with the NPC records on every collision
  * radius, matches a golden digest, and that nothing on the boot path imports the
  * loader. The expected digest lives in `tests/golden/content/ships-hulls.json`.
@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_HULL_ALIASES,
   MAX_HULL_ARTIFACT_BYTES,
   MAX_HULL_DEPTH,
   MAX_HULL_NODES,
@@ -132,10 +133,28 @@ describe("the generated hull file", () => {
     expect(ShipHullCatalogueSchema.safeParse(generated).success).toBe(true);
   });
 
-  it("holds exactly the ten keys in HULL_SHIP_KEYS order", () => {
+  it("holds every key of HULL_SHIP_KEYS once, as an entry key or an alias, entries in key order", () => {
     const parsed = ShipHullCatalogueSchema.parse(generated);
-    expect(parsed.map((hull) => hull.key)).toEqual([...HULL_SHIP_KEYS]);
-    expect(parsed).toHaveLength(10);
+    // Plan 21-04 (DATA-18): counts follow the catalogue, so the roster plan
+    // grows it without editing this file.
+    expect(HULL_SHIP_KEYS).toHaveLength(1 + NPC_SHIP_KEYS.length);
+    const covered = parsed.flatMap((hull) => [
+      hull.key,
+      ...(hull.aliases ?? []),
+    ]);
+    expect(covered).toHaveLength(HULL_SHIP_KEYS.length);
+    expect(new Set(covered)).toEqual(new Set(HULL_SHIP_KEYS));
+    const entryKeys = parsed.map((hull) => hull.key);
+    expect(entryKeys).toEqual(
+      HULL_SHIP_KEYS.filter((key) => entryKeys.includes(key)),
+    );
+    expect(parsed.length).toBeGreaterThan(0);
+    // One entry per model: the entries are the keys less the aliases they carry.
+    const aliasCount = parsed.reduce(
+      (total, hull) => total + (hull.aliases ?? []).length,
+      0,
+    );
+    expect(parsed).toHaveLength(HULL_SHIP_KEYS.length - aliasCount);
   });
 
   it("includes the Cobra player key, so a firing NPC can hit the player", () => {
@@ -157,7 +176,10 @@ describe("the generated hull file", () => {
     const hulls = ShipHullCatalogueSchema.parse(generated);
     for (const key of NPC_SHIP_KEYS) {
       const record = npc.find((candidate) => candidate.key === key);
-      const hull = hulls.find((candidate) => candidate.key === key);
+      const hull = hulls.find(
+        (candidate) =>
+          candidate.key === key || (candidate.aliases ?? []).includes(key),
+      );
       expect(record, key).toBeDefined();
       expect(hull?.collisionRadius, key).toBe(record?.radius);
     }
@@ -246,10 +268,59 @@ describe("ShipHullSchema bounds", () => {
   });
 });
 
+describe("ShipHullSchema aliases (plan 21-04, DATA-18)", () => {
+  /** The first two generated hulls with distinct keys, aliases overridden. */
+  function catalogueWith(
+    first: unknown[] | undefined,
+    second?: unknown[],
+  ): unknown {
+    const [one, two] = generated as Record<string, unknown>[];
+    return [
+      { ...one, ...(first === undefined ? {} : { aliases: first }) },
+      { ...two, ...(second === undefined ? {} : { aliases: second }) },
+    ];
+  }
+  const accepted = (value: unknown): boolean =>
+    ShipHullCatalogueSchema.safeParse(value).success;
+
+  it("accepts an entry without aliases and one with distinct aliases", () => {
+    expect(accepted(catalogueWith(undefined))).toBe(true);
+    expect(accepted(catalogueWith(["alias-a", "alias-b"], ["alias-c"]))).toBe(
+      true,
+    );
+  });
+
+  it("rejects an alias that repeats another entry's key, or another entry's alias", () => {
+    const [, two] = generated as { key: string }[];
+    expect(accepted(catalogueWith([two?.key]))).toBe(false);
+    expect(accepted(catalogueWith(["alias-a"], ["alias-a"]))).toBe(false);
+  });
+
+  it("rejects an alias equal to its own entry's key and a repeat inside one list", () => {
+    const [one] = generated as { key: string }[];
+    expect(accepted(catalogueWith([one?.key]))).toBe(false);
+    expect(accepted(catalogueWith(["alias-a", "alias-a"]))).toBe(false);
+  });
+
+  it("rejects an empty alias string, a non-string alias and a list over the bound", () => {
+    expect(accepted(catalogueWith([""]))).toBe(false);
+    expect(accepted(catalogueWith([7]))).toBe(false);
+    const over = Array.from(
+      { length: MAX_HULL_ALIASES + 1 },
+      (_, index) => `alias-${String(index)}`,
+    );
+    const atBound = over.slice(0, MAX_HULL_ALIASES);
+    expect(accepted(catalogueWith(over))).toBe(false);
+    expect(accepted(catalogueWith(atBound))).toBe(true);
+  });
+});
+
 describe("loadShipHulls", () => {
   it("resolves the parsed catalogue, equal to the generated file", async () => {
     const catalogue = await loadShipHulls();
-    expect(catalogue.map((hull) => hull.key)).toEqual([...HULL_SHIP_KEYS]);
+    expect(catalogue.map((hull) => hull.key)).toEqual(
+      (generated as { key: string }[]).map((hull) => hull.key),
+    );
     expect(catalogue).toEqual(generated);
   });
 

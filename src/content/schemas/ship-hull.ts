@@ -19,7 +19,9 @@
  * - the nesting never exceeds `MAX_HULL_DEPTH` (7, Oolite's `OCTREE_MAX_DEPTH`)
  *   and never exceeds the record's own declared `depth`;
  * - a hull holds at most `MAX_HULL_NODES` nodes;
- * - a catalogue holds one to sixteen hulls.
+ * - a catalogue holds one to sixteen hulls;
+ * - a hull lists at most `MAX_HULL_ALIASES` further ship keys that share its
+ *   octree (DATA-18), and no key or alias repeats across the catalogue.
  */
 
 import { z } from "zod";
@@ -37,6 +39,15 @@ export const MAX_HULL_NODES = 16_384;
 
 /** The most hulls one catalogue may hold. */
 export const MAX_HULLS = 16;
+
+/**
+ * The most extra keys one hull entry may carry in `aliases` (DATA-18): records
+ * that share a model share its octree. The largest group the roster needs is
+ * the Cobra Mk III family, three variants beside the player's key (21-RESEARCH
+ * section 1); the bound leaves headroom over that and stays far under
+ * `MAX_HULLS`, so a hostile chunk cannot widen the lookup unboundedly.
+ */
+export const MAX_HULL_ALIASES = 8;
 
 /**
  * The size the generated file must stay under, in bytes: the first-load
@@ -95,6 +106,9 @@ export function checkHullTree(
 export const ShipHullSchema = z
   .strictObject({
     key: z.string().min(1),
+    // Further ship keys whose records use this same model, so this one octree
+    // serves them all (DATA-18). Omitted when the model has one key.
+    aliases: z.array(z.string().min(1)).max(MAX_HULL_ALIASES).optional(),
     // Oolite's float32 collision radius of the hull, in metres (WORLD-15).
     collisionRadius: z.number().positive(),
     octree: z.strictObject({
@@ -119,7 +133,33 @@ export const ShipHullSchema = z
 export const ShipHullCatalogueSchema = z
   .array(ShipHullSchema)
   .min(1)
-  .max(MAX_HULLS);
+  .max(MAX_HULLS)
+  .superRefine((hulls, context) => {
+    // Every key and alias names one hull: a repeat across entries, or an alias
+    // equal to its own entry's key, would make the lookup ambiguous (T-21-11).
+    const seen = new Set<string>();
+    hulls.forEach((hull, index) => {
+      const names: [string, (string | number)[]][] = [
+        [hull.key, [index, "key"]],
+        ...(hull.aliases ?? []).map(
+          (alias, position): [string, (string | number)[]] => [
+            alias,
+            [index, "aliases", position],
+          ],
+        ),
+      ];
+      for (const [name, path] of names) {
+        if (seen.has(name)) {
+          context.addIssue({
+            code: "custom",
+            path,
+            message: `the hull key "${name}" repeats within the catalogue`,
+          });
+        }
+        seen.add(name);
+      }
+    });
+  });
 
 export type ShipHull = z.infer<typeof ShipHullSchema>;
 export type ShipHullCatalogue = z.infer<typeof ShipHullCatalogueSchema>;
