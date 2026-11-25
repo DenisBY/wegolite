@@ -1,0 +1,145 @@
+{
+  "name": "inert-lave-epochs-1-20",
+  "epochs": [
+    {
+      "epoch": 1,
+      "worldSeed": 726532988,
+      "count": 12,
+      "sectionFnv": "ff6489bf",
+      "hashWorldFnv": "c5949d60"
+    },
+    {
+      "epoch": 2,
+      "worldSeed": 2358620270,
+      "count": 12,
+      "sectionFnv": "0ef67b3a",
+      "hashWorldFnv": "e7e2eb3f"
+    },
+    {
+      "epoch": 3,
+      "worldSeed": 1658048036,
+      "count": 12,
+      "sectionFnv": "6e6d4311",
+      "hashWorldFnv": "7bb70d62"
+    },
+    {
+      "epoch": 4,
+      "worldSeed": 2874323896,
+      "count": 12,
+      "sectionFnv": "3f81e315",
+      "hashWorldFnv": "8d5324ba"
+    },
+    {
+      "epoch": 5,
+      "worldSeed": 2362479205,
+      "count": 12,
+      "sectionFnv": "d3d5b910",
+      "hashWorldFnv": "b94703ad"
+    },
+    {
+      "epoch": 6,
+      "worldSeed": 365507317,
+      "count": 12,
+      "sectionFnv": "4a3e09e1",
+      "hashWorldFnv": "d3176e9a"
+    },
+    {
+      "epoch": 7,
+      "worldSeed": 15436524,
+      "count": 12,
+      "sectionFnv": "d1db14c9",
+      "hashWorldFnv": "cce0f3de"
+    },
+    {
+      "epoch": 8,
+      "worldSeed": 2944482225,
+      "count": 12,
+      "sectionFnv": "f72a4849",
+      "hashWorldFnv": "31b4648a"
+    },
+    {
+      "epoch": 9,
+      "worldSeed": 3470242674,
+      "count": 12,
+      "sectionFnv": "f03e216e",
+      "hashWorldFnv": "800ac33b"
+    },
+    {
+      "epoch": 10,
+      "worldSeed": 2667883293,
+      "count": 12,
+      "sectionFnv": "8e0e6386",
+      "hashWorldFnv": "bbfc696f"
+    },
+    {
+      "epoch": 11,
+      "worldSeed": 3655716072,
+      "count": 12,
+      "sectionFnv": "88586be9",
+      "hashWorldFnv": "f489cb02"
+    },
+    {
+      "epoch": 12,
+      "worldSeed": 2662853381,
+      "count": 12,
+      "sectionFnv": "b8a7ba66",
+      "hashWorldFnv": "87d3ca7b"
+    },
+    {
+      "epoch": 13,
+      "worldSeed": 2149423861,
+      "count": 12,
+      "sectionFnv": "d930ee18",
+      "hashWorldFnv": "2f3713af"
+    },
+    {
+      "epoch": 14,
+      "worldSeed": 2138280794,
+      "count": 12,
+      "sectionFnv": "6ec0d08b",
+      "hashWorldFnv": "9c988798"
+    },
+    {
+      "epoch": 15,
+      "worldSeed": 2607074892,
+      "count": 12,
+      "sectionFnv": "dcba3d46",
+      "hashWorldFnv": "ab365617"
+    },
+    {
+      "epoch": 16,
+      "worldSeed": 20192838,
+      "count": 12,
+      "sectionFnv": "503d539e",
+      "hashWorldFnv": "2b5da771"
+    },
+    {
+      "epoch": 17,
+      "worldSeed": 2079961999,
+      "count": 12,
+      "sectionFnv": "0c4585ca",
+      "hashWorldFnv": "ac9ba941"
+    },
+    {
+      "epoch": 18,
+      "worldSeed": 312477038,
+      "count": 12,
+      "sectionFnv": "969b7225",
+      "hashWorldFnv": "fbc35b7c"
+    },
+    {
+      "epoch": 19,
+      "worldSeed": 3161095431,
+      "count": 12,
+      "sectionFnv": "b4c8645b",
+      "hashWorldFnv": "2db8a23a"
+    },
+    {
+      "epoch": 20,
+      "worldSeed": 2529836020,
+      "count": 12,
+      "sectionFnv": "31186a2b",
+      "hashWorldFnv": "aaeb9e80"
+    }
+  ]
+}
