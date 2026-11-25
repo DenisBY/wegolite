@@ -36,6 +36,7 @@ import {
 } from "../../../src/persistence/save.js";
 import type { Command } from "../../../src/sim/commands.js";
 import {
+  MARKET_LIMIT,
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
@@ -825,6 +826,421 @@ describe("sortMarket (quick task 261118-cyo)", () => {
     h.controller.confirmTrade();
     expect(h.ctx.core.profile.cargo[selected]).toBe(1);
     expect(h.ctx.core.profile.credits).toBe(creditsBefore - plan.cost);
+  });
+});
+
+/** A market good the keys cannot select here, found from the harness market. */
+function unselectableKey(h: Harness): string {
+  const good = h.market.goods.find(
+    (entry) => !h.controller.isSelectableGood(entry.key, entry.stock),
+  );
+  if (good === undefined) throw new Error("every Lave good is selectable");
+  return good.key;
+}
+
+/** Every guarded state of the F8 row mouse sinks, applied and undone. */
+const MOUSE_GUARDS: readonly (readonly [string, (h: Harness) => () => void])[] =
+  [
+    [
+      "paused",
+      (h) => {
+        h.ctx.runtime.paused = true;
+        return () => {
+          h.ctx.runtime.paused = false;
+        };
+      },
+    ],
+    [
+      "contextLost",
+      (h) => {
+        h.ctx.runtime.contextLost = true;
+        return () => {
+          h.ctx.runtime.contextLost = false;
+        };
+      },
+    ],
+    [
+      "disposed",
+      (h) => {
+        h.ctx.runtime.disposed = true;
+        return () => {
+          h.ctx.runtime.disposed = false;
+        };
+      },
+    ],
+    [
+      "gameOver",
+      (h) => {
+        h.ctx.runtime.gameOver = true;
+        return () => {
+          h.ctx.runtime.gameOver = false;
+        };
+      },
+    ],
+    [
+      "chartOpen",
+      (h) => {
+        h.ctx.chart.chartOpen = true;
+        return () => {
+          h.ctx.chart.chartOpen = false;
+        };
+      },
+    ],
+    [
+      "saveScreenOpen",
+      (h) => {
+        h.ctx.save.saveScreenOpen = true;
+        return () => {
+          h.ctx.save.saveScreenOpen = false;
+        };
+      },
+    ],
+    [
+      "overwrite question",
+      (h) => {
+        h.ctx.save.saveLoad = {
+          isConfirming: () => true,
+        } as unknown as SessionState["save"]["saveLoad"];
+        return () => {
+          h.ctx.save.saveLoad = undefined;
+        };
+      },
+    ],
+    [
+      "status screen",
+      (h) => {
+        h.ctx.station.stationScreen = "status";
+        return () => {
+          h.ctx.station.stationScreen = "market";
+        };
+      },
+    ],
+    [
+      "inFlight",
+      (h) => {
+        const docked = h.ctx.core.state;
+        const state = initFlightState(layout);
+        state.mode = "inFlight";
+        h.ctx.core.state = state;
+        return () => {
+          h.ctx.core.state = docked;
+        };
+      },
+    ],
+    [
+      "preRolling",
+      (h) => {
+        h.preRoll.preRolling = true;
+        return () => {
+          h.preRoll.preRolling = false;
+        };
+      },
+    ],
+  ];
+
+describe("market row click (quick 261125-ewd)", () => {
+  it("selects another selectable row, clears the line and notice, and renders once", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    expect(h.ctx.station.stationSelection).toBe("food");
+    h.controller.stepAmount(1);
+    expect(h.ctx.station.stationPending).not.toBeNull();
+    h.ctx.station.stationNotice = "stale";
+    h.views.length = 0;
+    h.calls.length = 0;
+
+    h.controller.selectMarketRow("slaves");
+
+    expect(h.ctx.station.stationSelection).toBe("slaves");
+    expect(h.ctx.station.stationPending).toBeNull();
+    expect(h.ctx.station.stationNotice).toBe("");
+    expect(h.calls.filter((call) => call === "render")).toEqual(["render"]);
+    const market = h.views.at(-1)?.market;
+    expect(market?.selectedKey).toBe("slaves");
+    expect(market?.commentText).not.toBe("");
+  });
+
+  it("lands where Up and Down would land: the same state as moveSelection", () => {
+    const keyed = harness();
+    keyed.controller.ensureSelection();
+    keyed.controller.moveSelection(1);
+    const target = keyed.ctx.station.stationSelection;
+
+    const clicked = harness();
+    clicked.controller.ensureSelection();
+    clicked.controller.selectMarketRow(target);
+    expect(clicked.ctx.station.stationSelection).toBe(target);
+    expect(clicked.ctx.station.stationPending).toBe(
+      keyed.ctx.station.stationPending,
+    );
+    expect(clicked.ctx.station.stationNotice).toBe(
+      keyed.ctx.station.stationNotice,
+    );
+  });
+
+  it("changes nothing and renders nothing on the selected row", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    h.controller.stepAmount(1);
+    const plan = h.ctx.station.stationPending;
+    h.ctx.station.stationNotice = "kept";
+    h.calls.length = 0;
+
+    h.controller.selectMarketRow("food");
+
+    expect(h.ctx.station.stationPending).toBe(plan);
+    expect(h.ctx.station.stationNotice).toBe("kept");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("ignores a row the keys cannot select and keys that name no row", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    h.controller.stepAmount(1);
+    const plan = h.ctx.station.stationPending;
+    h.ctx.station.stationNotice = "kept";
+    h.calls.length = 0;
+
+    for (const key of [unselectableKey(h), "", "not_a_good", "__proto__"]) {
+      h.controller.selectMarketRow(key);
+      expect(h.ctx.station.stationSelection, key).toBe("food");
+    }
+    expect(h.ctx.station.stationPending).toBe(plan);
+    expect(h.ctx.station.stationNotice).toBe("kept");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("selects a zero-stock row the hold carries, as the keys do", () => {
+    const h = harness();
+    h.controller.ensureSelection();
+    const key = unselectableKey(h);
+    h.ctx.core.profile = {
+      ...h.ctx.core.profile,
+      cargo: { ...h.ctx.core.profile.cargo, [key]: 2 },
+    };
+    h.ctx.core.market = {
+      ...h.market,
+      goods: h.market.goods.map((good) =>
+        good.key === key ? { ...good, stock: 0 } : good,
+      ),
+    };
+    expect(h.controller.selectableKeys()).toContain(key);
+
+    h.controller.selectMarketRow(key);
+
+    expect(h.ctx.station.stationSelection).toBe(key);
+  });
+
+  it("does nothing in every guarded state", () => {
+    for (const [name, apply] of MOUSE_GUARDS) {
+      const h = harness();
+      h.controller.ensureSelection();
+      h.calls.length = 0;
+      const undo = apply(h);
+      h.controller.selectMarketRow("slaves");
+      expect(h.ctx.station.stationSelection, name).toBe("food");
+      expect(h.calls, name).toEqual([]);
+      undo();
+      h.controller.selectMarketRow("slaves");
+      expect(h.ctx.station.stationSelection, `${name} undone`).toBe("slaves");
+    }
+  });
+
+  it("selects by key in the sorted order, and the keys then move from there", () => {
+    const h = harness();
+    h.ctx.station.marketSort = { column: "name", direction: "ascending" };
+    h.controller.ensureSelection();
+    const keys = h.controller.selectableKeys();
+    const target = keys[3];
+    if (target === undefined)
+      throw new Error("fewer than four selectable rows");
+
+    h.controller.selectMarketRow(target);
+    expect(h.ctx.station.stationSelection).toBe(target);
+    h.controller.moveSelection(1);
+    expect(h.ctx.station.stationSelection).toBe(keys[4]);
+  });
+});
+
+describe("market row double click (quick 261125-ewd)", () => {
+  interface Setup {
+    readonly credits?: number;
+    readonly held?: number;
+    readonly stock?: number;
+  }
+
+  /**
+   * A docked market harness on Food with the given credits, Food held and
+   * Food stock. The profile and the market are copies: the harness market is
+   * shared data.
+   */
+  function setUp(setup: Setup = {}): Harness {
+    const h = harness();
+    h.controller.ensureSelection();
+    const profile = newProfile();
+    h.ctx.core.profile = {
+      ...profile,
+      credits: setup.credits ?? profile.credits,
+      cargo:
+        setup.held === undefined
+          ? profile.cargo
+          : { ...profile.cargo, food: setup.held },
+    };
+    if (setup.stock !== undefined) {
+      const stock = setup.stock;
+      h.ctx.core.market = {
+        ...h.market,
+        goods: h.market.goods.map((good) =>
+          good.key === "food" ? { ...good, stock } : good,
+        ),
+      };
+    }
+    h.calls.length = 0;
+    h.views.length = 0;
+    return h;
+  }
+
+  /** What Shift with Right (buy) or Left (sell) stores from the same state. */
+  function planMaxFrom(setup: Setup, side: "buy" | "sell"): unknown {
+    const h = setUp(setup);
+    h.ctx.station.stationSelection = "food";
+    h.controller.planMax(side);
+    return h.ctx.station.stationPending;
+  }
+
+  /** Double-click Food and check that nothing was traded. */
+  function activateWithoutTrade(h: Harness, shift: boolean): void {
+    const profile = h.ctx.core.profile;
+    const market = h.ctx.core.market;
+    h.controller.activateMarketRow("food", shift);
+    expect(h.ctx.core.profile).toBe(profile);
+    expect(h.ctx.core.market).toBe(market);
+    expect(h.ctx.station.lastTrade).toBeNull();
+    expect(h.profiles).toEqual([]);
+    expect(h.calls).not.toContain("autosave");
+    expect(h.calls.filter((call) => call === "render")).toEqual(["render"]);
+  }
+
+  /** Y then completes exactly the pending plan. */
+  function confirmApplies(h: Harness): void {
+    const plan = asTrade(h.ctx.station.stationPending);
+    const credits = h.ctx.core.profile.credits;
+    const held = h.ctx.core.profile.cargo.food ?? 0;
+    h.controller.confirmTrade();
+    const sign = plan.side === "buy" ? 1 : -1;
+    expect(h.ctx.core.profile.cargo.food ?? 0).toBe(held + sign * plan.amount);
+    expect(h.ctx.core.profile.credits).toBe(credits - sign * plan.cost);
+    expect(h.ctx.station.lastTrade).toEqual({
+      kind: plan.side,
+      key: "food",
+      amount: plan.amount,
+    });
+  }
+
+  it("with none held plans the buy-max line Shift with Right would open", () => {
+    const h = setUp();
+    activateWithoutTrade(h, false);
+    const plan = asTrade(h.ctx.station.stationPending);
+    expect(plan.side).toBe("buy");
+    expect(plan.key).toBe("food");
+    expect(plan.clamp).toBeUndefined();
+    expect(h.ctx.station.stationPending).toEqual(planMaxFrom({}, "buy"));
+    expect(h.ctx.station.stationNotice).toBe("");
+    expect(h.views.at(-1)?.confirmText).toMatch(/^Buy /);
+    confirmApplies(h);
+  });
+
+  it("with some held plans selling all of it, and with Shift the buy-max line", () => {
+    const sell = setUp({ held: 3 });
+    activateWithoutTrade(sell, false);
+    const plan = asTrade(sell.ctx.station.stationPending);
+    expect(plan.side).toBe("sell");
+    expect(plan.amount).toBe(3);
+    expect(sell.ctx.station.stationPending).toEqual(
+      planMaxFrom({ held: 3 }, "sell"),
+    );
+    expect(sell.views.at(-1)?.confirmText).toMatch(/^Sell /);
+    confirmApplies(sell);
+
+    const buy = setUp({ held: 3 });
+    activateWithoutTrade(buy, true);
+    expect(asTrade(buy.ctx.station.stationPending).side).toBe("buy");
+    expect(buy.ctx.station.stationPending).toEqual(
+      planMaxFrom({ held: 3 }, "buy"),
+    );
+    confirmApplies(buy);
+  });
+
+  it("moves the selection from another row and replaces its line and notice", () => {
+    const h = setUp();
+    h.controller.selectMarketRow("slaves");
+    h.controller.stepAmount(1);
+    expect(asTrade(h.ctx.station.stationPending).key).toBe("slaves");
+    h.ctx.station.stationNotice = "stale";
+    h.calls.length = 0;
+
+    activateWithoutTrade(h, false);
+
+    expect(h.ctx.station.stationSelection).toBe("food");
+    expect(h.ctx.station.stationPending).toEqual(planMaxFrom({}, "buy"));
+    expect(h.ctx.station.stationNotice).toBe("");
+  });
+
+  it("falls through a refused plan to the next, as Oolite's else-if chain", () => {
+    // Shift with no credits while some is held: the buy is refused, so sell all.
+    const noCash = setUp({ credits: 0, held: 3 });
+    activateWithoutTrade(noCash, true);
+    expect(asTrade(noCash.ctx.station.stationPending).side).toBe("sell");
+    expect(noCash.ctx.station.stationPending).toEqual(
+      planMaxFrom({ credits: 0, held: 3 }, "sell"),
+    );
+    confirmApplies(noCash);
+
+    // A held good whose market row is full: the sell is refused, so buy max.
+    const full = setUp({ held: 3, stock: MARKET_LIMIT });
+    activateWithoutTrade(full, false);
+    expect(asTrade(full.ctx.station.stationPending).side).toBe("buy");
+    expect(full.ctx.station.stationPending).toEqual(
+      planMaxFrom({ held: 3, stock: MARKET_LIMIT }, "buy"),
+    );
+    confirmApplies(full);
+
+    // Every plan refused: no line, and the buy refusal notice.
+    const broke = setUp({ credits: 0 });
+    activateWithoutTrade(broke, false);
+    expect(broke.ctx.station.stationPending).toBeNull();
+    expect(broke.ctx.station.stationNotice).toBe("Not enough credits");
+  });
+
+  it("ignores a row the keys cannot select and keys that name no row", () => {
+    const h = setUp();
+    h.controller.stepAmount(1);
+    const plan = h.ctx.station.stationPending;
+    h.ctx.station.stationNotice = "kept";
+    h.calls.length = 0;
+
+    for (const key of [unselectableKey(h), "", "not_a_good", "__proto__"]) {
+      h.controller.activateMarketRow(key, false);
+      h.controller.activateMarketRow(key, true);
+      expect(h.ctx.station.stationSelection, key).toBe("food");
+    }
+    expect(h.ctx.station.stationPending).toBe(plan);
+    expect(h.ctx.station.stationNotice).toBe("kept");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("does nothing in every guarded state", () => {
+    for (const [name, apply] of MOUSE_GUARDS) {
+      const h = setUp();
+      const undo = apply(h);
+      h.controller.activateMarketRow("slaves", false);
+      expect(h.ctx.station.stationSelection, name).toBe("food");
+      expect(h.ctx.station.stationPending, name).toBeNull();
+      expect(h.calls, name).toEqual([]);
+      undo();
+      h.controller.activateMarketRow("slaves", false);
+      expect(h.ctx.station.stationSelection, `${name} undone`).toBe("slaves");
+    }
   });
 });
 

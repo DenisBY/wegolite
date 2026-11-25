@@ -24,7 +24,8 @@
  * cancelled (quick 261124-pze F4).
  *
  * The Firefox project runs this file too (playwright.config.ts), because the
- * owner's report names both engines.
+ * owner's report names both engines. The two market mouse cases of quick
+ * 261125-ewd live here so the Firefox project runs them too.
  */
 
 import { expect, test } from "@playwright/test";
@@ -660,6 +661,278 @@ test("F8 on the Market does nothing and a line under the list shows the selected
   await expect(comment).toHaveAttribute("title", "");
   expect(await top(cash), "the cash line has not moved").toBe(cashY);
 
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});
+
+/** The F8 row of `key` (quick 261125-ewd). */
+function marketRow(page: Page, key: string) {
+  return page.locator(`#docked [data-market-rows] tr[data-key="${key}"]`);
+}
+
+/** The Slaves note the comment line shows (Lave is a Cooperative). */
+const SLAVES_NOTE =
+  "It is illegal to export this good from Cooperative stations. Launching with it aboard makes you an offender.";
+
+/**
+ * In ONE page task, dispatch a primary click on the first cell of the `key`
+ * row and an ArrowRight press on window, in the given order, so both land
+ * before the next animation frame.
+ */
+async function clickAndRightInOneTask(
+  page: Page,
+  key: string,
+  order: "keyFirst" | "clickFirst",
+): Promise<void> {
+  await page.evaluate(
+    ([rowKey, first]) => {
+      const press = (): void => {
+        const init = {
+          code: "ArrowRight",
+          key: "ArrowRight",
+          bubbles: true,
+          cancelable: true,
+        };
+        window.dispatchEvent(new KeyboardEvent("keydown", init));
+        window.dispatchEvent(new KeyboardEvent("keyup", init));
+      };
+      const click = (): void => {
+        const cell = document.querySelector(
+          `#docked [data-market-rows] tr[data-key="${rowKey}"] td`,
+        );
+        if (cell === null) throw new Error(`no market row ${rowKey}`);
+        cell.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            detail: 1,
+          }),
+        );
+      };
+      if (first === "keyFirst") {
+        press();
+        click();
+      } else {
+        click();
+        press();
+      }
+    },
+    [key, order] as const,
+  );
+}
+
+async function waitForSelectedKey(page: Page, key: string): Promise<void> {
+  await page.waitForFunction(
+    (expected) => window.__wegolite?.station?.selectedKey === expected,
+    key,
+    { timeout: UI_WAIT },
+  );
+}
+
+async function waitForNoPending(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.pending === null,
+    undefined,
+    { timeout: UI_WAIT },
+  );
+}
+
+test("a click on a market row selects it as Up and Down do, and a click on a row the keys cannot select does nothing", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await boot(page);
+  const comment = page.locator('#docked [data-field="market-comment"]');
+  const selected = page.locator("#docked [data-market-rows] tr.selected");
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 1);
+  await waitForSelectedKey(page, "food");
+
+  // A click lands where Down would: the selection and the comment follow.
+  await marketRow(page, "slaves").click();
+  await waitForSelectedKey(page, "slaves");
+  await expect(selected).toHaveAttribute("data-key", "slaves");
+  await expect(comment).toHaveText(SLAVES_NOTE);
+
+  // Only rows the keys can select show the pointer.
+  expect(
+    await marketRow(page, "slaves").evaluate(
+      (element) => getComputedStyle(element).cursor,
+    ),
+  ).toBe("pointer");
+  await expect(marketRow(page, "alien_items")).toHaveClass(/dimmed/);
+  expect(
+    await marketRow(page, "alien_items").evaluate(
+      (element) => getComputedStyle(element).cursor,
+    ),
+  ).not.toBe("pointer");
+
+  // Alien Items has no stock and none is held: the click does nothing.
+  await marketRow(page, "alien_items").click();
+  await settleFrames(page);
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.selectedKey),
+  ).toBe("slaves");
+  await expect(comment).toHaveText(SLAVES_NOTE);
+
+  // A key pressed before a click in the same frame applies first: Right plans
+  // on Slaves, then the click on Textiles clears that line.
+  await clickAndRightInOneTask(page, "textiles", "keyFirst");
+  await settleFrames(page);
+  await waitForSelectedKey(page, "textiles");
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.pending),
+  ).toBeNull();
+
+  // A key pressed after a click acts on the clicked row.
+  await clickAndRightInOneTask(page, "radioactives", "clickFirst");
+  await settleFrames(page);
+  await waitForSelectedKey(page, "radioactives");
+  await page.waitForFunction(
+    () => window.__wegolite?.station?.pending?.key === "radioactives",
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.pending),
+  ).toEqual({ kind: "trade", key: "radioactives" });
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // Under an open chart a click on the hidden market does nothing.
+  await page.keyboard.press("F6");
+  await waitForPlace(page, "chart");
+  await page.evaluate(() => {
+    const cell = document.querySelector(
+      '#docked [data-market-rows] tr[data-key="food"] td',
+    );
+    if (cell === null) throw new Error("no market row food");
+    cell.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        detail: 1,
+      }),
+    );
+  });
+  await settleFrames(page);
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.selectedKey),
+  ).toBe("radioactives");
+  await page.keyboard.press("Escape");
+  await waitForPlace(page, "market");
+
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});
+
+/** The market footer hint with default bindings (quick 261125-ewd). */
+const MARKET_HINT =
+  "Up/Down/Click select · Double-click sell all/buy max · Left sells +1 · Right buys +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause";
+
+async function economyOf(
+  page: Page,
+): Promise<{ credits: number; cargo: Record<string, number> }> {
+  const economy = await page.evaluate(() => window.__wegolite?.economy);
+  if (economy === undefined) throw new Error("the probe has no economy");
+  return { credits: economy.credits, cargo: { ...economy.cargo } };
+}
+
+async function waitForPendingTrade(page: Page, key: string): Promise<void> {
+  await page.waitForFunction(
+    (expected) => {
+      const pending = window.__wegolite?.station?.pending;
+      return pending?.kind === "trade" && pending.key === expected;
+    },
+    key,
+    { timeout: UI_WAIT },
+  );
+}
+
+test("a double click on a market row opens the [Y/N] line of Oolite's Enter trade and the footer names the mouse at 1280x720", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await boot(page);
+  const hints = page.locator('#docked [data-footer-role="hints"]');
+  const status = page.locator('#docked [data-footer-role="status"]');
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 1);
+  await waitForSelectedKey(page, "food");
+
+  // The footer names the mouse, lists Left before Right, and fits.
+  await expect(hints).toHaveText(MARKET_HINT);
+  const hintSizes = await hints.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(
+    hintSizes.scrollWidth,
+    "the market hint line is not ellipsised",
+  ).toBeLessThanOrEqual(hintSizes.clientWidth);
+
+  // None held: the buy-max line; nothing is bought until Y.
+  const start = await economyOf(page);
+  await marketRow(page, "food").dblclick();
+  await waitForPendingTrade(page, "food");
+  await expect(status).toHaveText(/^Buy \d+ t Food for .+\? \[Y\/N\]$/);
+  expect(await economyOf(page)).toEqual(start);
+  expect(start.cargo).toEqual({});
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // Buy one tonne with the keys.
+  await page.keyboard.press("ArrowRight");
+  await waitForPendingTrade(page, "food");
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () => window.__wegolite?.economy?.cargo.food === 1,
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  const bought = await economyOf(page);
+
+  // Some held: the sell-all line.
+  await marketRow(page, "food").dblclick();
+  await waitForPendingTrade(page, "food");
+  await expect(status).toHaveText(/^Sell 1 t Food for .+\? \[Y\/N\]$/);
+  expect(await economyOf(page)).toEqual(bought);
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // Shift: the buy-max line even though some is held.
+  await marketRow(page, "food").dblclick({ modifiers: ["Shift"] });
+  await waitForPendingTrade(page, "food");
+  await expect(status).toHaveText(/^Buy \d+ t Food/);
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // Another row: it is selected and its buy-max line opens.
+  await marketRow(page, "slaves").dblclick();
+  await waitForPendingTrade(page, "slaves");
+  await waitForSelectedKey(page, "slaves");
+  await expect(status).toHaveText(/^Buy \d+ t Slaves/);
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // A row the keys cannot select: nothing happens.
+  await marketRow(page, "alien_items").dblclick();
+  await settleFrames(page);
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.selectedKey),
+  ).toBe("slaves");
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.pending),
+  ).toBeNull();
+  await expect(status).not.toContainText("[Y/N]");
+
+  expect(await economyOf(page)).toEqual(bought);
   await expectNoReload(page);
   expect(errors).toEqual([]);
 });

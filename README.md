@@ -107,7 +107,10 @@ On the status screen, `F5` (or `5`) shows the manifest, and on the manifest it
 returns to the status page, as in Oolite. On the market, a line under the list
 shows Oolite's note on the selected commodity (empty when it has none), and `F8`
 (or `8`) on the market does nothing (Oolite opens a separate commodity screen
-there instead).
+there instead). On the market, a click selects a commodity and a double click
+opens the confirmation for the trade Oolite's Enter makes there (with Shift the
+most you can buy, otherwise all you carry of it, otherwise the most you can
+buy); `Y` or `Enter` completes it.
 
 **Save and load**
 

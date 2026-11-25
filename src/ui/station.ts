@@ -16,6 +16,10 @@
  * pending `[Y/N]` line. Every dynamic string goes through `textContent`;
  * section rows are non-focusable `tr`/`div` elements, never buttons or anchors,
  * so native Enter/Space cannot bypass the semantic action layer (T-05-25).
+ * Market rows take a click and a double click through one delegated listener
+ * each on the persistent row body (quick 261125-ewd); only the row's
+ * `data-key` (and the double click's Shift state) reaches the session, which
+ * re-validates it against the rows the keys can select.
  *
  * The reduced Phase 4 panel is composed as the home renderer: this module never
  * owns a second home path.
@@ -65,6 +69,10 @@ export interface StationShell {
   onRefuel?(handler: () => void): void;
   /** A click on a sortable F8 column heading (quick task 261118-cyo). */
   onMarketSort?(handler: (column: MarketSortColumn) => void): void;
+  /** A primary click on an F8 commodity row (quick 261125-ewd). */
+  onMarketRowClick?(handler: (key: string) => void): void;
+  /** A double click on an F8 commodity row, with its Shift state. */
+  onMarketRowDoubleClick?(handler: (key: string, shift: boolean) => void): void;
   render(view: StationView): void;
   dispose(): void;
 }
@@ -285,6 +293,17 @@ export function createStationShell(
     }
   }
 
+  /** The `data-key` of the market row an event target sits in, if any. */
+  function marketRowKey(target: EventTarget | null): string | undefined {
+    if (!(target instanceof Element)) return undefined;
+    const row = target.closest("tr[data-key]");
+    if (!(row instanceof HTMLElement) || !marketBody.contains(row)) {
+      return undefined;
+    }
+    const key = row.dataset.key;
+    return key === undefined || key === "" ? undefined : key;
+  }
+
   function renderMarketRows(model: MarketModel): void {
     renderMarketHeadings(model);
     marketBody.replaceChildren();
@@ -293,6 +312,9 @@ export function createStationShell(
       tr.dataset.key = row.key;
       if (row.key === model.selectedKey) tr.classList.add("selected");
       if (row.dimmed) tr.classList.add("dimmed");
+      // A row the keys can select takes the mouse (quick 261125-ewd); a held
+      // zero-stock row is dimmed but still selectable.
+      if (row.selectable) tr.classList.add("selectable");
       tr.append(
         cell(row.name),
         cell(row.unit),
@@ -410,6 +432,34 @@ export function createStationShell(
           const column = heading.dataset.column;
           if (!isMarketSortColumn(column)) return;
           handler(column);
+        },
+        { signal: controller.signal },
+      );
+    },
+    onMarketRowClick(handler: (key: string) => void): void {
+      // One delegated listener on the persistent row body: the rows are
+      // rebuilt on every render. Only the row's key reaches the session.
+      marketBody.addEventListener(
+        "click",
+        (event) => {
+          if (event.button !== 0) return;
+          const key = marketRowKey(event.target);
+          if (key === undefined) return;
+          handler(key);
+        },
+        { signal: controller.signal },
+      );
+    },
+    onMarketRowDoubleClick(
+      handler: (key: string, shift: boolean) => void,
+    ): void {
+      marketBody.addEventListener(
+        "dblclick",
+        (event) => {
+          if (event.button !== 0) return;
+          const key = marketRowKey(event.target);
+          if (key === undefined) return;
+          handler(key, event.shiftKey);
         },
         { signal: controller.signal },
       );

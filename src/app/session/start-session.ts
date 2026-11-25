@@ -160,6 +160,10 @@ export interface LifecycleDeps {
   readonly navigateStation: StationController["navigateStation"];
   readonly setStationPage: StationController["setStationPage"];
   readonly sortMarket: StationController["sortMarket"];
+  /** The F8 row-click sink (quick 261125-ewd); it repeats its own guards. */
+  readonly selectMarketRow: StationController["selectMarketRow"];
+  /** The F8 row double-click sink (quick 261125-ewd); it only plans a trade. */
+  readonly activateMarketRow: StationController["activateMarketRow"];
   readonly clearSaveForNewGame: SaveController["clearSaveForNewGame"];
   readonly closeSaveScreen: SaveController["closeSaveScreen"];
   readonly manualSave: SaveController["manualSave"];
@@ -369,6 +373,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     navigateStation,
     setStationPage,
     sortMarket,
+    selectMarketRow,
+    activateMarketRow,
     clearSaveForNewGame,
     closeSaveScreen,
     manualSave,
@@ -903,6 +909,20 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // docked, screen, pause and overlay guards itself.
     docked.onMarketSort?.((column) => {
       sortMarket(column);
+    });
+    // The F8 rows (quick 261125-ewd). Like the sort click, a click is applied
+    // directly and the controller repeats its guards. The flush first applies
+    // the screen edges queued earlier in the same frame (the key-order rule of
+    // quick 261124-pze), so Right then a click plans on the old row and the
+    // click then clears it.
+    docked.onMarketRowClick?.((key) => {
+      flushQueuedEdges();
+      selectMarketRow(key);
+    });
+    // The same order rule; the double click only opens the [Y/N] line.
+    docked.onMarketRowDoubleClick?.((key, shift) => {
+      flushQueuedEdges();
+      activateMarketRow(key, shift);
     });
     docked.onRefuel?.(() => {
       if (

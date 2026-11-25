@@ -334,6 +334,16 @@
         color: #9f9;
       }
 
+      /* F8 rows (quick 261125-ewd): a click selects a row the keys can
+         select; no text selection on a double click. */
+      #docked [data-station-panel="market"] [data-market-rows] tr {
+        user-select: none;
+      }
+
+      #docked [data-station-panel="market"] [data-market-rows] tr.selectable {
+        cursor: pointer;
+      }
+
       #docked .station-table tr.dimmed {
         color: #2a5a35;
         opacity: 0.6;
