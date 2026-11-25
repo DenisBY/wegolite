@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.3
 status: Awaiting next milestone
 stopped_at: Milestone v2.3 archived
-last_updated: "2026-11-25T08:55:47.738Z"
-last_activity: 2026-11-24
+last_updated: "2026-11-25T10:32:37.865Z"
+last_activity: 2026-11-25
 last_activity_desc: Milestone v2.3 completed and archived
-state_head: a4cac8839fee5c26c36b1790206f488cd0a02bf9
+state_head: 75adc06f5e97ba38b33c8492d51d17ba1ab68858
 progress:
   total_phases: 6
   completed_phases: 6
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-24)
 Phase: Milestone v2.3 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-11-24 - Completed quick task 261124-pze: code review fixes (key order, overwrite question, Load guard, docs)
+Last activity: 2026-11-25 - Completed quick task 261125-ewd: market mouse row select and double click
 
 ## Performance Metrics
 
@@ -718,6 +718,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261124-ou6 | Replace the Market Info page with a description line under the market list; F8 on the Market does nothing | 2026-11-24 | 9fd899fd | [261124-ou6-replace-the-market-info-page-with-a-desc](./quick/261124-ou6-replace-the-market-info-page-with-a-desc/) |
 | 261124-pze | Fix the code review findings for the docked F-keys, F5 and the market comment line | 2026-11-24 | 564254a0 | [261124-pze-fix-code-review-findings-for-the-docked-](./quick/261124-pze-fix-code-review-findings-for-the-docked-/) |
 | 68 | Market Restricted column: No export / No import / No trade with rule and penalty on hover (E-190) | 2026-11-25 | a4cac883 | — |
+| 261125-ewd | Market mouse: click selects a row, double click plans Oolite's Enter trade ([Y/N]); footer hint (E-191, E-192) | 2026-11-25 | 75adc06f | .planning/quick/261125-ewd-market-mouse-row-select-and-double-click |
 
 ## Deferred Items
 
