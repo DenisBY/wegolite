@@ -9,7 +9,7 @@
  * - `tools/oolite-ingest/convert/glb.test.ts` proves geometry and materials with
  *   an independent reader;
  * - `tests/e2e/models.spec.ts` proves the delivery path of the first-load GLBs;
- * - this spec proves that each of the nine NPC GLBs, and every image it
+ * - this spec proves that each of the NPC GLBs (nine today), and every image it
  *   references, is served by the built preview and decodes in a real browser.
  *   The cold start must request none of them; `budget.spec.ts` asserts that.
  * - its second test (Phase 16, plan 16-09) proves the same of the seven debris
@@ -123,7 +123,11 @@ test("each NPC role model is fetchable on demand and every texture it references
 
   const results = await page.evaluate(fetchGlbs, glbPaths);
 
-  expect(results, "NPC model count").toHaveLength(9);
+  // Plan 21-04: the model count follows the compiled records (9 today), so the
+  // roster plan grows the catalogue without editing this spec; the floor keeps
+  // it from passing on an empty catalogue.
+  expect(glbPaths.length, "NPC model count (vacuity guard)").toBeGreaterThan(0);
+  expect(results, "NPC model count").toHaveLength(records.length);
   const imagePaths = new Set<string>();
   for (const result of results) {
     const label = result.glb;

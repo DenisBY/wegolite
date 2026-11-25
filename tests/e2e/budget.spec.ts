@@ -77,6 +77,16 @@ interface NpcAssetPaths {
   readonly textures: readonly string[];
 }
 
+/** The compiled NPC records (`ships-npc.json`), each with its GLB path. */
+function npcRecords(): readonly { readonly glb: string }[] {
+  return JSON.parse(
+    readFileSync(
+      join(process.cwd(), "src", "content", "generated", "ships-npc.json"),
+      "utf8",
+    ),
+  ) as readonly { readonly glb: string }[];
+}
+
 /**
  * The URL paths of every NPC GLB and every texture those GLBs reference, from
  * the compiled records and each GLB's own JSON chunk (length at byte 12, text
@@ -84,12 +94,7 @@ interface NpcAssetPaths {
  */
 function npcAssetPaths(): NpcAssetPaths {
   const root = process.cwd();
-  const records = JSON.parse(
-    readFileSync(
-      join(root, "src", "content", "generated", "ships-npc.json"),
-      "utf8",
-    ),
-  ) as readonly { readonly glb: string }[];
+  const records = npcRecords();
   const glbs = new Set<string>();
   const textures = new Set<string>();
   for (const record of records) {
@@ -290,8 +295,17 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
   });
   const npc = npcAssetPaths();
   const npcPaths = new Set([...npc.glbs, ...npc.textures]);
-  expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(9);
-  expect(npc.textures, "NPC texture paths (vacuity guard)").toHaveLength(43);
+  // Plan 21-04: the roster grows in plan 21-08 without touching this spec, so
+  // the counts follow the catalogue (9 GLBs and 43 textures today) and the
+  // guards keep a floor: some GLB, and at least one texture per GLB.
+  expect(npc.glbs.length, "NPC GLB paths (vacuity guard)").toBeGreaterThan(0);
+  expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(
+    npcRecords().length,
+  );
+  expect(
+    npc.textures.length,
+    "NPC texture paths (vacuity guard)",
+  ).toBeGreaterThanOrEqual(npc.glbs.length);
   expect(
     requested.some((path) => path.endsWith("/models/cobra3.glb")),
     "the request log is live (the Cobra model was requested)",
