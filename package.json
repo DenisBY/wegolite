@@ -1,6 +1,7 @@
 {
   "name": "wegolite",
   "version": "0.8.2",
+  "license": "GPL-2.0-or-later",
   "private": true,
   "type": "module",
   "engines": {
