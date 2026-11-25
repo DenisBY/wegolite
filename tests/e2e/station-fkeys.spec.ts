@@ -71,6 +71,28 @@ const KEYS: readonly (readonly [string, Place])[] = [
   ["F8", "market"],
 ];
 
+/**
+ * Oolite's digit aliases for the same keys (keyconfig2.plist:52-88, quick
+ * 261124-pze and 261125-gmc). Digit7 has no screen in Wegolite.
+ */
+const DIGITS: readonly (readonly [string, Place])[] = [
+  ["Digit2", "saveLoad"],
+  ["Digit3", "outfitting"],
+  ["Digit4", "interfaces"],
+  ["Digit5", "status"],
+  ["Digit6", "chart"],
+  ["Digit8", "market"],
+];
+
+/** F2 and its alias open Save/Load; F6 and its alias open the chart. */
+function isSaveLoadKey(code: string): boolean {
+  return code === "F2" || code === "Digit2";
+}
+
+function isChartKey(code: string): boolean {
+  return code === "F6" || code === "Digit6";
+}
+
 const SOURCES: readonly Place[] = [
   "home",
   "market",
@@ -245,16 +267,17 @@ async function pressFrom(
 ): Promise<void> {
   await goTo(page, source);
   const cameraBefore = source === "chart" ? await chartCamera(page) : undefined;
-  if (!(source === "saveLoad" && code === "F2"))
+  if (!(source === "saveLoad" && isSaveLoadKey(code)))
     await page.keyboard.press(code);
-  if (source === "chart" && code === "F6") {
+  if (source === "chart" && isChartKey(code)) {
     // F6 on an open chart does nothing (owner decision 2026-11-24): the chart
     // stays open and its camera does not move.
     await settleFrames(page);
-    expect(await chartCamera(page), "F6 on the chart keeps the camera").toEqual(
-      cameraBefore,
-    );
-  } else if (source === "saveLoad" && code === "F2") {
+    expect(
+      await chartCamera(page),
+      `${code} on the chart keeps the camera`,
+    ).toEqual(cameraBefore);
+  } else if (source === "saveLoad" && isSaveLoadKey(code)) {
     // Oolite ignores F2 on its own screen. A close and reopen within the
     // frame would end on the same place, so the screen's hidden attribute is
     // watched: any toggle fails the case.
@@ -276,13 +299,13 @@ async function pressFrom(
           (window as unknown as { __saveLoadMutations?: number })
             .__saveLoadMutations,
       ),
-      "F2 on Save/Load neither hides nor shows the screen",
+      `${code} on Save/Load neither hides nor shows the screen`,
     ).toBe(0);
   } else {
     await waitForPlace(page, target);
   }
   expect(await placeOf(page), `${code} from ${source}`).toBe(
-    source === "saveLoad" && code === "F2" ? "saveLoad" : target,
+    source === "saveLoad" && isSaveLoadKey(code) ? "saveLoad" : target,
   );
   if (target === "chart" && source !== "chart") {
     // Every fresh open starts at the local preset.
@@ -320,6 +343,55 @@ for (const source of SOURCES) {
     expect(errors).toEqual([]);
   });
 }
+
+test("the digit aliases 2 and 6 open Save/Load and the chart from a station screen, the chart and the F2 screen (quick 261125-gmc)", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  // The owner's report: docked, 6 did not open the chart and 2 did not open
+  // Save/Load. Each press is the first and only one from its source.
+  const twoAndSix = DIGITS.filter(
+    ([code]) => isSaveLoadKey(code) || isChartKey(code),
+  );
+  for (const source of ["home", "market", "chart", "saveLoad"] as const) {
+    for (const [code, target] of twoAndSix) {
+      await pressFrom(page, source, code, target);
+    }
+  }
+  // On the F2 screen the other digit aliases switch screens too, as F3 to F5
+  // and F8 do there: Oolite's Load/Save options screen polls the aliases.
+  for (const [code, target] of DIGITS) {
+    await pressFrom(page, "saveLoad", code, target);
+  }
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});
+
+test("the Find planet box types 2 and 6 instead of switching screens (quick 261125-gmc)", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await boot(page);
+  const findInput = page.locator("#chart-find-input");
+  await goTo(page, "chart");
+  await page.keyboard.press("Slash");
+  await expect(findInput).toBeFocused();
+  const cameraBefore = await chartCamera(page);
+  for (const code of ["Digit6", "Digit2", "Digit3", "Digit8"]) {
+    await page.keyboard.press(code);
+  }
+  await settleFrames(page);
+  await expect(findInput).toHaveValue("6238");
+  await expect(findInput).toBeFocused();
+  expect(await placeOf(page)).toBe("chart");
+  expect(await chartCamera(page)).toEqual(cameraBefore);
+  // F2 from the same box still opens Save/Load.
+  await page.keyboard.press("F2");
+  await waitForPlace(page, "saveLoad");
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});
 
 test("the keys still work with the chart's Find planet box focused", async ({
   page,

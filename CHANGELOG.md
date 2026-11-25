@@ -20,6 +20,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The market footer lists Left sells +1 before Right buys +1, in the order of
   the keys; the keys are unchanged.
 
+### Fixed
+
+- The digit keys 2 and 6 now open Save/Load and the chart, as F2 and F6 do
+  (Oolite's aliases). In flight 2 is still the aft view, and 6 opens the chart
+  there too; typing in the chart's search box is unchanged.
+
 ## [0.8.1] - 2026-11-25
 
 Station screens closer to Oolite and easier to read. A second F5 shows the

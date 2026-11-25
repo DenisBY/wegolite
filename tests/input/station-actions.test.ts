@@ -9,13 +9,14 @@
  * `defaultPrevented` contract.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ACTION_CONTEXTS } from "../../src/input/actions.js";
 import { createBindingMap } from "../../src/input/bindings.js";
 import {
   cancelReservedKey,
   createInputState,
+  createKeyboardInputSource,
   shouldCancelReservedKey,
 } from "../../src/input/keyboard.js";
 import type { InputState } from "../../src/input/keyboard.js";
@@ -323,6 +324,150 @@ describe("the docked screen keys on every docked screen (docked-f-keys)", () => 
       { kind: "setView", view: "starboard" },
     ]);
     expect(state.drainChartActions()).toEqual(["chart"]);
+  });
+});
+
+describe("the digit aliases of the docked screen keys (quick 261125-gmc)", () => {
+  // Oolite binds 2 to 6 and 8 beside F2 to F6 and F8 (keyconfig2.plist:52-88)
+  // and polls them on every docked GUI screen, the Load/Save options screen
+  // included (`pollGuiScreenControlsWithFKeyAlias:YES`).
+  const DIGITS = [
+    ["Digit2", "saveLoad"],
+    ["Digit3", "stationOutfitting"],
+    ["Digit4", "stationInterfaces"],
+    ["Digit5", "stationStatus"],
+    ["Digit6", "chart"],
+    ["Digit8", "stationMarket"],
+  ] as const;
+
+  it("hands each digit to the synchronous sink from home, a section, the chart and the F2 screen", () => {
+    for (const context of [
+      "dockHome",
+      "dockScreen",
+      "chart",
+      "saveScreen",
+    ] as const) {
+      for (const [code, action] of DIGITS) {
+        // Like F2, the digit 2 does nothing on the Save/Load screen itself.
+        const expected =
+          context === "saveScreen" && code === "Digit2" ? [] : [action];
+        const state = createInputState();
+        const sunk: string[] = [];
+        state.setStationScreenHandler((next) => sunk.push(next));
+        state.setContext(context);
+        state.keyDown(code);
+        expect(sunk, `${code} in ${context}`).toEqual(expected);
+        expect(state.drainStationActions()).toEqual([]);
+        expect(state.drainChartActions()).toEqual([]);
+        expect(state.drainSaveScreenActions()).toEqual([]);
+        expect(state.drainCommands()).toEqual([]);
+      }
+    }
+  });
+
+  it("keeps Digit2 the aft view in flight and makes Digit6 queue the chart there", () => {
+    const state = createInputState();
+    const sunk: string[] = [];
+    state.setStationScreenHandler((next) => sunk.push(next));
+    expect(state.keyDown("Digit2")).toBe(true);
+    expect(state.keyDown("Digit6")).toBe(true);
+    expect(sunk).toEqual([]);
+    expect(state.drainCommands()).toEqual([{ kind: "setView", view: "aft" }]);
+    expect(state.drainChartActions()).toEqual(["chart"]);
+    expect(state.drainSaveScreenActions()).toEqual([]);
+  });
+});
+
+describe("digits typed into a focused text field (quick 261125-gmc)", () => {
+  interface Listener {
+    readonly type: string;
+    readonly capture: boolean;
+    readonly fn: (event: KeyboardEvent) => void;
+  }
+
+  class FakeElement {
+    readonly tagName: string;
+    readonly isContentEditable = false;
+    constructor(tagName: string) {
+      this.tagName = tagName;
+    }
+  }
+
+  function attachWithFakeDom(): {
+    readonly press: (code: string, target: unknown) => boolean;
+    readonly sunk: string[];
+    readonly setContext: (context: "chart" | "dockScreen") => void;
+  } {
+    vi.stubGlobal("HTMLElement", FakeElement);
+    vi.stubGlobal("document", {
+      addEventListener: () => undefined,
+      body: { dataset: {} },
+    });
+    const listeners: Listener[] = [];
+    const fakeWindow = {
+      addEventListener(
+        type: string,
+        fn: (event: KeyboardEvent) => void,
+        options?: AddEventListenerOptions,
+      ) {
+        listeners.push({ type, capture: options?.capture === true, fn });
+      },
+    } as unknown as Window;
+    const source = createKeyboardInputSource();
+    const sunk: string[] = [];
+    source.setStationScreenHandler((action) => sunk.push(action));
+    source.attach(fakeWindow);
+    return {
+      sunk,
+      setContext: (context) => source.setContext(context),
+      press(code, target) {
+        let prevented = false;
+        const event = {
+          code,
+          key: code.replace(/^Digit/, ""),
+          repeat: false,
+          shiftKey: false,
+          ctrlKey: false,
+          metaKey: false,
+          altKey: false,
+          target,
+          get defaultPrevented() {
+            return prevented;
+          },
+          preventDefault() {
+            prevented = true;
+          },
+        } as unknown as KeyboardEvent;
+        // Capture listeners first, as the browser dispatches them on window.
+        for (const capture of [true, false]) {
+          for (const listener of listeners) {
+            if (listener.type === "keydown" && listener.capture === capture) {
+              listener.fn(event);
+            }
+          }
+        }
+        return prevented;
+      },
+    };
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("types 2 and 6 in the chart's Find planet box instead of opening a screen", () => {
+    const keyboard = attachWithFakeDom();
+    keyboard.setContext("chart");
+    const findBox = new FakeElement("INPUT");
+    for (const code of ["Digit2", "Digit6", "Digit3", "Digit8"]) {
+      expect(keyboard.press(code, findBox), code).toBe(false);
+    }
+    expect(keyboard.sunk).toEqual([]);
+
+    // The F-keys still act from the box, and the digits act outside it.
+    expect(keyboard.press("F2", findBox)).toBe(true);
+    expect(keyboard.press("Digit2", new FakeElement("CANVAS"))).toBe(true);
+    expect(keyboard.sunk).toEqual(["saveLoad", "saveLoad"]);
   });
 });
 
