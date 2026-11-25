@@ -1,20 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v2.3
-status: Awaiting next milestone
-stopped_at: Milestone v2.3 archived
-last_updated: "2026-11-25T17:09:44.543Z"
+milestone: v2.4
+milestone_name: Pirates and Police
+status: planning
+last_updated: "2026-11-25T18:35:10.166Z"
 last_activity: 2026-11-25
-last_activity_desc: Milestone v2.3 completed and archived
-state_head: 1f64ef8abc1c687d84a2c6aab028cf1200ba79c4
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 78
-  completed_plans: 78
-  percent: 100
-milestone_name: Combat and Death
-current_phase: 20
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,11 @@ See: .planning/PROJECT.md (updated 2026-11-24)
 
 ## Current Position
 
-Phase: Milestone v2.3 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-25 - Completed quick task 261125-oyp: harden GitHub Actions workflows (SHA pins, persist-credentials, Pages permissions)
+Status: Defining requirements
+Last activity: 2026-11-25 — Milestone v2.4 started
+
 
 ## Performance Metrics
 

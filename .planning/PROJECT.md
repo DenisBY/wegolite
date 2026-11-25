@@ -22,9 +22,20 @@ v2.3 gave fights consequences. One damage ledger and one idempotent kill path re
 
 Open at close (todos): the docked F-key bug from the Phase 19 UAT (F2-F6 and F8 mostly do nothing; major, undiagnosed) and the F6 toggle bug; review warnings of Phases 18 and 20; the recorded Oolite divergences of Phases 18 and 19 (D-08, E-126, E-131, E-135, E-138, E-147, E-150, E-159); 39 todos in all, listed in STATE.md Deferred Items.
 
-## Next Milestone Goals
+## Current Milestone: v2.4 Pirates and Police
 
-Not yet defined: `/gsd-new-milestone` sets them. Phase numbering continues at 21. Candidates from the backlog: fix the docked F-key bugs first; then a milestone that makes combat reachable in ordinary play (priority AI with pirates and police, bounties and legal status, scooping and the escape pod), or the hazards (sun, planet, heat, alert condition) and docking-slot scrape damage. Their former requirements stay in `.planning/milestones/v2.0-REQUIREMENTS.md`.
+**Goal:** Combat happens in ordinary play: the populator fills each system with traders, pirates and police by Oolite's rules, pirates attack on their own, and the player earns bounties, changes legal status and scoops cargo.
+
+**Target features:**
+- Populator for traders, pirates and police by system economy and government, as Oolite's populator does (scavengers and shuttles deferred)
+- Oolite's priority AI, hand-ported to TypeScript, for these roles; NPCs fire autonomously, lasers only (missiles and ECM deferred, recorded in FIDELITY.md)
+- Core legal status by Oolite's rules: Clean, Offender and Fugitive; penalties for firing on innocents and police; bounties for killing offenders, paid on docking; police attack an offender; the docking check
+- Cargo scooping into the hold with Fuel Scoops bought at F3 (fuel scooping at the sun stays with the hazards)
+- Combat rating (Harmless to Elite) and the kill tally, saved and shown on F5
+
+**Acceptance:** in an anarchy, pirates attack the player unprompted; the player destroys a pirate, scoops its cargo and is paid the bounty on docking; firing on a trader makes the player an Offender and the police attack. Determinism, the gates and the 20-seed acceptance run hold, and traffic composition and behaviour are compared against headless Oolite (`tools/oolite-reference`).
+
+**Deferred:** missiles and ECM, the escape pod and insurance, scavengers and shuttles, fuel scooping and the hazards, contraband penalties (todo `2026-11-25-cargo-legality-penalties`). Phase numbering continues at 21.
 
 ## Requirements
 
@@ -65,10 +76,12 @@ Not yet defined: `/gsd-new-milestone` sets them. Phase numbering continues at 21
 
 <!-- Later, unscheduled (former v2.1 Phases 13-23); the next milestone re-states its scope here. -->
 
-- [ ] (later) NPC traders, pirates, police, scavengers and shuttles populate each system according to its economy and government, as Oolite's populator does
-- [ ] (later) NPC ships fight with Oolite's priority AI, hand-ported to TypeScript
-- [ ] (later) Player can fight with missiles and ECM (lasers, shields, energy banks, destruction and death shipped in v2.2-v2.3)
-- [ ] (later) Player can scoop cargo pods, earn bounties, and gain or lose legal status, with police responding
+- [ ] (v2.4) NPC traders, pirates and police populate each system according to its economy and government, as Oolite's populator does
+- [ ] (v2.4) NPC ships fight with Oolite's priority AI, hand-ported to TypeScript, lasers only
+- [ ] (v2.4) Player can scoop cargo pods, earn bounties and a combat rating, and gain or lose legal status, with police responding
+- [ ] (later) Scavengers and shuttles in the populator
+- [ ] (later) Player and NPCs can fight with missiles and ECM (lasers, shields, energy banks, destruction and death shipped in v2.2-v2.3)
+- [ ] (later) Contraband penalties on docking and launch
 - [ ] (later) Player can eject in an escape pod and continue on insurance, as in Oolite
 - [ ] (later) Player can collide with the planet and the sun and overheat, and take docking-slot scrape damage
 - [ ] (later) The game plays Oolite's sound effects and music, autoplay-safe
@@ -369,4 +382,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-24 after the v2.3 milestone (Combat and Death)*
+*Last updated: 2026-11-25 at the start of milestone v2.4 (Pirates and Police)*
