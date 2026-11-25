@@ -22,6 +22,7 @@ import {
 } from "../../../src/sim/npc/state.js";
 import {
   MAX_AI_PARAMS_KEYS,
+  MAX_BOUNTY,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
@@ -1145,6 +1146,58 @@ for (const bad of [
     delta: 1,
   });
 }
+
+// The v5 fields (Phase 21, FOUND-20). Every bad value is repaired without
+// throwing and counts one repair; a pristine or an in-bound value counts none
+// and one bad leaf never resets its neighbour.
+for (const bad of [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+  -1,
+  1.5,
+  MAX_BOUNTY + 1,
+  2 ** 32,
+]) {
+  ROWS.push({
+    name: `bounty ${bad} becomes 0`,
+    corrupt: (e) => (e.bounty = bad),
+    expected: (e) => expect(e.bounty).toBe(0),
+    delta: 1,
+  });
+}
+ROWS.push(
+  {
+    name: "bounty 70000 becomes a bounded value and leaves cargo alone",
+    corrupt: (e) => {
+      e.cargo = 9;
+      e.bounty = 70000;
+    },
+    expected: (e) => {
+      expect(e.bounty).toBeLessThanOrEqual(MAX_BOUNTY);
+      expect(e.cargo).toBe(9);
+    },
+    delta: 1,
+  },
+  {
+    name: "a bounty at 0 and at the bound is clean",
+    corrupt: (e) => (e.bounty = MAX_BOUNTY),
+    expected: (e) => expect(e.bounty).toBe(MAX_BOUNTY),
+    delta: 0,
+  },
+  {
+    name: "bounty -0 is normalised without a repair",
+    corrupt: (e) => (e.bounty = -0),
+    expected: (e) => expect(Object.is(e.bounty, 0)).toBe(true),
+    delta: 0,
+  },
+  {
+    name: "a bounty that is not a number becomes 0",
+    corrupt: (e) => (loose(e).bounty = "50"),
+    expected: (e) => expect(e.bounty).toBe(0),
+    delta: 1,
+  },
+);
 
 describe("sanitizeEntity table", () => {
   for (const row of ROWS) {

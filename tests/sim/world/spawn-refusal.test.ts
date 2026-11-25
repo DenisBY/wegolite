@@ -87,6 +87,8 @@ const malformedRows: readonly Row[] = [
   ["ownerId null", init({ ownerId: null })],
   ["cargo a string", init({ cargo: "3" })],
   ["cargo null", init({ cargo: null })],
+  ["bounty a string", init({ bounty: "50" })],
+  ["bounty null", init({ bounty: null })],
   ["velocity a number", init({ velocity: 5 })],
   ["velocity null", init({ velocity: null })],
   ["velocity an array", init({ velocity: [1, 2, 3] })],
@@ -149,6 +151,10 @@ const domainRows: readonly [string, unknown, unknown, "outOfDomain" | "ai"][] =
     ["cargo 1.5", init({ cargo: 1.5 }), 0, "outOfDomain"],
     ["cargo -1", init({ cargo: -1 }), 0, "outOfDomain"],
     ["cargo 201", init({ cargo: 201 }), 0, "outOfDomain"],
+    ["bounty 65536", init({ bounty: 65536 }), 0, "outOfDomain"],
+    ["bounty -1", init({ bounty: -1 }), 0, "outOfDomain"],
+    ["bounty 1.5", init({ bounty: 1.5 }), 0, "outOfDomain"],
+    ["bounty NaN", init({ bounty: Number.NaN }), 0, "outOfDomain"],
     ["cargo NaN", init({ cargo: Number.NaN }), 0, "outOfDomain"],
     [
       "cargo Infinity",
@@ -284,6 +290,18 @@ describe("spawnEntity refuses malformed input (FOUND-16)", () => {
     expect(none.ok && none.entity.cargo).toBe(0);
     expect(zero.ok && zero.entity.cargo).toBe(0);
     expect(full.ok && full.entity.cargo).toBe(200);
+  });
+
+  it("a bounty of 0, 7 or 65535 spawns and is stored; an absent bounty is 0", () => {
+    const world = createWorld(1);
+    const none = spawnEntity(world, init(), 0);
+    const zero = spawnEntity(world, init({ bounty: 0 }), 0);
+    const seven = spawnEntity(world, init({ bounty: 7 }), 0);
+    const full = spawnEntity(world, init({ bounty: 65535 }), 0);
+    expect(none.ok && none.entity.bounty).toBe(0);
+    expect(zero.ok && zero.entity.bounty).toBe(0);
+    expect(seven.ok && seven.entity.bounty).toBe(7);
+    expect(full.ok && full.entity.bounty).toBe(65535);
   });
 
   it("an absent velocity spawns zero; the bound itself spawns and is stored", () => {

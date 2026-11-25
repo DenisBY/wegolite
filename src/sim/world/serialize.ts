@@ -101,7 +101,9 @@ const vecText = (v: Vec3): string =>
  * the entity line, introduced by the unique label `;steer:` so a reader can
  * strip it and re-hash to the text before the record existed. The three
  * optional v4 segments (`;vel:`, `;wpn:`, `;cargo:`, D-09 pristine-omit) follow
- * it, in that order, and only when their field is not pristine. Every field of
+ * it, in that order, and only when their field is not pristine; the optional v5
+ * segments (FOUND-20) follow `;cargo:` in the order documented in
+ * `serializeEntity`. Every field of
  * the record prints, `escortSlot` included, in a fixed order; the two optional
  * parts carry explicit tags: `t0` or `t4:` (the tracking curve, whose ticks and
  * positions print only when the curve exists, so a stale sample at count 0
@@ -171,6 +173,11 @@ export function serializeEntity(entity: Entity): string {
     );
   }
   if (entity.cargo !== 0) segments.push(`cargo:${int(entity.cargo)}`);
+  // The optional v5 segments (FOUND-20, pitfall C2): the fixed order bty, role,
+  // grp, ck, pod, fuel, inj, sys, wpf, wty, fine, after `cargo:`, each present
+  // only when its field is not pristine, so a v5 entity that sets none of the
+  // fields hashes byte-identically to its v4 text.
+  if (entity.bounty !== 0) segments.push(`bty:${int(entity.bounty)}`);
   return segments.join(";");
 }
 

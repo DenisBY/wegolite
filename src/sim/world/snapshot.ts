@@ -51,6 +51,7 @@ import {
   BUOY_SUBENTITY_MAX_ENERGY,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
+  MAX_BOUNTY,
   MAX_BUOY_OFFSET,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
@@ -93,10 +94,17 @@ export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
  * `buoys` (each buoy's offset, drift velocity, subentity energy and sticky
  * subentity routing flag), written only when not pristine, so every existing
  * snapshot stays valid and restores pristine buoys.
+ * Version 5 (Phase 21, FOUND-20, pitfall C2) adds the per-entity v2.4 field set
+ * (`bounty`, and the fields of the later tasks of plan 21-03) in one bump; a
+ * version-4 snapshot is refused. The v2.4 world-level records of plan 21-06 and
+ * the priority-AI vocabulary of plan 21-07 land inside version 5 as optional
+ * keys omitted when pristine, never as a second bump. A field still missing
+ * after Phase 21 is an owner amendment (Key Decisions, "World snapshot version
+ * 5").
  * World snapshots are not persisted to IndexedDB yet (SAVE-07 is later), so no
  * save migration exists.
  */
-export const WORLD_SNAPSHOT_VERSION = 4;
+export const WORLD_SNAPSHOT_VERSION = 5;
 
 export interface VectorSnapshot {
   x: number;
@@ -186,6 +194,8 @@ export interface EntitySnapshot {
   velocity: VectorSnapshot;
   weapon: WeaponSnapshot;
   cargo: number;
+  /** The v5 fields (FOUND-20); always present, pristine values included. */
+  bounty: number;
 }
 
 /** The energy of the damageable statics (`StaticHealth` in `./entity.ts`). */
@@ -366,6 +376,7 @@ function requireFiniteEntity(entity: Entity): void {
   requireFinite(entity.weapon.lastShotTick, `${at}.weapon.lastShotTick`);
   requireFinite(entity.weapon.missedShots, `${at}.weapon.missedShots`);
   requireFinite(entity.cargo, `${at}.cargo`);
+  requireFinite(entity.bounty, `${at}.bounty`);
   if (entity.ai !== null) {
     requireFinite(entity.ai.wakeTick, `${at}.ai.wakeTick`);
     requireFinite(entity.ai.nextThinkTick, `${at}.ai.nextThinkTick`);
@@ -495,6 +506,7 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
       missedShots: noNegativeZero(entity.weapon.missedShots),
     },
     cargo: noNegativeZero(entity.cargo),
+    bounty: noNegativeZero(entity.bounty),
   };
 }
 
@@ -1172,6 +1184,7 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     "velocity",
     "weapon",
     "cargo",
+    "bounty",
   ]);
   const id = read(o, "id");
   if (
@@ -1229,6 +1242,11 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
   if (cargo > MAX_ENTITY_CARGO) {
     fail("magnitude", `${path}.cargo`, "exceeds its limit");
   }
+  const bounty = boundedInteger(
+    read(o, "bounty"),
+    `${path}.bounty`,
+    MAX_BOUNTY,
+  );
   return {
     id,
     kind,
@@ -1251,6 +1269,7 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     velocity,
     weapon,
     cargo,
+    bounty,
   };
 }
 
@@ -1379,6 +1398,7 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     velocity: e.velocity,
     weapon: e.weapon,
     cargo: e.cargo,
+    bounty: e.bounty,
   }));
   return {
     worldSeed: parsed.worldSeed,

@@ -40,6 +40,11 @@
  * integer in `0..MAX_ENTITY_CARGO`, else 0 (a repair). A pristine or in-domain
  * value is never a repair, and `-0` becomes `0` without one.
  *
+ * The v5 fields (Phase 21, FOUND-20) follow the v4 fields in `cleanV5Fields`,
+ * again leaf by leaf: a value outside its bound in `./limits.ts` (or of the
+ * wrong type) becomes the field's pristine value, each a repair, and `-0`
+ * becomes `0` without one.
+ *
  * `sanitizeStaticHealth` repairs `World.staticHealth` (FOUND-18, D-08): a
  * non-object becomes a fresh pristine record, each value is held inside
  * `0..its maximum` (non-finite becomes the maximum, negative becomes 0, above
@@ -77,6 +82,7 @@ import {
   BUOY_SUBENTITY_MAX_ENERGY,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
+  MAX_BOUNTY,
   MAX_BUOY_OFFSET,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
@@ -168,6 +174,13 @@ function cleanEnergy(energy: number, maxEnergy: number): Cleaned<number> {
 /** A uint32 integer, else 0 (a repair). */
 function cleanUint32(v: number): Cleaned<number> {
   return isUint32(v)
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: 0, repaired: true };
+}
+
+/** A safe integer in `0..max`, else 0 (a repair); `-0` becomes 0 (not a repair). */
+function cleanBoundedInteger(v: number, max: number): Cleaned<number> {
+  return Number.isSafeInteger(v) && v >= 0 && v <= max
     ? { value: noNegativeZero(v), repaired: false }
     : { value: 0, repaired: true };
 }
@@ -636,6 +649,24 @@ function cleanV4Fields(entity: Entity): boolean {
 }
 
 /**
+ * Repair the v5 fields (FOUND-20) in place; true when a repair counted. Each
+ * leaf is repaired on its own, so one bad leaf never resets its neighbours: an
+ * out-of-bound or wrong-typed value becomes the field's pristine value, each a
+ * repair, and `-0` becomes 0 without one.
+ */
+function cleanV5Fields(entity: Entity): boolean {
+  let repaired = false;
+  const mark = (flag: boolean): void => {
+    if (flag) repaired = true;
+  };
+
+  const bounty = cleanBoundedInteger(entity.bounty, MAX_BOUNTY);
+  entity.bounty = bounty.value;
+  mark(bounty.repaired);
+  return repaired;
+}
+
+/**
  * Repair `entity` in place. Returns true exactly when at least one field was
  * repaired, in which case `repairs` grew by one (saturating at `MAX_UINT32`).
  * Never throws for any field value.
@@ -739,6 +770,7 @@ export function sanitizeEntity(entity: Entity): boolean {
 
   mark(cleanSteer(entity));
   mark(cleanV4Fields(entity));
+  mark(cleanV5Fields(entity));
 
   let base = entity.repairs;
   if (!isUint32(base)) {

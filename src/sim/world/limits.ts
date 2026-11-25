@@ -183,3 +183,18 @@ export const BUOY_SUBENTITY_RECHARGE_RATE = 1;
  * changing it is a snapshot-format change.
  */
 export const MAX_BUOY_OFFSET = 1e6;
+
+// ---------------------------------------------------------------------------
+// The v5 entity field set (FOUND-20, pitfall C2): one snapshot bump, 4 to 5.
+// Every bound is a format bound that only keeps a corrupt value out of the hash;
+// changing one after Phase 21 is an owner amendment, never a quiet second bump.
+
+/**
+ * The largest `Entity.bounty`: an integer 0 to 65535. Oolite keeps a ship's
+ * bounty as an `OOCreditsQuantity` (`ShipEntity.h:289`) set from the record's
+ * `bounty` key or by the populator (`oolite-populator.js:1413-1445`,
+ * `:1541-1544`, `:1569`), whose in-scope values stay in the hundreds at most;
+ * the cap only keeps a corrupt value out of the hash. Changing it is a
+ * snapshot-format change.
+ */
+export const MAX_BOUNTY = 65535;

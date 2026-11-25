@@ -109,6 +109,13 @@ export interface Entity {
    * at spawn. Hashed as the optional `;cargo:` segment (zero omitted).
    */
   cargo: number;
+  /**
+   * The ship's bounty (FOUND-20, snapshot v5): an integer 0 to `MAX_BOUNTY`,
+   * Oolite's `bounty` (`ShipEntity.h:289`). Set at spawn by Phase 22's
+   * populator and read by the police scan in Phase 25. Hashed as the optional
+   * `;bty:` segment (zero omitted).
+   */
+  bounty: number;
 }
 
 /** What a caller supplies to spawn an entity. */
@@ -142,6 +149,11 @@ export interface SpawnInit {
    * Phase 16 debris sets it (`./debris.ts`).
    */
   velocity?: Vec3;
+  /**
+   * The ship's bounty (FOUND-20), an integer 0 to `MAX_BOUNTY`. Defaults to 0;
+   * Phase 22's populator sets it.
+   */
+  bounty?: number;
 }
 
 /**

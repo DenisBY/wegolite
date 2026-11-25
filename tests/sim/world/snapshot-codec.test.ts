@@ -26,6 +26,7 @@ import {
   SCAN_CLASSES,
 } from "../../../src/sim/world/ids.js";
 import {
+  MAX_BOUNTY,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_AI_PARAMS_KEYS,
   MAX_ENTITY_CARGO,
@@ -184,6 +185,8 @@ function richWorld(): World {
   a.velocity = vec(1.5, -2.25, 0);
   a.weapon = { temperature: 12.5, lastShotTick: 6, missedShots: 2 };
   a.cargo = 7;
+  // The v5 fields (Phase 21, FOUND-20) away from their pristine values.
+  a.bounty = 300;
   const gone = spawnOk(world, shipInit(3, null), 10);
   killEntity(world, gone.id);
   commitWorld(world);
@@ -273,7 +276,9 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
     ["version 2", set("version", 2), "version"],
     // Version 3 lacks velocity, weapon, cargo and staticHealth (Phase 15, FOUND-18).
     ["version 3", set("version", 3), "version"],
-    ["version 5", set("version", 5), "version"],
+    // Version 4 lacks the v5 entity field set (Phase 21, FOUND-20): refused.
+    ["version 4", set("version", 4), "version"],
+    ["version 6", set("version", 6), "version"],
     ["worldSeed 1.5", set("worldSeed", 1.5), "world-seed"],
     ["worldSeed -1", set("worldSeed", -1), "world-seed"],
     ["worldSeed 2 ** 32", set("worldSeed", 2 ** 32), "world-seed"],
@@ -996,9 +1001,9 @@ describe("the steering record in the snapshot", () => {
   const aSteer = (world: World): Entity["steer"] =>
     (world.store.live[0] as Entity).steer;
 
-  it("writes version 4 and the record of every entity", () => {
+  it("writes version 5 and the record of every entity", () => {
     const snapshot = snapshotWorld(richWorld());
-    expect(snapshot.version).toBe(4);
+    expect(snapshot.version).toBe(5);
     const [a, b, c] = snapshot.entities;
     expect(a?.steer).toEqual({
       flightRoll: 0.75,
@@ -1215,6 +1220,60 @@ describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
       const bad = richWorld();
       poison(bad.store.live[0] as Entity);
       expect(() => snapshotWorld(bad)).toThrow(SnapshotError);
+    }
+  });
+});
+
+describe("the v5 entity fields in the snapshot (FOUND-20)", () => {
+  /** A v5 entity key set to `value` in the first entity of a JSON snapshot. */
+  const withKey = (key: string, value: unknown): Plain => {
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${E0}.${key}`, value);
+    return snapshot;
+  };
+
+  it("writes every v5 field for every entity, pristine values included", () => {
+    const [a, b] = snapshotWorld(richWorld()).entities;
+    expect(a?.bounty).toBe(300);
+    expect(b?.bounty).toBe(0);
+  });
+
+  it("round-trips the bounty bounds through JSON", () => {
+    for (const bounty of [0, 1, MAX_BOUNTY]) {
+      const world = richWorld();
+      (world.store.live[0] as Entity).bounty = bounty;
+      const text = JSON.stringify(snapshotWorld(world));
+      const restored = restoreWorld(
+        parseWorldSnapshot(JSON.parse(text) as unknown),
+      );
+      expect((restored.store.live[0] as Entity).bounty).toBe(bounty);
+      expect(entityHashes(restored)).toEqual(entityHashes(world));
+      expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+    }
+  });
+
+  it.each([
+    ["bounty 65536", MAX_BOUNTY + 1, "range"],
+    ["bounty -1", -1, "range"],
+    ["bounty 1.5", 1.5, "range"],
+    ["bounty NaN", Number.NaN, "non-finite"],
+    ["bounty null (a NaN after JSON)", null, "non-finite"],
+    ["bounty a string", "7", "type"],
+  ] as const)("refuses %s", (_name, value, reason) => {
+    expect(reasonOf(withKey("bounty", value))).toBe(reason);
+  });
+
+  it("refuses a snapshot with the bounty key missing", () => {
+    const snapshot = jsonOf(richWorld());
+    delete (getAt(snapshot, E0) as Plain).bounty;
+    expect(reasonOf(snapshot)).toBe("type");
+  });
+
+  it("refuses a snapshot of version 4 or 6 for any entity content", () => {
+    for (const version of [4, 6]) {
+      const snapshot = jsonOf(richWorld());
+      snapshot.version = version;
+      expect(reasonOf(snapshot)).toBe("version");
     }
   });
 });
@@ -2057,6 +2116,21 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       name: "+ 1",
       apply: (e) => {
         e.cargo += 1;
+      },
+    },
+  ],
+  // The v5 fields (Phase 21, FOUND-20): every leaf changes the entity hash.
+  bounty: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.bounty += 1;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.bounty = 0;
       },
     },
   ],

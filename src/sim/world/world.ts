@@ -48,6 +48,7 @@ import {
   BUOY_SUBENTITY_MAX_ENERGY,
   MAX_AI_PARAMS_KEYS,
   MAX_ENERGY_RECHARGE_RATE,
+  MAX_BOUNTY,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
@@ -422,6 +423,8 @@ function isMalformedInit(init: unknown, tick: unknown): boolean {
   if (escortSlot !== undefined && typeof escortSlot !== "number") return true;
   const cargo = init["cargo"];
   if (cargo !== undefined && typeof cargo !== "number") return true;
+  const bounty = init["bounty"];
+  if (bounty !== undefined && typeof bounty !== "number") return true;
   const velocity = init["velocity"];
   if (velocity !== undefined && !hasNumberFields(velocity, ["x", "y", "z"])) {
     return true;
@@ -489,6 +492,16 @@ function domainRefusal(
       Number.isSafeInteger(init.cargo) &&
       init.cargo >= 0 &&
       init.cargo <= MAX_ENTITY_CARGO
+    )
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.bounty !== undefined &&
+    !(
+      Number.isSafeInteger(init.bounty) &&
+      init.bounty >= 0 &&
+      init.bounty <= MAX_BOUNTY
     )
   ) {
     return "outOfDomain";
@@ -626,6 +639,7 @@ export function spawnEntity(
           : { x: init.velocity.x, y: init.velocity.y, z: init.velocity.z },
       weapon: { temperature: 0, lastShotTick: 0, missedShots: 0 },
       cargo: init.cargo ?? 0,
+      bounty: init.bounty ?? 0,
     };
   });
   return entity === undefined
