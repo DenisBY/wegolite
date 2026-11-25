@@ -34,6 +34,7 @@ import { FIRST_DYNAMIC_ID } from "../../../src/sim/world/ids.js";
 import { MAX_ENTITY_CARGO } from "../../../src/sim/world/limits.js";
 import {
   INERT_POPULATION,
+  INERT_RECORD_KEYS,
   POPULATOR_ROLES,
   cargoCountAtSpawn,
   isScanClass,
@@ -300,6 +301,15 @@ describe("planInertPopulation over the Lave layout", () => {
     const a = planInertPopulation(createRngState(99), layout, records);
     const b = planInertPopulation(createRngState(99), layout, records);
     expect(a).toEqual(b);
+  });
+
+  it("plans the same ships from the full committed list and from the INERT_RECORD_KEYS records only (FOUND-20)", () => {
+    const nineOnly = records.filter((record) =>
+      INERT_RECORD_KEYS.includes(record.key),
+    );
+    expect(planInertPopulation(createRngState(99), layout, records)).toEqual(
+      planInertPopulation(createRngState(99), layout, nineOnly),
+    );
   });
 });
 

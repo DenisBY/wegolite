@@ -11,7 +11,10 @@
 import { readFileSync } from "node:fs";
 
 import type { SystemLayout } from "../../src/sim/world/layout.js";
-import { populateInertWorld } from "../../src/sim/world/populate.js";
+import {
+  INERT_RECORD_KEYS,
+  populateInertWorld,
+} from "../../src/sim/world/populate.js";
 import type { InertShipRecord } from "../../src/sim/world/populate.js";
 import { createWorld } from "../../src/sim/world/world.js";
 import type { World } from "../../src/sim/world/world.js";
@@ -30,22 +33,33 @@ interface NpcRecord {
   readonly maxCargo: number;
 }
 
-/** The nine committed NPC records as the populator takes them. */
+/**
+ * The nine committed NPC records as the populator takes them: selected by
+ * explicit key, in `INERT_RECORD_KEYS` order, so the answer is the same whatever
+ * the catalogue grows to (FOUND-20). A missing key throws.
+ */
 export function laveInertRecords(): InertShipRecord[] {
   const raw = readFileSync(
     new URL("../../src/content/generated/ships-npc.json", import.meta.url),
     "utf8",
   );
-  return (JSON.parse(raw) as NpcRecord[]).map((record) => ({
-    key: record.key,
-    roles: record.roles,
-    scanClass: record.scanClass,
-    radius: record.radius,
-    maxEnergy: record.maxEnergy,
-    energyRechargeRate: record.energyRechargeRate,
-    likelyCargo: record.likelyCargo,
-    maxCargo: record.maxCargo,
-  }));
+  const catalogue = JSON.parse(raw) as NpcRecord[];
+  return INERT_RECORD_KEYS.map((key) => {
+    const record = catalogue.find((candidate) => candidate.key === key);
+    if (record === undefined) {
+      throw new Error(`the committed catalogue has no NPC record "${key}"`);
+    }
+    return {
+      key: record.key,
+      roles: record.roles,
+      scanClass: record.scanClass,
+      radius: record.radius,
+      maxEnergy: record.maxEnergy,
+      energyRechargeRate: record.energyRechargeRate,
+      likelyCargo: record.likelyCargo,
+      maxCargo: record.maxCargo,
+    };
+  });
 }
 
 /** A fresh world of `seed`, populated; returns the world and the spawn count. */

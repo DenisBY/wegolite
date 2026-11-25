@@ -196,6 +196,53 @@ export function pickRecord<T extends { readonly roles: readonly string[] }>(
   return chosen;
 }
 
+/**
+ * The nine record keys the first inert populator reads, in draw order (the
+ * catalogue order of the nine committed records, code-unit sorted). The first
+ * populator, `INERT_POPULATION` and the frozen 20-seed acceptance inputs pick
+ * records through `pickRecord` from the list they are handed, so a catalogue
+ * that grows (29 records from Phase 21) would change the weighted target of
+ * every trader, pirate, hunter and police draw and move every inert golden
+ * (FOUND-20, pitfall C1). `planInertPopulation` therefore reduces its records
+ * to these keys, in this order, before the scan-class filter and before any
+ * draw. The new populator (Phase 22) is built beside it, never through it.
+ */
+export const INERT_RECORD_KEYS: readonly string[] = Object.freeze([
+  "adder",
+  "cobramk1",
+  "gecko",
+  "krait",
+  "mamba",
+  "moray",
+  "shuttle",
+  "sidewinder",
+  "viper",
+]);
+
+/**
+ * The single reduction behind the isolation: for each key of
+ * `INERT_RECORD_KEYS`, in that order, the first record of `records` whose `key`
+ * equals it (`===`, never an object lookup, so "__proto__" and "constructor" are
+ * ordinary strings). Missing keys, later duplicates, and entries that are not
+ * objects or have no string `key` are skipped. Total on any input array.
+ * Exported for the totality property of tests/sim/world/inert-isolation.test.ts.
+ */
+export function inertRecords<T extends { readonly key: string }>(
+  records: readonly T[],
+): T[] {
+  const reduced: T[] = [];
+  for (const key of INERT_RECORD_KEYS) {
+    for (const record of records as readonly unknown[]) {
+      if (typeof record !== "object" || record === null) continue;
+      const recordKey = (record as { readonly key?: unknown }).key;
+      if (typeof recordKey !== "string" || recordKey !== key) continue;
+      reduced.push(record as T);
+      break;
+    }
+  }
+  return reduced;
+}
+
 /** A record whose scan class has passed `isScanClass`. */
 type EligibleRecord = InertShipRecord & { readonly scanClass: ScanClass };
 
@@ -215,8 +262,9 @@ export interface PlannedShip {
 }
 
 /**
- * Plan the population from `rng` alone (no world touched). Its first step,
- * before any draw, keeps only the eligible records, so a record with an
+ * Plan the population from `rng` alone (no world touched). Its first steps,
+ * before any draw, reduce the records to `INERT_RECORD_KEYS` (the catalogue
+ * isolation of FOUND-20) and keep only the eligible ones, so a record with an
  * unknown scan class never enters a weight sum. Per table entry and per count:
  * skip without drawing when the role has no positive-weight eligible record,
  * else location, then pick, then orientation. `fallbacks` counts the placements
@@ -227,8 +275,8 @@ export function planInertPopulation(
   layout: SystemLayout,
   records: readonly InertShipRecord[],
 ): { readonly ships: readonly PlannedShip[]; readonly fallbacks: number } {
-  const eligible = records.filter((record): record is EligibleRecord =>
-    isScanClass(record.scanClass),
+  const eligible = inertRecords(records).filter(
+    (record): record is EligibleRecord => isScanClass(record.scanClass),
   );
   const ships: PlannedShip[] = [];
   let fallbacks = 0;
