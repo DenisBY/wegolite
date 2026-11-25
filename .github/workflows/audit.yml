@@ -28,6 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No step fetches or pushes with git auth, and compose bind-mounts the
+          # workspace into every container, so keep the job token out of
+          # .git/config.
+          persist-credentials: false
       - name: Audit the locked dependency tree in Docker
         run: docker compose run --rm audit
