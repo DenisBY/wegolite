@@ -829,3 +829,110 @@ test("a click on a market row selects it as Up and Down do, and a click on a row
   await expectNoReload(page);
   expect(errors).toEqual([]);
 });
+
+/** The market footer hint with default bindings (quick 261125-ewd). */
+const MARKET_HINT =
+  "Up/Down/Click select · Double-click sell all/buy max · Left sells +1 · Right buys +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause";
+
+async function economyOf(
+  page: Page,
+): Promise<{ credits: number; cargo: Record<string, number> }> {
+  const economy = await page.evaluate(() => window.__wegolite?.economy);
+  if (economy === undefined) throw new Error("the probe has no economy");
+  return { credits: economy.credits, cargo: { ...economy.cargo } };
+}
+
+async function waitForPendingTrade(page: Page, key: string): Promise<void> {
+  await page.waitForFunction(
+    (expected) => {
+      const pending = window.__wegolite?.station?.pending;
+      return pending?.kind === "trade" && pending.key === expected;
+    },
+    key,
+    { timeout: UI_WAIT },
+  );
+}
+
+test("a double click on a market row opens the [Y/N] line of Oolite's Enter trade and the footer names the mouse at 1280x720", async ({
+  page,
+}) => {
+  const errors = collectErrors(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await boot(page);
+  const hints = page.locator('#docked [data-footer-role="hints"]');
+  const status = page.locator('#docked [data-footer-role="status"]');
+
+  await page.keyboard.press("F8");
+  await waitForStationPage(page, "market", 1);
+  await waitForSelectedKey(page, "food");
+
+  // The footer names the mouse, lists Left before Right, and fits.
+  await expect(hints).toHaveText(MARKET_HINT);
+  const hintSizes = await hints.evaluate((element) => ({
+    scrollWidth: element.scrollWidth,
+    clientWidth: element.clientWidth,
+  }));
+  expect(
+    hintSizes.scrollWidth,
+    "the market hint line is not ellipsised",
+  ).toBeLessThanOrEqual(hintSizes.clientWidth);
+
+  // None held: the buy-max line; nothing is bought until Y.
+  const start = await economyOf(page);
+  await marketRow(page, "food").dblclick();
+  await waitForPendingTrade(page, "food");
+  await expect(status).toHaveText(/^Buy \d+ t Food for .+\? \[Y\/N\]$/);
+  expect(await economyOf(page)).toEqual(start);
+  expect(start.cargo).toEqual({});
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // Buy one tonne with the keys.
+  await page.keyboard.press("ArrowRight");
+  await waitForPendingTrade(page, "food");
+  await page.keyboard.press("KeyY");
+  await page.waitForFunction(
+    () => window.__wegolite?.economy?.cargo.food === 1,
+    undefined,
+    { timeout: UI_WAIT },
+  );
+  const bought = await economyOf(page);
+
+  // Some held: the sell-all line.
+  await marketRow(page, "food").dblclick();
+  await waitForPendingTrade(page, "food");
+  await expect(status).toHaveText(/^Sell 1 t Food for .+\? \[Y\/N\]$/);
+  expect(await economyOf(page)).toEqual(bought);
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // Shift: the buy-max line even though some is held.
+  await marketRow(page, "food").dblclick({ modifiers: ["Shift"] });
+  await waitForPendingTrade(page, "food");
+  await expect(status).toHaveText(/^Buy \d+ t Food/);
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // Another row: it is selected and its buy-max line opens.
+  await marketRow(page, "slaves").dblclick();
+  await waitForPendingTrade(page, "slaves");
+  await waitForSelectedKey(page, "slaves");
+  await expect(status).toHaveText(/^Buy \d+ t Slaves/);
+  await page.keyboard.press("KeyN");
+  await waitForNoPending(page);
+
+  // A row the keys cannot select: nothing happens.
+  await marketRow(page, "alien_items").dblclick();
+  await settleFrames(page);
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.selectedKey),
+  ).toBe("slaves");
+  expect(
+    await page.evaluate(() => window.__wegolite?.station?.pending),
+  ).toBeNull();
+  await expect(status).not.toContainText("[Y/N]");
+
+  expect(await economyOf(page)).toEqual(bought);
+  await expectNoReload(page);
+  expect(errors).toEqual([]);
+});

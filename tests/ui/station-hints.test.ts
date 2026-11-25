@@ -40,7 +40,7 @@ describe("default hint strings", () => {
     const bindings = defaults();
     expect(dockedHints(bindings, "home")).toBe("1 launch · P pause");
     expect(dockedHints(bindings, "market")).toBe(
-      "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause",
+      "Up/Down/Click select · Double-click sell all/buy max · Left sells +1 · Right buys +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause",
     );
     expect(dockedHints(bindings, "outfitting")).toBe(
       "Up/Down select · Enter/Y confirm · N cancel · Esc back · P pause",
@@ -59,9 +59,10 @@ describe("default hint strings", () => {
     expect(dockedHints(bindings, "status", 2)).toBe(
       "Tab/PageDown next page · PageUp previous · F5 status · Esc back · P pause",
     );
-    // The market line is the 0.8.0 string on every page: it has no F8 part.
+    // The market line is the same on every page and has no F8 part; it names
+    // the mouse and lists Left before Right (quick 261125-ewd).
     const market =
-      "Up/Down select · Right buys +1 · Left sells +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause";
+      "Up/Down/Click select · Double-click sell all/buy max · Left sells +1 · Right buys +1 · Shift max · Enter/Y confirm · N cancel · Esc back · P pause";
     expect(dockedHints(bindings, "market")).toBe(market);
     expect(dockedHints(bindings, "market", 1)).toBe(market);
     expect(dockedHints(bindings, "market", 2)).toBe(market);
@@ -116,7 +117,7 @@ describe("rebound hint strings", () => {
   it("follows every rebound action the browser drives", () => {
     const map = defaults();
     expect(bindAction(map, "stationUp", "KeyW")).toEqual({ ok: true });
-    expect(dockedHints(map, "market")).toContain("W/Down select");
+    expect(dockedHints(map, "market")).toContain("W/Down/Click select");
 
     expect(bindAction(map, "stationConfirm", "KeyK")).toEqual({ ok: true });
     expect(dockedHints(map, "market")).toContain("K confirm");
@@ -131,6 +132,11 @@ describe("rebound hint strings", () => {
 
     expect(bindAction(map, "saveScreenSave", "KeyK")).toEqual({ ok: true });
     expect(saveLoadHints(map)).toContain("K save");
+
+    // The mouse part is literal: no rebind changes it (quick 261125-ewd).
+    expect(dockedHints(map, "market")).toContain(
+      "Double-click sell all/buy max",
+    );
   });
 
   it("follows a rebind of the F5 key in the second-press hint", () => {

@@ -16,9 +16,10 @@
  * pending `[Y/N]` line. Every dynamic string goes through `textContent`;
  * section rows are non-focusable `tr`/`div` elements, never buttons or anchors,
  * so native Enter/Space cannot bypass the semantic action layer (T-05-25).
- * Market rows take a click through one delegated listener on the persistent
- * row body (quick 261125-ewd); only the row's `data-key` reaches the session,
- * which re-validates it against the rows the keys can select.
+ * Market rows take a click and a double click through one delegated listener
+ * each on the persistent row body (quick 261125-ewd); only the row's
+ * `data-key` (and the double click's Shift state) reaches the session, which
+ * re-validates it against the rows the keys can select.
  *
  * The reduced Phase 4 panel is composed as the home renderer: this module never
  * owns a second home path.
@@ -70,6 +71,8 @@ export interface StationShell {
   onMarketSort?(handler: (column: MarketSortColumn) => void): void;
   /** A primary click on an F8 commodity row (quick 261125-ewd). */
   onMarketRowClick?(handler: (key: string) => void): void;
+  /** A double click on an F8 commodity row, with its Shift state. */
+  onMarketRowDoubleClick?(handler: (key: string, shift: boolean) => void): void;
   render(view: StationView): void;
   dispose(): void;
 }
@@ -443,6 +446,20 @@ export function createStationShell(
           const key = marketRowKey(event.target);
           if (key === undefined) return;
           handler(key);
+        },
+        { signal: controller.signal },
+      );
+    },
+    onMarketRowDoubleClick(
+      handler: (key: string, shift: boolean) => void,
+    ): void {
+      marketBody.addEventListener(
+        "dblclick",
+        (event) => {
+          if (event.button !== 0) return;
+          const key = marketRowKey(event.target);
+          if (key === undefined) return;
+          handler(key, event.shiftKey);
         },
         { signal: controller.signal },
       );

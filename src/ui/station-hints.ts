@@ -13,6 +13,11 @@
  * The strings are compact on purpose: the footer line must fit 1280x720 and is
  * ellipsised rather than wrapped. `Shift max` stays literal because Shift is a
  * modifier, not a bindable action. An unbound action renders `(unbound)`.
+ * The market line's mouse parts (`/Click select`, `Double-click sell all/buy
+ * max`) are literal for the same reason: the mouse is not bindable. The
+ * market line lists Left before Right, in the keys' left-to-right order
+ * (owner request 2026-11-25). Oolite's market shows no legend at all (FIDELITY
+ * row of quick 261125-ewd).
  *
  * No DOM and no Three.js: Vitest drives this module directly.
  */
@@ -68,9 +73,10 @@ export function dockedHints(
   const pause = primaryOrUnbound(bindings, "pause");
   if (screen === "market") {
     return [
-      `${upDown} select`,
-      `${primaryOrUnbound(bindings, "stationRight")} buys +1`,
+      `${upDown}/Click select`,
+      "Double-click sell all/buy max",
       `${primaryOrUnbound(bindings, "stationLeft")} sells +1`,
+      `${primaryOrUnbound(bindings, "stationRight")} buys +1`,
       "Shift max",
       `${allCodesLabel(bindings, "stationConfirm")} confirm`,
       `${primaryOrUnbound(bindings, "stationCancel")} cancel`,

@@ -36,6 +36,7 @@ import {
 } from "../../../src/persistence/save.js";
 import type { Command } from "../../../src/sim/commands.js";
 import {
+  MARKET_LIMIT,
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
@@ -1058,6 +1059,188 @@ describe("market row click (quick 261125-ewd)", () => {
     expect(h.ctx.station.stationSelection).toBe(target);
     h.controller.moveSelection(1);
     expect(h.ctx.station.stationSelection).toBe(keys[4]);
+  });
+});
+
+describe("market row double click (quick 261125-ewd)", () => {
+  interface Setup {
+    readonly credits?: number;
+    readonly held?: number;
+    readonly stock?: number;
+  }
+
+  /**
+   * A docked market harness on Food with the given credits, Food held and
+   * Food stock. The profile and the market are copies: the harness market is
+   * shared data.
+   */
+  function setUp(setup: Setup = {}): Harness {
+    const h = harness();
+    h.controller.ensureSelection();
+    const profile = newProfile();
+    h.ctx.core.profile = {
+      ...profile,
+      credits: setup.credits ?? profile.credits,
+      cargo:
+        setup.held === undefined
+          ? profile.cargo
+          : { ...profile.cargo, food: setup.held },
+    };
+    if (setup.stock !== undefined) {
+      const stock = setup.stock;
+      h.ctx.core.market = {
+        ...h.market,
+        goods: h.market.goods.map((good) =>
+          good.key === "food" ? { ...good, stock } : good,
+        ),
+      };
+    }
+    h.calls.length = 0;
+    h.views.length = 0;
+    return h;
+  }
+
+  /** What Shift with Right (buy) or Left (sell) stores from the same state. */
+  function planMaxFrom(setup: Setup, side: "buy" | "sell"): unknown {
+    const h = setUp(setup);
+    h.ctx.station.stationSelection = "food";
+    h.controller.planMax(side);
+    return h.ctx.station.stationPending;
+  }
+
+  /** Double-click Food and check that nothing was traded. */
+  function activateWithoutTrade(h: Harness, shift: boolean): void {
+    const profile = h.ctx.core.profile;
+    const market = h.ctx.core.market;
+    h.controller.activateMarketRow("food", shift);
+    expect(h.ctx.core.profile).toBe(profile);
+    expect(h.ctx.core.market).toBe(market);
+    expect(h.ctx.station.lastTrade).toBeNull();
+    expect(h.profiles).toEqual([]);
+    expect(h.calls).not.toContain("autosave");
+    expect(h.calls.filter((call) => call === "render")).toEqual(["render"]);
+  }
+
+  /** Y then completes exactly the pending plan. */
+  function confirmApplies(h: Harness): void {
+    const plan = asTrade(h.ctx.station.stationPending);
+    const credits = h.ctx.core.profile.credits;
+    const held = h.ctx.core.profile.cargo.food ?? 0;
+    h.controller.confirmTrade();
+    const sign = plan.side === "buy" ? 1 : -1;
+    expect(h.ctx.core.profile.cargo.food ?? 0).toBe(held + sign * plan.amount);
+    expect(h.ctx.core.profile.credits).toBe(credits - sign * plan.cost);
+    expect(h.ctx.station.lastTrade).toEqual({
+      kind: plan.side,
+      key: "food",
+      amount: plan.amount,
+    });
+  }
+
+  it("with none held plans the buy-max line Shift with Right would open", () => {
+    const h = setUp();
+    activateWithoutTrade(h, false);
+    const plan = asTrade(h.ctx.station.stationPending);
+    expect(plan.side).toBe("buy");
+    expect(plan.key).toBe("food");
+    expect(plan.clamp).toBeUndefined();
+    expect(h.ctx.station.stationPending).toEqual(planMaxFrom({}, "buy"));
+    expect(h.ctx.station.stationNotice).toBe("");
+    expect(h.views.at(-1)?.confirmText).toMatch(/^Buy /);
+    confirmApplies(h);
+  });
+
+  it("with some held plans selling all of it, and with Shift the buy-max line", () => {
+    const sell = setUp({ held: 3 });
+    activateWithoutTrade(sell, false);
+    const plan = asTrade(sell.ctx.station.stationPending);
+    expect(plan.side).toBe("sell");
+    expect(plan.amount).toBe(3);
+    expect(sell.ctx.station.stationPending).toEqual(
+      planMaxFrom({ held: 3 }, "sell"),
+    );
+    expect(sell.views.at(-1)?.confirmText).toMatch(/^Sell /);
+    confirmApplies(sell);
+
+    const buy = setUp({ held: 3 });
+    activateWithoutTrade(buy, true);
+    expect(asTrade(buy.ctx.station.stationPending).side).toBe("buy");
+    expect(buy.ctx.station.stationPending).toEqual(
+      planMaxFrom({ held: 3 }, "buy"),
+    );
+    confirmApplies(buy);
+  });
+
+  it("moves the selection from another row and replaces its line and notice", () => {
+    const h = setUp();
+    h.controller.selectMarketRow("slaves");
+    h.controller.stepAmount(1);
+    expect(asTrade(h.ctx.station.stationPending).key).toBe("slaves");
+    h.ctx.station.stationNotice = "stale";
+    h.calls.length = 0;
+
+    activateWithoutTrade(h, false);
+
+    expect(h.ctx.station.stationSelection).toBe("food");
+    expect(h.ctx.station.stationPending).toEqual(planMaxFrom({}, "buy"));
+    expect(h.ctx.station.stationNotice).toBe("");
+  });
+
+  it("falls through a refused plan to the next, as Oolite's else-if chain", () => {
+    // Shift with no credits while some is held: the buy is refused, so sell all.
+    const noCash = setUp({ credits: 0, held: 3 });
+    activateWithoutTrade(noCash, true);
+    expect(asTrade(noCash.ctx.station.stationPending).side).toBe("sell");
+    expect(noCash.ctx.station.stationPending).toEqual(
+      planMaxFrom({ credits: 0, held: 3 }, "sell"),
+    );
+    confirmApplies(noCash);
+
+    // A held good whose market row is full: the sell is refused, so buy max.
+    const full = setUp({ held: 3, stock: MARKET_LIMIT });
+    activateWithoutTrade(full, false);
+    expect(asTrade(full.ctx.station.stationPending).side).toBe("buy");
+    expect(full.ctx.station.stationPending).toEqual(
+      planMaxFrom({ held: 3, stock: MARKET_LIMIT }, "buy"),
+    );
+    confirmApplies(full);
+
+    // Every plan refused: no line, and the buy refusal notice.
+    const broke = setUp({ credits: 0 });
+    activateWithoutTrade(broke, false);
+    expect(broke.ctx.station.stationPending).toBeNull();
+    expect(broke.ctx.station.stationNotice).toBe("Not enough credits");
+  });
+
+  it("ignores a row the keys cannot select and keys that name no row", () => {
+    const h = setUp();
+    h.controller.stepAmount(1);
+    const plan = h.ctx.station.stationPending;
+    h.ctx.station.stationNotice = "kept";
+    h.calls.length = 0;
+
+    for (const key of [unselectableKey(h), "", "not_a_good", "__proto__"]) {
+      h.controller.activateMarketRow(key, false);
+      h.controller.activateMarketRow(key, true);
+      expect(h.ctx.station.stationSelection, key).toBe("food");
+    }
+    expect(h.ctx.station.stationPending).toBe(plan);
+    expect(h.ctx.station.stationNotice).toBe("kept");
+    expect(h.calls).toEqual([]);
+  });
+
+  it("does nothing in every guarded state", () => {
+    for (const [name, apply] of MOUSE_GUARDS) {
+      const h = setUp();
+      const undo = apply(h);
+      h.controller.activateMarketRow("slaves", false);
+      expect(h.ctx.station.stationSelection, name).toBe("food");
+      expect(h.ctx.station.stationPending, name).toBeNull();
+      expect(h.calls, name).toEqual([]);
+      undo();
+      h.controller.activateMarketRow("slaves", false);
+      expect(h.ctx.station.stationSelection, `${name} undone`).toBe("slaves");
+    }
   });
 });
 

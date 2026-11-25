@@ -389,6 +389,16 @@ export function createStationController(
     if (ctx.station.stationScreen !== "market") return;
     const plan = planFor(side, Number.MAX_SAFE_INTEGER);
     if (plan === undefined) return;
+    commitMaxPlan(plan);
+    renderStation();
+  }
+
+  /**
+   * Store a max plan: a feasible one becomes the pending `[Y/N]` line with no
+   * clamp, a refused one clears the line and states its reason. Shift with an
+   * arrow and the row double click both store through here.
+   */
+  function commitMaxPlan(plan: TradePlan): void {
     if (plan.ok) {
       ctx.station.stationPending = { ...plan, clamp: undefined };
       ctx.station.stationNotice = "";
@@ -396,7 +406,6 @@ export function createStationController(
       ctx.station.stationPending = null;
       ctx.station.stationNotice = tradeNoticeText(plan, commodityFor(plan.key));
     }
-    renderStation();
   }
 
   function confirmTrade(): void {
@@ -1122,6 +1131,37 @@ export function createStationController(
   }
 
   /**
+   * The F8 row double-click sink (owner decision 2026-11-25, quick 261125-ewd,
+   * FIDELITY E-192): select the row, then plan the trade Oolite's Enter and
+   * double click make on the Market (`PlayerEntityControls.m:2849-2890` at
+   * 7437f22): with Shift the most it can buy, otherwise all of it when the
+   * hold carries some, otherwise the most it can buy. As Oolite's `else if`
+   * chain, a refused plan falls through to the next; when every plan is
+   * refused the buy refusal is the notice. Wegolite plans the trade and opens
+   * the `[Y/N]` line (Phase 5 D-06) instead of trading: nothing is bought or
+   * sold until Y or Enter confirms. A double click on a row the keys cannot
+   * select does nothing and never acts on the previous selection (Oolite's
+   * `clearMouse`, `PlayerEntityControls.m:759-763`). It repeats the guards,
+   * because a DOM event is not a trust boundary.
+   */
+  function activateMarketRow(key: string, shift: boolean): void {
+    if (!marketMouseAllowed()) return;
+    if (!selectableKeys().includes(key)) return;
+    if (key !== ctx.station.stationSelection) landSelection(key);
+    const sides: TradeSide[] = [];
+    if (shift) sides.push("buy");
+    if ((ctx.core.profile.cargo[key] ?? 0) > 0) sides.push("sell");
+    sides.push("buy");
+    let plan: TradePlan | undefined;
+    for (const side of sides) {
+      plan = planFor(side, Number.MAX_SAFE_INTEGER);
+      if (plan === undefined || plan.ok) break;
+    }
+    if (plan !== undefined) commitMaxPlan(plan);
+    renderStation();
+  }
+
+  /**
    * Apply one drained station action. The live mode, context and screen are
    * revalidated here, so a queued action cannot apply a stale trade after a
    * screen change, a dock or a pause.
@@ -1233,6 +1273,7 @@ export function createStationController(
     setStationPage,
     sortMarket,
     selectMarketRow,
+    activateMarketRow,
     applyStationAction,
   };
 }

@@ -8,8 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- On the market, a click on a commodity selects it, as Up and Down do;
-  commodities the keys cannot select ignore the click.
+- On the market, a click on a commodity selects it, as Up and Down do, and a
+  double click opens the buy or sell confirmation for the trade Oolite's Enter
+  makes there: with Shift the most you can buy, otherwise all you carry of it,
+  otherwise the most you can buy. Nothing is bought or sold until you confirm
+  with Y or Enter. Commodities the keys cannot select ignore the mouse, and the
+  market footer names both.
+
+### Changed
+
+- The market footer lists Left sells +1 before Right buys +1, in the order of
+  the keys; the keys are unchanged.
 
 ## [0.8.1] - 2026-11-25
 
