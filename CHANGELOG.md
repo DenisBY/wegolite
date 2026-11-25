@@ -6,6 +6,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-25
+
+Station screens closer to Oolite and easier to read. A second F5 shows the
+manifest, the market shows each commodity's note under the list, and its
+Restricted column says in plain words what may not be imported or exported.
+
 ### Changed
 
 - F5 on the status screen now shows the manifest, as in Oolite, and F5 on the
