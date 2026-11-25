@@ -604,12 +604,12 @@ test("F8 on the Market does nothing and a line under the list shows the selected
     { timeout: UI_WAIT },
   );
   await expect(comment).toHaveText(
-    "It is illegal to export this good from Cooperative stations.",
+    "It is illegal to export this good from Cooperative stations. Launching with it aboard makes you an offender.",
   );
   // The full note is also the line's title, readable when it is cut short.
   await expect(comment).toHaveAttribute(
     "title",
-    "It is illegal to export this good from Cooperative stations.",
+    "It is illegal to export this good from Cooperative stations. Launching with it aboard makes you an offender.",
   );
 
   // The line fits inside the station screen above the cash line and the

@@ -146,19 +146,18 @@ export function legalityTitle(legalText: string): string {
 }
 
 /**
- * The penalty line under the market list for the selected restricted good
+ * The penalty sentence after the selected restricted good's comment, on the
+ * same line under the market list (it fits one line at 1280x720)
  * (owner decision 2026-11-25, FIDELITY E-190): Oolite's bounty on docking
  * with goods the main station may not import and on launch with goods it may
  * not export (`PlayerEntity.m:6340-6342`, `:6410-6413`). Empty for "—".
  */
 export const LEGALITY_PENALTIES: Readonly<Record<string, string>> = {
   [LEGALITY_CLEAR]: "",
-  [LEGALITY_IMPORT]:
-    "Launching with it in the hold adds to your bounty and makes you an offender.",
-  [LEGALITY_EXPORT]:
-    "Docking with it in the hold adds to your bounty and makes you an offender.",
+  [LEGALITY_IMPORT]: "Launching with it aboard makes you an offender.",
+  [LEGALITY_EXPORT]: "Docking with it aboard makes you an offender.",
   [LEGALITY_NEITHER]:
-    "Docking or launching with it in the hold adds to your bounty and makes you an offender.",
+    "Docking or launching with it aboard makes you an offender.",
 };
 
 /**
@@ -358,8 +357,8 @@ export interface MarketModel {
    */
   readonly commentText: string;
   /**
-   * The selected commodity's penalty line under the comment
-   * (`LEGALITY_PENALTIES`); empty when nothing restricted is selected.
+   * The selected commodity's penalty sentence, shown after the comment on the
+   * same line (`LEGALITY_PENALTIES`); empty when nothing restricted is selected.
    */
   readonly penaltyText: string;
   /**

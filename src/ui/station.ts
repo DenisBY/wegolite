@@ -170,11 +170,6 @@ export function createStationShell(
     '[data-field="market-comment"]',
     "the market comment line",
   );
-  const marketPenalty = requireElement<HTMLElement>(
-    root,
-    '[data-field="market-penalty"]',
-    "the market penalty line",
-  );
   const marketCashLoad = requireElement<HTMLElement>(
     root,
     '[data-field="market-cash-load"]',
@@ -308,12 +303,13 @@ export function createStationShell(
       );
       marketBody.append(tr);
     }
-    marketComment.textContent = model.commentText;
+    const commentLine = [model.commentText, model.penaltyText]
+      .filter((part) => part !== "")
+      .join(" ");
+    marketComment.textContent = commentLine;
     // The line is cut with an ellipsis when it does not fit; the title keeps
     // the full note readable on hover (empty for the default no-comment case).
-    marketComment.title = model.commentText;
-    marketPenalty.textContent = model.penaltyText;
-    marketPenalty.title = model.penaltyText;
+    marketComment.title = commentLine;
     marketCashLoad.textContent = model.cashLoadText;
   }
 

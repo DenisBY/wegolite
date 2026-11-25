@@ -552,7 +552,7 @@ describe("comment line under the list (quick 261124-ou6)", () => {
     "shows Oolite's launch penalty under the comment of %s (E-190)",
     (key) => {
       expect(buildSelected(key).penaltyText).toBe(
-        "Launching with it in the hold adds to your bounty and makes you an offender.",
+        "Launching with it aboard makes you an offender.",
       );
     },
   );
