@@ -3,10 +3,10 @@ gsd_state_version: "1.0"
 milestone: v2.3
 status: Awaiting next milestone
 stopped_at: Milestone v2.3 archived
-last_updated: "2026-11-25T10:47:18.946Z"
+last_updated: "2026-11-25T11:21:31.924Z"
 last_activity: 2026-11-25
 last_activity_desc: Milestone v2.3 completed and archived
-state_head: 8f9e81a5c35f09eb71c8bac33f87ce6957e3367f
+state_head: 5687c784453fccaf0d9dfdd4df613afd97e982a4
 progress:
   total_phases: 6
   completed_phases: 6
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-11-24)
 Phase: Milestone v2.3 complete
 Plan: —
 Status: Awaiting next milestone
-Last activity: 2026-11-25 - Completed quick task 261125-ewd: market mouse row select and double click
+Last activity: 2026-11-25 - Completed quick task 261125-gmc: digit aliases 2 and 6
 
 ## Performance Metrics
 
@@ -720,6 +720,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 68 | Market Restricted column: No export / No import / No trade with rule and penalty on hover (E-190) | 2026-11-25 | a4cac883 | — |
 | 261125-ewd | Market mouse: click selects a row, double click plans Oolite's Enter trade ([Y/N]); footer hint (E-191, E-192) | 2026-11-25 | 75adc06f | .planning/quick/261125-ewd-market-mouse-row-select-and-double-click |
 | 70 | Record the market [Y/N] trade confirmation as a divergence (FIDELITY E-193) | 2026-11-25 | 8f9e81a5 | — |
+| 261125-gmc | Digit aliases 2 and 6 open Save/Load and the chart, as F2 and F6 (Oolite keyconfig2) | 2026-11-25 | 5687c784 | .planning/quick/261125-gmc-digit-aliases-2-and-6-for-save-load-and- |
 
 ## Deferred Items
 
