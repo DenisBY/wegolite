@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v2.4",
+  "milestone": "v2.4 — Pirates and Police",
   "phases": [
     {
       "number": "8",
@@ -67,12 +67,42 @@
       "number": "20",
       "name": "Player Death and Game Over",
       "status": "complete"
+    },
+    {
+      "number": "21",
+      "name": "Roster, State Shape and Seams",
+      "status": "pending"
+    },
+    {
+      "number": "22",
+      "name": "Initial Population",
+      "status": "pending"
+    },
+    {
+      "number": "23",
+      "name": "Priority AI, Traders and Pirates",
+      "status": "pending"
+    },
+    {
+      "number": "24",
+      "name": "Loot, Scooping and Jettison",
+      "status": "pending"
+    },
+    {
+      "number": "25",
+      "name": "Police, Legal Status, Bounty and Rating",
+      "status": "pending"
+    },
+    {
+      "number": "26",
+      "name": "Repopulation and Milestone Acceptance",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd-discuss-phase",
-    "label": "Discuss the first phase",
-    "reason": "Project initialized — plan your first phase"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step (plan phase 21)",
+    "reason": "Phase 1 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-25T18:35:10.178Z"
+  "updated_at": "2026-11-25T23:03:41.912Z"
 }
