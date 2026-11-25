@@ -121,6 +121,7 @@ Models/wreck2.dat
 Models/wreck3.dat
 Models/wreck4.dat
 Models/wreck5.dat
+Models/oolite_asp.dat
 Textures/oolite-nebula-1.png
 Textures/oolite-nebula-2.png
 Textures/oolite-nebula-3.png
@@ -186,6 +187,10 @@ Textures/oolite_sidewinder_specular.png
 Textures/oolite_viper_diffuse.png
 Textures/oolite_viper_normal.png
 Textures/wreck.png
+Textures/oolite_asp_diffuse.png
+Textures/oolite_asp_normal.png
+Textures/oolite_asp_specular.png
+Textures/oolite_asp_subents.png
 "
 
 # Host-only export of the pinned commit's blobs (the local route, step 1). It
