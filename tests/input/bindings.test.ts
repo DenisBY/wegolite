@@ -483,7 +483,8 @@ describe("chart and hyperspace bindings", () => {
   it("registers every new action with its default code", () => {
     expect(ACTION_IDS).toContain("chart");
     expect(ACTION_IDS).toContain("hyperspace");
-    expect(DEFAULT_BINDINGS.chart).toEqual(["F6"]);
+    // Digit6 is Oolite's alias for F6 (quick 261125-gmc).
+    expect(DEFAULT_BINDINGS.chart).toEqual(["F6", "Digit6"]);
     expect(DEFAULT_BINDINGS.hyperspace).toEqual(["KeyH"]);
     expect(DEFAULT_BINDINGS.chartConfirm).toEqual(["Enter"]);
     expect(DEFAULT_BINDINGS.chartRange).toEqual(["Tab"]);
@@ -603,7 +604,8 @@ describe("chart and hyperspace bindings", () => {
 describe("save screen bindings", () => {
   it("registers F2, the rows and the direct Save/Load shortcuts", () => {
     expect(ACTION_IDS).toContain("saveLoad");
-    expect(DEFAULT_BINDINGS.saveLoad).toEqual(["F2"]);
+    // Digit2 is Oolite's alias for F2 (quick 261125-gmc).
+    expect(DEFAULT_BINDINGS.saveLoad).toEqual(["F2", "Digit2"]);
     expect(DEFAULT_BINDINGS.saveScreenUp).toEqual(["ArrowUp"]);
     expect(DEFAULT_BINDINGS.saveScreenDown).toEqual(["ArrowDown"]);
     expect(DEFAULT_BINDINGS.saveScreenSave).toEqual(["KeyS"]);
@@ -737,6 +739,80 @@ describe("save screen bindings", () => {
     state.keyDown("ArrowDown");
     state.setContext("dockHome");
     expect(state.drainSaveScreenActions()).toEqual([]);
+  });
+});
+
+describe("the digit aliases 2 and 6 (quick 261125-gmc)", () => {
+  it("keeps Digit2 on both the aft view and Save/Load, whose contexts are disjoint", () => {
+    const map = createBindingMap();
+    expect(map.viewAft).toEqual(["Digit2", "F2"]);
+    expect(map.saveLoad).toEqual(["F2", "Digit2"]);
+    expect(contextsOverlap("viewAft", "saveLoad")).toBe(false);
+  });
+
+  it("gives Digit6 to the chart alone", () => {
+    const map = createBindingMap();
+    expect(map.chart).toEqual(["F6", "Digit6"]);
+    const owners = ACTION_IDS.filter((action) =>
+      map[action].includes("Digit6"),
+    );
+    expect(owners).toEqual(["chart"]);
+  });
+
+  it("keeps the F-key first, so the tab strip and hints still advertise F2 and F6", () => {
+    expect(DEFAULT_BINDINGS.saveLoad[0]).toBe("F2");
+    expect(DEFAULT_BINDINGS.chart[0]).toBe("F6");
+  });
+
+  it("queues Digit6 in flight and sends it to the synchronous sink everywhere else", () => {
+    const state = createInputState();
+    const sunk: string[] = [];
+    state.setStationScreenHandler((action) => sunk.push(action));
+    expect(state.keyDown("Digit6")).toBe(true);
+    expect(state.drainChartActions()).toEqual(["chart"]);
+    expect(sunk).toEqual([]);
+
+    for (const context of [
+      "dockHome",
+      "dockScreen",
+      "chart",
+      "saveScreen",
+    ] as const) {
+      state.setContext(context);
+      state.keyUp("Digit6");
+      expect(state.keyDown("Digit6"), context).toBe(true);
+      expect(state.drainChartActions()).toEqual([]);
+    }
+    expect(sunk).toEqual(["chart", "chart", "chart", "chart"]);
+  });
+
+  it("opens Save/Load on Digit2 from home, a section and the chart, never on its own screen", () => {
+    const state = createInputState();
+    const sunk: string[] = [];
+    state.setStationScreenHandler((action) => sunk.push(action));
+    for (const context of ["dockHome", "dockScreen", "chart"] as const) {
+      state.setContext(context);
+      state.keyUp("Digit2");
+      expect(state.keyDown("Digit2"), context).toBe(true);
+      expect(state.drainSaveScreenActions()).toEqual([]);
+      expect(state.drainCommands()).toEqual([]);
+    }
+    expect(sunk).toEqual(["saveLoad", "saveLoad", "saveLoad"]);
+
+    state.setContext("saveScreen");
+    state.keyUp("Digit2");
+    expect(state.keyDown("Digit2")).toBe(false);
+    expect(sunk).toHaveLength(3);
+    expect(state.drainSaveScreenActions()).toEqual([]);
+  });
+
+  it("keeps Digit2 the aft view in flight", () => {
+    const state = createInputState();
+    const sunk: string[] = [];
+    state.setStationScreenHandler((action) => sunk.push(action));
+    expect(state.keyDown("Digit2")).toBe(true);
+    expect(sunk).toEqual([]);
+    expect(state.drainCommands()).toEqual([{ kind: "setView", view: "aft" }]);
   });
 });
 

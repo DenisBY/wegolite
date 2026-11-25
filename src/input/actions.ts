@@ -211,7 +211,10 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     // because Plain+Shift resolves to them through SHIFT_VARIANT_ACTIONS.
     stationSellMax: Object.freeze([]),
     stationBuyMax: Object.freeze([]),
-    chart: Object.freeze(["F6"]),
+    // Digit6 is Oolite's alias for F6 (`key_gui_chart_screens`,
+    // keyconfig2.plist:74-78); no flight action uses it, so it opens the chart
+    // in flight too.
+    chart: Object.freeze(["F6", "Digit6"]),
     hyperspace: Object.freeze(["KeyH"]),
     // Oolite's four view keys (key_forward_view .. key_starboard_view); in
     // flight only, so Digit1/F1 stay Launch on the docked home screen.
@@ -234,8 +237,10 @@ export const DEFAULT_BINDINGS: Readonly<Record<ActionId, readonly string[]>> =
     // Letters cannot start a search, because P pauses and others may be
     // rebound into the chart context.
     chartFind: Object.freeze(["Slash"]),
-    // F2 opens the standalone Save/Load screen; only while docked.
-    saveLoad: Object.freeze(["F2"]),
+    // F2 opens the standalone Save/Load screen; only while docked. Digit2 is
+    // Oolite's alias (`key_gui_screen_options`, keyconfig2.plist:52-56); in
+    // flight Digit2 stays the aft view, because the contexts are disjoint.
+    saveLoad: Object.freeze(["F2", "Digit2"]),
     saveScreenUp: Object.freeze(["ArrowUp"]),
     saveScreenDown: Object.freeze(["ArrowDown"]),
     // Direct shortcuts beside the row navigation: S saves, L loads.
@@ -361,7 +366,8 @@ export const RESERVED_F_KEYS: ReadonlySet<string> = new Set([
  * launch the ship.
  *
  * The docked screen keys (F2 Save/Load, F3 Outfitting, F4 Interfaces, F5
- * Status, F6 Chart, F8 Market) are live on every docked screen, the chart and
+ * Status, F6 Chart, F8 Market) and their digit aliases 2, 3, 4, 5, 6 and 8
+ * (keyconfig2.plist:52-88) are live on every docked screen, the chart and
  * the F2 screen included: Oolite polls them on every docked GUI screen
  * (`pollDockedControls` calls `pollGuiScreenControls`,
  * `PlayerEntityControls.m:4157-4165` at the pin 7437f22). F2 is the one

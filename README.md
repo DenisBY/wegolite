@@ -66,7 +66,7 @@ for that action.
 
 | Action         | Keys          |
 | -------------- | ------------- |
-| Galactic chart | `F6`          |
+| Galactic chart | `F6 / 6`      |
 | Chart up       | `Up arrow`    |
 | Chart down     | `Down arrow`  |
 | Chart left     | `Left arrow`  |
@@ -116,7 +116,7 @@ buy); `Y` or `Enter` completes it.
 
 | Action             | Keys         |
 | ------------------ | ------------ |
-| Save / load        | `F2`         |
+| Save / load        | `F2 / 2`     |
 | Save/load up       | `Up arrow`   |
 | Save/load down     | `Down arrow` |
 | Save               | `S`          |
