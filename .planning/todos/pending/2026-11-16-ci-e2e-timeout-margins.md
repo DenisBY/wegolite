@@ -161,3 +161,11 @@ test timeout.
 - **The watch continues.** After the next sharded CI run, re-measure the three tests per shard. The one to check first
   is game-over-guard: its run to the death is frame-bound on SwiftShader (at most 5 fixed steps of 1/120 s per rendered
   frame), 14 s of sim time against the 140 s wait.
+
+## 2026-11-25: laser-shots timed out on CI (release 0.8.1)
+
+- **What failed.** `tests/e2e/laser-shots.spec.ts:80` (chromium shard 2/4, run 45587489443) hit the default 30 s
+  test timeout; it took 22.1 s in the 0.8.0 run (74 % of 30 s). The spec had no `test.setTimeout` of its own, while
+  its inner waits are already 30 s each.
+- **Fix.** `test.setTimeout(120_000)`: four `SLOW` bounds; the launch is stepped on the manual clock, so no
+  `FIRST_LAUNCH_WAIT_MS`. 22.1 s is 18 % of 120 s, inside the 60 % rule.

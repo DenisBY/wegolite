@@ -27,6 +27,13 @@ import { startNewGame } from "./helpers/title.js";
 
 /** A correctness bound, not a performance claim (the SwiftShader loop is slow). */
 const SLOW = 30_000;
+/**
+ * The test budget. The default 30 s covered the whole spec with no margin: on
+ * the GitHub runner (SwiftShader) it took 22.1 s for 0.8.0 and timed out at
+ * 30 s for 0.8.1. The launch here is stepped on the manual clock, not waited
+ * for, so no FIRST_LAUNCH_WAIT_MS is added.
+ */
+test.setTimeout(120_000);
 /** Traffic off (the browser-test bundle's default) and a manual clock. */
 const SHOTS_URL = "/?test=1&clock=manual";
 /** The launch handover is 240 ticks (two seconds); this is comfortably past it. */
