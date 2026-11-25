@@ -24,7 +24,7 @@
 import { createStationFooter } from "./station-footer.js";
 import type { DockedPanel } from "./docked.js";
 
-import { isMarketSortColumn } from "./station-model.js";
+import { isMarketSortColumn, legalityTitle } from "./station-model.js";
 import type {
   HomeModel,
   InterfacesModel,
@@ -84,6 +84,14 @@ function requireElement<T extends HTMLElement>(
 function cell(text: string): HTMLTableCellElement {
   const element = document.createElement("td");
   element.textContent = text;
+  return element;
+}
+
+/** A Legal cell; its title says the rule in full words (FIDELITY E-190). */
+function legalCell(text: string): HTMLTableCellElement {
+  const element = cell(text);
+  const title = legalityTitle(text);
+  if (title !== "") element.title = title;
   return element;
 }
 
@@ -291,7 +299,7 @@ export function createStationShell(
         cell(row.priceText),
         cell(row.stockText),
         cell(row.heldText),
-        cell(row.legalText),
+        legalCell(row.legalText),
       );
       marketBody.append(tr);
     }

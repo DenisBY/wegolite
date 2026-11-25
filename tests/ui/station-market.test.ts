@@ -31,6 +31,7 @@ import {
   MARKET_SORT_COLUMNS,
   buildMarketModel,
   legalityText,
+  legalityTitle,
   nextMarketSort,
   sortMarketGoods,
   tradeNoticeText,
@@ -129,23 +130,41 @@ describe("F8 rows", () => {
     expect(alien.stockText).toBe("—");
   });
 
-  it("prints Oolite's Legal value: Im for the goods legal to import only", () => {
-    // PlayerEntity.m:9675-9690: import 0 and export non-zero is "Im"
+  it("prints No export (Oolite's Im) for the goods legal to import only", () => {
+    // PlayerEntity.m:9675-9691: import 0 and export non-zero is Oolite's "Im",
+    // printed "No export" (FIDELITY E-190)
     // (descriptions.plist:1633, "legal to import").
     const model = build();
 
-    expect(MARKET_COLUMNS.at(-1)).toEqual({ key: "legal", label: "Legal" });
-    expect(row(model, "slaves").legalText).toBe("Im");
-    expect(row(model, "narcotics").legalText).toBe("Im");
-    expect(row(model, "firearms").legalText).toBe("Im");
+    expect(MARKET_COLUMNS.at(-1)).toEqual({
+      key: "legal",
+      label: "Restricted",
+    });
+    expect(row(model, "slaves").legalText).toBe("No export");
+    expect(row(model, "narcotics").legalText).toBe("No export");
+    expect(row(model, "firearms").legalText).toBe("No export");
     expect(row(model, "food").legalText).toBe("—");
   });
 
   it("maps both legality fields as Oolite does", () => {
     expect(legalityText(0, 0)).toBe("—");
-    expect(legalityText(0, 1)).toBe("Im");
-    expect(legalityText(1, 0)).toBe("Ex");
-    expect(legalityText(1, 2)).toBe("Re");
+    expect(legalityText(0, 1)).toBe("No export");
+    expect(legalityText(1, 0)).toBe("No import");
+    expect(legalityText(1, 2)).toBe("No trade");
+  });
+
+  it("explains every Restricted value and its penalty on hover (FIDELITY E-190)", () => {
+    expect(legalityTitle("—")).toBe("Legal to import and export.");
+    expect(legalityTitle("No export")).toMatch(
+      /^Legal to import, illegal to export\. Launching from the main station .* offender\.$/,
+    );
+    expect(legalityTitle("No import")).toMatch(
+      /^Legal to export, illegal to import\. Docking at the main station .* offender\.$/,
+    );
+    expect(legalityTitle("No trade")).toMatch(
+      /^Illegal to import and export\. Docking at or launching from .* offender\.$/,
+    );
+    expect(legalityTitle("??")).toBe("");
   });
 
   it("prints Ex and Re for synthetic commodities with an import restriction", () => {
@@ -163,8 +182,8 @@ describe("F8 rows", () => {
         { pending: null, notice: "" },
       );
 
-    expect(row(withImport(1, 0), "food").legalText).toBe("Ex");
-    expect(row(withImport(1, 1), "food").legalText).toBe("Re");
+    expect(row(withImport(1, 0), "food").legalText).toBe("No import");
+    expect(row(withImport(1, 1), "food").legalText).toBe("No trade");
   });
 
   it("uses each commodity's own unit", () => {

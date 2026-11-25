@@ -269,6 +269,18 @@ test("F8 and F5 fit at 1280x720 without scrolling", async ({ page }) => {
   await expectInside("[data-market-rows] tr:last-child");
   await expectInside('[data-field="market-cash-load"]');
   await expectInside('[data-field="market-comment"]');
+  // Restricted says what is forbidden; hover gives the rule and penalty (E-190).
+  const slavesLegal = page.locator(
+    '[data-market-rows] tr[data-key="slaves"] td:last-child',
+  );
+  await expect(slavesLegal).toHaveText("No export");
+  await expect(slavesLegal).toHaveAttribute(
+    "title",
+    /^Legal to import, illegal to export\. Launching from the main station/,
+  );
+  await expect(page.locator('th[data-column="legal"]')).toHaveText(
+    "Restricted",
+  );
   await expect(page.locator('[data-field="market-cash-load"]')).toHaveText(
     "Cash: 100.0 ₢. Load 0 of 20 t.",
   );

@@ -21,6 +21,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   key for the station screen, and the other action loses it (for example,
   Market on S leaves Save without a key). Rebind it in Controls; old settings
   are not migrated.
+- The market's Legal column is now headed Restricted and says what is
+  forbidden: No export, No import or No trade instead of Oolite's Im, Ex and
+  Re (slaves, narcotics and firearms show No export). Pointing at a value
+  explains the rule and Oolite's penalty for breaking it; Wegolite does not
+  apply that penalty yet.
 
 ### Added
 

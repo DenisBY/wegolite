@@ -95,20 +95,22 @@ export function formatWholeCredits(decicredits: number): string {
 }
 
 /**
- * Oolite's legality strings (`descriptions.plist:1631-1634`): clear, legal to
- * import only, legal to export only, and neither.
+ * The market's Legal labels. Oolite prints `—`, `Im` (legal to import only),
+ * `Ex` (legal to export only) and `Re` (neither) (`descriptions.plist`
+ * `oolite-legality-*`); `Im` reads like "illegal", so Wegolite names what is
+ * forbidden instead, under the heading Restricted (owner decision 2026-11-25, FIDELITY E-190). `—` stays.
  */
 export const LEGALITY_CLEAR = "—";
-export const LEGALITY_IMPORT = "Im";
-export const LEGALITY_EXPORT = "Ex";
-export const LEGALITY_NEITHER = "Re";
+export const LEGALITY_IMPORT = "No export";
+export const LEGALITY_EXPORT = "No import";
+export const LEGALITY_NEITHER = "No trade";
 
 /**
- * The market's Legal value from both legality fields, exactly as Oolite's
- * market screen chooses it (`PlayerEntity.m:9675-9690`): a commodity with an
- * import restriction of 0 is legal to import, one with an export restriction
- * of 0 is legal to export. So "Im" means "legal to import" (only), as the
- * plist comment says, and goods illegal to export print "Im".
+ * The market's Legal value from both legality fields, chosen exactly as
+ * Oolite's market screen chooses it (`PlayerEntity.m:9675-9691`): a commodity
+ * with an import restriction of 0 is legal to import, one with an export
+ * restriction of 0 is legal to export. Oolite's `Im` case (legal to import,
+ * illegal to export: slaves, narcotics, firearms) prints "No export".
  */
 export function legalityText(
   legalityImport: number,
@@ -118,6 +120,29 @@ export function legalityText(
     return legalityExport === 0 ? LEGALITY_CLEAR : LEGALITY_IMPORT;
   }
   return legalityExport === 0 ? LEGALITY_EXPORT : LEGALITY_NEITHER;
+}
+
+/**
+ * The hover text of each Restricted value: the rule in full words and Oolite's
+ * penalty for breaking it (FIDELITY E-190). A main station checks the hold on
+ * docking against the import rule and on launch against the export rule, and
+ * adds the restricted tonnage to the commander's bounty
+ * (`PlayerEntity.m:6340-6342`, `:6410-6413`). Wegolite does not apply the
+ * penalty yet (.planning/todos/pending/2026-11-25-cargo-legality-penalties.md).
+ */
+export const LEGALITY_TITLES: Readonly<Record<string, string>> = {
+  [LEGALITY_CLEAR]: "Legal to import and export.",
+  [LEGALITY_IMPORT]:
+    "Legal to import, illegal to export. Launching from the main station with it in the hold adds to your bounty and marks you as an offender.",
+  [LEGALITY_EXPORT]:
+    "Legal to export, illegal to import. Docking at the main station with it in the hold adds to your bounty and marks you as an offender.",
+  [LEGALITY_NEITHER]:
+    "Illegal to import and export. Docking at or launching from the main station with it in the hold adds to your bounty and marks you as an offender.",
+};
+
+/** The hover text for one Legal value; empty for an unknown value. */
+export function legalityTitle(legalText: string): string {
+  return LEGALITY_TITLES[legalText] ?? "";
 }
 
 /**
@@ -273,7 +298,7 @@ export interface MarketRow {
   readonly priceText: string;
   readonly stockText: string;
   readonly heldText: string;
-  /** Oolite's Legal value: "—", "Im", "Ex" or "Re" (`legalityText`). */
+  /** The Restricted value: "—", "No export", "No import" or "No trade" (`legalityText`). */
   readonly legalText: string;
   readonly selectable: boolean;
   readonly dimmed: boolean;
@@ -333,9 +358,10 @@ export const MARKET_COLUMNS: readonly MarketColumnSpec[] = Object.freeze([
   { key: "price", label: "Price" },
   { key: "stock", label: "Stock" },
   { key: "held", label: "Hold" },
-  // Oolite's `oolite-legality-column-title` "Legal:"; the market headings drop
-  // Oolite's trailing colons ("Commodity:" is "Commodity").
-  { key: "legal", label: "Legal" },
+  // Oolite's `oolite-legality-column-title` is "Legal:"; Wegolite heads the
+  // column Restricted, so "—" reads as "none" and each value as a ban
+  // (FIDELITY E-190). The market headings drop Oolite's trailing colons.
+  { key: "legal", label: "Restricted" },
 ]);
 
 function confirmationText(
