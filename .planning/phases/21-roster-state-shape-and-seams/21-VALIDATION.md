@@ -3,9 +3,9 @@ phase: "21"
 slug: "roster-state-shape-and-seams"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-25"
 ---
 
@@ -44,31 +44,33 @@ Filled by the planner per task (`<automated>` + `<fails_when>`). Requirement-lev
 
 | Req | Behaviour | Test Type | Automated Command | File Exists | Status |
 |-----|-----------|-----------|-------------------|-------------|--------|
-| FOUND-20 | inert world epochs 1-20 hash equal before/after isolation and after v5 | golden + unit | `docker compose run --rm test npx vitest run tests/sim/world/inert-isolation.test.ts` | ❌ W0 | ⬜ pending |
-| FOUND-20 | pristine v5 world hashes as v4; each new field prints one segment | unit | `... vitest run tests/sim/world/v5-hash.test.ts` | ❌ W0 | ⬜ pending |
-| FOUND-20 | snapshot v5 round trip; v4/v6 and unknown keys refused; bounds refused and sanitized | unit | `... vitest run tests/sim/world/snapshot-codec.test.ts tests/sim/world/sanitize.test.ts` | ✅ (update) | ⬜ pending |
-| FOUND-20 | v5 fields replay equal at 30/60/144 Hz | cadence | `... vitest run tests/sim/world/v5-cadence.test.ts` | ❌ W0 | ⬜ pending |
-| FOUND-20 | priority-AI key list closed, <= 32; `"priority"` registered inert | unit + guard | `... vitest run tests/sim/ai/priority-params.test.ts tests/guards/on-event-handlers.test.ts` | ❌ W0 / ✅ | ⬜ pending |
-| FOUND-20 | `retireShip` non-lethal removal | unit + property | `... vitest run tests/sim/world/retire.test.ts` | ❌ W0 | ⬜ pending |
-| FOUND-20 | hit-reaction stage records every laser hit incl. lethal | unit | `... vitest run tests/sim/combat/hit-reaction.test.ts tests/guards/ship-hit-consumers.test.ts` | ❌ W0 / ✅ | ⬜ pending |
-| FOUND-20 | per-facing weapon state; forward behaviour byte-identical; aft tripwire | unit + guard | `... vitest run tests/sim/npc/fire-aft.test.ts tests/guards/aft-weapon-tripwire.test.ts` | ❌ W0 | ⬜ pending |
-| FOUND-20 | every new sim function total on malformed input (milestone rule) | property (fast-check) | the per-plan property files: `inert-isolation` (`inertRecords`), `sanitize`, `state`, `priority-params`, `hit-reaction`, `view`, `fire-aft`, `drift`, `death`, `debris-pod`, `debris`, `test-spawn` | mixed | ⬜ pending |
-| FOUND-20 | frozen 20-seed run 21/21 | acceptance (remote, by hand) | `wegolite-remote-run.sh run --rm test npm run test:acceptance` | ✅ | ⬜ pending |
-| DATA-17 | roster equals `like_ship` resolution (28 + shuttle); fields compile; strict schema | unit | `... vitest run tools/oolite-ingest/convert/npc-ships.test.ts tests/content/ships-npc.test.ts` | ✅ (widen) | ⬜ pending |
-| DATA-17 | autoAImap, role-categories, comms subset compiled | unit | `... vitest run tests/content/ai-map.test.ts` | ❌ W0 | ⬜ pending |
-| DATA-17 | zero NPC missiles guarded; missiles, escape-pod and NPC heat defaults recorded (FIDELITY E-194, E-195, E-196) | guard + contract | `... vitest run tests/guards/npc-missiles-tripwire.test.ts tests/contract/fidelity.test.ts` | ❌ W0 / ✅ | ⬜ pending |
-| DATA-18 | hull octrees shared per model (`aliases`); roster counts derived | unit | `... vitest run tools/oolite-ingest/convert/ship-hulls.test.ts tests/content/ships-hulls.test.ts tests/app/session/traffic.test.ts` | ✅ (widen) | ⬜ pending |
-| DATA-17 | content drift gate | gate | `docker compose run --rm assets npm run assets:check` | ✅ | ⬜ pending |
-| DATA-18 | provenance rows and checksums; GLBs decode | unit + e2e | `... vitest run tests/compliance-assets.test.ts`; e2e `npc-assets.spec.ts` | ✅ (counts) | ⬜ pending |
-| DATA-18 | cold start < 9,437,184 B traffic on and off | e2e (remote) | e2e `budget.spec.ts traffic.spec.ts` | ✅ (update) | ⬜ pending |
-| CBT-11 clause | pod commodity + amount from `"pod"` fork | unit + property | `... vitest run tests/sim/world/debris.test.ts tests/sim/world/debris-pod.test.ts` | ✅ / ❌ W0 | ⬜ pending |
-| CBT-11 clause | twin hashes re-pinned once, Node equals browser | twin | `... vitest run tests/app/session/tick-parity.test.ts`; remote e2e `combat.spec.ts` | ✅ (re-pin) | ⬜ pending |
-| QUAL-09 (staged) | full anarchy draw calls and triangles measured vs budget, before and after each D-05 fix | e2e (remote) | e2e `anarchy.spec.ts` | ❌ W0 | ⬜ pending |
-| DATA-18 (D-05 fix 1) | NPC hull primitives merged per hull, texel-exact atlases, validity conditions | unit | `... vitest run tools/oolite-ingest/convert/atlas.test.ts tools/oolite-ingest/convert/glb.test.ts`; `assets:check` | ❌ W0 | ⬜ pending |
-| DATA-18 (D-05 fix 2) | variant hulls share one instanced mesh set; keys derived from loaded assets | unit | `... vitest run tests/render/npc-ships.test.ts tests/render/npc-variant-material.test.ts` | ✅ / ❌ W0 | ⬜ pending |
-| DATA-18 (budget) | inclusive budget boundary (budget passes, budget + 1 and 0 fail) | unit | `... vitest run tests/app/e2e-budgets.test.ts` | ❌ W0 | ⬜ pending |
+| FOUND-20 | inert world epochs 1-20 hash equal before/after isolation and after v5 | golden + unit | `docker compose run --rm test npx vitest run tests/sim/world/inert-isolation.test.ts` | ✅ | ✅ green |
+| FOUND-20 | pristine v5 world hashes as v4; each new field prints one segment | unit | `... vitest run tests/sim/world/v5-hash.test.ts` | ✅ | ✅ green |
+| FOUND-20 | snapshot v5 round trip; v4/v6 and unknown keys refused; bounds refused and sanitized | unit | `... vitest run tests/sim/world/snapshot-codec.test.ts tests/sim/world/sanitize.test.ts` | ✅ | ✅ green |
+| FOUND-20 | v5 fields replay equal at 30/60/144 Hz | cadence | `... vitest run tests/sim/world/v5-cadence.test.ts` | ✅ | ✅ green |
+| FOUND-20 | priority-AI key list closed, <= 32; `"priority"` registered inert | unit + guard | `... vitest run tests/sim/ai/priority-params.test.ts tests/guards/on-event-handlers.test.ts` | ✅ | ✅ green |
+| FOUND-20 | `retireShip` non-lethal removal | unit + property | `... vitest run tests/sim/world/retire.test.ts` | ✅ | ✅ green |
+| FOUND-20 | hit-reaction stage records every laser hit incl. lethal | unit | `... vitest run tests/sim/combat/hit-reaction.test.ts tests/guards/ship-hit-consumers.test.ts` | ✅ | ✅ green |
+| FOUND-20 | per-facing weapon state; forward behaviour byte-identical; aft tripwire | unit + guard | `... vitest run tests/sim/npc/fire-aft.test.ts tests/guards/aft-weapon-tripwire.test.ts` | ✅ | ✅ green |
+| FOUND-20 | every new sim function total on malformed input (milestone rule) | property (fast-check) | the per-plan property files: `inert-isolation` (`inertRecords`), `sanitize`, `state`, `priority-params`, `hit-reaction`, `view`, `fire-aft`, `drift`, `death`, `debris-pod`, `debris`, `test-spawn` | ✅ | ✅ green |
+| FOUND-20 | frozen 20-seed run 21/21 | acceptance (remote, by hand) | `wegolite-remote-run.sh run --rm test npm run test:acceptance` | ✅ | ✅ green at 390a8fcc; ⬜ remote gate at HEAD |
+| DATA-17 | roster equals `like_ship` resolution (28 + shuttle); fields compile; strict schema | unit | `... vitest run tools/oolite-ingest/convert/npc-ships.test.ts tests/content/ships-npc.test.ts` | ✅ | ✅ green |
+| DATA-17 | autoAImap, role-categories, comms subset compiled | unit | `... vitest run tests/content/ai-map.test.ts` | ✅ | ✅ green |
+| DATA-17 | zero NPC missiles guarded; missiles, escape-pod and NPC heat defaults recorded (FIDELITY E-194, E-195, E-196) | guard + contract | `... vitest run tests/guards/npc-missiles-tripwire.test.ts tests/contract/fidelity.test.ts` | ✅ | ✅ green |
+| DATA-18 | hull octrees shared per model (`aliases`); roster counts derived | unit | `... vitest run tools/oolite-ingest/convert/ship-hulls.test.ts tests/content/ships-hulls.test.ts tests/app/session/traffic.test.ts` | ✅ | ✅ green |
+| DATA-17 | content drift gate | gate | `docker compose run --rm assets npm run assets:check` | ✅ | ⬜ remote gate at HEAD |
+| DATA-18 | provenance rows and checksums; GLBs decode | unit + e2e | `... vitest run tests/compliance-assets.test.ts`; e2e `npc-assets.spec.ts` | ✅ | ✅ green (unit); e2e green at 390a8fcc, ⬜ remote gate at HEAD |
+| DATA-18 | cold start < 9,437,184 B traffic on and off | e2e (remote) | e2e `budget.spec.ts traffic.spec.ts` | ✅ (update) | ✅ green at 390a8fcc; ⬜ remote gate at HEAD |
+| CBT-11 clause | pod commodity + amount from `"pod"` fork | unit + property | `... vitest run tests/sim/world/debris.test.ts tests/sim/world/debris-pod.test.ts` | ✅ | ✅ green |
+| CBT-11 clause | twin hashes re-pinned once, Node equals browser | twin | `... vitest run tests/app/session/tick-parity.test.ts`; remote e2e `combat.spec.ts` | ✅ (re-pin) | ✅ green at 390a8fcc; ⬜ remote gate at HEAD |
+| QUAL-09 (staged) | full anarchy draw calls and triangles measured vs budget, before and after each D-05 fix | e2e (remote) | e2e `anarchy.spec.ts` | ❌ W0 | ✅ green at 390a8fcc; ⬜ remote gate at HEAD |
+| DATA-18 (D-05 fix 1) | NPC hull primitives merged per hull, texel-exact atlases, validity conditions | unit | `... vitest run tools/oolite-ingest/convert/atlas.test.ts tools/oolite-ingest/convert/glb.test.ts`; `assets:check` | ✅ | ✅ green |
+| DATA-18 (D-05 fix 2) | variant hulls share one instanced mesh set; keys derived from loaded assets | unit | `... vitest run tests/render/npc-ships.test.ts tests/render/npc-variant-material.test.ts` | ✅ / ❌ (21-18 deferred) | ⚠️ partial: `npc-ships` green; fix (2) deferred with 21-18 |
+| DATA-18 (budget) | inclusive budget boundary (budget passes, budget + 1 and 0 fail) | unit | `... vitest run tests/app/e2e-budgets.test.ts` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+**Additional coverage beyond the map:** `tests/sim/combat/death.property.test.ts`, `tests/guards/{departure-path,kill-credit-consumers,world-record-repair,dead-mode-gates,player-death-producer}.test.ts`, `tests/sim/world/{debris-cadence,debris-cap,spawn-refusal}.test.ts`, `tools/oolite-ingest/convert/{auto-ai-map,role-categories,comms}.test.ts`.
 
 ### Per-task map (from the plans' `<automated>` commands; each has a `<fails_when>` in its plan)
 
@@ -129,15 +131,15 @@ Sampling continuity: every task has an automated command; no three consecutive t
 
 ## Wave 0 Requirements
 
-- [ ] `tests/golden/world/inert-lave-epochs-1-20.json` + `tests/sim/world/inert-isolation.test.ts` (measured on the base commit first)
-- [ ] `tests/sim/world/v5-hash.test.ts`, `tests/sim/world/v5-cadence.test.ts`
-- [ ] `tests/sim/ai/priority-params.test.ts`, `tests/sim/world/retire.test.ts`, `tests/sim/combat/hit-reaction.test.ts`, `tests/sim/npc/fire-aft.test.ts`, `tests/guards/aft-weapon-tripwire.test.ts`
-- [ ] `tests/sim/world/debris-pod.test.ts`
-- [ ] `tests/guards/npc-missiles-tripwire.test.ts`, `tests/guards/pod-kind-fallback.test.ts`
-- [ ] content tests for the three compiled tables
-- [ ] `tests/e2e/anarchy.spec.ts` + probe hook + updated `tests/fixtures/probe-shape.json`
-- [ ] `tools/oolite-ingest/convert/atlas.test.ts` (21-17), `tests/render/npc-variant-material.test.ts` (21-18)
-- [ ] shared e2e budget constants `tests/e2e/helpers/budgets.ts` (four `DRAW_CALL_BUDGET`, one `TRIANGLE_BUDGET`, two `FIRST_LOAD_BYTES_CEILING` declarations) and the Vitest boundary check `tests/app/e2e-budgets.test.ts` (21-19; not under `tests/e2e/`, where Playwright would collect a `*.test.ts`)
+- [x] `tests/golden/world/inert-lave-epochs-1-20.json` + `tests/sim/world/inert-isolation.test.ts` (measured on the base commit first)
+- [x] `tests/sim/world/v5-hash.test.ts`, `tests/sim/world/v5-cadence.test.ts`
+- [x] `tests/sim/ai/priority-params.test.ts`, `tests/sim/world/retire.test.ts`, `tests/sim/combat/hit-reaction.test.ts`, `tests/sim/npc/fire-aft.test.ts`, `tests/guards/aft-weapon-tripwire.test.ts`
+- [x] `tests/sim/world/debris-pod.test.ts`
+- [x] `tests/guards/npc-missiles-tripwire.test.ts`, `tests/guards/pod-kind-fallback.test.ts`
+- [x] content tests for the three compiled tables
+- [x] `tests/e2e/anarchy.spec.ts` + probe hook + updated `tests/fixtures/probe-shape.json`
+- [x] `tools/oolite-ingest/convert/atlas.test.ts` (21-17); `tests/render/npc-variant-material.test.ts` not created: plan 21-18 (D-05 fix 2) deferred, owner item in 21-VERIFICATION.md
+- [x] shared e2e budget constants `tests/e2e/helpers/budgets.ts` (four `DRAW_CALL_BUDGET`, one `TRIANGLE_BUDGET`, two `FIRST_LOAD_BYTES_CEILING` declarations) and the Vitest boundary check `tests/app/e2e-budgets.test.ts` (21-19; not under `tests/e2e/`, where Playwright would collect a `*.test.ts`)
 
 Framework install: none.
 
@@ -154,11 +156,21 @@ Framework install: none.
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency: one targeted file per task
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency: one targeted file per task
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-11-26 (Nyquist audit: no gaps; 21-18 deferred out of scope)
+
+## Validation Audit 2026-11-26
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+Audited at HEAD 73e43eff. Every test file named in both maps exists, except `tests/render/npc-variant-material.test.ts`, which belongs to the deferred plan 21-18. The 36 mapped Vitest files pass in Docker (2028 passed, 1 skipped), and so do the full `test:fast` suite, `lint` and `typecheck`. Each property row has a fast-check file. The rows for remote e2e, `assets:check` and acceptance were green at 390a8fcc (21-19 SUMMARY). The review fixes landed after that commit, so the orchestrator's remote gate at HEAD has to confirm those rows. No tests were added.
