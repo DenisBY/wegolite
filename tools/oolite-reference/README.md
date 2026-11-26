@@ -142,6 +142,9 @@ Shipped files:
   10 s and capture the docked status screen. On llvmpipe at 1280x1024 the
   window is up within a few seconds, and 10 s after the start is enough; the
   full smoke run takes about 40 s with a cached image.
+- `steps/census-anarchy.steps`, `steps/census-quiet.steps`: the population
+  census spike (see the section on the population census spike below). They
+  need a probe OXP that is not in the repository.
 
 ## Writing a measurement OXP
 
@@ -163,6 +166,151 @@ before it terminates Oolite.
 At startup `Latest.log` records the `Resource paths` (the `/addons/<name>.oxp`
 entry) and the loaded world scripts, which is the quickest check that the OXP
 was found.
+
+Do not add a `manifest.plist`. With one the folder is treated as an OXZ, a
+missing `required_oolite_version` is logged (`oxp.noManifest`), and the OXP is
+then absent from the `Resource paths`, so neither its scripts nor its
+`Config/scenarios.plist` load. Without a manifest it loads as a classic OXP.
+
+## Population census spike (Phase 22, D-07)
+
+**The question.** Can headless Oolite in this container start in a chosen
+system through a scenario save and dump a census of the ships the populator
+placed, so that Phase 26 (QUAL-13) can compare Wegolite's initial population
+with the real one? The roadmap rated this LOW; a "no" would have been a valid
+answer.
+
+**The answer: yes.** One run takes 37 to 43 s on the remote machine with a
+cached image, ends with exit 0, and `Latest.log` holds one `CENSUS-SHIP` line
+per ship. Six runs were made (three per system, galaxy 0).
+
+### Mandatory first check (assumption A6)
+
+`Resources/Scripts/oolite-populator.js` inside the AppImage has the same
+SHA256 as the checkout's copy, `96a734a6cfc1ee39a7db7798716101640887e58d5fe947e56e2fcc4946e04df4`
+(read with `docker run --rm --entrypoint sh wegolite-oolite-reference:1.93.1-255 -c "find /opt/oolite -name oolite-populator.js -exec sha256sum {} +"`;
+the file is at `/opt/oolite/share/oolite/Resources/Scripts/`). The 14 commits
+of version skew did not touch the populator, so a census comparison is a
+comparison with the script Wegolite ported.
+
+### Route
+
+1. A throwaway OXP, `census-probe.oxp`, outside the repository (below), adds two
+   scenarios through `Config/scenarios.plist`; they appear after the four
+   built-ins. Each scenario is a copy of `oolite-standard.oolite-save` with the
+   keys `galaxy_id` and `system_id` added (the current save format: the
+   system is addressed by id, so no chart-coordinates-to-seed mapping is
+   needed) plus `current_system_name`, `galaxy_coordinates` and
+   `target_system_name`/`target_coordinates` rewritten to match.
+2. The steps select the scenario on the "Start New Commander" screen and press
+   Return. `loadPlayerFromFile` then calls `populateNormalSpace` during the
+   load, so the system is populated while the player is docked
+   (`PlayerEntityLoadSave.m:640-643`).
+3. The probe's world script logs from `missionScreenOpportunity`, which fires
+   right after the load, one `CENSUS-SHIP` line per entry of `system.allShips`
+   and then `CENSUS-DONE`; the steps `waitlog` on the sentinel.
+
+**Menu arithmetic (the one real obstacle).** The runner holds every key for
+0.5 s, Oolite repeats a held arrow key, and one press therefore moves the
+selection TWO rows. The seven selectable rows (Return to Menu, the four
+built-ins, the two probe scenarios) wrap and start on the first built-in, so
+two Down presses select the anarchy scenario and one Up press (which wraps to
+the last row) selects the quiet one. Four Down presses landed on the second
+row in two runs; 4 s pauses between presses did not change that. The probe logs
+the system name and id, so a wrong landing shows in `Latest.log`.
+
+### The probe (not committed)
+
+`/home/opencode/oolite-probes/population-census/census-probe.oxp/` holds:
+
+- `Config/script.js`: a world script (`this.name = "population-census"`).
+  `this.missionScreenOpportunity` runs the census once (a 25 s `Timer` from
+  `startUp` is the fallback). It logs, with the two-argument `log(this.name, ...)`:
+  `CENSUS-BEGIN` (system name, id, galaxy, government, tech level, number of
+  entries, docked), then per entry `CENSUS-SHIP` with `dataKey`, `primaryRole`,
+  `roles`, `isStation`, `isCargo`, `isPolice`, `isPirate`, `isTrader`,
+  `isThargoid`, `isDerelict`, `bounty`, `group.count` and `escortGroup.count`,
+  then `CENSUS-NEIGHBOURHOOD` (`system.info.systemsInRange().length`,
+  `systemsInRange(3.5).length`, and
+  `worldScripts["oolite-populator"]._systemIsBottleneck(locals, seconds)`, with
+  `seconds` rebuilt the way the populator builds it), then `CENSUS-DONE`.
+- `Config/scenarios.plist`: two entries, "Census anarchy (Qudira)" and "Census
+  quiet (Teanrebi)", each with `file`, `name`, `description` and
+  `model = "cobra3-player"`.
+- `Scenarios/census-anarchy.oolite-save` (galaxy 0, system id 116, Qudira,
+  government 0) and `Scenarios/census-quiet.oolite-save` (galaxy 0, system id
+  18, Teanrebi, government 7).
+
+Any other system is a new copy of the save with another `system_id` (and
+`galaxy_id`) and a new `scenarios.plist` row, plus the matching number of key
+presses in a steps file. No file of the probe, no scenario save and no Oolite
+output is committed.
+
+### Repeat the run
+
+```sh
+tools/oolite-reference/run-remote.sh \
+  --steps tools/oolite-reference/steps/census-anarchy.steps \
+  --addons /home/opencode/oolite-probes/population-census \
+  --out /tmp/oolite-census-anarchy-N --timeout 300
+# the quiet system: --steps tools/oolite-reference/steps/census-quiet.steps
+grep -c CENSUS-SHIP /tmp/oolite-census-anarchy-N/logs/Latest.log
+```
+
+The census differs from run to run (three runs of Qudira gave 64, 85 and 99
+NPC ships), so each run is one sample; run it as often as the comparison
+needs. Add `--no-build` after the first run. Exclude from the counts the
+player, `asteroid`, `buoy`, `buoy-witchpoint` and every entry with
+`station=true`.
+
+### Result (three samples per system, NPC ships)
+
+NPC ships exclude the player, the asteroids (34 in Qudira, 44 in Teanrebi), the
+two buoys and the stations (the coriolis, a rock hermit and, in Qudira, a pirate
+hermit). "Port" is Wegolite's `populateSystemWorld` for the same system, the
+mean over census epochs 1 to 20 (`tests/helpers/population-census.ts`), with
+epoch 1 (the docked-launch epoch) in brackets. The port has no assassins and
+no medium or heavy hunters (WORLD-08b cuts, `FIDELITY.md`), so "hunter" is the
+light `hunter` role only. Counts are a distribution: there is no pass
+threshold here; QUAL-13 writes thresholds first in Phase 26.
+
+| System                  | Source               | NPC ships | trader    | pirate    | hunter (light) | police    | escort    | assassin |
+| ----------------------- | -------------------- | --------- | --------- | --------- | -------------- | --------- | --------- | -------- |
+| Qudira (anarchy)        | Oolite run 1         | 99        | 8         | 57        | 8              | 1         | 17        | 6        |
+| Qudira                  | Oolite run 2         | 85        | 6         | 58        | 4              | 1         | 16        | 0        |
+| Qudira                  | Oolite run 3         | 64        | 9         | 32        | 16             | 1         | 0         | 4        |
+| Qudira                  | Port, mean (epoch 1) | 77.2 (96) | 6.4 (7)   | 53.9 (68) | 2.7 (3)        | 1 (1)     | 13.3 (17) | 0 (cut)  |
+| Teanrebi (government 7) | Oolite run 1         | 80        | 16        | 13        | 20             | 24        | 2         | 1        |
+| Teanrebi                | Oolite run 2         | 83        | 11        | 16        | 29             | 22        | 0         | 0        |
+| Teanrebi                | Oolite run 3         | 84        | 16        | 14        | 20             | 28        | 0         | 0        |
+| Teanrebi                | Port, mean (epoch 1) | 67.0 (28) | 16.5 (11) | 12.4 (4)  | 8.7 (0)        | 28.9 (13) | 0.7 (0)   | 0 (cut)  |
+
+The medium and heavy hunters the port cuts account for 0 to 6 more NPC ships per
+Oolite run (Qudira 2, 0, 2; Teanrebi 4, 5, 6); they are in the NPC total but not
+in the "hunter (light)" column.
+
+Native neighbourhood facts (`system.info.systemsInRange()`, the 3.5 LY range
+and `_systemIsBottleneck`) equal the port's `buildNeighbourhood` for both
+systems: Qudira 8 / 3 / false and Teanrebi 8 / 3 / false in all six runs and in
+the port.
+
+What the numbers say, without a threshold: the totals, the pirates, the
+traders, the police and the escorts sit inside the spread of the real samples
+(NPC ships 64 to 99 against the port's 41 to 110 in Qudira, 80 to 84 against
+28 to 86 in Teanrebi). The light hunters do not: 20, 29 and 20 in Teanrebi
+against a port range of 0 to 15 (mean 8.7), and 8, 4 and 16 in Qudira against
+0 to 6 (mean 2.7). Three samples are too few to call that a port bug, but it is
+the first place QUAL-13 should look.
+
+### What it means for Phase 26
+
+Use the real-Oolite census; it does not have to fall back to the oracle only.
+It costs about 40 s per sample per system and can address any system of any
+galaxy by `galaxy_id` and `system_id`. A distribution needs many samples: the
+anarchy's NPC count alone spread from 64 to 99 in three runs, so QUAL-13 should
+plan on at least 20 runs per system (about 15 minutes) and compare
+distributions, not single runs. The probe must be rebuilt outside the
+repository, as described above.
 
 ## Headless notes and troubleshooting
 
