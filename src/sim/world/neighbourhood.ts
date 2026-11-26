@@ -227,6 +227,7 @@ export function isBottleneck(
 }
 
 const NO_NEIGHBOURS: readonly Neighbour[] = Object.freeze([]);
+const NO_SECONDS: readonly (readonly Neighbour[])[] = Object.freeze([]);
 
 /**
  * Build the frozen neighbourhood of `systemIndex` over `galaxy` (the current
@@ -260,9 +261,9 @@ export function buildNeighbourhood(
   if (origin === undefined) {
     return Object.freeze({
       locals: NO_NEIGHBOURS,
-      seconds: NO_NEIGHBOURS as readonly (readonly Neighbour[])[],
+      seconds: NO_SECONDS,
       verylocals: NO_NEIGHBOURS,
-      veryseconds: NO_NEIGHBOURS as readonly (readonly Neighbour[])[],
+      veryseconds: NO_SECONDS,
       bottleneck: false,
       inRange,
       distanceTo,
