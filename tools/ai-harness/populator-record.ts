@@ -33,10 +33,13 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createContext, runInContext } from "node:vm";
 
-import { format } from "prettier";
-
 import type { ShipDef, System } from "../../src/content/types.js";
 import { deriveSystemLayout } from "../../src/sim/world/layout.js";
+import {
+  decodePopulationFixture,
+  encodePopulationFixture,
+  POPULATION_STARTUP,
+} from "../../tests/oracles/population/codec.js";
 import {
   NeighbourhoodTableSchema,
   POPULATION_ENTRY_NAMES,
@@ -52,6 +55,7 @@ import {
   type PopulationEntryName,
   type PopulationFixture,
   type PopulationGroup,
+  type PopulationNeighbour,
 } from "../../tests/oracles/population/schema.js";
 import { parseOpenStep } from "../oolite-ingest/openstep/parser.js";
 import type {
@@ -69,7 +73,12 @@ import {
   type PopulatorSystemRow,
   type PopulatorVec,
 } from "./populator-host.js";
-import { POPULATION_SEEDS, POPULATION_SYSTEMS } from "./population-systems.js";
+import {
+  POPULATION_SYSTEMS,
+  selectPopulationSystems,
+  type PopulationCandidate,
+  type PopulationSelection,
+} from "./population-systems.js";
 
 /** The one script path, relative to the Oolite tree. */
 export const POPULATOR_FILE = POPULATION_SCRIPT_FILE;
@@ -484,6 +493,21 @@ function loadPopulator(
   return { galaxy, index, rows, host, ai, harnessCall, planet, sun, script };
 }
 
+/** A neighbour without its `seconds` (the table holds them). */
+function leanNeighbour(neighbour: PopulationNeighbour): {
+  id: number;
+  government: number;
+  economy: number;
+  techLevel: number;
+} {
+  return {
+    id: neighbour.id,
+    government: neighbour.government,
+    economy: neighbour.economy,
+    techLevel: neighbour.techLevel,
+  };
+}
+
 /** `_systemIsBottleneck` over a set of locals and their seconds, in the vm. */
 const BOTTLENECK_EXPRESSION =
   "this._systemIsBottleneck(this.$populatorLocals, this.$populatorLocals.map(function (local) { return local.systemsInRange(); }))";
@@ -510,6 +534,12 @@ export function recordPopulation(
     skillLevelBias: callInContext(ai, "this.$skillLevelBias") as number,
     skillLevelMaximum: callInContext(ai, "this.$skillLevelMaximum") as number,
   };
+
+  if (JSON.stringify(startUp) !== JSON.stringify(POPULATION_STARTUP)) {
+    throw new Error(
+      `startUp left ${JSON.stringify(startUp)}, expected POPULATION_STARTUP ${JSON.stringify(POPULATION_STARTUP)}`,
+    );
+  }
 
   callInContext(ai, "this.systemWillPopulate()");
   const bottleneck = callInContext(ai, BOTTLENECK_EXPRESSION);
@@ -606,7 +636,10 @@ export function recordPopulation(
         posOutZ: position.z,
         draws: capture.draws,
         calls: [...capture.calls],
-        ships: [...capture.ships],
+        ships: capture.ships.map((ship) => ({
+          ...ship,
+          writes: ship.writes.filter((write) => write.cut === true),
+        })),
         shipGroups: [...capture.shipGroups],
       });
     }
@@ -621,18 +654,6 @@ export function recordPopulation(
   }
 
   const neighbourhood = host.neighbourhood();
-  const facts = readShipFacts(oolitesrc);
-  const shipFacts = sortedCodeUnits(host.usedKeys()).map((key) => {
-    const fact = facts.get(key);
-    if (fact === undefined) {
-      throw new Error(`no ship facts for ${key}`);
-    }
-    return {
-      key,
-      hyperspaceMotor: fact.hyperspaceMotor,
-      accuracy: fact.accuracy,
-    };
-  });
   const magnitude = (v: PopulatorVec): number =>
     Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
   const here = rows[index];
@@ -665,15 +686,14 @@ export function recordPopulation(
         }),
         l3: magnitude(sun),
       },
-      locals: neighbourhood.locals,
-      verylocals: neighbourhood.verylocals,
-      within25: neighbourhood.within25,
+      locals: neighbourhood.locals.map(leanNeighbour),
+      verylocals: neighbourhood.verylocals.map(leanNeighbour),
+      within25Count: neighbourhood.within25.length,
       bottleneck,
     },
     entries,
     engineOrder: order,
     groups,
-    shipFacts,
     inventory: { missing, cutReads: [...CUT_READS] },
   };
   return PopulationFixtureSchema.parse(fixture);
@@ -698,9 +718,22 @@ function stableJson(value: unknown): string {
   return JSON.stringify(sortKeys(value));
 }
 
-/** The exact bytes a fixture file holds. */
-export async function fixtureText(fixture: PopulationFixture): Promise<string> {
-  return format(stableJson(fixture), { parser: "json" });
+/**
+ * The exact bytes a fixture file holds: the compact file form of
+ * `tests/oracles/population/codec.ts`, one line of JSON with sorted object
+ * keys and a final newline (the directory is in `.prettierignore`: Prettier's
+ * array wrapping would multiply the size). The fixture must decode back to
+ * itself, so nothing is lost by the encoding.
+ */
+export function fixtureText(fixture: PopulationFixture): string {
+  const text = `${stableJson(encodePopulationFixture(fixture))}\n`;
+  const back = decodePopulationFixture(JSON.parse(text) as unknown);
+  if (stableJson(back) !== stableJson(fixture)) {
+    throw new Error(
+      `${fixture.header.system} seed ${String(fixture.header.seed)}: the file form does not decode to the recorded fixture`,
+    );
+  }
+  return text;
 }
 
 /** The file name of one (system, seed) fixture. */
@@ -709,22 +742,22 @@ export function fixtureFileName(systemId: string, seed: number): string {
 }
 
 /** Record one (system, seed) and write it into `outDir`; returns the path. */
-export async function writeFixture(
+export function writeFixture(
   oolitesrc: string,
   outDir: string,
   systemId: string,
   seed: number,
-): Promise<string> {
+): string {
   const fixture = recordPopulation(oolitesrc, systemId, seed);
   mkdirSync(outDir, { recursive: true });
   const path = join(outDir, fixtureFileName(systemId, seed));
-  writeFileSync(path, await fixtureText(fixture));
+  writeFileSync(path, fixtureText(fixture));
   return path;
 }
 
 /** The exact bytes of a widened file (table, edge draws, ship facts). */
-export async function widenedText(value: unknown): Promise<string> {
-  return format(stableJson(value), { parser: "json" });
+export function widenedText(value: unknown): string {
+  return `${stableJson(value)}\n`;
 }
 
 /** `_systemIsBottleneck` over the stub's own locals and their seconds. */
@@ -775,6 +808,65 @@ export function recordNeighbourhoodTable(
   });
 }
 
+/**
+ * The selector's proxy population of one system: the sum of the `groupCount`
+ * values of every entry the script registers when every draw is 0.5 (so
+ * `randomise` returns the rounded rate), the stub host answering the rest. It
+ * ranks systems for `selectPopulationSystems`; it is not a fixture value.
+ */
+export function proxyPopulation(oolitesrc: string, systemId: string): number {
+  const { host, ai } = loadPopulator(oolitesrc, systemId, 1);
+  Reflect.set(ai.global.Math as object, "random", () => 0.5);
+  callInContext(ai, "this.startUp()");
+  callInContext(ai, "this.systemWillPopulate()");
+  return host.registered.reduce(
+    (total, registered) => total + (registered.groupCount ?? 0),
+    0,
+  );
+}
+
+/**
+ * Every system of the eight galaxies as the selector sees it: the content
+ * facts, the proxy population and the neighbourhood of `table`.
+ */
+export function collectCandidates(
+  oolitesrc: string,
+  table: NeighbourhoodTable,
+): PopulationCandidate[] {
+  const candidates: PopulationCandidate[] = [];
+  for (let galaxy = 0; galaxy < POPULATION_GALAXIES; galaxy += 1) {
+    const row = table.galaxies[galaxy];
+    if (row === undefined) {
+      throw new Error(`the table has no galaxy ${String(galaxy)}`);
+    }
+    for (const system of galaxySystemsOf(galaxy)) {
+      const index = system.systemIndex;
+      const id = `g${String(galaxy)}-s${String(index)}`;
+      candidates.push({
+        id,
+        galaxy,
+        index,
+        name: system.name,
+        government: system.government,
+        economy: system.economy,
+        techLevel: system.techLevelRaw,
+        proxy: proxyPopulation(oolitesrc, id),
+        locals: row.locals[index]?.length ?? 0,
+        verylocals: row.verylocals[index]?.length ?? 0,
+        bottleneck: row.bottleneck.includes(index),
+      });
+    }
+  }
+  return candidates;
+}
+
+/** Re-run the selector from the pinned script (the gated rerun compares it). */
+export function recomputeSelection(oolitesrc: string): PopulationSelection {
+  return selectPopulationSystems(
+    collectCandidates(oolitesrc, recordNeighbourhoodTable(oolitesrc)),
+  );
+}
+
 function widenedHeader(): {
   oolitePin: typeof POPULATION_OOLITE_PIN;
   scriptFile: typeof POPULATION_SCRIPT_FILE;
@@ -795,22 +887,16 @@ export const NEIGHBOURHOOD_FILE = "neighbourhood-all.json";
  * `POPULATION_SYSTEMS` x `POPULATION_SEEDS` fixture and the table. Returns the
  * written paths.
  */
-export async function writeAll(
-  oolitesrc: string,
-  outDir: string,
-): Promise<string[]> {
+export function writeAll(oolitesrc: string, outDir: string): string[] {
   mkdirSync(outDir, { recursive: true });
   const written: string[] = [];
-  for (const { id } of POPULATION_SYSTEMS) {
-    for (const seed of POPULATION_SEEDS) {
-      written.push(await writeFixture(oolitesrc, outDir, id, seed));
+  for (const { id, seeds } of POPULATION_SYSTEMS) {
+    for (const seed of seeds) {
+      written.push(writeFixture(oolitesrc, outDir, id, seed));
     }
   }
   const tablePath = join(outDir, NEIGHBOURHOOD_FILE);
-  writeFileSync(
-    tablePath,
-    await widenedText(recordNeighbourhoodTable(oolitesrc)),
-  );
+  writeFileSync(tablePath, widenedText(recordNeighbourhoodTable(oolitesrc)));
   written.push(tablePath);
   return written;
 }
@@ -820,17 +906,23 @@ function argument(args: readonly string[], flag: string): string | undefined {
   return at >= 0 ? args[at + 1] : undefined;
 }
 
-async function main(args: readonly string[]): Promise<void> {
+function main(args: readonly string[]): void {
   const oolitesrc = process.env.OOLITE_SRC ?? "";
   if (oolitesrc === "") {
     throw new Error("OOLITE_SRC must name a tree built from Oolite 7437f22");
+  }
+  if (args.includes("--select")) {
+    process.stdout.write(
+      `${JSON.stringify(recomputeSelection(oolitesrc), null, 2)}\n`,
+    );
+    return;
   }
   const out = argument(args, "--out");
   if (out === undefined) {
     throw new Error("--out <dir> is required");
   }
   if (args.includes("--all")) {
-    for (const path of await writeAll(oolitesrc, resolve(out))) {
+    for (const path of writeAll(oolitesrc, resolve(out))) {
       process.stdout.write(`${path}\n`);
     }
     return;
@@ -840,16 +932,18 @@ async function main(args: readonly string[]): Promise<void> {
   if (!Number.isInteger(seed) || seed < 0) {
     throw new Error("--seed must be a non-negative integer");
   }
-  const path = await writeFixture(oolitesrc, resolve(out), systemId, seed);
+  const path = writeFixture(oolitesrc, resolve(out), systemId, seed);
   process.stdout.write(`${path}\n`);
 }
 
 const invoked = process.argv[1];
 if (invoked !== undefined && import.meta.url === pathToFileURL(invoked).href) {
-  main(process.argv.slice(2)).catch((error: unknown) => {
+  try {
+    main(process.argv.slice(2));
+  } catch (error: unknown) {
     process.stderr.write(
       `${error instanceof Error ? error.message : String(error)}\n`,
     );
     process.exitCode = 1;
-  });
+  }
 }

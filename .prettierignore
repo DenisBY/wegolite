@@ -16,3 +16,5 @@ src/content/generated
 tests/golden/content/dock-port.json
 # Vendored Oolite snapshot: third-party bytes, never reformatted.
 third_party
+# Recorded oracle fixtures: compact one-line JSON (tests/oracles/population/codec.ts), byte-compared by the OOLITE_SRC rerun; Prettier would multiply their size.
+tests/oracles/population/fixtures

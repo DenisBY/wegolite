@@ -97,13 +97,13 @@ function firstDifference(a: unknown, b: unknown, path = "$"): string | null {
 describe("populator recorder (needs OOLITE_SRC at the pinned tree)", () => {
   it.skipIf(NEEDS_TREE)(
     "reproduces every committed fixture byte for byte",
-    async () => {
+    () => {
       const fixtures = committedFixtures();
       expect(fixtures.length).toBeGreaterThan(0);
       const scratch = mkdtempSync(join(tmpdir(), "populator-record-"));
       try {
         for (const fixture of fixtures) {
-          const written = await writeFixture(
+          const written = writeFixture(
             OOLITE_SRC,
             scratch,
             fixture.system,

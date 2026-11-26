@@ -224,7 +224,12 @@ export const ShipSchema = z.strictObject({
   escortSlot: z.number().int().min(0).max(15).nullable(),
   /** Equipment keys the script awarded and did not remove, sorted. */
   equipment: z.array(z.string()),
-  /** Every write and call the script made on the ship. */
+  /**
+   * The writes and calls on paths the port cuts (missiles, AI switches,
+   * equipment other than the fuel injector, heat insulation, escort capacity),
+   * in the order they happened. The writes the final ship state already
+   * carries are not stored (plan 22-02 size rule).
+   */
   writes: z.array(ShipWriteSchema),
 });
 
@@ -284,6 +289,14 @@ export const NeighbourSchema = z.strictObject({
   seconds: z.array(NonNegativeInt),
 });
 
+/**
+ * What the fixture keeps of a neighbour. The `seconds` of the stub host (the
+ * ids within range of the neighbour) are not stored: they equal the
+ * neighbour's own row of `neighbourhood-all.json`, and the self-test proves it
+ * from that table.
+ */
+export const FixtureNeighbourSchema = NeighbourSchema.omit({ seconds: true });
+
 export const InputsSchema = z.strictObject({
   name: z.string().min(1),
   government: NonNegativeInt,
@@ -295,17 +308,11 @@ export const InputsSchema = z.strictObject({
     l2: z.number(),
     l3: z.number(),
   }),
-  locals: z.array(NeighbourSchema),
-  verylocals: z.array(NeighbourSchema),
-  within25: z.array(NonNegativeInt),
+  locals: z.array(FixtureNeighbourSchema),
+  verylocals: z.array(FixtureNeighbourSchema),
+  /** How many systems lie within 25 LY (the table holds the same count). */
+  within25Count: NonNegativeInt,
   bottleneck: z.boolean(),
-});
-
-export const ShipFactSchema = z.strictObject({
-  key: z.string().min(1),
-  hyperspaceMotor: z.boolean(),
-  /** The authored accuracy, or null when the record rolls one at spawn. */
-  accuracy: z.number().nullable(),
 });
 
 export const HeaderSchema = z.strictObject({
@@ -338,7 +345,6 @@ export const PopulationFixtureSchema = z.strictObject({
   entries: z.array(EntrySchema),
   engineOrder: z.array(NonNegativeInt),
   groups: z.array(GroupSchema),
-  shipFacts: z.array(ShipFactSchema),
   inventory: InventorySchema,
 });
 
@@ -350,6 +356,7 @@ export type PopulationShipGroup = z.infer<typeof ShipGroupSchema>;
 export type PopulationEngineCall = z.infer<typeof EngineCallSchema>;
 export type PopulationEntry = z.infer<typeof EntrySchema>;
 export type PopulationNeighbour = z.infer<typeof NeighbourSchema>;
+export type PopulationFixtureNeighbour = z.infer<typeof FixtureNeighbourSchema>;
 export type PopulationDraws = z.infer<typeof DrawsSchema>;
 
 // ---------------------------------------------------------------------------

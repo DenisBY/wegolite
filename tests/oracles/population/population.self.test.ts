@@ -19,14 +19,23 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  decodePopulationFixture,
+  encodePopulationFixture,
+  PopulationFixtureFileSchema,
+  POPULATION_ENTRY_TABLE,
+  POPULATION_STARTUP,
+} from "./codec.js";
+import {
   NeighbourhoodTableSchema,
   POPULATION_DRAW_TAGS,
   POPULATION_ENTRY_NAMES,
   POPULATION_EXACT_DRAW_TAGS,
   POPULATION_OOLITE_PIN,
+  POPULATION_SCRIPT_FILE,
   POPULATION_SCRIPT_SHA256,
   POPULATION_UNCOMPARED_DRAW_TAGS,
   PopulationFixtureSchema,
+  ShipFactsSchema,
   type NeighbourhoodTable,
   type PopulationFixture,
   type PopulationGroup,
@@ -65,7 +74,18 @@ function readJson(name: string): unknown {
 }
 
 function load(name: string): PopulationFixture {
-  return PopulationFixtureSchema.parse(readJson(name));
+  return decodePopulationFixture(readJson(name));
+}
+
+/** True when a recorded ship fact names an authored accuracy. */
+function anyAuthoredAccuracy(): boolean {
+  const name = "ship-facts.json";
+  if (!existsSync(`${FIXTURE_DIR}${name}`)) {
+    return false;
+  }
+  return ShipFactsSchema.parse(readJson(name)).ships.some(
+    (ship) => ship.accuracy !== null,
+  );
 }
 
 const FILES = fixtureFiles();
@@ -98,89 +118,113 @@ describe("population oracle: the committed fixtures", () => {
 });
 
 describe("population oracle: schema strictness", () => {
-  const base = (): PopulationFixture => load(TRACER_FILE);
+  /** The raw file JSON of the tracer, deep-copied for mutation. */
+  const raw = (): Record<string, unknown> =>
+    JSON.parse(JSON.stringify(readJson(TRACER_FILE))) as Record<
+      string,
+      unknown
+    >;
+  const groupsOf = (file: Record<string, unknown>): unknown[][] =>
+    file.groups as unknown[][];
+
+  it("accepts the untouched tracer file (non-vacuity of the refusals below)", () => {
+    expect(PopulationFixtureFileSchema.safeParse(raw()).success).toBe(true);
+    expect(() => decodePopulationFixture(raw())).not.toThrow();
+  });
 
   it("refuses an unknown top-level key", () => {
-    const fixture = { ...base(), extra: 1 };
-    expect(PopulationFixtureSchema.safeParse(fixture).success).toBe(false);
+    expect(
+      PopulationFixtureFileSchema.safeParse({ ...raw(), extra: 1 }).success,
+    ).toBe(false);
   });
 
-  it("refuses an unknown key inside an entry, a group and a ship", () => {
-    const withEntry = base();
-    const entry0 = withEntry.entries[0];
-    expect(entry0).toBeDefined();
-    const mutatedEntry = {
-      ...withEntry,
-      entries: [{ ...entry0, extra: 1 }, ...withEntry.entries.slice(1)],
-    };
-    expect(PopulationFixtureSchema.safeParse(mutatedEntry).success).toBe(false);
+  it("refuses a ship, a call, a group and an inputs object with an extra member", () => {
+    const withShip = raw();
+    (groupsOf(withShip)[0]?.[5] as unknown[][])[0]?.push(0);
+    expect(PopulationFixtureFileSchema.safeParse(withShip).success).toBe(false);
 
-    const withShip = base();
-    const group = withShip.groups[0];
-    const ship = group?.ships[0];
-    expect(group).toBeDefined();
-    expect(ship).toBeDefined();
-    const mutatedShip = {
-      ...withShip,
-      groups: [
-        {
-          ...group,
-          ships: [{ ...ship, extra: 1 }, ...(group?.ships.slice(1) ?? [])],
-        },
-        ...withShip.groups.slice(1),
-      ],
-    };
-    expect(PopulationFixtureSchema.safeParse(mutatedShip).success).toBe(false);
+    const withCall = raw();
+    (groupsOf(withCall)[0]?.[4] as unknown[][])[0]?.push(0);
+    expect(PopulationFixtureFileSchema.safeParse(withCall).success).toBe(false);
 
-    const mutatedGroup = {
-      ...withShip,
-      groups: [{ ...group, extra: 1 }, ...withShip.groups.slice(1)],
+    const withGroup = raw();
+    groupsOf(withGroup)[0]?.push(0);
+    expect(PopulationFixtureFileSchema.safeParse(withGroup).success).toBe(
+      false,
+    );
+
+    const withInputs = raw();
+    withInputs.inputs = {
+      ...(withInputs.inputs as Record<string, unknown>),
+      extra: 1,
     };
-    expect(PopulationFixtureSchema.safeParse(mutatedGroup).success).toBe(false);
+    expect(PopulationFixtureFileSchema.safeParse(withInputs).success).toBe(
+      false,
+    );
   });
 
-  it("refuses a draw tag outside the closed list and a draw that is not a u32", () => {
-    const fixture = base();
-    const group = fixture.groups[0];
-    expect(group).toBeDefined();
-    const badTag = {
-      ...fixture,
-      groups: [
-        { ...group, draws: { ...group?.draws, unknown: [1] } },
-        ...fixture.groups.slice(1),
-      ],
-    };
-    expect(PopulationFixtureSchema.safeParse(badTag).success).toBe(false);
-    const badValue = {
-      ...fixture,
-      groups: [
-        { ...group, draws: { ...group?.draws, body: [4294967296] } },
-        ...fixture.groups.slice(1),
-      ],
-    };
-    expect(PopulationFixtureSchema.safeParse(badValue).success).toBe(false);
-    const fraction = {
-      ...fixture,
-      groups: [
-        { ...group, draws: { ...group?.draws, body: [0.5] } },
-        ...fixture.groups.slice(1),
-      ],
-    };
-    expect(PopulationFixtureSchema.safeParse(fraction).success).toBe(false);
+  it("refuses a draw tag outside the closed list and a draw that is not a base-36 u32", () => {
+    const badTag = raw();
+    const draws = groupsOf(badTag)[0]?.[3] as Record<string, string>;
+    draws.unknown = "0000001";
+    expect(PopulationFixtureFileSchema.safeParse(badTag).success).toBe(false);
+
+    const shortDraw = raw();
+    (groupsOf(shortDraw)[0]?.[3] as Record<string, string>).body = "abc";
+    expect(PopulationFixtureFileSchema.safeParse(shortDraw).success).toBe(
+      false,
+    );
+
+    const tooBig = raw();
+    (groupsOf(tooBig)[0]?.[3] as Record<string, string>).body = "zzzzzzz";
+    expect(() => decodePopulationFixture(tooBig)).toThrow();
   });
 
-  it("refuses a header that is not the pinned script", () => {
-    const fixture = base();
-    const wrongHash = {
-      ...fixture,
-      header: { ...fixture.header, scriptSha256: "0".repeat(64) },
-    };
-    expect(PopulationFixtureSchema.safeParse(wrongHash).success).toBe(false);
-    const wrongPin = {
-      ...fixture,
-      header: { ...fixture.header, oolitePin: "21978c3" },
-    };
-    expect(PopulationFixtureSchema.safeParse(wrongPin).success).toBe(false);
+  it("refuses a dictionary index outside the dictionary", () => {
+    const file = raw();
+    ((groupsOf(file)[0]?.[5] as unknown[][])[0] as unknown[])[0] = 999999;
+    expect(() => decodePopulationFixture(file)).toThrow();
+  });
+
+  it("decodes the constants of the script and nothing the file does not hold", () => {
+    const fixture = load(TRACER_FILE);
+    expect(fixture.header).toEqual({
+      oolitePin: POPULATION_OOLITE_PIN,
+      scriptFile: POPULATION_SCRIPT_FILE,
+      scriptSha256: POPULATION_SCRIPT_SHA256,
+      system: "g0-s7",
+      galaxy: 0,
+      systemIndex: 7,
+      seed: 1,
+      startUp: POPULATION_STARTUP,
+    });
+    expect(fixture.entries.map((entry) => entry.name)).toEqual(
+      POPULATION_ENTRY_TABLE.map((entry) => entry.name),
+    );
+  });
+
+  it("encodes a decoded fixture back to the same file (the encoding is lossless)", () => {
+    const fixture = load(TRACER_FILE);
+    expect(encodePopulationFixture(fixture)).toEqual(raw());
+  });
+
+  it("refuses a logical fixture that breaks the schema", () => {
+    const fixture = load(TRACER_FILE);
+    expect(
+      PopulationFixtureSchema.safeParse({ ...fixture, extra: 1 }).success,
+    ).toBe(false);
+    expect(
+      PopulationFixtureSchema.safeParse({
+        ...fixture,
+        header: { ...fixture.header, scriptSha256: "0".repeat(64) },
+      }).success,
+    ).toBe(false);
+    expect(
+      PopulationFixtureSchema.safeParse({
+        ...fixture,
+        header: { ...fixture.header, oolitePin: "21978c3" },
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -330,7 +374,7 @@ describe.each(FILES)("population oracle invariants: %s", (name) => {
   });
 
   it("rolls one injector and one accuracy per ship the engine created", () => {
-    const authored = fixture.shipFacts.some((fact) => fact.accuracy !== null);
+    const authored = anyAuthoredAccuracy();
     for (const group of fixture.groups) {
       expect(group.draws.injector?.length ?? 0).toBe(group.ships.length);
       if (!authored) {
@@ -424,7 +468,13 @@ describe.each(FILES)("population oracle invariants: %s", (name) => {
         expect(Math.fround(ship.accuracy)).toBe(ship.accuracy);
         expect(ship.accuracy).toBeGreaterThanOrEqual(-5);
         expect(ship.accuracy).toBeLessThanOrEqual(10);
-        expect(ship.fuel).toBeLessThanOrEqual(70);
+        // The engine clamps a script write of `fuel` to 7 LY (70 tenths). The
+        // police interceptor hull is authored with 16 LY and the script never
+        // writes police fuel, so its authored value stands (found when the
+        // sample widened past Lave).
+        expect(ship.fuel).toBeLessThanOrEqual(
+          ship.key === "viper-interceptor" ? 160 : 70,
+        );
         if (ship.cargoKind === "unset") {
           expect(ship.cargoCount).toBe(0);
         }
@@ -457,12 +507,6 @@ describe.each(FILES)("population oracle invariants: %s", (name) => {
         expect(switched.cut).toBe(true);
         expect(ship.cargoKind).toBe("pirate");
         expect(ship.bounty).toBeGreaterThan(0);
-        expect(
-          ship.writes.some(
-            (write) =>
-              write.member === "setCargoType" && write.value === "PIRATE_GOODS",
-          ),
-        ).toBe(true);
       }
     }
   });
@@ -481,18 +525,11 @@ describe.each(FILES)("population oracle invariants: %s", (name) => {
     const veryIds = inputs.verylocals.map((neighbour) => neighbour.id);
     expect(ascending(localIds)).toBe(true);
     expect(ascending(veryIds)).toBe(true);
-    expect(ascending(inputs.within25)).toBe(true);
     for (const id of veryIds) {
       expect(localIds).toContain(id);
     }
-    for (const id of localIds) {
-      expect(inputs.within25).toContain(id);
-    }
-    for (const neighbour of [...inputs.locals, ...inputs.verylocals]) {
-      expect(ascending(neighbour.seconds)).toBe(true);
-      expect(neighbour.seconds).toContain(fixture.header.systemIndex);
-      expect(neighbour.seconds).not.toContain(neighbour.id);
-    }
+    expect(inputs.within25Count).toBeGreaterThanOrEqual(localIds.length);
+    expect(localIds).not.toContain(fixture.header.systemIndex);
     expect(inputs.laneLengths.l1).toBeGreaterThan(0);
     expect(inputs.laneLengths.l2).toBeGreaterThan(0);
     expect(inputs.laneLengths.l3).toBeGreaterThan(0);
@@ -508,7 +545,7 @@ describe.each(FILES)("population oracle invariants: %s", (name) => {
     expect(fixture.inputs.verylocals.map((neighbour) => neighbour.id)).toEqual(
       row?.verylocals[at],
     );
-    expect(fixture.inputs.within25).toHaveLength(row?.within25[at] ?? -1);
+    expect(fixture.inputs.within25Count).toBe(row?.within25[at]);
     expect(fixture.inputs.bottleneck).toBe(
       row?.bottleneck.includes(at) === true,
     );
@@ -595,13 +632,9 @@ describe("population oracle: the neighbourhood table", () => {
 });
 
 describe("population oracle: the isolated anchor (g7-s162, Oresrati)", () => {
-  const names = [
-    "g7-s162-seed1.json",
-    "g7-s162-seed2.json",
-    "g7-s162-seed3.json",
-  ];
+  const names = ["g7-s162-seed1.json", "g7-s162-seed2.json"];
 
-  it("is recorded for the three seeds", () => {
+  it("is recorded for seeds 1 and 2 (size rule: no third seed)", () => {
     for (const name of names) {
       expect(FILES, name).toContain(name);
     }
@@ -641,4 +674,105 @@ describe("population oracle: the isolated anchor (g7-s162, Oresrati)", () => {
       expect(fixture.groups[0]?.ships).toHaveLength(1);
     },
   );
+});
+
+/** One fixture's inputs by system, read from the fixtures alone (D-04). */
+function sampleOf(): Map<
+  string,
+  { fixture: PopulationFixture; seeds: number[] }
+> {
+  const sample = new Map<
+    string,
+    { fixture: PopulationFixture; seeds: number[] }
+  >();
+  for (const name of FILES) {
+    const fixture = load(name);
+    const known = sample.get(fixture.header.system);
+    if (known === undefined) {
+      sample.set(fixture.header.system, {
+        fixture,
+        seeds: [fixture.header.seed],
+      });
+    } else {
+      known.seeds.push(fixture.header.seed);
+    }
+  }
+  return sample;
+}
+
+describe("population oracle: the stratified sample (D-04)", () => {
+  const sample = sampleOf();
+  const systems = [...sample.values()].map((entry) => entry.fixture);
+  const has = (id: string): boolean => sample.has(id);
+
+  it("holds 30 to 36 systems, each with seed 1 and at most seeds 1 to 3", () => {
+    expect(sample.size).toBeGreaterThanOrEqual(30);
+    expect(sample.size).toBeLessThanOrEqual(36);
+    for (const [id, entry] of sample) {
+      expect(entry.seeds.sort(), id).toContain(1);
+      expect(
+        entry.seeds.every((seed) => [1, 2, 3].includes(seed)),
+        id,
+      ).toBe(true);
+    }
+  });
+
+  it("covers all 8 governments, both economy sides and low and high tech levels", () => {
+    const governments = new Set(systems.map((f) => f.inputs.government));
+    expect([...governments].sort()).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(systems.some((f) => f.inputs.economy <= 3)).toBe(true);
+    expect(systems.some((f) => f.inputs.economy >= 4)).toBe(true);
+    expect(systems.some((f) => f.inputs.techLevel <= 4)).toBe(true);
+    expect(systems.some((f) => f.inputs.techLevel >= 9)).toBe(true);
+    expect(
+      systems.some((f) => f.inputs.techLevel >= 9 && f.inputs.government >= 2),
+    ).toBe(true);
+    expect(systems.some((f) => f.inputs.techLevel === 14)).toBe(true);
+  });
+
+  it("covers an isolated system, a bottleneck system and both no-near-neighbour branches", () => {
+    expect(has("g7-s162")).toBe(true);
+    expect(sample.get("g7-s162")?.fixture.inputs.locals).toEqual([]);
+    expect(systems.some((f) => f.inputs.bottleneck)).toBe(true);
+    const noNear = systems.filter(
+      (f) => f.inputs.verylocals.length === 0 && f.inputs.locals.length > 0,
+    );
+    expect(noNear.some((f) => f.inputs.government > 5)).toBe(true);
+    expect(noNear.some((f) => f.inputs.government <= 5)).toBe(true);
+  });
+
+  it("covers the courier-bug peaks: bottleneck systems with 10 or more neighbours", () => {
+    for (const id of ["g3-s239", "g0-s92"]) {
+      const inputs = sample.get(id)?.fixture.inputs;
+      expect(inputs, id).toBeDefined();
+      expect(inputs?.bottleneck, id).toBe(true);
+      expect(inputs?.locals.length ?? 0, id).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("covers the anarchy tail: the largest anarchy of the universe and of galaxy 0", () => {
+    // Chosen by the selector's proxy population (tools/ai-harness/population-systems.ts);
+    // the OOLITE_SRC-gated rerun recomputes the selection and compares.
+    for (const id of ["g3-s123", "g0-s219"]) {
+      expect(sample.get(id)?.fixture.inputs.government, id).toBe(0);
+    }
+  });
+
+  it("covers the largest feudal state, the start system and at least five galaxies", () => {
+    expect(sample.get("g6-s57")?.fixture.inputs.government).toBe(1);
+    expect(has("g0-s7")).toBe(true);
+    const galaxies = new Set(systems.map((f) => f.header.galaxy));
+    expect(galaxies.size).toBeGreaterThanOrEqual(5);
+  });
+
+  it("leaves every system fixture equal to its row of the neighbourhood table", () => {
+    for (const fixture of systems) {
+      const row = table().galaxies[fixture.header.galaxy];
+      const at = fixture.header.systemIndex;
+      expect(
+        fixture.inputs.locals.map((n) => n.id),
+        fixture.header.system,
+      ).toEqual(row?.locals[at]);
+    }
+  });
 });
