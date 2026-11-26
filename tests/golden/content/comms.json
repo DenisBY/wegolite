@@ -1,4 +1,5 @@
 {
+  "descriptionIndexes": [7],
   "entries": [
     {
       "key": "beg-for-mercy",
@@ -101,5 +102,5 @@
       ]
     }
   ],
-  "variables": ["%H", "%R", "[7]", "[oolite_demandSize]", "[oolite_entityName]"]
+  "variables": ["%H", "%R", "[oolite_demandSize]", "[oolite_entityName]"]
 }

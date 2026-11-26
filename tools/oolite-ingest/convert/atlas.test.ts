@@ -20,19 +20,27 @@ import { describe, expect, it } from "vitest";
 
 import { parseOpenStep } from "../openstep/parser.js";
 import {
+  ATLAS_GUTTER,
   MAX_HULL_ATLAS_SIDE,
   mergeHullPrimitives,
   packHullAtlas,
   refusalText,
 } from "./atlas.js";
-import type { AtlasImage, MergeOutcome, RgbaImage } from "./atlas.js";
+import type {
+  AtlasImage,
+  AtlasRegion,
+  MergeOutcome,
+  RgbaImage,
+} from "./atlas.js";
 import { parseDat, repairWinding, selectNormalMode } from "./dat.js";
 import type { ParsedMesh } from "./dat.js";
 import {
   MERGED_NPC_GLBS,
   MODEL_SOURCE_FILES,
   EMITTED_ENTRIES,
+  atlasImagesOf,
   convertMesh,
+  encodedTextureFile,
   hullTextureNames,
   materialFor,
   planHullMerges,
@@ -135,40 +143,196 @@ function mergedOf(outcome: MergeOutcome) {
   return outcome;
 }
 
+/**
+ * Every texel outside the regions must hold a texel of a nearest region
+ * (Chebyshev distance): within the gutter its edge mirrored (the texel at
+ * distance d past the edge is the one at distance d - 1 inside), past the
+ * gutter the outermost mirrored texel. A neutral fill or a far region fails.
+ * Computed here by brute force, independently of `gutterSources`.
+ */
+function outsideMismatches(
+  data: Uint8Array,
+  side: number,
+  channels: number,
+  regions: readonly AtlasRegion[],
+): { mismatches: number; gutter: number; outside: number } {
+  let mismatches = 0;
+  let gutter = 0;
+  let outside = 0;
+  const clamp = (value: number, low: number, high: number): number =>
+    Math.min(Math.max(value, low), high);
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      const nearest: number[] = [];
+      let best = Number.POSITIVE_INFINITY;
+      for (const region of regions) {
+        const distance = Math.max(
+          Math.abs(x - clamp(x, region.x, region.x + region.side - 1)),
+          Math.abs(y - clamp(y, region.y, region.y + region.side - 1)),
+        );
+        if (distance < best) {
+          best = distance;
+          nearest.length = 0;
+        }
+        if (distance === best) {
+          const mirror = (at: number, start: number, size: number): number => {
+            const t = clamp(at - start, -ATLAS_GUTTER, size - 1 + ATLAS_GUTTER);
+            if (t < 0) return start + reflectInside(-1 - t, size);
+            if (t >= size) return start + reflectInside(2 * size - 1 - t, size);
+            return start + t;
+          };
+          const sx = mirror(x, region.x, region.side);
+          const sy = mirror(y, region.y, region.side);
+          nearest.push(sy * side + sx);
+        }
+      }
+      if (best === 0) continue;
+      outside += 1;
+      if (best <= ATLAS_GUTTER) gutter += 1;
+      const at = (y * side + x) * channels;
+      const matches = nearest.some((source) => {
+        for (let channel = 0; channel < channels; channel++) {
+          if (data[at + channel] !== data[source * channels + channel]) {
+            return false;
+          }
+        }
+        return true;
+      });
+      if (!matches) mismatches += 1;
+    }
+  }
+  return { mismatches, gutter, outside };
+}
+
+/** A mirrored offset folded back into `[0, size)` for a map under the gutter. */
+function reflectInside(t: number, size: number): number {
+  let value = t;
+  while (value < 0 || value >= size) {
+    value = value < 0 ? -1 - value : 2 * size - 1 - value;
+  }
+  return value;
+}
+
+/** Box-filtered mip levels 0..levels of a square image (every side even). */
+function boxChain(
+  data: Uint8Array,
+  side: number,
+  channels: number,
+  levels: number,
+): Float32Array[] {
+  const chain: Float32Array[] = [Float32Array.from(data)];
+  let size = side;
+  for (let level = 1; level <= levels; level++) {
+    const previous = chain[level - 1] ?? new Float32Array(0);
+    if (size % 2 !== 0) throw new Error(`side ${String(size)} is odd`);
+    const half = size / 2;
+    const next = new Float32Array(half * half * channels);
+    for (let y = 0; y < half; y++) {
+      for (let x = 0; x < half; x++) {
+        for (let channel = 0; channel < channels; channel++) {
+          const read = (dx: number, dy: number): number =>
+            previous[((2 * y + dy) * size + 2 * x + dx) * channels + channel] ??
+            0;
+          next[(y * half + x) * channels + channel] =
+            (read(0, 0) + read(1, 0) + read(0, 1) + read(1, 1)) / 4;
+        }
+      }
+    }
+    chain.push(next);
+    size = half;
+  }
+  return chain;
+}
+
+/** A bilinear fetch at (u, v) from one mip level, CLAMP_TO_EDGE addressing. */
+function bilinear(
+  level: Float32Array,
+  size: number,
+  channels: number,
+  u: number,
+  v: number,
+): number[] {
+  const fx = u * size - 0.5;
+  const fy = v * size - 0.5;
+  const x0 = Math.floor(fx);
+  const y0 = Math.floor(fy);
+  const wx = fx - x0;
+  const wy = fy - y0;
+  const clamp = (value: number): number =>
+    Math.min(Math.max(value, 0), size - 1);
+  const out: number[] = [];
+  for (let channel = 0; channel < channels; channel++) {
+    const read = (x: number, y: number): number =>
+      level[(clamp(y) * size + clamp(x)) * channels + channel] ?? 0;
+    out.push(
+      (1 - wy) * ((1 - wx) * read(x0, y0) + wx * read(x0 + 1, y0)) +
+        wy * ((1 - wx) * read(x0, y0 + 1) + wx * read(x0 + 1, y0 + 1)),
+    );
+  }
+  return out;
+}
+
+/** The texels of one region, as its own square image. */
+function regionImage(
+  data: Uint8Array,
+  side: number,
+  channels: number,
+  region: AtlasRegion,
+): Uint8Array {
+  const out = new Uint8Array(region.side * region.side * channels);
+  for (let y = 0; y < region.side; y++) {
+    out.set(
+      data.subarray(
+        ((region.y + y) * side + region.x) * channels,
+        ((region.y + y) * side + region.x + region.side) * channels,
+      ),
+      y * region.side * channels,
+    );
+  }
+  return out;
+}
+
 describe("packHullAtlas", () => {
-  it("lays the anaconda's three regions (1024, 512, 512) on one square atlas", () => {
+  it("lays the anaconda's three regions (1024, 512, 512) on one square atlas, each in a 32-texel gutter", () => {
+    expect(ATLAS_GUTTER).toBe(32);
     const layout = packHullAtlas([1024, 512, 512]);
-    expect(layout.side).toBe(1536);
+    expect(layout.side).toBe(1664);
     expect(layout.side).toBeLessThanOrEqual(MAX_HULL_ATLAS_SIDE);
     expect(layout.regions).toEqual([
-      { x: 0, y: 0, side: 1024 },
-      { x: 1024, y: 0, side: 512 },
-      { x: 1024, y: 512, side: 512 },
+      { x: 32, y: 32, side: 1024 },
+      { x: 1120, y: 32, side: 512 },
+      { x: 1120, y: 608, side: 512 },
     ]);
   });
 
-  it("aligns every region to a multiple of its own side, without overlap", () => {
+  it("keeps every region on the gutter grid, a gutter from the atlas edge and two gutters from any other region (TOOLS-WR-01)", () => {
+    const gutter = ATLAS_GUTTER;
     for (const sides of [
       [256, 1024, 512, 256],
       [128, 128, 512, 1024, 256],
       [512, 512, 512, 512, 512],
+      [128, 1024],
     ]) {
       const layout = packHullAtlas(sides);
+      expect(layout.side % gutter).toBe(0);
       layout.regions.forEach((region, index) => {
         expect(region.side).toBe(sides[index]);
-        expect(region.x % region.side).toBe(0);
-        expect(region.y % region.side).toBe(0);
-        expect(region.x + region.side).toBeLessThanOrEqual(layout.side);
-        expect(region.y + region.side).toBeLessThanOrEqual(layout.side);
+        expect(region.x % gutter).toBe(0);
+        expect(region.y % gutter).toBe(0);
+        expect(region.x).toBeGreaterThanOrEqual(gutter);
+        expect(region.y).toBeGreaterThanOrEqual(gutter);
+        expect(region.x + region.side + gutter).toBeLessThanOrEqual(
+          layout.side,
+        );
+        expect(region.y + region.side + gutter).toBeLessThanOrEqual(
+          layout.side,
+        );
       });
       for (const [i, a] of layout.regions.entries()) {
         for (const b of layout.regions.slice(i + 1)) {
-          const apart =
-            a.x + a.side <= b.x ||
-            b.x + b.side <= a.x ||
-            a.y + a.side <= b.y ||
-            b.y + b.side <= a.y;
-          expect(apart).toBe(true);
+          const gapX = Math.max(b.x - (a.x + a.side), a.x - (b.x + b.side));
+          const gapY = Math.max(b.y - (a.y + a.side), a.y - (b.y + b.side));
+          expect(Math.max(gapX, gapY)).toBeGreaterThanOrEqual(2 * gutter);
         }
       }
     }
@@ -176,18 +340,34 @@ describe("packHullAtlas", () => {
 
   it("is a pure function of the sides and their order", () => {
     expect(packHullAtlas([1024, 256])).toEqual(packHullAtlas([1024, 256]));
-    expect(packHullAtlas([1024, 256]).side).toBe(1280);
-    expect(packHullAtlas([512, 512]).side).toBe(1024);
+    expect(packHullAtlas([1024, 256]).side).toBe(1408);
+    expect(packHullAtlas([1024, 128]).side).toBe(1280);
+    expect(packHullAtlas([512, 512]).side).toBe(1152);
   });
 
-  it("holds exactly 2048 texels per side and needs 2049 for a 2048 region plus a texel", () => {
-    expect(packHullAtlas([2048]).side).toBe(MAX_HULL_ATLAS_SIDE);
-    expect(packHullAtlas([1024, 1024, 1024]).side).toBe(MAX_HULL_ATLAS_SIDE);
-    expect(packHullAtlas([2048, 1]).side).toBe(MAX_HULL_ATLAS_SIDE + 1);
+  it("pads a region by the gutter on every side, a small region rounded up to the gutter grid", () => {
+    expect(packHullAtlas([8], 4)).toEqual({
+      side: 16,
+      regions: [{ x: 4, y: 4, side: 8 }],
+    });
+    expect(packHullAtlas([2], 4)).toEqual({
+      side: 12,
+      regions: [{ x: 4, y: 4, side: 2 }],
+    });
+    expect(packHullAtlas([1024]).side).toBe(1024 + 2 * ATLAS_GUTTER);
   });
 
-  it("refuses a side that is not a power of two, and an empty hull", () => {
-    expect(() => packHullAtlas([300])).toThrow("not a power of 2");
+  it("holds exactly 2048 texels per side, and two 1024 maps need more (condition (c))", () => {
+    expect(packHullAtlas([1024], 512).side).toBe(MAX_HULL_ATLAS_SIDE);
+    expect(packHullAtlas([2048], 1).side).toBe(MAX_HULL_ATLAS_SIDE + 2);
+    expect(packHullAtlas([1024, 1024]).side).toBe(2176);
+  });
+
+  it("refuses a side or a gutter that is not a power of two, and an empty hull", () => {
+    expect(() => packHullAtlas([300])).toThrow("side 300 is not a power of 2");
+    expect(() => packHullAtlas([256], 3)).toThrow(
+      "gutter 3 is not a power of 2",
+    );
     expect(() => packHullAtlas([])).toThrow("no regions");
   });
 });
@@ -241,6 +421,49 @@ describe("mergeHullPrimitives: validity conditions", () => {
     expect(merged.primitive.indices).toEqual(
       new Uint32Array([0, 1, 2, 3, 4, 5]),
     );
+  });
+
+  it("honours each source index buffer, offset by the primitive's first vertex (TOOLS-IN-01)", () => {
+    // A quad of four shared vertices, two triangles: not an identity buffer.
+    const quad: GlbPrimitive = {
+      materialName: "B",
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]),
+      uvs: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
+      indices: new Uint32Array([0, 1, 2, 2, 1, 3]),
+      min: [0, 0, 0],
+      max: [1, 1, 0],
+    };
+    const first = triangle("A", [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+    ]);
+    const merged = mergedOf(
+      mergeHullPrimitives({
+        model: "x",
+        primitives: [first, quad],
+        materials,
+        textures: lookupOf(maps),
+      }),
+    );
+    expect(merged.primitive.positions).toHaveLength(21);
+    expect(merged.primitive.indices).toEqual(
+      new Uint32Array([0, 1, 2, 3, 4, 5, 5, 4, 6]),
+    );
+
+    const broken: GlbPrimitive = {
+      ...quad,
+      indices: new Uint32Array([0, 1, 4]),
+    };
+    expect(() =>
+      mergeHullPrimitives({
+        model: "x",
+        primitives: [first, broken],
+        materials,
+        textures: lookupOf(maps),
+      }),
+    ).toThrow("outside its 4 vertices");
   });
 
   it.each([1.0001, -0.0001, Number.NaN])(
@@ -461,7 +684,9 @@ describe("mergeHullPrimitives: texel exactness through the PNG path", () => {
     expect(outcome.layout.regions.map((region) => region.side)).toEqual([
       16, 8, 8,
     ]);
-    expect(outcome.layout.side).toBe(24);
+    // Three footprints of 32 + 2 x 32 texels (the maps rounded up to the
+    // gutter grid, then the gutter on both sides).
+    expect(outcome.layout.side).toBe(192);
     expect(outcome.images.map((image) => image.slot).sort()).toEqual([
       "diffuse",
       "emissive",
@@ -549,6 +774,23 @@ describe("mergeHullPrimitives: texel exactness through the PNG path", () => {
     });
   });
 
+  it("fills every texel outside the regions from the nearest region's mirrored edge, through the PNG path (TOOLS-WR-01)", () => {
+    for (const image of outcome.images) {
+      const data =
+        image.channels === 1
+          ? image.data
+          : decodePng(encodeAtlasPng(image)).data;
+      const result = outsideMismatches(
+        data,
+        image.side,
+        image.channels,
+        outcome.layout.regions,
+      );
+      expect(result.gutter, image.slot).toBeGreaterThan(0);
+      expect(result.mismatches, image.slot).toBe(0);
+    }
+  });
+
   it("takes an interior corner through sampleNearest on the atlas itself", () => {
     const image = outcome.images.find(
       (candidate) => candidate.slot === "diffuse",
@@ -621,6 +863,70 @@ describe("mergeHullPrimitives: texel exactness through the PNG path", () => {
   });
 });
 
+describe("atlasImagesOf (TOOLS-IN-03)", () => {
+  function image(fields: Partial<AtlasImage>): AtlasImage {
+    return {
+      slot: "emissive",
+      name: "oolite_x_emissive_atlas_000000000000.png",
+      side: 2,
+      channels: 1,
+      data: new Uint8Array([1, 2, 3, 4]),
+      inputTextures: ["a.png"],
+      inputConfig: [],
+      regions: 1,
+      ...fields,
+    };
+  }
+  function plan(...images: AtlasImage[][]): Map<string, MergeOutcome> {
+    return new Map(
+      images.map((list, index): [string, MergeOutcome] => [
+        `hull-${String(index)}.glb`,
+        {
+          kind: "merged",
+          primitive: triangle("A", [
+            [0, 0],
+            [1, 0],
+            [0, 1],
+          ]),
+          material: material("A", {}),
+          images: list,
+          layout: { side: 2, regions: [] },
+        },
+      ]),
+    );
+  }
+
+  it("keeps one image per name and names the union of its producers' inputs", () => {
+    const merged = atlasImagesOf(
+      plan(
+        [image({ inputTextures: ["b.png"], inputConfig: ["y.plist"] })],
+        [
+          image({
+            inputTextures: ["a.png", "b.png"],
+            inputConfig: ["x.plist"],
+          }),
+        ],
+      ),
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.inputTextures).toEqual(["a.png", "b.png"]);
+    expect(merged[0]?.inputConfig).toEqual(["x.plist", "y.plist"]);
+  });
+
+  it("fails loudly on one name with different content", () => {
+    for (const other of [
+      image({ data: new Uint8Array([1, 2, 3, 5]) }),
+      image({ side: 4, data: new Uint8Array(16) }),
+      image({ slot: "diffuse" }),
+      image({ channels: 4, data: new Uint8Array(16) }),
+    ]) {
+      expect(() => atlasImagesOf(plan([image({})], [other]))).toThrow(
+        "produced twice with different content",
+      );
+    }
+  });
+});
+
 describe("the vendored hulls", () => {
   const ENTRY_KEYS = ["anaconda", "anaconda-pirate"];
 
@@ -677,7 +983,12 @@ describe("the vendored hulls", () => {
     expect(merged.layout.regions.map((region) => region.side)).toEqual([
       512, 512, 1024,
     ]);
-    expect(merged.layout.side).toBe(1536);
+    expect(merged.layout.regions).toEqual([
+      { x: 1120, y: 32, side: 512 },
+      { x: 1120, y: 608, side: 512 },
+      { x: 32, y: 32, side: 1024 },
+    ]);
+    expect(merged.layout.side).toBe(1664);
     const sourceVertices =
       (models["oolite_anaconda.dat"]?.faces.length ?? 0) * 3;
     expect(merged.primitive.positions.length / 3).toBe(sourceVertices);
@@ -758,8 +1069,13 @@ describe("the vendored hulls", () => {
       const source = MODEL_SOURCE_FILES[file]?.[0] ?? "";
       const owner = EMITTED_ENTRIES[file]?.[0] ?? "";
       const entry = entries[owner];
-      const mesh = structuredClone(models[source]);
-      if (entry === undefined || mesh === undefined) throw new Error(file);
+      // A fresh parse of the vendored file, repaired exactly once here: the
+      // expectation never depends on what the merge plan did to its own copy
+      // (TOOLS-WR-02). The plan must leave its input untouched as well.
+      const path = `third_party/oolite/Models/${source}`;
+      const mesh = parseDat(readFileSync(join(REPO_ROOT, path), "utf8"), path);
+      if (entry === undefined) throw new Error(file);
+      expect(models[source], `${file} parsed mesh`).toEqual(mesh);
       const mode = selectNormalMode(mesh, { smooth: entry.shipDef.smooth });
       repairWinding(mesh, mode);
       const primitives = convertMesh(mesh, mode, "gltf");
@@ -846,6 +1162,166 @@ describe("the vendored hulls", () => {
         cursor += count;
       }
       expect(checked, file).toBe(outcome.primitive.positions.length / 3);
+    },
+    300_000,
+  );
+
+  it("names every producer's inputs in each atlas file's ASSETS.md row (TOOLS-IN-03)", async () => {
+    const { outcomes } = await planAll();
+    const assets = readFileSync(join(REPO_ROOT, "ASSETS.md"), "utf8").split(
+      "\n",
+    );
+    const images = atlasImagesOf(outcomes);
+    let shared = 0;
+    for (const image of images) {
+      const path = `public/textures/${encodedTextureFile(image.name)}`;
+      const row = assets.find((line) => line.startsWith(`| ${path} `));
+      expect(row, path).toBeDefined();
+      const producers = [...outcomes.values()].flatMap((outcome) =>
+        outcome.kind === "merged"
+          ? outcome.images.filter((candidate) => candidate.name === image.name)
+          : [],
+      );
+      for (const producer of producers) {
+        for (const input of producer.inputTextures) {
+          expect(image.inputTextures, `${image.name} ${input}`).toContain(
+            input,
+          );
+        }
+      }
+      if (new Set(producers.map((p) => p.inputTextures.join())).size > 1) {
+        shared += 1;
+      }
+      for (const input of image.inputTextures) {
+        expect(row, `${path} names ${input}`).toContain(input);
+      }
+    }
+    // The Cobra Mk III variants' shared emissive mask has three producers.
+    const cobra = images.find(
+      (candidate) =>
+        candidate.slot === "emissive" &&
+        candidate.name.startsWith("oolite_cobra3_"),
+    );
+    expect(cobra?.inputTextures).toEqual([
+      "oolite_cobra3_diffuse.png",
+      "oolite_cobra3_diffuse_alt.png",
+      "oolite_cobra3_diffuse_pirate.png",
+    ]);
+    // Five emissive masks are shared by variants with different inputs: the
+    // Cobra Mk III, Mamba, Moray, Python and Viper families.
+    expect(shared).toBe(5);
+  }, 300_000);
+
+  it("mirrors every merged hull's region edges into its gutters and fills the free area from them, in every slot (TOOLS-WR-01)", async () => {
+    const { outcomes } = await planAll();
+    const checked = new Set<string>();
+    for (const [file, outcome] of outcomes) {
+      if (outcome.kind !== "merged") continue;
+      for (const image of outcome.images) {
+        if (checked.has(image.name)) continue;
+        checked.add(image.name);
+        const result = outsideMismatches(
+          image.data,
+          image.side,
+          image.channels,
+          outcome.layout.regions,
+        );
+        expect(result.gutter, `${file} ${image.slot}`).toBeGreaterThan(0);
+        expect(result.mismatches, `${file} ${image.slot}`).toBe(0);
+      }
+    }
+    expect(checked.size).toBeGreaterThan(0);
+  }, 300_000);
+
+  it.each([...MERGED_NPC_GLBS])(
+    "%s: samples like the separate clamped maps at every corner up to mip level 5 (TOOLS-WR-01)",
+    async (file) => {
+      const { outcomes, models, entries } = await planAll();
+      const outcome = outcomes.get(file);
+      if (outcome?.kind !== "merged") return;
+      const source = MODEL_SOURCE_FILES[file]?.[0] ?? "";
+      const entry = entries[EMITTED_ENTRIES[file]?.[0] ?? ""];
+      if (entry === undefined || models[source] === undefined) {
+        throw new Error(file);
+      }
+      const path = `third_party/oolite/Models/${source}`;
+      const mesh = parseDat(readFileSync(join(REPO_ROOT, path), "utf8"), path);
+      const mode = selectNormalMode(mesh, { smooth: entry.shipDef.smooth });
+      repairWinding(mesh, mode);
+      const primitives = convertMesh(mesh, mode, "gltf");
+      const levels = 5;
+      const side = outcome.layout.side;
+      // Every region of the roster is at least 2^5 texels, so the claim holds
+      // for every level checked here.
+      for (const region of outcome.layout.regions) {
+        expect(region.side % 2 ** levels, file).toBe(0);
+      }
+      let compared = 0;
+      for (const image of outcome.images) {
+        const channels = image.channels;
+        const atlas = boxChain(image.data, side, channels, levels);
+        const isolated = outcome.layout.regions.map((region) =>
+          boxChain(
+            regionImage(image.data, side, channels, region),
+            region.side,
+            channels,
+            levels,
+          ),
+        );
+        let cursor = 0;
+        let worst = 0;
+        for (const primitive of primitives) {
+          const count = primitive.positions.length / 3;
+          for (let corner = 0; corner < count; corner++) {
+            const u = primitive.uvs[corner * 2] ?? 0;
+            const v = primitive.uvs[corner * 2 + 1] ?? 0;
+            const mu = outcome.primitive.uvs[(cursor + corner) * 2] ?? 0;
+            const mv = outcome.primitive.uvs[(cursor + corner) * 2 + 1] ?? 0;
+            const tx = Math.min(Math.floor(mu * side), side - 1);
+            const ty = Math.min(Math.floor(mv * side), side - 1);
+            const index = outcome.layout.regions.findIndex(
+              (region) =>
+                tx >= region.x &&
+                tx < region.x + region.side &&
+                ty >= region.y &&
+                ty < region.y + region.side,
+            );
+            const region = outcome.layout.regions[index];
+            const own = isolated[index];
+            if (region === undefined || own === undefined) {
+              throw new Error(`${file}: corner outside every region`);
+            }
+            for (let level = 1; level <= levels; level++) {
+              const scale = 2 ** level;
+              const merged = bilinear(
+                atlas[level] ?? new Float32Array(0),
+                side / scale,
+                channels,
+                mu,
+                mv,
+              );
+              const alone = bilinear(
+                own[level] ?? new Float32Array(0),
+                region.side / scale,
+                channels,
+                u,
+                v,
+              );
+              for (let channel = 0; channel < channels; channel++) {
+                worst = Math.max(
+                  worst,
+                  Math.abs((merged[channel] ?? 0) - (alone[channel] ?? 0)),
+                );
+              }
+              compared += 1;
+            }
+          }
+          cursor += count;
+        }
+        // Only the float32 rounding of the remapped UV moves a weight.
+        expect(worst, `${file} ${image.slot}`).toBeLessThan(0.05);
+      }
+      expect(compared, file).toBeGreaterThan(0);
     },
     300_000,
   );

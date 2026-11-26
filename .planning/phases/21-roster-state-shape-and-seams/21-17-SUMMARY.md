@@ -146,6 +146,8 @@ The first-load models (player Cobra, Coriolis, buoy) are byte-identical, so the 
 
 **6. [Record correction]** the message of commit 90c5f209 says "20 multi-primitive hulls" and "9 single-primitive hulls"; the measured counts are 22 and 7 (the table above), as `docs/PERFORMANCE.md` states.
 
+**7. [Correction, code review TOOLS-WR-01, 2026-11-26]** The "no gutter" decision (deviation 2b and the key decision above) held at mip level 0 only: at level k a fetch at a region edge reads 2^k base texels across it, into the neutral fill or, through the default REPEAT wrap, another region, while Oolite samples ship maps with CLAMP_TO_EDGE. Every region now keeps a 32-texel mirrored gutter on a 32-texel grid (commit 8e21fef8), so the atlas samples exactly like the separate clamped maps up to mip level 5. The layout sides, the texture memory (1 023.2 to 1 200.1 MiB summed over the records) and the prefetch (33 046 391 to 35 754 432 bytes) in this summary are the pre-gutter figures; `docs/PERFORMANCE.md` records the current ones. The draw calls (39 / 42) and the cold start are unchanged.
+
 ## Known Stubs
 
 None.

@@ -9,9 +9,15 @@
  * priority AI (`COMMS_ROOT_KEYS`) plus every description key they reach
  * through `[name]` references, computed as a transitive closure (iterative,
  * with a visited set, so a reference cycle is followed once and never loops).
- * Every other bracketed name (`[oolite_entityName]`, `[7]`) and every percent
- * code (`%H`, `%R`) is a runtime variable: it is listed in `variables` and
- * never followed, even when it happens to look like a key.
+ * A bracketed name made only of digits (`[7]`) is not a description key and
+ * not a variable: Oolite dispatches it to `ExpandDigitKey`
+ * (`OOStringExpander.m`), which picks a string from row 7 of
+ * `system_description`. It is listed in `descriptionIndexes` as a number, and
+ * the row resolves through `labels.json` `systemDescription` (TOOLS-WR-03). The
+ * digit test comes before the key lookup, as in Oolite. Every other bracketed
+ * name (`[oolite_entityName]`) and every percent code (`%H`, `%R`) is a runtime
+ * variable: it is listed in `variables` and never followed, even when it
+ * happens to look like a key.
  *
  * Oolite's text is kept verbatim (a string, or the authored list of
  * alternatives). Expansion (the random choice among alternatives, variable
@@ -60,6 +66,15 @@ export const COMMS_ROOT_KEYS: readonly string[] = [
 /** A `[name]` token: the name has no brackets and is not empty. */
 const BRACKET_TOKEN = /\[([^[\]]+)\]/g;
 
+/** A digit-only key (`[7]`): an index into `system_description`. */
+const DIGIT_KEY = /^[0-9]+$/;
+
+/** A digit key with an operator (`[7|...]`), which this subset does not carry. */
+const DIGIT_KEY_WITH_OPERATOR = /^[0-9]+\|/;
+
+/** The array whose rows the digit keys index (`descriptions.plist`). */
+const SYSTEM_DESCRIPTION_KEY = "system_description";
+
 /** A `%H`-style code: a percent sign and one letter. */
 const PERCENT_TOKEN = /%[A-Za-z]/g;
 
@@ -83,7 +98,8 @@ function compareCodeUnits(a: string, b: string): number {
  *
  * @throws {ContentError} SCHEMA naming the key when the plist is not a
  * dictionary, a root key is missing, a reached value is not a string or a list
- * of strings, or the subset fails `CommsStringsSchema`.
+ * of strings, a digit key names no `system_description` row or carries an
+ * operator, or the subset fails `CommsStringsSchema`.
  */
 export function compileComms(plist: PlistValue): CommsStrings {
   if (plist.kind !== "dict") {
@@ -95,6 +111,8 @@ export function compileComms(plist: PlistValue): CommsStrings {
   const queue = [...COMMS_ROOT_KEYS];
   const entries: { key: string; value: string | string[] }[] = [];
   const variables = new Set<string>();
+  const descriptionIndexes = new Set<number>();
+  const systemDescription = dictionary.get(SYSTEM_DESCRIPTION_KEY);
 
   for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
     const key = next;
@@ -132,7 +150,22 @@ export function compileComms(plist: PlistValue): CommsStrings {
     for (const text of texts) {
       for (const match of text.matchAll(BRACKET_TOKEN)) {
         const name = match[1] ?? "";
-        if (dictionary.has(name)) {
+        if (DIGIT_KEY_WITH_OPERATOR.test(name)) {
+          return fail(key, `the digit key ${match[0]} carries an operator`);
+        }
+        if (DIGIT_KEY.test(name)) {
+          const index = Number.parseInt(name, 10);
+          if (
+            systemDescription?.kind !== "array" ||
+            index >= systemDescription.values.length
+          ) {
+            return fail(
+              key,
+              `the digit key ${match[0]} names no ${SYSTEM_DESCRIPTION_KEY} row`,
+            );
+          }
+          descriptionIndexes.add(index);
+        } else if (dictionary.has(name)) {
           if (!visited.has(name)) queue.push(name);
         } else {
           variables.add(match[0]);
@@ -144,6 +177,7 @@ export function compileComms(plist: PlistValue): CommsStrings {
 
   entries.sort((left, right) => compareCodeUnits(left.key, right.key));
   const candidate = {
+    descriptionIndexes: [...descriptionIndexes].sort((a, b) => a - b),
     entries,
     variables: [...variables].sort(compareCodeUnits),
   };
@@ -172,6 +206,7 @@ export function emitComms(plist: PlistValue): {
 } {
   const comms = compileComms(plist);
   const json: PlistJson = {
+    descriptionIndexes: [...comms.descriptionIndexes],
     entries: comms.entries.map((entry) => ({
       key: entry.key,
       value: typeof entry.value === "string" ? entry.value : [...entry.value],
