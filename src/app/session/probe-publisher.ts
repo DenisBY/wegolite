@@ -25,6 +25,7 @@
  * combat state, never an entity id) and the hook member `spawnTestShooter`.
  * Plan 14-18 adds the hook member `spawnTestFlyers` (three scripted flying NPCs).
  * Plan 17-10 adds `spawnTestAttacker` (one Viper that attacks the player and fires).
+ * Plan 21-16 adds `spawnTestAnarchy` (one inert ship of every catalogue record).
  */
 
 import type * as THREE from "three";
@@ -36,6 +37,7 @@ import { MAX_EQUIPMENT_KEYS, setCredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
 import {
   TEST_SHOOTER_KEY,
+  spawnTestAnarchy,
   spawnTestAttacker,
   spawnTestFlyers,
   spawnTestShooter,
@@ -290,6 +292,31 @@ export function createProbePublisher(
     );
   }
 
+  /**
+   * The hook's full-anarchy seam (plan 21-16, QUAL-09 staged): one inert ship of
+   * every record of the loaded catalogue on a ring ahead of the player, for the
+   * draw-call spike. It needs a ship in flight, a live world and the loaded
+   * traffic content; anything else returns false and changes nothing, taint
+   * included. The session is tainted before the world is touched, so no
+   * autosave can make a spawned ship durable. The sim spawner is all or nothing:
+   * with no room for every ship it returns false and spawns none.
+   */
+  function spawnAnarchy(): boolean {
+    const liveState = ctx.core.state;
+    if (
+      liveState === undefined ||
+      ctx.runtime.disposed ||
+      liveState.mode !== "inFlight"
+    ) {
+      return false;
+    }
+    const world = ctx.core.worldLifecycle?.world;
+    const traffic = ctx.core.npcTraffic;
+    if (world === undefined || traffic === undefined) return false;
+    markHookMutation();
+    return spawnTestAnarchy(world, liveState, traffic.records, liveState.tick);
+  }
+
   /** The sim members of the hook, bound at call time (G-8). */
   const simHook: WegoliteSimTestHook = {
     worldHash,
@@ -297,6 +324,7 @@ export function createProbePublisher(
     spawnTestShooter: spawnShooter,
     spawnTestFlyers: spawnFlyers,
     spawnTestAttacker: spawnAttacker,
+    spawnTestAnarchy: spawnAnarchy,
   };
 
   /**

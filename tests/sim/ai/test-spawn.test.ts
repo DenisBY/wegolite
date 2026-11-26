@@ -15,11 +15,15 @@
 
 import { readFileSync } from "node:fs";
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { TEST_PILOT } from "../../../src/sim/ai/pilots/test-pilot.js";
 import {
+  ANARCHY_RING_AHEAD_M,
+  ANARCHY_RING_RADIUS_M,
   FLYER_SCRIPT_RANGES,
+  spawnTestAnarchy,
   spawnTestAttacker,
   spawnTestFlyers,
   spawnTestShooter,
@@ -46,6 +50,7 @@ import {
   length,
   normalize,
   rotate,
+  scale,
   sub,
   vec,
 } from "../../../src/sim/math.js";
@@ -53,8 +58,10 @@ import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
 import { CARGO_KINDS } from "../../../src/sim/world/entity.js";
 import { MAX_ENTITIES, PLAYER_ID } from "../../../src/sim/world/ids.js";
+import { isScanClass } from "../../../src/sim/world/populate.js";
 import type { InertShipRecord } from "../../../src/sim/world/populate.js";
-import { MAX_ENTITY_CARGO } from "../../../src/sim/world/limits.js";
+import { MAX_ENTITY_CARGO, MAX_UINT32 } from "../../../src/sim/world/limits.js";
+import { createEntityStore } from "../../../src/sim/world/store.js";
 import {
   hashWorld,
   serializeEntity,
@@ -104,14 +111,24 @@ interface NpcJson {
   readonly forwardWeaponPosition: readonly [number, number, number];
 }
 
-const VIPER_JSON = (
-  JSON.parse(
-    readFileSync(
-      new URL("../../../src/content/generated/ships-npc.json", import.meta.url),
-      "utf8",
-    ),
-  ) as NpcJson[]
-).find((record) => record.key === "viper") as NpcJson;
+const NPC_JSON = JSON.parse(
+  readFileSync(
+    new URL("../../../src/content/generated/ships-npc.json", import.meta.url),
+    "utf8",
+  ),
+) as NpcJson[];
+
+const VIPER_JSON = NPC_JSON.find((record) => record.key === "viper") as NpcJson;
+
+/** Every committed catalogue record as the populator's input (29 today). */
+const ALL_RECORDS: readonly InertShipRecord[] = NPC_JSON.map((record) => ({
+  key: record.key,
+  roles: record.roles,
+  scanClass: record.scanClass,
+  radius: record.radius,
+  maxEnergy: record.maxEnergy,
+  energyRechargeRate: record.energyRechargeRate,
+}));
 
 const VIPER: InertShipRecord = {
   key: VIPER_JSON.key,
@@ -839,6 +856,405 @@ describe("spawnTestFlyers", () => {
     const speeds = [...world.store.live].map((entity) => entity.speed);
     expect(new Set(speeds).size).toBe(1);
     expect(speeds[0]).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// spawnTestAnarchy (plan 21-16, QUAL-09 staged)
+// ---------------------------------------------------------------------------
+
+describe("spawnTestAnarchy", () => {
+  it("pins the ring constants and the 29-record catalogue the spike draws", () => {
+    expect(ANARCHY_RING_RADIUS_M).toBe(1_200);
+    expect(ANARCHY_RING_AHEAD_M).toBe(2_500);
+    expect(ALL_RECORDS).toHaveLength(29);
+    expect(new Set(ALL_RECORDS.map((record) => record.key)).size).toBe(29);
+  });
+
+  it("spawns one inert ship of every record, in catalogue order, with its radius and energy", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+
+    expect(spawnTestAnarchy(world, player, ALL_RECORDS, player.tick)).toBe(
+      true,
+    );
+
+    const ships = [...world.store.live];
+    expect(ships.map((ship) => ship.specKey)).toEqual(
+      ALL_RECORDS.map((record) => record.key),
+    );
+    ships.forEach((ship, index) => {
+      const record = ALL_RECORDS[index] as InertShipRecord;
+      expect(ship.kind, record.key).toBe("ship");
+      expect(ship.scanClass, record.key).toBe(record.scanClass);
+      expect(ship.radius, record.key).toBe(record.radius);
+      expect(ship.maxEnergy, record.key).toBe(record.maxEnergy);
+      expect(ship.energy, record.key).toBe(record.maxEnergy);
+      expect(ship.speed, record.key).toBe(0);
+      // Inert: no AI, so no fire decision and no attacking AI on an aft hull.
+      expect(ship.ai, record.key).toBeNull();
+      expect(ship.orientation, record.key).toEqual(player.orientation);
+    });
+  });
+
+  it("puts the ships on a ring square to the player's nose, centred ahead of it, evenly spaced", () => {
+    const player = flyingPlayer();
+    player.orientation = normalize(axisAngle(1, 2, 3, 1.1));
+    const world = createWorld(7);
+    spawnTestAnarchy(world, player, ALL_RECORDS, player.tick);
+    const nose = rotate(player.orientation, vec(0, 0, -1));
+    const centre = add(player.position, scale(nose, ANARCHY_RING_AHEAD_M));
+
+    const ships = [...world.store.live];
+    for (const ship of ships) {
+      const offset = sub(ship.position, centre);
+      expect(dot(offset, nose), ship.specKey).toBeCloseTo(0, 6);
+      expect(length(offset), ship.specKey).toBeCloseTo(
+        ANARCHY_RING_RADIUS_M,
+        6,
+      );
+    }
+    // Neighbours are the same chord apart: 2 R sin(pi / n).
+    const chord = 2 * ANARCHY_RING_RADIUS_M * Math.sin(Math.PI / ships.length);
+    for (let i = 0; i < ships.length; i += 1) {
+      const next = ships[(i + 1) % ships.length] as (typeof ships)[number];
+      const here = ships[i] as (typeof ships)[number];
+      expect(length(sub(next.position, here.position))).toBeCloseTo(chord, 6);
+    }
+    // The nose axis is free: the shooter and the player's lasers use it.
+    expect(chord).toBeGreaterThan(2 * 86.4);
+  });
+
+  it("is deterministic: two spawns into equal worlds are the same world", () => {
+    const player = flyingPlayer();
+    const a = createWorld(7);
+    const b = createWorld(7);
+    spawnTestAnarchy(a, player, ALL_RECORDS, player.tick);
+    spawnTestAnarchy(b, player, ALL_RECORDS, player.tick);
+    expect(snapshotWorld(a)).toEqual(snapshotWorld(b));
+    expect(hashWorld(player, a)).toBe(hashWorld(player, b));
+  });
+
+  it("leaves the cargo shooter's line free: the shooter and the anarchy coexist and the world snapshots", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    expect(spawnTestAnarchy(world, player, ALL_RECORDS, player.tick)).toBe(
+      true,
+    );
+    expect(spawnTestShooter(world, player, VIPER, player.tick, 20)).toBe(true);
+    expect(liveEntityCount(world)).toBe(30);
+    expect(() => snapshotWorld(world)).not.toThrow();
+    // No ring ship is within 1,000 m of the nose axis, the shooter's line.
+    const nose = rotate(player.orientation, vec(0, 0, -1));
+    for (const ship of [...world.store.live].slice(0, 29)) {
+      const offset = sub(ship.position, player.position);
+      const along = dot(offset, nose);
+      const across = length(sub(offset, scale(nose, along)));
+      expect(across, ship.specKey).toBeGreaterThan(1_000);
+    }
+  });
+
+  it("returns false and changes nothing for an empty list and for a list of only refused records", () => {
+    const player = flyingPlayer();
+    const bad = ALL_RECORDS.map((record) => ({
+      ...record,
+      scanClass: "CLASS_NOPE",
+    }));
+    for (const records of [[], bad]) {
+      const world = createWorld(7);
+      const before = snapshotWorld(world);
+      expect(spawnTestAnarchy(world, player, records, player.tick)).toBe(false);
+      expect(snapshotWorld(world)).toEqual(before);
+      expect(world.store.nextId).toBe(createWorld(7).store.nextId);
+    }
+  });
+
+  it("returns false and changes nothing for a player pose that is not finite", () => {
+    const world = createWorld(7);
+    const before = snapshotWorld(world);
+    const player = flyingPlayer();
+    player.position = vec(Number.NaN, 0, 0);
+    expect(spawnTestAnarchy(world, player, ALL_RECORDS, player.tick)).toBe(
+      false,
+    );
+    expect(snapshotWorld(world)).toEqual(before);
+  });
+
+  it("skips a refused record without moving the others: every valid record keeps its slot", () => {
+    const player = flyingPlayer();
+    const full = createWorld(7);
+    spawnTestAnarchy(full, player, ALL_RECORDS, player.tick);
+    const refused = new Set([3, 11, 28]);
+    const records = ALL_RECORDS.map((record, index) =>
+      refused.has(index)
+        ? { ...record, scanClass: "CLASS_NOPE" }
+        : index === 5
+          ? { ...record, maxEnergy: Number.NaN }
+          : record,
+    );
+    refused.add(5);
+    const partial = createWorld(7);
+
+    expect(spawnTestAnarchy(partial, player, records, player.tick)).toBe(true);
+
+    const fullShips = [...full.store.live];
+    const kept = ALL_RECORDS.map((_, index) => index).filter(
+      (index) => !refused.has(index),
+    );
+    const partialShips = [...partial.store.live];
+    expect(partialShips).toHaveLength(kept.length);
+    partialShips.forEach((ship, slot) => {
+      const original = fullShips[kept[slot] as number];
+      expect(ship.specKey).toBe(original?.specKey);
+      expect(ship.position).toEqual(original?.position);
+    });
+  });
+
+  it("spawns one ship per record for duplicate keys", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    const records = [VIPER, VIPER, VIPER];
+    expect(spawnTestAnarchy(world, player, records, player.tick)).toBe(true);
+    expect([...world.store.live].map((ship) => ship.specKey)).toEqual([
+      "viper",
+      "viper",
+      "viper",
+    ]);
+  });
+
+  it("returns false and spawns nothing when the world lacks room for the whole roster, true with exactly enough", () => {
+    const player = flyingPlayer();
+    const count = ALL_RECORDS.length;
+    for (const free of [0, 1, count - 1]) {
+      const world = createWorld(7);
+      fillWorld(world, MAX_ENTITIES - free);
+      const before = snapshotWorld(world);
+      expect(spawnTestAnarchy(world, player, ALL_RECORDS, player.tick)).toBe(
+        false,
+      );
+      expect(snapshotWorld(world)).toEqual(before);
+      expect(liveEntityCount(world)).toBe(MAX_ENTITIES - free);
+    }
+    const exact = createWorld(7);
+    fillWorld(exact, MAX_ENTITIES - count);
+    expect(spawnTestAnarchy(exact, player, ALL_RECORDS, player.tick)).toBe(
+      true,
+    );
+    expect(liveEntityCount(exact)).toBe(MAX_ENTITIES);
+  });
+
+  it("returns false and spawns nothing when the id counter could not number every ship, true with exactly enough", () => {
+    const player = flyingPlayer();
+    const count = ALL_RECORDS.length;
+    const short = {
+      ...createWorld(7),
+      store: createEntityStore({
+        nextId: MAX_UINT32 - (count - 2),
+        entities: [],
+      }),
+    };
+    const before = snapshotWorld(short);
+    expect(spawnTestAnarchy(short, player, ALL_RECORDS, player.tick)).toBe(
+      false,
+    );
+    expect(snapshotWorld(short)).toEqual(before);
+    const exact = {
+      ...createWorld(7),
+      store: createEntityStore({
+        nextId: MAX_UINT32 - (count - 1),
+        entities: [],
+      }),
+    };
+    expect(spawnTestAnarchy(exact, player, ALL_RECORDS, player.tick)).toBe(
+      true,
+    );
+    expect(liveEntityCount(exact)).toBe(count);
+  });
+
+  it("refuses a tick outside the domain and changes nothing", () => {
+    const player = flyingPlayer();
+    for (const tick of [-1, 1.5, Number.NaN, 2 ** 32]) {
+      const world = createWorld(7);
+      expect(spawnTestAnarchy(world, player, ALL_RECORDS, tick)).toBe(false);
+      expect([...world.store.live]).toHaveLength(0);
+    }
+  });
+
+  it("hands no aft-armed hull an AI: every anarchy ship is inert, the six aft hulls included", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    spawnTestAnarchy(world, player, ALL_RECORDS, player.tick);
+    const aft = new Set([
+      "anaconda",
+      "anaconda-pirate",
+      "boa",
+      "boa-pirate",
+      "boa-mk2",
+      "boa-mk2-pirate",
+    ]);
+    const ships = [...world.store.live];
+    expect(ships.filter((ship) => aft.has(ship.specKey))).toHaveLength(6);
+    for (const ship of ships) expect(ship.ai, ship.specKey).toBeNull();
+  });
+
+  /** A finite pose, so only the record decides what is valid. */
+  const anyPose = fc.record({
+    x: fc.double({ noNaN: true, noDefaultInfinity: true, min: -1e9, max: 1e9 }),
+    y: fc.double({ noNaN: true, noDefaultInfinity: true, min: -1e9, max: 1e9 }),
+    z: fc.double({ noNaN: true, noDefaultInfinity: true, min: -1e9, max: 1e9 }),
+  });
+  const anyNumber = fc.oneof(
+    fc.double(),
+    fc.constantFrom(
+      0,
+      -0,
+      1,
+      -1,
+      30,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.MAX_VALUE,
+      Number.MIN_VALUE,
+      1e300,
+      -1e300,
+    ),
+  );
+  /** A record the world accepts, so lists mix valid and refused records. */
+  const goodRecord: fc.Arbitrary<InertShipRecord> = fc.record({
+    key: fc.constantFrom("viper", "adder", "boa-mk2"),
+    roles: fc.constant([] as readonly string[]),
+    scanClass: fc.constantFrom("CLASS_NEUTRAL", "CLASS_POLICE"),
+    radius: fc.double({ min: 1, max: 200, noNaN: true }),
+    maxEnergy: fc.integer({ min: 1, max: 512 }),
+    energyRechargeRate: fc.integer({ min: 0, max: 20 }),
+  });
+  const wildRecord: fc.Arbitrary<InertShipRecord> = fc.record({
+    key: fc.oneof(
+      fc.constantFrom("viper", "adder", "", "constructor", "boa-mk2"),
+      fc.string(),
+    ),
+    roles: fc.constant([] as readonly string[]),
+    scanClass: fc.oneof(
+      fc.constantFrom(
+        "CLASS_NEUTRAL",
+        "CLASS_POLICE",
+        "CLASS_NOPE",
+        "",
+        "constructor",
+        "toString",
+      ),
+      fc.string(),
+    ),
+    radius: anyNumber,
+    maxEnergy: anyNumber,
+    energyRechargeRate: anyNumber,
+  });
+  const anyRecord: fc.Arbitrary<InertShipRecord> = fc.oneof(
+    { weight: 2, arbitrary: goodRecord },
+    { weight: 1, arbitrary: wildRecord },
+  );
+
+  /** The valid records by `spawnEntity`'s own rules: one fresh world per record. */
+  function validKeys(records: readonly InertShipRecord[]): string[] {
+    return records
+      .filter(
+        (record) =>
+          spawnEntity(
+            createWorld(0),
+            {
+              kind: "ship",
+              specKey: record.key,
+              scanClass: record.scanClass as "CLASS_NEUTRAL",
+              position: vec(0, 0, 0),
+              orientation: identity(),
+              radius: record.radius,
+              speed: 0,
+              maxEnergy: record.maxEnergy,
+              energyRechargeRate: record.energyRechargeRate,
+            },
+            0,
+          ).ok && isScanClass(record.scanClass),
+      )
+      .map((record) => record.key);
+  }
+
+  it("is total and all or nothing over arbitrary record lists and near-full worlds (property)", () => {
+    // Vacuity guards: the runs must reach both the spawn and the room refusal.
+    let spawnedRuns = 0;
+    let noRoomRuns = 0;
+    fc.assert(
+      fc.property(
+        fc.array(anyRecord, { maxLength: 40 }),
+        fc.oneof(
+          fc.integer({ min: 0, max: 8 }),
+          fc.integer({ min: 0, max: MAX_ENTITIES }),
+        ),
+        anyPose,
+        (records, free, pose) => {
+          const player = flyingPlayer();
+          player.position = vec(pose.x, pose.y, pose.z);
+          const world = createWorld(7);
+          fillWorld(world, MAX_ENTITIES - free);
+          const before = snapshotWorld(world);
+          const liveBefore = liveEntityCount(world);
+          const expected = validKeys(records);
+
+          let result: boolean | undefined;
+          expect(() => {
+            result = spawnTestAnarchy(world, player, records, player.tick);
+          }).not.toThrow();
+
+          if (result === true) {
+            spawnedRuns += 1;
+            expect(expected.length).toBeGreaterThan(0);
+            expect(expected.length).toBeLessThanOrEqual(free);
+            expect(liveEntityCount(world)).toBe(liveBefore + expected.length);
+            expect(
+              [...world.store.live].slice(liveBefore).map((s) => s.specKey),
+            ).toEqual(expected);
+            expect(() => snapshotWorld(world)).not.toThrow();
+          } else {
+            // Nothing spawned: no valid record, or no room for all of them.
+            expect(expected.length === 0 || expected.length > free).toBe(true);
+            expect(snapshotWorld(world)).toEqual(before);
+            if (expected.length > free) noRoomRuns += 1;
+          }
+        },
+      ),
+      { numRuns: 150 },
+    );
+    expect(spawnedRuns, "runs that spawned (vacuity guard)").toBeGreaterThan(0);
+    expect(noRoomRuns, "runs refused for room (vacuity guard)").toBeGreaterThan(
+      0,
+    );
+    // Each run fills a world to its cap and snapshots it twice; a loaded
+    // machine needs more than the 5 s default (about 1.5 s alone).
+  }, 60_000);
+
+  it("is total and all or nothing for a pose that is not finite (property)", () => {
+    const badNumber = fc.constantFrom(
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    );
+    fc.assert(
+      fc.property(
+        fc.array(anyRecord, { maxLength: 10 }),
+        badNumber,
+        (records, bad) => {
+          const player = flyingPlayer();
+          player.position = vec(bad, 0, 0);
+          const world = createWorld(7);
+          const before = snapshotWorld(world);
+          expect(spawnTestAnarchy(world, player, records, player.tick)).toBe(
+            false,
+          );
+          expect(snapshotWorld(world)).toEqual(before);
+        },
+      ),
+      { numRuns: 100 },
+    );
   });
 });
 

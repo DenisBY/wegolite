@@ -77,7 +77,10 @@ const PINNED: Readonly<Record<string, number>> = Object.freeze({
   "src/app/session/chart-controller.ts": 0,
   "src/app/session/event-router.ts": 0,
   "src/app/session/frame-loop.ts": 0,
-  "src/app/session/probe-publisher.ts": 3,
+  // The four `?test=1` spawn hooks (shooter, attacker, flyers, anarchy) each
+  // refuse unless the mode is "inFlight", so "dead" and "launching" fail closed
+  // (the anarchy hook, plan 21-16, reviewed 2026-11-26).
+  "src/app/session/probe-publisher.ts": 4,
   "src/app/session/render-driver.ts": 0,
   "src/app/session/save-controller.ts": 2,
   "src/app/session/sim-driver.ts": 2,
