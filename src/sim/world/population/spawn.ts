@@ -369,7 +369,10 @@ function buildGroupSpawn(
       bounty: ship.bounty,
       role: ship.primaryRole,
       cargo,
-      cargoKind: Math.max(0, CARGO_KINDS.indexOf(ship.cargoKind)),
+      // An unknown kind is -1 on purpose: `spawnEntity` refuses it as out of
+      // domain, so `trialSpawns` skips the group (counted in `skippedGroups`)
+      // instead of the kind being masked as `unset` (IN-04 of the review).
+      cargoKind: CARGO_KINDS.indexOf(ship.cargoKind),
       fuel: ship.fuel,
       homeSystem: ship.homeSystem,
       destinationSystem: ship.destinationSystem,

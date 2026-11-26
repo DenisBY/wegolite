@@ -34,7 +34,10 @@ import {
   worldSeedFor,
 } from "../../../../src/sim/rng.js";
 import { CARGO_KINDS } from "../../../../src/sim/world/entity.js";
-import type { Entity } from "../../../../src/sim/world/entity.js";
+import type {
+  CargoKindName,
+  Entity,
+} from "../../../../src/sim/world/entity.js";
 import {
   deriveSystemLayout,
   type SystemLayout,
@@ -585,6 +588,36 @@ function filler(world: World): boolean {
     0,
   ).ok;
 }
+
+describe("an unknown cargo kind (IN-04 of the Phase 22 review)", () => {
+  it("skips the group instead of masking the kind as unset, and moves no other group", () => {
+    const plans = planFor(1, laveFacts);
+    const victim = plans.findIndex((plan) => plan.ships.length > 0);
+    expect(victim).toBeGreaterThanOrEqual(0);
+    const bogus = "not-a-kind" as unknown as CargoKindName;
+    const corrupted = plans.map((plan, index) =>
+      index === victim
+        ? {
+            ...plan,
+            ships: plan.ships.map((ship) => ({ ...ship, cargoKind: bogus })),
+          }
+        : plan,
+    );
+
+    const clean = createWorld(1);
+    const cleanResult = spawnPlannedGroups(clean, layout, plans, records);
+    const world = createWorld(1);
+    const result = spawnPlannedGroups(world, layout, corrupted, records);
+
+    expect(cleanResult.skippedGroups).toBe(0);
+    expect(result.skippedGroups).toBe(1);
+    expect(result.spawnedGroups).toBe(plans.length - 1);
+    // Every ship of the skipped group is absent; none of the rest is an
+    // `unset` ship that the clamp would have produced.
+    const skippedSize = plans[victim]?.ships.length ?? 0;
+    expect(liveEntityCount(world)).toBe(liveEntityCount(clean) - skippedSize);
+  });
+});
 
 describe("the entity limit (D-05, D-06)", () => {
   it("skips a group that does not fit whole, continues, and moves no other group", () => {
