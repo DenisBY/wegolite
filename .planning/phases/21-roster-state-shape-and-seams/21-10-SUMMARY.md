@@ -87,7 +87,9 @@ Roots (`COMMS_ROOT_KEYS`, the plist's order, lines 652-673): `oolite-comms-contr
 
 Reached through `[...]`: `beg-for-mercy` (via acceptPirateDemand and surrender), `distress-call`, `police-attack-warning`, and from those `describe-pirate` and `describe-Pirate`. That is 10 + 5 = 15 entries.
 
-Variables, never followed: `%H`, `%R`, `[7]`, `[oolite_demandSize]`, `[oolite_entityName]`.
+Variables, never followed: `%H`, `%R`, `[oolite_demandSize]`, `[oolite_entityName]`.
+
+**Correction (code review TOOLS-WR-03, 2026-11-26).** This plan first listed `[7]` as a fifth variable. In Oolite a key made only of digits is not a variable: `ExpandKey` dispatches it to `ExpandDigitKey` (`OOStringExpander.m`), which picks a string from row 7 of `system_description` ("beset", "plagued", "ravaged", "cursed", "scourged"). `comms.json` now lists it under `descriptionIndexes: [7]`, and the row resolves through `labels.json` `systemDescription`. The consumer (Phase 23) substitutes `variables` at runtime and expands each `[N]` in `descriptionIndexes` from `systemDescription[N]`, never as a substitution parameter. The file is now `{ descriptionIndexes, entries, variables }`, 3,736 bytes.
 
 Values are verbatim, a string or the authored list of alternatives (typographic apostrophes and the `…` ellipsis kept). The closure is an iterative queue with a visited set, so a reference cycle (or a key that refers to itself) is followed once and never loops (T-21-16). The converter test recomputes the closure with a second, recursive method and compares key sets, and a further test fails if a bracket token that is a key of the plist is not an entry, or one that is not a key is not a listed variable.
 

@@ -16,10 +16,18 @@
  * values the UI supplies and are never followed. Phases 22 and 23 read this
  * table; nothing imports it in Phase 21.
  *
- * The compiled file is `{ entries, variables }`. `entries` is an array of
- * `{ key, value }` in code-unit order of `key`, never an object keyed by
- * description key (T-21-15). Every pattern is anchored and every list and
- * string is bounded.
+ * `descriptionIndexes` lists the digit-only keys (`[7]`) as numbers. They are
+ * not variables: Oolite expands a key made only of digits from row N of
+ * `system_description` (`OOStringExpander.m` `ExpandKey` -> `ExpandDigitKey`),
+ * picking one string of the row at random and expanding it again. The rows are
+ * compiled as `labels.json` `systemDescription`, so `[7]` resolves through
+ * `systemDescription[7]` ("beset", "plagued", ...), with the expansion rules of
+ * the system description (TOOLS-WR-03).
+ *
+ * The compiled file is `{ descriptionIndexes, entries, variables }`. `entries`
+ * is an array of `{ key, value }` in code-unit order of `key`, never an object
+ * keyed by description key (T-21-15). Every pattern is anchored and every list
+ * and string is bounded.
  */
 
 import { z } from "zod";
@@ -39,6 +47,12 @@ export const MAX_COMMS_TEXT_LENGTH = 512;
 /** The most variables the subset may list. */
 export const MAX_COMMS_VARIABLES = 64;
 
+/**
+ * The largest `system_description` row index a digit key may name: the table
+ * has 36 rows (`LabelsSchema` `systemDescription`).
+ */
+export const MAX_COMMS_DESCRIPTION_INDEX = 35;
+
 /** A description key: letters, digits, `_` and `-`, starting alphanumeric. */
 export const COMMS_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
@@ -56,6 +70,16 @@ export const CommsEntrySchema = z.strictObject({
 });
 
 export const CommsStringsSchema = z.strictObject({
+  descriptionIndexes: z
+    .array(z.number().int().min(0).max(MAX_COMMS_DESCRIPTION_INDEX))
+    .max(MAX_COMMS_DESCRIPTION_INDEX + 1)
+    .refine(
+      (indexes) =>
+        indexes.every(
+          (value, index) => index === 0 || (indexes[index - 1] ?? -1) < value,
+        ),
+      { message: "comms description indexes must be unique and ascending" },
+    ),
   entries: z
     .array(CommsEntrySchema)
     .min(1)

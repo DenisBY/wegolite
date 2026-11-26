@@ -856,9 +856,9 @@
       "sha256": "e4149f551e64d5cc013933e9d4d977633f1e8fbaff41ee77b8a397f9750563bd"
     },
     {
-      "bytes": 3710,
+      "bytes": 3736,
       "path": "src/content/generated/comms.json",
-      "sha256": "a95a210e96416d21848483c1bd0842ac8028df652dc472d0c9ef2da0e0ff692f"
+      "sha256": "3401ece3f7f15e3cd2cde03c993c0d3f1c87ca6b377407d38d7c7dbad2aa2e43"
     },
     {
       "bytes": 514,

@@ -75,6 +75,8 @@ function closureKeys(plist: PlistValue): Set<string> {
     for (const text of textsOf(dictionary.get(key)) ?? []) {
       for (const name of text.match(/\[[^[\]]+\]/g) ?? []) {
         const inner = name.slice(1, -1);
+        // A digit-only key indexes system_description, never a description key.
+        if (/^[0-9]+$/.test(inner)) continue;
         if (dictionary.has(inner)) walk(inner);
       }
     }
@@ -131,12 +133,13 @@ describe("compileComms", () => {
     }
   });
 
-  it("leaves no reachable key missing: every token is an entry or a variable", () => {
+  it("leaves no reachable key missing: every token is an entry, an index or a variable", () => {
     if (vendored.kind !== "dict") throw new Error("not a dictionary");
     const dictionary = dictToMap(vendored);
     const comms = compileComms(vendored);
     const keys = new Set(comms.entries.map((entry) => entry.key));
     const variables = new Set(comms.variables);
+    const indexes = new Set(comms.descriptionIndexes);
 
     for (const entry of comms.entries) {
       const texts =
@@ -144,7 +147,12 @@ describe("compileComms", () => {
       for (const text of texts) {
         for (const token of text.match(/\[[^[\]]+\]/g) ?? []) {
           const name = token.slice(1, -1);
-          if (dictionary.has(name)) {
+          if (/^[0-9]+$/.test(name)) {
+            expect(indexes.has(Number(name)), `${entry.key}: ${token}`).toBe(
+              true,
+            );
+            expect(variables.has(token), `${entry.key}: ${token}`).toBe(false);
+          } else if (dictionary.has(name)) {
             expect(keys.has(name), `${entry.key}: ${token}`).toBe(true);
           } else {
             expect(variables.has(token), `${entry.key}: ${token}`).toBe(true);
@@ -162,13 +170,72 @@ describe("compileComms", () => {
     expect(comms.variables).toEqual([
       "%H",
       "%R",
-      "[7]",
       "[oolite_demandSize]",
       "[oolite_entityName]",
     ]);
     const keys = comms.entries.map((entry) => entry.key);
     expect(keys).not.toContain("oolite_entityName");
     expect(keys).not.toContain("7");
+  });
+
+  it("lists the digit key [7] as a system_description index, not a variable (TOOLS-WR-03)", () => {
+    const comms = compileComms(vendored);
+    // distress-call: "We are [7] by [describe-pirate]s! Please help!"
+    expect(comms.descriptionIndexes).toEqual([7]);
+    expect(comms.variables).not.toContain("[7]");
+    if (vendored.kind !== "dict") throw new Error("not a dictionary");
+    const rows = dictToMap(vendored).get("system_description");
+    if (rows?.kind !== "array") throw new Error("no system_description");
+    expect(textsOf(rows.values[7])).toEqual([
+      "beset",
+      "plagued",
+      "ravaged",
+      "cursed",
+      "scourged",
+    ]);
+  });
+
+  it("classifies a digit key before the key lookup, as Oolite's ExpandKey does", () => {
+    const comms = compileComms(
+      synthetic(
+        '"system_description" = ( ( "a" ), ( "b" ) ); "1" = "trap"; ' +
+          '"oolite-comms-contractAttack" = "x [1] [01] [0]";',
+      ),
+    );
+    expect(comms.descriptionIndexes).toEqual([0, 1]);
+    expect(comms.variables).toEqual([]);
+    expect(comms.entries.map((entry) => entry.key)).not.toContain("1");
+  });
+
+  it("refuses a digit key that names no system_description row", () => {
+    const outOfRange = caught(() =>
+      compileComms(
+        synthetic(
+          '"system_description" = ( ( "a" ) ); ' +
+            '"oolite-comms-contractAttack" = "x [1]";',
+        ),
+      ),
+    );
+    expect(outOfRange.code).toBe("SCHEMA");
+    expect(outOfRange.construct).toBe("oolite-comms-contractAttack");
+
+    const noTable = caught(() =>
+      compileComms(synthetic('"oolite-comms-contractAttack" = "x [0]";')),
+    );
+    expect(noTable.construct).toBe("oolite-comms-contractAttack");
+  });
+
+  it("refuses a digit key with an operator, which the subset cannot carry", () => {
+    const error = caught(() =>
+      compileComms(
+        synthetic(
+          '"system_description" = ( ( "a" ) ); ' +
+            '"oolite-comms-contractAttack" = "x [0|capitalize]";',
+        ),
+      ),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("oolite-comms-contractAttack");
   });
 
   it("follows a two-key reference cycle once each without looping", () => {

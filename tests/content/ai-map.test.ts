@@ -271,6 +271,7 @@ describe("comms.json", () => {
 
   const generated: unknown = JSON.parse(readText(GENERATED));
   const comms = generated as {
+    descriptionIndexes: number[];
     entries: { key: string; value: string | string[] }[];
     variables: string[];
   };
@@ -326,7 +327,11 @@ describe("comms.json", () => {
         (text) => text.match(/\[[^[\]]+\]/g) ?? [],
       )) {
         const name = token.slice(1, -1);
-        if (dictionary.has(name)) {
+        if (/^[0-9]+$/.test(name)) {
+          expect(comms.descriptionIndexes, `${entry.key}: ${token}`).toContain(
+            Number(name),
+          );
+        } else if (dictionary.has(name)) {
           expect(keys.has(name), `${entry.key}: ${token}`).toBe(true);
         } else {
           expect(comms.variables, `${entry.key}: ${token}`).toContain(token);
@@ -339,15 +344,32 @@ describe("comms.json", () => {
     expect(comms.variables).toEqual([
       "%H",
       "%R",
-      "[7]",
       "[oolite_demandSize]",
       "[oolite_entityName]",
+    ]);
+  });
+
+  it("resolves every digit key through labels.json systemDescription (TOOLS-WR-03)", () => {
+    const labels = JSON.parse(
+      readText("src/content/generated/labels.json"),
+    ) as { systemDescription: string[][] };
+    expect(comms.descriptionIndexes).toEqual([7]);
+    for (const index of comms.descriptionIndexes) {
+      expect(labels.systemDescription[index]?.length, String(index)).toBe(5);
+    }
+    expect(labels.systemDescription[7]).toEqual([
+      "beset",
+      "plagued",
+      "ravaged",
+      "cursed",
+      "scourged",
     ]);
   });
 });
 
 describe("CommsStringsSchema", () => {
   const base = {
+    descriptionIndexes: [3, 7],
     entries: [
       { key: "a", value: "hello [b]" },
       { key: "b", value: ["x", "y"] },
@@ -372,6 +394,17 @@ describe("CommsStringsSchema", () => {
     const [first, second] = base.entries;
     expect(accepts({ ...base, entries: [first, first] })).toBe(false);
     expect(accepts({ ...base, entries: [second, first] })).toBe(false);
+  });
+
+  it("refuses duplicate, out-of-order and out-of-range description indexes", () => {
+    expect(accepts({ ...base, descriptionIndexes: [7, 7] })).toBe(false);
+    expect(accepts({ ...base, descriptionIndexes: [7, 3] })).toBe(false);
+    expect(accepts({ ...base, descriptionIndexes: [36] })).toBe(false);
+    expect(accepts({ ...base, descriptionIndexes: [-1] })).toBe(false);
+    expect(accepts({ ...base, descriptionIndexes: [1.5] })).toBe(false);
+    expect(accepts({ entries: base.entries, variables: base.variables })).toBe(
+      false,
+    );
   });
 
   it("refuses duplicate and out-of-order variables", () => {
