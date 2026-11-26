@@ -169,7 +169,11 @@ test("each NPC role model is fetchable on demand and every texture it references
         expect(image.signature.slice(0, 4), where).toEqual(RIFF_TAG);
         expect(image.signature.slice(8, 12), where).toEqual(WEBP_TAG);
       } else {
-        expect(image.path, where).toMatch(/_emissive\.png$/);
+        // A baked emissive mask, or the emissive mask of a per-hull atlas
+        // (plan 21-17: `..._emissive_atlas_<12 hex>.png`).
+        expect(image.path, where).toMatch(
+          /_emissive(_atlas_[0-9a-f]{12})?\.png$/,
+        );
         expect(image.signature.slice(0, 8), where).toEqual(PNG_SIGNATURE);
       }
       expect(image.error, `${where} decode error`).toBeNull();
