@@ -21,6 +21,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 
 import { contentError } from "./content-error.js";
+import { emitAutoAiMap } from "./convert/auto-ai-map.js";
 import { emitCommodities } from "./convert/commodities.js";
 import { DEBRIS_ENTRIES, emitDebris } from "./convert/debris.js";
 import { assertBounds, modelBounds, parseDat } from "./convert/dat.js";
@@ -80,6 +81,8 @@ const SHIPDATA_OVERRIDES_RELATIVE = "Config/shipdata-overrides.plist";
 const SHIPDATA_OVERRIDES_FILE = `${SNAPSHOT_DIR}/${SHIPDATA_OVERRIDES_RELATIVE}`;
 const EXPLOSIONS_RELATIVE = "Config/explosions.plist";
 const EXPLOSIONS_FILE = `${SNAPSHOT_DIR}/${EXPLOSIONS_RELATIVE}`;
+const AUTO_AI_MAP_RELATIVE = "Config/autoAImap.plist";
+const AUTO_AI_MAP_FILE = `${SNAPSHOT_DIR}/${AUTO_AI_MAP_RELATIVE}`;
 
 /**
  * The ships whose Oolite mass is computed at build time (DATA-11): the nine
@@ -169,6 +172,7 @@ export async function generateContent({
     shipdata,
     shipOverrides,
     explosions,
+    autoAiMap,
   ] = await Promise.all([
     readConfig(inputRoot, TRADE_GOODS_RELATIVE, TRADE_GOODS_FILE),
     readConfig(inputRoot, PLANETINFO_RELATIVE, PLANETINFO_FILE),
@@ -177,6 +181,7 @@ export async function generateContent({
     readConfig(inputRoot, SHIPDATA_RELATIVE, SHIPDATA_FILE),
     readConfig(inputRoot, SHIPDATA_OVERRIDES_RELATIVE, SHIPDATA_OVERRIDES_FILE),
     readConfig(inputRoot, EXPLOSIONS_RELATIVE, EXPLOSIONS_FILE),
+    readConfig(inputRoot, AUTO_AI_MAP_RELATIVE, AUTO_AI_MAP_FILE),
   ]);
 
   const catalogue = compileShips(shipdata, shipOverrides);
@@ -229,6 +234,7 @@ export async function generateContent({
     emitNpcShips(catalogue, masses, radii, models),
     emitDebris(catalogue, debrisMasses, debrisRadii),
     emitExplosions(explosions),
+    emitAutoAiMap(autoAiMap),
     emitShipHulls(catalogue, models),
     emitStaticHulls(catalogue, models, staticMasses),
     emitDockPort(models),

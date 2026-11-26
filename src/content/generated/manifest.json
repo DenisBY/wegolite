@@ -971,6 +971,11 @@
       "sha256": "9dfe6b16c60f7098ca21841efef1f46d8962f2ca5b99cde2b96ebba56a9681a9"
     },
     {
+      "bytes": 1954,
+      "path": "src/content/generated/auto-ai-map.json",
+      "sha256": "1a0d62145db0d0c14e9e6b1171e2d3e06d8c5a428c48de20db447fb800fa0c41"
+    },
+    {
       "bytes": 10537,
       "path": "src/content/generated/commodities.json",
       "sha256": "e4149f551e64d5cc013933e9d4d977633f1e8fbaff41ee77b8a397f9750563bd"
