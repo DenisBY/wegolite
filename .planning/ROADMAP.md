@@ -101,7 +101,7 @@ Total: 78 of 78 plans complete. Requirements 16/16. Phase directories now live i
 **Phase numbering:** continues from v2.3 (Phases 15-20); there is no reset. Decimal phases (for example 23.1) are urgent insertions.
 
 - [x] **Phase 21: Roster, State Shape and Seams** - The NPC catalogue grows to the about 28 records the populator's roles resolve to, with aft weapons, fuel injection and their vendored models; every new hashed field of the milestone arrives in one snapshot v5 bump; the inert world stays byte-identical, and a render spike measures the draw calls of a full anarchy before any populator ships (completed 2026-11-26)
-- [ ] **Phase 22: Initial Population** - Each system is populated with traders, pirates, police and light bounty hunters by Oolite's populator rules, matching recorded oracle fixtures of Oolite's own script, placed as whole groups and drawn within the draw-call budget; the ships are still inert
+- [x] **Phase 22: Initial Population** - Each system is populated with traders, pirates, police and light bounty hunters by Oolite's populator rules, matching recorded oracle fixtures of Oolite's own script, placed as whole groups and drawn within the draw-call budget; the ships are still inert (completed 2026-11-26)
 - [ ] **Phase 23: Priority AI, Traders and Pirates** - Oolite's priority AI, hand-ported as plain hashable data and matched against traces of the original JavaScript, flies traders, escorts and pirates in ordinary play: NPCs fire fore and aft lasers, use fuel injectors, launch from the station and leave by docking, jumping out or landing without dying
 - [ ] **Phase 24: Loot, Scooping and Jettison** - The player buys Fuel Scoops and scoops pods that carry a commodity, jettisons cargo to satisfy a pirate, pirates collect loot, and scooped pods are held until docking and saved in schema v6
 - [ ] **Phase 25: Police, Legal Status, Bounty and Rating** - Attacks seen by the law make the player an Offender or a Fugitive by Oolite's bit-flag rules; police, light bounty hunters and the main station respond; kills pay their bounty at the kill and build the combat rating; offenders are fined, fugitives are refused docking clearance, and standing survives save and load
@@ -275,7 +275,7 @@ Plans:
 **Pitfalls to address**: C1 (the frozen path stays untouched), C4 (one forked stream per group and roll), C12 (atomic groups and the entity cap), M7 (float and ordering traps in the populator formulas), m7 (process traps from earlier milestones)
 **Decisions to settle**: what the station and planet locations mean for a ship with no AI yet; how many systems the oracle records; the rule for a population that does not fit under the cap
 **Todos**: `2026-11-25-missiles-and-ecm.md` (missiles are forced to zero at spawn here; its tripwire guard lands with CBT-19 in Phase 23)
-**Plans**: 16/16 plans executed in 14 waves
+**Plans**: 16/16 plans complete in 14 waves
 
 Plans:
 **Wave 1**
@@ -478,7 +478,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
-| 22. Initial Population | v2.4 | 16/16 | In Progress | - |
+| 22. Initial Population | v2.4 | 16/16 | Complete    | 2026-11-26 |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
 | 25. Police, Legal Status, Bounty and Rating | v2.4 | 0/TBD | Not started | - |
