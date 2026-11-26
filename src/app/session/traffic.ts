@@ -7,8 +7,12 @@
  *
  * This is the one populate and mass source shared by the live session and the
  * Node tick replay (Pitfall 11): both build their `TrafficContent` through
- * `trafficContent` and their world lifecycle's `populate` through
- * `createInertPopulate`, so they cannot drift apart.
+ * `trafficContent` and their world lifecycle's `populate` through the same
+ * closure, so they cannot drift apart. From Phase 22 (plan 22-13, WORLD-08)
+ * that closure is `createSystemPopulate`, the system populator; the Node
+ * replay uses it from plan 22-13 and the live session from plan 22-14.
+ * `createInertPopulate` (the 12-ship inert table of Phase 12) stays for the
+ * frozen inert path and its goldens.
  *
  * `createInertPopulate` is total, as rule (ii) of the world lifecycle needs: it
  * never awaits, it does nothing unless traffic is on and both the content and the
@@ -57,6 +61,11 @@ import type {
   DebrisModel,
 } from "../../sim/world/debris.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
+import { buildNeighbourhood } from "../../sim/world/neighbourhood.js";
+import type { PopulationRecord } from "../../sim/world/population/groups.js";
+import { systemFactsFrom } from "../../sim/world/population/plan.js";
+import type { SystemFactsSource } from "../../sim/world/population/plan.js";
+import { populateSystemWorld } from "../../sim/world/population/spawn.js";
 import { populateInertWorld } from "../../sim/world/populate.js";
 import type { InertShipRecord } from "../../sim/world/populate.js";
 import type { ShipMass } from "../../sim/world/ship-field.js";
@@ -67,6 +76,11 @@ export interface TrafficContent {
   readonly catalogue: readonly NpcShip[];
   /** The populator's input, in catalogue order. */
   readonly records: readonly InertShipRecord[];
+  /**
+   * The system populator's input (Phase 22, WORLD-08), in catalogue order: the
+   * order the weighted pick walks. Built by `populationRecordsFrom`.
+   */
+  readonly populationRecords: readonly PopulationRecord[];
   /** The step's jump-blockage masses, in catalogue order. */
   readonly masses: readonly ShipMass[];
   /**
@@ -223,6 +237,40 @@ function npcWeaponsOf(ship: NpcShip): NpcWeapons {
 }
 
 /**
+ * The system populator's records from the catalogue (Phase 22, WORLD-08): each
+ * compiled record mapped to a {@link PopulationRecord} by named fields, in
+ * catalogue order. The mapping never reads a record's `missiles` or
+ * `maxMissiles`: every NPC spawns with zero missiles in v2.4 (DATA-17, the
+ * missiles tripwire guards this file).
+ */
+export function populationRecordsFrom(
+  catalogue: readonly NpcShip[],
+): readonly PopulationRecord[] {
+  return Object.freeze(
+    catalogue.map((ship): PopulationRecord => ({
+      key: ship.key,
+      name: ship.name,
+      roles: ship.roles,
+      scanClass: ship.scanClass,
+      radius: ship.radius,
+      maxEnergy: ship.maxEnergy,
+      energyRechargeRate: ship.energyRechargeRate,
+      likelyCargo: ship.likelyCargo,
+      maxCargo: ship.maxCargo,
+      autoAi: ship.autoAi,
+      autoWeapons: ship.autoWeapons,
+      hasFuelInjection: ship.hasFuelInjection,
+      hyperspaceMotor: ship.hyperspaceMotor,
+      escortRoles: ship.escortRoles,
+      forwardWeapon: ship.forwardWeapon,
+      aftWeapon: ship.aftWeapon,
+      fuel: ship.fuel,
+      bounty: ship.bounty,
+    })),
+  );
+}
+
+/**
  * Build the populator records, the step masses and the flight table from the
  * catalogue; with the optional extras also the debris content, the debris
  * records and the default explosion setting. Each extra key is set only when
@@ -254,6 +302,7 @@ export function trafficContent(
         maxCargo: ship.maxCargo,
       })),
     ),
+    populationRecords: populationRecordsFrom(ships),
     masses: Object.freeze(
       ships.map((ship): ShipMass => ({ specKey: ship.key, mass: ship.mass })),
     ),
@@ -399,5 +448,56 @@ export function createInertPopulate(
     const systemLayout = layout();
     if (loaded === undefined || systemLayout === undefined) return;
     populateInertWorld(world, systemLayout, loaded.records);
+  };
+}
+
+/**
+ * The lifecycle's `Populate` for the system populator (Phase 22, WORLD-08):
+ * the initial population of the system the ship arrives in. Structurally the
+ * same type as `Populate` in world-lifecycle.ts, which this module does not
+ * import.
+ *
+ * With traffic on it reads all four getters at call time (so the lifecycle can
+ * exist before the catalogue has loaded, and a jump's new system and galaxy are
+ * seen), builds the system's neighbourhood and facts and calls
+ * `populateSystemWorld`, which places every group of the planner's table. With
+ * traffic off, or with the content, layout or system missing, it spawns
+ * nothing, draws nothing and burns no id (D-01 of Phase 12), so a world with no
+ * NPC keeps the starting counter 101 and hashes as the flight hash.
+ *
+ * Total, as rule (ii) of the world lifecycle needs: it never awaits, and
+ * `buildNeighbourhood` drops a malformed galaxy record (an absent or empty list
+ * gives empty neighbour lists) while `populateSystemWorld` is total. The
+ * `system` is the arrival system's record (`ctx.core.system` in the session);
+ * the `galaxy` is its galaxy's system list.
+ */
+export function createSystemPopulate(
+  content: () => TrafficContent | undefined,
+  layout: () => SystemLayout | undefined,
+  system: () => SystemFactsSource | undefined,
+  galaxy: () => readonly unknown[] | undefined,
+): (world: World, options: { readonly traffic: boolean }) => void {
+  return (world, { traffic }) => {
+    if (!traffic) return;
+    const loaded = content();
+    const systemLayout = layout();
+    const arrival = system();
+    if (
+      loaded === undefined ||
+      systemLayout === undefined ||
+      arrival === undefined
+    ) {
+      return;
+    }
+    const neighbourhood = buildNeighbourhood(
+      galaxy() ?? [],
+      arrival.systemIndex,
+    );
+    populateSystemWorld(
+      world,
+      systemLayout,
+      systemFactsFrom(arrival, neighbourhood, systemLayout),
+      loaded.populationRecords,
+    );
   };
 }

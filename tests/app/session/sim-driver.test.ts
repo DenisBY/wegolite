@@ -557,6 +557,7 @@ describe("stepOnce, the single flight step", () => {
     loaded.ctx.core.npcTraffic = {
       catalogue: [],
       records: [],
+      populationRecords: [],
       masses,
       flight,
       weapons: new Map(),
@@ -767,6 +768,7 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
     built.ctx.core.npcTraffic = {
       catalogue: [],
       records: [],
+      populationRecords: [],
       masses: [],
       flight: [],
       weapons: realNpcWeapons(),
@@ -812,6 +814,7 @@ describe("combat wiring (plan 13-11, CBT-04 to CBT-07)", () => {
     built.ctx.core.npcTraffic = {
       catalogue: [],
       records: [],
+      populationRecords: [],
       masses: [],
       flight: [],
       weapons: realNpcWeapons(),
@@ -1762,6 +1765,7 @@ describe("a dead session (plan 20-06, DEATH-01, D-01, D-06)", () => {
     built.ctx.core.npcTraffic = {
       catalogue: [],
       records: [],
+      populationRecords: [],
       masses: [],
       flight: realNpcFlightTable(),
       weapons: realNpcWeapons(),
