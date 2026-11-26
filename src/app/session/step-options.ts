@@ -29,6 +29,7 @@ import type { InternalDamageFacts } from "../../sim/combat/internal-damage.js";
 import type { LaserMounts } from "../../sim/combat/mounts.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import { capacityPodsFor, holdPods } from "../../sim/economy/cargo.js";
+import { firstGenerationMarket } from "../../sim/economy/market.js";
 import type { StepOptions } from "../../sim/flight/step.js";
 import {
   NAV_BUOY_MASS,
@@ -36,7 +37,7 @@ import {
 } from "../../sim/hyperspace/countdown.js";
 import type { NpcFlightStats } from "../../sim/npc/stats.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
-import type { DebrisContent } from "../../sim/world/debris.js";
+import type { DebrisContent, PodMarketEntry } from "../../sim/world/debris.js";
 import type { ShipMass } from "../../sim/world/ship-field.js";
 
 /** The facts one fixed step needs; every field is read live by the caller. */
@@ -125,6 +126,49 @@ export function internalDamageFactsFor(
 }
 
 /**
+ * The debris content per system, derived once per content object and system id
+ * (plan 21-15): a pod's draw is a pure function of the content, so the same
+ * object comes back for the same inputs and no step rebuilds the market.
+ */
+const debrisBySystem = new WeakMap<DebrisContent, Map<string, DebrisContent>>();
+
+/**
+ * The debris content with the current system's first-generation market (plan
+ * 21-15, CBT-11's pod clause): the stock per commodity key of the system's
+ * first-generation market (`firstGenerationMarket`, the market at
+ * `marketSeedForSystem(system.id)`), a pure function of the system and its seed. It is never the player-modified live
+ * market (RESEARCH A6): what the player buys or sells must not change a pod's
+ * contents, and the Node replay (which has no live market) builds the same
+ * options. Content without `goods`, or already carrying a `market`, passes
+ * through unchanged. The result is frozen.
+ */
+function debrisWithMarket(
+  debris: DebrisContent,
+  system: Pick<System, "id" | "economy">,
+): DebrisContent {
+  if (debris.goods === undefined || debris.market !== undefined) return debris;
+  let bySystem = debrisBySystem.get(debris);
+  if (bySystem === undefined) {
+    bySystem = new Map();
+    debrisBySystem.set(debris, bySystem);
+  }
+  const cached = bySystem.get(system.id);
+  if (cached !== undefined) return cached;
+  const market: readonly PodMarketEntry[] = Object.freeze(
+    firstGenerationMarket(system, debris.goods).goods.map(
+      (good): PodMarketEntry =>
+        Object.freeze({
+          key: good.key,
+          quantity: good.stock,
+        }),
+    ),
+  );
+  const derived: DebrisContent = Object.freeze({ ...debris, market });
+  bySystem.set(system.id, derived);
+  return derived;
+}
+
+/**
  * Build one step's options. `hyperspace.buoyMass` is always `NAV_BUOY_MASS`.
  * Optional keys are omitted rather than set to
  * `undefined` (`exactOptionalPropertyTypes`): `target` only when a target is
@@ -132,7 +176,9 @@ export function internalDamageFactsFor(
  * mass, `shipMasses` only when the caller has them, `dock` only when the
  * geometry exists, `npcFlight` only when the caller has the table, and
  * `combat.hulls`, `combat.npcWeapons`, `combat.debris` and
- * `combat.internalDamage` only when the caller has them. `combat` itself is always present: it carries the mounts.
+ * `combat.internalDamage` only when the caller has them. `combat.debris`
+ * carries the current system's first-generation market when the content has
+ * `goods` (plan 21-15). `combat` itself is always present: it carries the mounts.
  */
 export function buildStepOptions(input: StepOptionsInput): StepOptions {
   const {
@@ -180,7 +226,9 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     collisions: true,
     ...(hulls === undefined ? {} : { hulls }),
     ...(npcWeapons === undefined ? {} : { npcWeapons }),
-    ...(debris === undefined ? {} : { debris }),
+    ...(debris === undefined
+      ? {}
+      : { debris: debrisWithMarket(debris, system) }),
     ...(internalDamage === undefined ? {} : { internalDamage }),
   };
   const base = {

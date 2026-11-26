@@ -15,6 +15,7 @@
 
 import { readFileSync } from "node:fs";
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { playerLaserRay } from "../../../src/sim/combat/aim.js";
@@ -144,6 +145,24 @@ interface OracleVictim {
   readonly octree?: HullOctree;
   /** The victim's collision radius (the blast range); 30 by default. */
   readonly radius?: number;
+}
+
+/**
+ * The victim's total velocity, written from the C (`ShipEntity.m:11158-11166`)
+ * and not by calling `shipVelocity`: the drift plus the local forward axis
+ * (-Z) rotated into the world, times the flight speed (D-01, plan 21-15).
+ */
+function oracleTotalVelocity(victim: {
+  readonly velocity: Vec3;
+  readonly orientation: Quat;
+  readonly speed: number;
+}): Vec3 {
+  const forward = rotate(victim.orientation, vec(0, 0, -1));
+  return vec(
+    victim.velocity.x + forward.x * victim.speed,
+    victim.velocity.y + forward.y * victim.speed,
+    victim.velocity.z + forward.z * victim.speed,
+  );
 }
 
 /** One velocity component inside +-MAX_ENTITY_VELOCITY (1e4). */
@@ -508,7 +527,7 @@ function killAndOracle(
     stream: victim.rng.combat,
     cargo: victim.cargo,
     position: victim.position,
-    velocity: victim.velocity,
+    velocity: oracleTotalVelocity(victim),
     box: boxOf(victim.specKey),
     specKey: victim.specKey,
     orientation: victim.orientation,
@@ -768,7 +787,9 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
     expect(b).toEqual(a);
   });
 
-  it("adds the victim's drift velocity, never its flight speed", () => {
+  it("debris velocity equals ship velocity plus kick (D-01, D-03, plan 21-15)", () => {
+    // Drift (1, 2, 3) and flight speed 300 along the forward axis (-Z): the
+    // total velocity is (1, 2, -297), the base of every pod's velocity.
     const world = createWorld(33);
     const victim = spawnShip(world, {
       cargo: 20,
@@ -779,7 +800,8 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
     const { oracle: expected } = killAndOracle(world, victim);
     expect(expected.pods.length).toBeGreaterThan(0);
     expectPodsEqual(world, expected.pods);
-    // Without the drift the same draws give velocities 1, 2, 3 lower.
+    // The same draws from a victim at rest (no drift, speed 0) give the bare
+    // kick; compared at release, before the blast adds the same push to both.
     const still = oracle({
       stream: start,
       cargo: 20,
@@ -787,14 +809,89 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
       velocity: vec(0, 0, 0),
       box: boxOf("adder"),
     });
-    // Compared at release, before the blast adds the same kick to both.
     expected.pods.forEach((pod, i) => {
-      const base = still.pods[i];
-      if (base === undefined) throw new Error("missing oracle pod");
+      const kick = still.pods[i];
+      if (kick === undefined) throw new Error("missing oracle pod");
       expect(pod.released).toEqual(
-        vec(base.released.x + 1, base.released.y + 2, base.released.z + 3),
+        vec(kick.released.x + 1, kick.released.y + 2, kick.released.z - 297),
       );
     });
+  });
+
+  it("an at-rest victim (speed 0) keeps the drift-only velocity of Phase 16", () => {
+    const world = createWorld(33);
+    const victim = spawnShip(world, {
+      cargo: 20,
+      speed: 0,
+      velocity: vec(1, 2, 3),
+    });
+    const start = victim.rng.combat;
+    const { oracle: expected } = killAndOracle(world, victim);
+    expect(expected.pods.length).toBeGreaterThan(0);
+    expectPodsEqual(world, expected.pods);
+    const still = oracle({
+      stream: start,
+      cargo: 20,
+      position: victim.position,
+      velocity: vec(0, 0, 0),
+      box: boxOf("adder"),
+    });
+    expected.pods.forEach((pod, i) => {
+      const kick = still.pods[i];
+      if (kick === undefined) throw new Error("missing oracle pod");
+      expect(pod.released).toEqual(
+        vec(kick.released.x + 1, kick.released.y + 2, kick.released.z + 3),
+      );
+    });
+  });
+
+  it("property: every pod's velocity is the victim's total velocity plus its kick, for any in-domain victim", () => {
+    const quatArb = fc
+      .tuple(
+        fc.double({ min: -1, max: 1, noNaN: true }),
+        fc.double({ min: -1, max: 1, noNaN: true }),
+        fc.double({ min: -1, max: 1, noNaN: true }),
+        fc.double({ min: -1, max: 1, noNaN: true }),
+      )
+      .filter(([w, x, y, z]) => w * w + x * x + y * y + z * z > 1e-3)
+      .map(([w, x, y, z]) => normalize(quat(w, x, y, z)));
+    const driftArb = fc.double({ min: -3000, max: 3000, noNaN: true });
+    fc.assert(
+      fc.property(
+        fc.tuple(driftArb, driftArb, driftArb),
+        quatArb,
+        fc.double({ min: 0, max: 1000, noNaN: true }),
+        fc.integer({ min: 1, max: 1000 }),
+        ([dx, dy, dz], orientation, speed, seed) => {
+          const world = createWorld(seed);
+          const victim = spawnShip(world, {
+            cargo: 20,
+            speed,
+            orientation,
+            velocity: vec(dx, dy, dz),
+          });
+          const start = victim.rng.combat;
+          const { oracle: expected } = killAndOracle(world, victim);
+          expectPodsEqual(world, expected.pods);
+          const total = oracleTotalVelocity(victim);
+          const still = oracle({
+            stream: start,
+            cargo: 20,
+            position: victim.position,
+            velocity: vec(0, 0, 0),
+            box: boxOf("adder"),
+          });
+          expected.pods.forEach((pod, i) => {
+            const kick = still.pods[i];
+            if (kick === undefined) throw new Error("missing oracle pod");
+            expect(pod.released.x).toBeCloseTo(kick.released.x + total.x, 6);
+            expect(pod.released.y).toBeCloseTo(kick.released.y + total.y, 6);
+            expect(pod.released.z).toBeCloseTo(kick.released.z + total.z, 6);
+          });
+        },
+      ),
+      { numRuns: 40 },
+    );
   });
 
   it("releases nothing without a context or for a non-ship victim", () => {
@@ -887,6 +984,9 @@ describe("the wreckage rule (ShipEntity.m:8042-8069)", () => {
             cargo: 3,
             orientation: normalize(quat(0.9, 0.1, -0.3, 0.2)),
             velocity: vec(4, -5, 6),
+            // Flight speed along the rotated forward axis: the debris base is
+            // the total velocity (D-01, plan 21-15) for pods, wrecks, plates.
+            speed: 120,
           });
           const { oracle: expected } = killAndOracle(
             world,

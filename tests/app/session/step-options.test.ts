@@ -18,7 +18,17 @@ import {
   internalDamageFactsFor,
 } from "../../../src/app/session/step-options.js";
 import type { StepOptionsInput } from "../../../src/app/session/step-options.js";
+import {
+  debrisContentFrom,
+  trafficContent,
+} from "../../../src/app/session/traffic.js";
 import { parseEquipment } from "../../../src/content/equipment.js";
+import { DebrisCatalogueSchema } from "../../../src/content/schemas/ship-debris.js";
+import type { NpcShip } from "../../../src/content/types.js";
+import {
+  generateMarket,
+  marketSeedForSystem,
+} from "../../../src/sim/economy/market.js";
 import { holdPods } from "../../../src/sim/economy/cargo.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import {
@@ -32,6 +42,7 @@ import { DAMAGEABLE_EQUIPMENT_KEYS } from "../../../src/sim/player/outfitting.js
 import { newProfile } from "../../../src/sim/player/profile.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { committedTrafficContent } from "../../helpers/tick-script.js";
 
 const catalogue = parseEquipment(
   JSON.parse(
@@ -210,5 +221,125 @@ describe("buildStepOptions and the internal-damage facts", () => {
     };
     const options = buildStepOptions({ ...input, internalDamage: facts });
     expect(options.combat?.internalDamage).toBe(facts);
+  });
+});
+
+/**
+ * Lave's first-generation stock per commodity, in catalogue order, pinned from
+ * `generateMarket` at the system's first-generation seed (plan 21-15), equal to
+ * the stock column of the committed `tests/golden/market/lave.json`.
+ */
+const LAVE_STOCK: readonly number[] = [
+  16, 15, 20, 19, 28, 15, 37, 0, 10, 27, 0, 47, 58, 11, 21, 9, 0,
+];
+
+describe("buildStepOptions and the pod market (plan 21-15, CBT-11 pod clause)", () => {
+  const input: StepOptionsInput = {
+    fuel: 70,
+    system: lave.system,
+    target: undefined,
+    equipment: new Set<string>(),
+    dock: undefined,
+    laserMounts: DEFAULT_LASER_MOUNTS,
+  };
+  const npc = JSON.parse(
+    readFileSync("src/content/generated/ships-npc.json", "utf8"),
+  ) as NpcShip[];
+  const records = DebrisCatalogueSchema.parse(
+    JSON.parse(readFileSync("src/content/generated/ships-debris.json", "utf8")),
+  );
+  const goodsContent = debrisContentFrom(npc, records, commodities);
+  if (goodsContent === undefined) throw new Error("no debris content");
+  const plainContent = debrisContentFrom(npc, records);
+  if (plainContent === undefined) throw new Error("no debris content");
+
+  /** The oracle: the first-generation stock per key, from the market itself. */
+  const stockOf = (system: typeof lave.system) =>
+    generateMarket(
+      system,
+      commodities,
+      marketSeedForSystem(system.id),
+    ).goods.map((good) => ({ key: good.key, quantity: good.stock }));
+
+  it("adds the current system's first-generation stock per key as combat.debris.market", () => {
+    const options = buildStepOptions({ ...input, debris: goodsContent });
+    expect(options.combat?.debris?.market).toEqual(stockOf(lave.system));
+    expect(options.combat?.debris?.goods).toBe(goodsContent.goods);
+    expect(options.combat?.debris?.hulls).toBe(goodsContent.hulls);
+    // The input content is never mutated.
+    expect(goodsContent).not.toHaveProperty("market");
+  });
+
+  it("pins Lave's market: every good in catalogue order, each stock 0..127", () => {
+    const market = buildStepOptions({ ...input, debris: goodsContent }).combat
+      ?.debris?.market;
+    if (market === undefined) throw new Error("no market");
+    expect(market.map((entry) => entry.key)).toEqual(
+      commodities.map((good) => good.key),
+    );
+    for (const entry of market) {
+      expect(Number.isInteger(entry.quantity)).toBe(true);
+      expect(entry.quantity).toBeGreaterThanOrEqual(0);
+      expect(entry.quantity).toBeLessThanOrEqual(127);
+    }
+    expect(market.map((entry) => entry.quantity)).toEqual(LAVE_STOCK);
+  });
+
+  it("is derived once per system and content: the same object for repeated calls", () => {
+    const a = buildStepOptions({ ...input, debris: goodsContent });
+    const b = buildStepOptions({ ...input, debris: goodsContent });
+    expect(a.combat?.debris).toBe(b.combat?.debris);
+    expect(Object.isFrozen(a.combat?.debris)).toBe(true);
+    expect(Object.isFrozen(a.combat?.debris?.market)).toBe(true);
+  });
+
+  it("gives another system its own market", () => {
+    const other = { ...lave.system, id: "tibedied", economy: 3 };
+    const options = buildStepOptions({
+      ...input,
+      system: other,
+      debris: goodsContent,
+    });
+    expect(options.combat?.debris?.market).toEqual(stockOf(other));
+    expect(options.combat?.debris?.market).not.toEqual(
+      buildStepOptions({ ...input, debris: goodsContent }).combat?.debris
+        ?.market,
+    );
+  });
+
+  it("is a function of the system and its seed only, never of the live market or the profile", () => {
+    const equipped = buildStepOptions({
+      ...input,
+      equipment: new Set(["EQ_FUEL_SCOOPS"]),
+      fuel: 3,
+      debris: goodsContent,
+    });
+    expect(equipped.combat?.debris?.market).toEqual(stockOf(lave.system));
+  });
+
+  it("passes content without goods through unchanged (anonymous pods)", () => {
+    const options = buildStepOptions({ ...input, debris: plainContent });
+    expect(options.combat?.debris).toBe(plainContent);
+    expect(buildStepOptions(input).combat).not.toHaveProperty("debris");
+  });
+
+  it("the live session's input and the Node replay's build equal combat.debris for Lave", () => {
+    // The session builds its content from the loaded catalogues
+    // (start-session.ts); the replay reads the committed files with the strict
+    // schemas (tests/helpers/tick-script.ts). One builder, equal options.
+    const live = trafficContent(npc, { debris: records, commodities });
+    const replay = committedTrafficContent();
+    const liveOptions = buildStepOptions({
+      ...input,
+      ...(live.debris === undefined ? {} : { debris: live.debris }),
+    });
+    const replayOptions = buildStepOptions({
+      ...input,
+      ...(replay.debris === undefined ? {} : { debris: replay.debris }),
+    });
+    expect(replayOptions.combat?.debris).toEqual(liveOptions.combat?.debris);
+    expect(
+      replayOptions.combat?.debris?.market?.map((entry) => entry.quantity),
+    ).toEqual(LAVE_STOCK);
   });
 });

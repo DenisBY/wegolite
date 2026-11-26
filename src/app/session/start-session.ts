@@ -314,6 +314,8 @@ export async function loadSessionContent(
         : trafficContent(npcCatalogue, {
             debris: debrisCatalogue,
             explosions: explosionCatalogue,
+            // The pod draw's goods (plan 21-15, CBT-11's pod clause).
+            commodities: loadedCommodities,
           });
     const hulls =
       hullCatalogue === undefined

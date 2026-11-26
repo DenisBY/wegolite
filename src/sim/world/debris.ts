@@ -53,8 +53,10 @@
  * victim position plus a random point of the victim's bounding box (Oolite model
  * axes, converted by `toWegoliteLocal`) added unrotated, as Oolite does (D16-18),
  * plus a -3..3 m jitter per world axis. Its velocity is the drawn kick plus the
- * victim's drift `velocity`, never its flight `speed` (D-01). Pods drift in
- * `stepDebris` (`./step.ts`, D16-19) and never expire (D16-06).
+ * victim's total velocity (Phase 21 D-01 supersedes Phase 16's drift-only
+ * base): its drift `velocity` plus its forward axis times its flight `speed`
+ * (`ShipEntity.m:11158-11166`), so debris flies on with the ship's motion
+ * (D-03: pods drift with their source ship). Pods drift in `stepDebris` (`./step.ts`, D16-19) and never expire (D16-06).
  *
  * A wreck (D16-15) is kind `wreckage`, scan class `CLASS_NO_DRAW`
  * (`shipdata.plist:4243`), no AI, no recharge, with `energy = maxEnergy =
@@ -65,7 +67,7 @@
  * hold it) rotated by the victim's orientation; its model is rescaled
  * uniformly to `0.1 x victim mass x (0.75 .. 1.25)`, so its radius is
  * `model.radius x cbrt(expected mass / model.mass)`; its velocity is the
- * victim's drift plus `normal(dir) x u x radius`. It burns down in
+ * victim's total velocity plus `normal(dir) x u x radius`. It burns down in
  * `stepDebris` (`./step.ts`, D16-11) and leaves through `killShip`. Wreckage
  * spawns only while fewer than `WRECKAGE_ENTITY_LIMIT` entities are live.
  *
@@ -112,6 +114,7 @@ import {
   MAX_POD_AMOUNT,
   MAX_UINT32,
 } from "./limits.js";
+import { shipVelocity } from "./drift.js";
 import { randomQuaternion } from "./placement.js";
 import {
   buoyPosition,
@@ -433,6 +436,23 @@ function isObject(value: unknown): value is object {
 /** `v` when it is an object, else the zero vector; components are checked later. */
 function vecOrZero(v: unknown): Vec3 {
   return isObject(v) ? (v as Vec3) : vec(0, 0, 0);
+}
+
+/**
+ * The base of every debris velocity (D-01, D-03): the dying ship's total
+ * velocity, its Newtonian drift plus its forward axis times its flight speed
+ * (`ShipEntity.m:11158-11166`), the one `shipVelocity` definition. A victim
+ * field that is not an object or a number counts as at rest, so the base is
+ * total on a malformed record.
+ */
+function debrisBaseVelocity(victim: Entity): Vec3 {
+  const orientation: unknown = victim.orientation;
+  const speed: unknown = victim.speed;
+  return shipVelocity({
+    velocity: vecOrZero(victim.velocity),
+    orientation: isObject(orientation) ? (orientation as Quat) : identity(),
+    speed: typeof speed === "number" ? speed : 0,
+  });
 }
 
 /** The hull entry for `specKey`, or undefined when absent or not an object. */
@@ -814,14 +834,14 @@ interface Scatter {
  * for a pod, `8088-8101` for a plate): a random point of the victim's bounding
  * box (x, y, z), a -3..3 m jitter (x, y, z), a kick (x, y, z), then a random
  * quaternion (4). The box offset is added unrotated along the world axes
- * (D16-18) and the velocity is the kick plus the victim's drift, clamped into
- * the sanitiser's domain.
+ * (D16-18) and the velocity is the kick plus the victim's total velocity
+ * (`base`), clamped into the sanitiser's domain.
  */
 function scatter(
   stream: RngState,
   box: DebrisBox,
   origin: Vec3,
-  drift: Vec3,
+  base: Vec3,
 ): Scatter {
   const sample = vec(
     boxAxis(box.min.x, box.max.x, rngNext(stream)),
@@ -842,7 +862,7 @@ function scatter(
     origin.z + offset.z + jz,
   );
   const velocity = clampDebrisVelocity(
-    vec(kx + drift.x, ky + drift.y, kz + drift.z),
+    vec(kx + base.x, ky + base.y, kz + base.z),
   );
   return { position, orientation, velocity };
 }
@@ -1225,7 +1245,7 @@ export function releaseDebris(
   const pod = modelOf(ctx.content.pod);
   const capsules = capsuleCount(victim);
   const origin = vecOrZero(victim.position);
-  const drift = vecOrZero(victim.velocity);
+  const base = debrisBaseVelocity(victim);
   let chance = POD_CARGO_CHANCE_START;
   let limit = POD_LIMIT;
   // Every survivor's 13 draws are taken in order here; the spawns follow, so
@@ -1236,7 +1256,7 @@ export function releaseDebris(
     if (Math.floor(rngNext(stream) * 100) < chance) {
       if (chance > POD_CARGO_CHANCE_FLOOR) chance -= POD_CARGO_CHANCE_STEP;
       limit -= 1;
-      survivors.push(scatter(stream, box, origin, drift));
+      survivors.push(scatter(stream, box, origin, base));
     }
     if (limit <= 0) break;
   }
@@ -1303,9 +1323,9 @@ export function releaseDebris(
       const pushSpeed = push * radius;
       const velocity = clampDebrisVelocity(
         vec(
-          drift.x + normal.x * pushSpeed,
-          drift.y + normal.y * pushSpeed,
-          drift.z + normal.z * pushSpeed,
+          base.x + normal.x * pushSpeed,
+          base.y + normal.y * pushSpeed,
+          base.z + normal.z * pushSpeed,
         ),
       );
       spawnWreck(
@@ -1328,12 +1348,7 @@ export function releaseDebris(
   const plateCount = canFragment ? Math.floor(nAlloys) : 0;
   const plate = modelOf(ctx.content.plate);
   for (let i = 0; i < plateCount; i += 1) {
-    spawnCargoPiece(
-      world,
-      plate,
-      scatter(stream, box, origin, drift),
-      ctx.tick,
-    );
+    spawnCargoPiece(world, plate, scatter(stream, box, origin, base), ctx.tick);
   }
 
   // The blast, last, over every body now live (ShipEntity.m:8123-8126).

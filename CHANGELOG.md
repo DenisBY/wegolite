@@ -11,6 +11,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Explosions now move with the ship that blew up, as in Oolite, including your
   own: a ship destroyed at speed leaves its fireball and sparks travelling on
   along its course instead of hanging where it died.
+- Cargo pods, alloy plates and wreckage now fly on with the destroyed ship's
+  motion instead of stopping where it died, as in Oolite, and cargo pods now
+  hold goods: each pod carries a commodity and an amount drawn from the market
+  of the system you are in.
 - With NPC traffic on, the game now downloads the NPC ship models in the
   background while you are docked, two at a time, so ships draw at once when
   they first appear. The download is outside the first-load size limit and is
