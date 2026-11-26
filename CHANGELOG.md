@@ -19,6 +19,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   background while you are docked, two at a time, so ships draw at once when
   they first appear. The download is outside the first-load size limit and is
   not started at all with traffic off.
+- Each NPC ship model now draws in one call: its parts share a texture atlas,
+  with no visible change.
 
 ## [0.8.2] - 2026-11-25
 

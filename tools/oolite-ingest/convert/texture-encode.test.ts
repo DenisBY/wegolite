@@ -19,7 +19,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,7 +30,18 @@ import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
 import { sha256Hex } from "../canonical/hash.js";
 import { isContentError } from "../content-error.js";
 import { parseOpenStep } from "../openstep/parser.js";
-import { encodedTextureFile } from "./glb.js";
+import {
+  MERGED_NPC_GLBS,
+  atlasImagesOf,
+  encodedTextureFile,
+  hullTextureNames,
+  planHullMerges,
+} from "./glb.js";
+import type { AtlasImage } from "./atlas.js";
+import { parseDat } from "./dat.js";
+import type { ParsedMesh } from "./dat.js";
+import { MODEL_SOURCE_FILES } from "./glb.js";
+import type { ShipEntry } from "./glb.js";
 import { compileShips } from "./ships.js";
 import {
   NEAR_LOSSLESS_MAX_ERROR,
@@ -47,6 +58,7 @@ import type { TextureEncoder } from "./texture-encode.js";
 import {
   VENDORED_TEXTURES,
   decodePng,
+  loadTextureImages,
   resolveReferencedTextures,
 } from "./textures.js";
 
@@ -67,6 +79,78 @@ function catalogue(): ShipCatalogue {
 }
 
 const references = resolveReferencedTextures(catalogue());
+
+/**
+ * The served file names every committed GLB references. Plan 21-17: a merged
+ * NPC hull names its atlas images, so only the vendored textures a GLB still
+ * names are encoded and committed one by one.
+ */
+function committedGlbFiles(): Set<string> {
+  const files = new Set<string>();
+  for (const file of readdirSync(join(REPO_ROOT, "public/models"))) {
+    if (!file.endsWith(".glb")) continue;
+    const bytes = readFileSync(join(REPO_ROOT, "public/models", file));
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString("utf8"),
+    ) as { images?: { uri: string }[] };
+    for (const image of json.images ?? []) {
+      files.add(image.uri.replace("../textures/", ""));
+    }
+  }
+  return files;
+}
+
+const REFERENCED = committedGlbFiles();
+
+/** The vendored textures the committed GLBs still reference one by one. */
+const EMITTED_VENDORED = VENDORED_TEXTURES.filter((name) =>
+  REFERENCED.has(encodedTextureFile(name)),
+);
+
+/** The per-hull atlas images the generator builds for the committed GLBs. */
+let atlasesOnce: Promise<readonly AtlasImage[]> | undefined;
+
+function builtAtlases(): Promise<readonly AtlasImage[]> {
+  atlasesOnce ??= buildAtlases();
+  return atlasesOnce;
+}
+
+async function buildAtlases(): Promise<readonly AtlasImage[]> {
+  const { models, entries } = await loadHullInputs();
+  return atlasImagesOf(
+    planHullMerges(
+      models,
+      entries,
+      await loadTextureImages(
+        REPO_ROOT,
+        hullTextureNames(models, entries, MERGED_NPC_GLBS),
+      ),
+      MERGED_NPC_GLBS,
+    ),
+  );
+}
+
+async function loadHullInputs(): Promise<{
+  models: Record<string, ParsedMesh>;
+  entries: Record<string, ShipEntry>;
+}> {
+  const entries: Record<string, ShipEntry> = {};
+  for (const entry of catalogue()) {
+    entries[entry.key] = { key: entry.key, shipDef: entry.shipDef };
+  }
+  const models: Record<string, ParsedMesh> = {};
+  for (const files of Object.values(MODEL_SOURCE_FILES)) {
+    for (const file of files) {
+      if (Object.hasOwn(models, file)) continue;
+      const relative = `third_party/oolite/Models/${file}`;
+      models[file] = parseDat(
+        await readFile(join(REPO_ROOT, relative), "utf8"),
+        relative,
+      );
+    }
+  }
+  return { models, entries };
+}
 
 function profileOf(name: string): ReturnType<typeof profileFor> {
   return profileFor(
@@ -202,6 +286,8 @@ describe("profiles and encoder arguments", () => {
       lossless: true,
       alpha: true,
     });
+    // A baked roughness is data: constants per region, kept exact.
+    expect(profileFor(["roughness"])).toEqual({ lossless: true, alpha: false });
   });
 
   it("maps each profile to fixed cwebp arguments with no threading", () => {
@@ -257,7 +343,7 @@ describe("profiles and encoder arguments", () => {
 });
 
 describe("the committed encoded textures", () => {
-  it.each([...VENDORED_TEXTURES])(
+  it.each([...EMITTED_VENDORED])(
     "%s has its source's size and its profile's layout",
     (name) => {
       const info = readWebpInfo(committed(name), name);
@@ -274,12 +360,12 @@ describe("the committed encoded textures", () => {
   );
 
   it("is smaller than its source for every file", () => {
-    for (const name of VENDORED_TEXTURES) {
+    for (const name of EMITTED_VENDORED) {
       expect(committed(name).length, name).toBeLessThan(source(name).length);
     }
   });
 
-  it.each(VENDORED_TEXTURES.filter((name) => profileOf(name).lossless))(
+  it.each(EMITTED_VENDORED.filter((name) => profileOf(name).lossless))(
     "%s decodes to within the near-lossless bound on every channel",
     (name) => {
       const original = sourcePixels(name);
@@ -301,7 +387,7 @@ describe("the committed encoded textures", () => {
     60_000,
   );
 
-  it.each(VENDORED_TEXTURES.filter((name) => profileOf(name).alpha))(
+  it.each(EMITTED_VENDORED.filter((name) => profileOf(name).alpha))(
     "%s decodes to exactly the source alpha",
     (name) => {
       const original = sourcePixels(name);
@@ -315,7 +401,7 @@ describe("the committed encoded textures", () => {
     60_000,
   );
 
-  it.each(VENDORED_TEXTURES.filter((name) => !profileOf(name).lossless))(
+  it.each(EMITTED_VENDORED.filter((name) => !profileOf(name).lossless))(
     "%s keeps its colour within the lossy error ceiling",
     (name) => {
       const original = sourcePixels(name);
@@ -341,16 +427,45 @@ describe("the committed record", () => {
     readFileSync(join(REPO_ROOT, TEXTURE_ENCODINGS_PATH), "utf8"),
   );
 
-  it("has one row per vendored texture, sorted by path", () => {
+  it("has one row per encoded texture, sorted by path", () => {
+    // The vendored textures a GLB still names, and every WebP atlas image (the
+    // emissive atlas masks stay PNG and carry no row).
+    const atlasFiles = [...REFERENCED].filter((name) =>
+      /_atlas_[0-9a-f]{12}\.webp$/.test(name),
+    );
     expect(rows.map((row) => row.path)).toEqual(
-      VENDORED_TEXTURES.map(
-        (name) => `${OUT_DIR}/${encodedTextureFile(name)}`,
-      ).sort(),
+      [
+        ...EMITTED_VENDORED.map((name) => encodedTextureFile(name)),
+        ...atlasFiles,
+      ]
+        .map((name) => `${OUT_DIR}/${name}`)
+        .sort(),
     );
   });
 
+  it("lists every vendored input of each atlas row, and none of a single-source row", () => {
+    for (const row of rows) {
+      if (row.source.startsWith("atlas:")) {
+        expect(row.inputs?.length, row.path).toBeGreaterThan(0);
+        for (const input of row.inputs ?? []) {
+          expect(
+            input.startsWith("third_party/oolite/"),
+            `${row.path}: ${input}`,
+          ).toBe(true);
+          expect(
+            readFileSync(join(REPO_ROOT, input)).length,
+            input,
+          ).toBeGreaterThan(0);
+        }
+        expect(row.inputs, row.path).toEqual([...(row.inputs ?? [])].sort());
+      } else {
+        expect(row.inputs, row.path).toBeUndefined();
+      }
+    }
+  });
+
   it("matches every source, argument list and output", () => {
-    for (const name of VENDORED_TEXTURES) {
+    for (const name of EMITTED_VENDORED) {
       const row = rows.find(
         (candidate) =>
           candidate.path === `${OUT_DIR}/${encodedTextureFile(name)}`,
@@ -376,18 +491,26 @@ describe("encodeTextures", () => {
   it("re-uses every committed output without calling the encoder", async () => {
     await withTemp(async (outRoot) => {
       const encoder = fakeEncoder();
+      const atlases = await builtAtlases();
       const emitted = await encodeTextures({
         inputRoot: REPO_ROOT,
         outRoot,
         reuseRoot: REPO_ROOT,
         catalogue: catalogue(),
         encoder,
+        referenced: REFERENCED,
+        atlases,
       });
       expect(encoder.calls).toEqual([]);
       expect(emitted.map((file) => file.path)).toEqual([
-        ...VENDORED_TEXTURES.map(
-          (name) => `${OUT_DIR}/${encodedTextureFile(name)}`,
-        ).sort(),
+        ...[
+          ...EMITTED_VENDORED.map((name) => encodedTextureFile(name)),
+          ...atlases
+            .filter((image) => image.slot !== "emissive")
+            .map((image) => encodedTextureFile(image.name)),
+        ]
+          .map((name) => `${OUT_DIR}/${name}`)
+          .sort(),
         TEXTURE_ENCODINGS_PATH,
       ]);
       for (const file of emitted) {
@@ -396,23 +519,37 @@ describe("encodeTextures", () => {
         expect(written.equals(reference), file.path).toBe(true);
       }
     });
-  });
+  }, 300_000);
 
   it("encodes everything, with each profile's arguments, without a re-use tree", async () => {
     await withTemp(async (outRoot) => {
       const encoder = fakeEncoder();
+      const atlases = await builtAtlases();
       await encodeTextures({
         inputRoot: REPO_ROOT,
         outRoot,
         catalogue: catalogue(),
         encoder,
+        referenced: REFERENCED,
+        atlases,
       });
-      expect(encoder.calls.map((call) => call.source.split("/").pop())).toEqual(
-        [...VENDORED_TEXTURES],
-      );
+      const names = encoder.calls.map((call) => call.source.split("/").pop());
+      const atlasNames = atlases
+        .filter((image) => image.slot !== "emissive")
+        .map((image) => image.name);
+      expect(names).toEqual([...EMITTED_VENDORED, ...atlasNames]);
       for (const call of encoder.calls) {
         const name = call.source.split("/").pop() ?? "";
-        expect(call.args).toEqual(encoderArgs(profileOf(name)));
+        const atlas = atlases.find((image) => image.name === name);
+        expect(call.args).toEqual(
+          atlas === undefined
+            ? encoderArgs(profileOf(name))
+            : encoderArgs(
+                profileFor([
+                  atlas.slot === "emissive" ? "emission" : atlas.slot,
+                ]),
+              ),
+        );
       }
       const rows = parseTextureEncodings(
         await readFile(join(outRoot, TEXTURE_ENCODINGS_PATH), "utf8"),
@@ -421,9 +558,10 @@ describe("encodeTextures", () => {
         new Set(["fake 0"]),
       );
     });
-  });
+  }, 300_000);
 
   it("encodes again only the file whose source hash, arguments or output changed", async () => {
+    const atlases = await builtAtlases();
     await withTemp(async (reuseRoot) => {
       await cp(join(REPO_ROOT, OUT_DIR), join(reuseRoot, OUT_DIR), {
         recursive: true,
@@ -453,6 +591,8 @@ describe("encodeTextures", () => {
           reuseRoot,
           catalogue: catalogue(),
           encoder,
+          referenced: REFERENCED,
+          atlases,
         });
         const encoded = encoder.calls
           .map((call) => encodedTextureFile(call.source.split("/").pop() ?? ""))
@@ -461,7 +601,7 @@ describe("encodeTextures", () => {
         expect(encoded).toEqual([first.path, second.path, third.path].sort());
       });
     });
-  });
+  }, 300_000);
 
   it("fails TEXTURE_ENCODE when the output is not the source's size", async () => {
     await withTemp(async (outRoot) => {
@@ -473,6 +613,7 @@ describe("encodeTextures", () => {
           outRoot,
           catalogue: catalogue(),
           encoder: fakeEncoder(() => small),
+          referenced: REFERENCED,
         }),
       );
       expect(thrown.code).toBe("TEXTURE_ENCODE");
@@ -488,6 +629,7 @@ describe("encodeTextures", () => {
           inputRoot: REPO_ROOT,
           outRoot,
           catalogue: catalogue(),
+          referenced: REFERENCED,
           encoder: {
             version: () => Promise.resolve("fake 0"),
             encode(sourcePath) {

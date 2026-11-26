@@ -35,6 +35,7 @@ import {
   EMITTED_ENTRIES,
   LEGACY_TEXTURED_ENTRIES,
   MODEL_SOURCE_FILES,
+  MERGED_NPC_GLBS,
   NPC_SHIP_GLBS,
   buildCobraGlb,
   buildCoriolisGlb,
@@ -42,9 +43,12 @@ import {
   convertMesh,
   debrisGlbFile,
   emissiveFile,
+  emitModels,
   encodedTextureFile,
+  hullTextureNames,
   materialFor,
   npcGlbFile,
+  planHullMerges,
   shipGlbFile,
   writeGlb,
 } from "./glb.js";
@@ -55,8 +59,9 @@ import type {
   GlbScene,
   ShipEntry,
 } from "./glb.js";
+import type { MergeOutcome } from "./atlas.js";
 import { compileShips } from "./ships.js";
-import { resolveReferencedTextures } from "./textures.js";
+import { loadTextureImages, resolveReferencedTextures } from "./textures.js";
 
 const SHIPDATA = "third_party/oolite/Config/shipdata.plist";
 const OVERRIDES = "third_party/oolite/Config/shipdata-overrides.plist";
@@ -1177,6 +1182,47 @@ function soleElement(list: readonly string[] | undefined): string {
   return at(list ?? [], 0);
 }
 
+interface Rebuilt {
+  readonly emitted: ReadonlyMap<string, Uint8Array>;
+  readonly outcomes: ReadonlyMap<string, MergeOutcome>;
+}
+
+let rebuiltOnce: Promise<Rebuilt> | undefined;
+
+/**
+ * The generator's own GLB emission, run once over the vendored inputs: the merge
+ * plan of every NPC hull and every emitted binary. The committed bytes are
+ * compared against this, so the expectation comes from the converter and its
+ * refusal function, never from a hand-written list of hulls.
+ */
+function rebuildAll(): Promise<Rebuilt> {
+  rebuiltOnce ??= (async (): Promise<Rebuilt> => {
+    const models: Record<string, ParsedMesh> = {};
+    for (const files of Object.values(MODEL_SOURCE_FILES)) {
+      for (const file of files) models[file] ??= loadMesh(file);
+    }
+    const entries: Record<string, ShipEntry> = {};
+    for (const entry of catalogue.entries) {
+      entries[entry.key] = { key: entry.key, shipDef: entry.shipDef };
+    }
+    const outcomes = planHullMerges(
+      models,
+      entries,
+      await loadTextureImages(
+        process.cwd(),
+        hullTextureNames(models, entries, MERGED_NPC_GLBS),
+      ),
+      MERGED_NPC_GLBS,
+    );
+    const emitted = new Map<string, Uint8Array>();
+    for (const model of emitModels(models, entries, outcomes)) {
+      emitted.set(model.path.replace("public/models/", ""), model.bytes);
+    }
+    return { emitted, outcomes };
+  })();
+  return rebuiltOnce;
+}
+
 /**
  * The single-mesh GLB checks shared by the NPC ships and the debris models:
  * rows, committed bytes, materials, texture closure, the independent reader,
@@ -1197,13 +1243,34 @@ async function assertSingleMeshGlb(
   // (b) the committed bytes are a fresh build of the row.
   const committed = readRepoBytes(`public/models/${file}`);
   const mesh = loadMesh(source);
-  const rebuilt = buildShipGlb(
-    stem(file, ".glb"),
-    stem(source, ".dat"),
-    mesh,
-    entry,
-  );
+  const { emitted, outcomes } = await rebuildAll();
+  const rebuilt = emitted.get(file);
+  if (rebuilt === undefined) throw new Error(`${file} was not emitted`);
   expect(sha256Hex(committed)).toBe(sha256Hex(rebuilt));
+  // A hull the merge refused is still built from its own primitives.
+  const outcome = outcomes.get(file);
+  if (outcome?.kind !== "merged") {
+    expect(sha256Hex(committed)).toBe(
+      sha256Hex(
+        buildShipGlb(
+          stem(file, ".glb"),
+          stem(source, ".dat"),
+          loadMesh(source),
+          entry,
+          outcome?.kind === "refused"
+            ? {
+                wegolite: {
+                  mergeRefusal: {
+                    condition: outcome.refusal.condition,
+                    detail: outcome.refusal.detail,
+                  },
+                },
+              }
+            : undefined,
+        ),
+      ),
+    );
+  }
 
   // (c) one node (the hull), one mesh, one primitive and material per authored
   // material, every name a key of the owner's material table or, for a
@@ -1214,13 +1281,34 @@ async function assertSingleMeshGlb(
   expect(json.meshes).toHaveLength(1);
   const jsonMesh = at(json.meshes, 0);
   expect(jsonMesh.name).toBe(stem(source, ".dat"));
-  expect(jsonMesh.primitives).toHaveLength(mesh.materials.length);
-  expect(json.materials).toHaveLength(mesh.materials.length);
-  for (const material of json.materials) {
-    expect([
-      ...Object.keys(entry.shipDef.materials),
-      ...(LEGACY_TEXTURED_ENTRIES[owner] ?? []),
-    ]).toContain(material.name);
+  if (outcome?.kind === "merged") {
+    // One primitive and one material, built from every authored primitive.
+    expect(jsonMesh.primitives).toHaveLength(1);
+    expect(json.materials).toHaveLength(1);
+  } else {
+    expect(jsonMesh.primitives).toHaveLength(mesh.materials.length);
+    expect(json.materials).toHaveLength(mesh.materials.length);
+    for (const material of json.materials) {
+      expect([
+        ...Object.keys(entry.shipDef.materials),
+        ...(LEGACY_TEXTURED_ENTRIES[owner] ?? []),
+      ]).toContain(material.name);
+    }
+  }
+  // A refusal is recorded in the GLB; a merged or single hull carries none.
+  const refusalRecord = (
+    json as {
+      scenes?: { extras?: { wegolite?: { mergeRefusal?: unknown } } }[];
+    }
+  ).scenes?.[0]?.extras?.wegolite?.mergeRefusal;
+  if (outcome?.kind === "refused") {
+    expect(refusalRecord).toEqual({
+      condition: outcome.refusal.condition,
+      detail: outcome.refusal.detail,
+    });
+    expect(["a", "b", "c", "d", "e"]).toContain(outcome.refusal.condition);
+  } else {
+    expect(refusalRecord).toBeUndefined();
   }
 
   // (d) every image is an existing sibling texture and the set is exactly the
@@ -1240,18 +1328,28 @@ async function assertSingleMeshGlb(
   }
   expect(uris.some((uri) => uri.endsWith(".webp"))).toBe(true);
   const expectedUris = new Set<string>();
-  for (const [name, references] of resolveReferencedTextures(
-    catalogue.entries,
-  )) {
-    for (const reference of references) {
-      if (reference.shipKey !== owner) continue;
-      expectedUris.add(
-        `../textures/${
-          reference.mapKind === "emission"
-            ? emissiveFile(name)
-            : encodedTextureFile(name)
-        }`,
+  if (outcome?.kind === "merged") {
+    // The atlas images of the merge, content-addressed.
+    for (const image of outcome.images) {
+      expectedUris.add(`../textures/${encodedTextureFile(image.name)}`);
+      expect(image.name, "content address").toMatch(
+        /_atlas_[0-9a-f]{12}\.png$/,
       );
+    }
+  } else {
+    for (const [name, references] of resolveReferencedTextures(
+      catalogue.entries,
+    )) {
+      for (const reference of references) {
+        if (reference.shipKey !== owner) continue;
+        expectedUris.add(
+          `../textures/${
+            reference.mapKind === "emission"
+              ? emissiveFile(name)
+              : encodedTextureFile(name)
+          }`,
+        );
+      }
     }
   }
   expect([...new Set(uris)].sort()).toEqual([...expectedUris].sort());
@@ -1294,6 +1392,9 @@ describe("NPC ship GLBs", () => {
     async (file) => {
       await assertSingleMeshGlb(file, (_model, owner) => npcGlbFile(owner));
     },
+    // The first case plans the merge of every NPC hull (the vendored maps are
+    // decoded and the atlases built); the others reuse it.
+    300_000,
   );
 });
 

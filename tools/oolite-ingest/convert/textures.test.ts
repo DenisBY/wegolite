@@ -28,9 +28,12 @@ import {
   VENDORED_TEXTURES,
   bakeEmissive,
   copyParticleTextures,
+  decodeColourPng,
   decodeGreyscalePng,
   decodePng,
   emitTextures,
+  encodeRgbaPng,
+  loadTextureImages,
   resolveReferencedTextures,
   sampleNearest,
 } from "./textures.js";
@@ -41,7 +44,6 @@ import {
   NPC_SHIP_GLBS,
   convertMesh,
   emissiveFile,
-  encodedTextureFile,
 } from "./glb.js";
 import type { Face, MeshMaterial, ParsedMesh } from "./dat.js";
 import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
@@ -167,7 +169,23 @@ describe("texture reference closure", () => {
         (references.get(variant) ?? []).map((reference) => reference.shipKey),
         variant,
       ).toEqual([shipKey, shipKey]);
-      expect(served).toContain(encodedTextureFile(variant));
+      // Plan 21-17: the variant's hull is merged, so its map is served inside
+      // the per-hull diffuse atlas, whose encodings row lists it as an input.
+      const atlasRows = (
+        JSON.parse(
+          readFileSync(
+            join(REPO_ROOT, "src/content/generated/texture-encodings.json"),
+            "utf8",
+          ),
+        ) as { files: { path: string; inputs?: string[] }[] }
+      ).files.filter(
+        (row) =>
+          row.path.includes("_diffuse_atlas_") &&
+          row.inputs?.includes(`third_party/oolite/Textures/${variant}`) ===
+            true,
+      );
+      expect(atlasRows, variant).toHaveLength(1);
+      expect(served).toContain(atlasRows[0]?.path.split("/").pop());
       expect(served).not.toContain(variant);
     }
   });
@@ -231,18 +249,10 @@ describe("texture reference closure", () => {
 });
 
 describe("the emitted texture tree", () => {
-  it("serves each vendored texture as WebP only, beside the bakes, the sky and the particles", () => {
+  it("serves exactly what the committed GLBs reference, beside the sky and the particles", () => {
     const entries = readdirSync(join(REPO_ROOT, "public/textures")).sort();
-    // Resolved once: the closure is a pure function of the catalogue, and the
-    // allowlist grew to 110 names (plan 21-08).
-    const references = resolveReferencedTextures(catalogue());
     const expected = [
-      ...VENDORED_TEXTURES.map((name) => encodedTextureFile(name)),
-      ...VENDORED_TEXTURES.filter((name) =>
-        (references.get(name) ?? []).some(
-          (reference) => reference.mapKind === "emission",
-        ),
-      ).map((name) => emissiveFile(name)),
+      ...committedGlbFiles(),
       ...SKY_TEXTURES,
       ...PARTICLE_TEXTURES,
     ].sort();
@@ -251,6 +261,9 @@ describe("the emitted texture tree", () => {
     for (const name of VENDORED_TEXTURES) {
       expect(entries).not.toContain(name);
     }
+    // A vendored map is a served WebP, a baked mask or an atlas image; nothing
+    // else is served (the closure holds in both directions).
+    expect(entries.length).toBeGreaterThan(SKY_TEXTURES.length);
   });
 
   it("ships the particle textures byte-identical to the vendored files (D16-08)", async () => {
@@ -357,47 +370,35 @@ function emissiveUri(json: GlbJson, material: GlbMaterialJson): string | null {
   return image.uri;
 }
 
-const EMISSIVE_FILES = [
-  "oolite_adder_diffuse_emissive.png",
-  "oolite_alloy_diffuse_emissive.png",
-  "oolite_anaconda_diffuse_emissive.png",
-  "oolite_anaconda_subents_emissive.png",
-  "oolite_asp_diffuse_emissive.png",
-  "oolite_boa-mk2_diffuse_emissive.png",
-  "oolite_boa-mk2_subents_emissive.png",
-  "oolite_boa_diffuse_emissive.png",
-  "oolite_boa_subents_emissive.png",
-  "oolite_buoy_subents_emissive.png",
-  "oolite_cobra3_diffuse_alt_emissive.png",
-  "oolite_cobra3_diffuse_emissive.png",
-  "oolite_cobra3_diffuse_pirate_emissive.png",
-  "oolite_cobramk1_diffuse_alt_emissive.png",
-  "oolite_cobramk1_diffuse_emissive.png",
-  "oolite_coriolis_diffuse_emissive.png",
-  "oolite_coriolis_dock_diffuse_emissive.png",
-  "oolite_coriolis_faceplate_diffuse_emissive.png",
-  "oolite_coriolis_tris_diffuse_emissive.png",
-  "oolite_ferdelance_diffuse_emissive.png",
-  "oolite_ferdelance_subents_emissive.png",
-  "oolite_gecko_diffuse_emissive.png",
-  "oolite_krait_diffuse_emissive.png",
-  "oolite_mamba_diffuse_emissive.png",
-  "oolite_mamba_diffuse_escort_emissive.png",
-  "oolite_moray_diffuse_emissive.png",
-  "oolite_moray_diffuse_med_emissive.png",
-  "oolite_moray_subents_emissive.png",
-  "oolite_python_diffuse_blackdog_emissive.png",
-  "oolite_python_diffuse_emissive.png",
-  "oolite_python_diffuse_trader_emissive.png",
-  "oolite_python_subents_emissive.png",
-  "oolite_python_subents_trader_emissive.png",
-  "oolite_shuttle_diffuse_emissive.png",
-  "oolite_sidewinder_diffuse_emissive.png",
-  "oolite_sidewinder_diffuse_escort_emissive.png",
-  "oolite_viper_diffuse_emissive.png",
-  "oolite_viper_diffuse_pursuit_emissive.png",
-  "oolite_viper_interceptor_diffuse_emissive.png",
-];
+/**
+ * The served file names every committed GLB references (`../textures/` stripped).
+ * Plan 21-17: a merged NPC hull names its atlas images, so a vendored texture
+ * only a merged hull used is no longer a served file.
+ */
+function committedGlbFiles(): Set<string> {
+  const files = new Set<string>();
+  for (const file of readdirSync(join(REPO_ROOT, "public/models"))) {
+    if (!file.endsWith(".glb")) continue;
+    for (const image of readGlbJson(`public/models/${file}`).images) {
+      files.add(image.uri.replace("../textures/", ""));
+    }
+  }
+  return files;
+}
+
+/**
+ * The baked emissive maps the committed GLBs reference: the per-map bakes of the
+ * hulls that were not merged (the emissive masks of the atlases are named
+ * `oolite_<model>_emissive_atlas_<hash>.png` and are covered by `atlas.test.ts`).
+ */
+const EMISSIVE_FILES: string[] = (() => {
+  const referenced = committedGlbFiles();
+  return [...resolveReferencedTextures(catalogue())]
+    .filter(([, list]) => list.some((item) => item.mapKind === "emission"))
+    .map(([name]) => emissiveFile(name))
+    .filter((name) => referenced.has(name))
+    .sort();
+})();
 
 describe("decodePng", () => {
   it("decodes the pinned Coriolis diffuse and counts 6,224 lit alpha pixels", () => {
@@ -438,6 +439,51 @@ describe("decodePng", () => {
     expect(failure.code).toBe("TEXTURE_MISSING");
     expect(failure.message).toContain("9000");
     expect(failure.message).toContain("8192");
+  });
+});
+
+describe("the atlas PNG codec (plan 21-17)", () => {
+  it("decodes an RGB map with an opaque alpha and an RGBA map as decodePng does", () => {
+    // oolite_anaconda_subents_normal.png is 8-bit RGB (colour type 2).
+    const rgb = decodeColourPng(
+      readBytes(
+        "third_party/oolite/Textures/oolite_anaconda_subents_normal.png",
+      ),
+    );
+    expect(rgb.width).toBe(256);
+    expect(rgb.height).toBe(256);
+    for (let index = 3; index < rgb.data.length; index += 4) {
+      expect(rgb.data[index]).toBe(255);
+    }
+    const rgba = decodeColourPng(readBytes(CORIOLIS_DIFFUSE));
+    expect(Array.from(rgba.data)).toEqual(
+      Array.from(decodePng(readBytes(CORIOLIS_DIFFUSE)).data),
+    );
+  });
+
+  it("round-trips RGBA bytes through the deterministic encoder", () => {
+    const data = new Uint8Array(4 * 4 * 4).map(
+      (_, index) => (index * 37) & 255,
+    );
+    const png = encodeRgbaPng(data, 4, 4);
+    expect(Array.from(decodePng(png).data)).toEqual(Array.from(data));
+    expect(Array.from(encodeRgbaPng(data, 4, 4))).toEqual(Array.from(png));
+    expect(() => encodeRgbaPng(new Uint8Array(3), 4, 4)).toThrow(
+      "do not fill 4x4",
+    );
+  });
+
+  it("fails a texture that was not loaded, naming it", async () => {
+    const lookup = await loadTextureImages(REPO_ROOT, [
+      "oolite_anaconda_subents_normal.png",
+    ]);
+    expect(lookup("oolite_anaconda_subents_normal.png").width).toBe(256);
+    expect(() => lookup("oolite_anaconda_diffuse.png")).toThrow(
+      "was not loaded",
+    );
+    await expect(
+      loadTextureImages(REPO_ROOT, ["no-such-texture.png"]),
+    ).rejects.toThrow("cannot be read");
   });
 });
 
@@ -486,6 +532,7 @@ describe("emitTextures", () => {
         inputRoot: REPO_ROOT,
         outRoot,
         catalogue: catalogue(),
+        referenced: committedGlbFiles(),
       });
       expect(emitted.map((file) => file.path)).toEqual(
         EMISSIVE_FILES.map((name) => `public/textures/${name}`).sort(),

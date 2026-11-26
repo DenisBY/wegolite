@@ -45,11 +45,13 @@ import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
 import { sha256Hex } from "../canonical/hash.js";
 import { canonicalJson } from "../canonical/json.js";
 import { contentError } from "../content-error.js";
+import type { AtlasImage } from "./atlas.js";
 import { encodedTextureFile } from "./glb.js";
 import {
   EMITTED_TEXTURES_DIR,
   TEXTURES_DIR,
   VENDORED_TEXTURES,
+  encodeAtlasPng,
   resolveReferencedTextures,
 } from "./textures.js";
 import type { EmittedTextureFile, TextureMapKind } from "./textures.js";
@@ -77,7 +79,9 @@ export interface TextureProfile {
 /** Decide the profile of one file from the material slots that name it. */
 export function profileFor(kinds: readonly TextureMapKind[]): TextureProfile {
   return {
-    lossless: kinds.includes("normal"),
+    // A baked roughness is data too: a constant per region, which the
+    // near-lossless coder leaves exact.
+    lossless: kinds.includes("normal") || kinds.includes("roughness"),
     alpha: kinds.includes("specular"),
   };
 }
@@ -261,12 +265,22 @@ export function readPngSize(
 /** One row of `texture-encodings.json`. */
 export interface TextureEncodingRow {
   readonly path: string;
+  /**
+   * The vendored PNG, or `atlas:<name>` for a per-hull atlas image built in
+   * memory (its `sourceSha256` is the hash of that image's PNG).
+   */
   readonly source: string;
   readonly sourceSha256: string;
   readonly args: readonly string[];
   readonly encoder: string;
   readonly bytes: number;
   readonly sha256: string;
+  /**
+   * Every vendored input of an atlas image, code-unit sorted: the textures it
+   * is built from and, for the roughness map, the config its gloss comes from.
+   * Absent on a single-source row.
+   */
+  readonly inputs?: readonly string[];
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -300,7 +314,16 @@ export function parseTextureEncodings(text: string): TextureEncodingRow[] {
       typeof bytes === "number" &&
       typeof sha256 === "string"
     ) {
-      rows.push({ path, source, sourceSha256, args, encoder, bytes, sha256 });
+      rows.push({
+        path,
+        source,
+        sourceSha256,
+        args,
+        encoder,
+        bytes,
+        sha256,
+        ...(isStringArray(row["inputs"]) ? { inputs: row["inputs"] } : {}),
+      });
     }
   }
   return rows;
@@ -335,6 +358,14 @@ export interface EncodeTexturesOptions {
   readonly reuseRoot?: string;
   readonly catalogue: ShipCatalogue;
   readonly encoder?: TextureEncoder;
+  /**
+   * The served file names the emitted GLBs reference (plan 21-17). When given,
+   * a vendored texture no emitted GLB names is not encoded: a merged NPC hull
+   * names its atlas images instead of its per-primitive maps.
+   */
+  readonly referenced?: ReadonlySet<string>;
+  /** The per-hull atlas images to encode; the emissive masks stay PNG. */
+  readonly atlases?: readonly AtlasImage[];
 }
 
 /**
@@ -351,6 +382,8 @@ export async function encodeTextures({
   reuseRoot,
   catalogue,
   encoder = cwebpEncoder(),
+  referenced,
+  atlases = [],
 }: EncodeTexturesOptions): Promise<EmittedTextureFile[]> {
   const references = resolveReferencedTextures(catalogue);
   const sourceBase = resolve(inputRoot, TEXTURES_DIR);
@@ -372,7 +405,93 @@ export async function encodeTextures({
   const emitted: EmittedTextureFile[] = [];
   const rows: TextureEncodingRow[] = [];
 
+  /**
+   * One output: re-use the committed file when its source hash and arguments
+   * are unchanged, encode otherwise, check the result describes the same
+   * image, write it and record the row.
+   */
+  const produce = async (job: {
+    readonly path: string;
+    readonly outName: string;
+    readonly source: string;
+    readonly sourceSha256: string;
+    readonly size: { readonly width: number; readonly height: number };
+    readonly profile: TextureProfile;
+    readonly inputs?: readonly string[];
+    readonly encode: (args: readonly string[]) => Promise<Uint8Array>;
+  }): Promise<void> => {
+    const args = encoderArgs(job.profile);
+    let bytes: Uint8Array | undefined;
+    let usedEncoder: string | undefined;
+    const previous = recorded.find((row) => row.path === job.path);
+    if (
+      reuseRoot !== undefined &&
+      previous !== undefined &&
+      previous.source === job.source &&
+      previous.sourceSha256 === job.sourceSha256 &&
+      sameArgs(previous.args, args)
+    ) {
+      try {
+        const committed = new Uint8Array(
+          await readFile(resolve(reuseRoot, job.path)),
+        );
+        if (sha256Hex(committed) === previous.sha256) {
+          bytes = committed;
+          usedEncoder = previous.encoder;
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+    if (bytes === undefined) {
+      encoderVersion ??= await encoder.version();
+      bytes = await job.encode(args);
+      usedEncoder = encoderVersion;
+    }
+
+    // Whether fresh or re-used, the output must describe the same image.
+    let info: WebpInfo;
+    try {
+      info = readWebpInfo(bytes, job.path);
+    } catch (cause) {
+      encodeFailure(
+        job.path,
+        cause instanceof Error ? cause.message : "unreadable",
+      );
+    }
+    if (info.width !== job.size.width || info.height !== job.size.height) {
+      encodeFailure(
+        job.path,
+        `encoded size ${String(info.width)}x${String(info.height)} differs from the source ${String(job.size.width)}x${String(job.size.height)}`,
+      );
+    }
+    if (job.profile.lossless !== (info.format === "lossless")) {
+      encodeFailure(
+        job.path,
+        `expected a ${job.profile.lossless ? "lossless" : "lossy"} file, found ${info.format}`,
+      );
+    }
+    if (!job.profile.alpha && info.alpha) {
+      encodeFailure(job.path, "the alpha channel was meant to be dropped");
+    }
+
+    await writeFile(resolveUnder(targetBase, job.outName), bytes);
+    emitted.push({ path: job.path, bytes });
+    rows.push({
+      path: job.path,
+      source: job.source,
+      sourceSha256: job.sourceSha256,
+      args,
+      encoder: usedEncoder ?? "",
+      bytes: bytes.length,
+      sha256: sha256Hex(bytes),
+      ...(job.inputs === undefined ? {} : { inputs: job.inputs }),
+    });
+  };
+
   for (const name of VENDORED_TEXTURES) {
+    const outName = encodedTextureFile(name);
+    if (referenced !== undefined && !referenced.has(outName)) continue;
     const sourcePath = resolveUnder(sourceBase, name);
     const sourceFile = `${TEXTURES_DIR}/${name}`;
     let source: Uint8Array;
@@ -385,81 +504,57 @@ export async function encodeTextures({
         }`,
       });
     }
-    const sourceSha256 = sha256Hex(source);
     const kinds = (references.get(name) ?? []).map(
       (reference) => reference.mapKind,
     );
-    const profile = profileFor(kinds);
-    const args = encoderArgs(profile);
-    const outName = encodedTextureFile(name);
-    const path = `${EMITTED_TEXTURES_DIR}/${outName}`;
-
-    let bytes: Uint8Array | undefined;
-    let usedEncoder: string | undefined;
-    const previous = recorded.find((row) => row.path === path);
-    if (
-      reuseRoot !== undefined &&
-      previous !== undefined &&
-      previous.source === sourceFile &&
-      previous.sourceSha256 === sourceSha256 &&
-      sameArgs(previous.args, args)
-    ) {
-      try {
-        const committed = new Uint8Array(
-          await readFile(resolve(reuseRoot, path)),
-        );
-        if (sha256Hex(committed) === previous.sha256) {
-          bytes = committed;
-          usedEncoder = previous.encoder;
-        }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      }
-    }
-    if (bytes === undefined) {
-      encoderVersion ??= await encoder.version();
-      bytes = await encoder.encode(sourcePath, args);
-      usedEncoder = encoderVersion;
-    }
-
-    // Whether fresh or re-used, the output must describe the same image.
-    let info: WebpInfo;
     let size: { readonly width: number; readonly height: number };
     try {
-      info = readWebpInfo(bytes, path);
       size = readPngSize(source, sourceFile);
     } catch (cause) {
       encodeFailure(
-        path,
+        sourceFile,
         cause instanceof Error ? cause.message : "unreadable",
       );
     }
-    if (info.width !== size.width || info.height !== size.height) {
-      encodeFailure(
-        path,
-        `encoded size ${String(info.width)}x${String(info.height)} differs from the source ${String(size.width)}x${String(size.height)}`,
-      );
-    }
-    if (profile.lossless !== (info.format === "lossless")) {
-      encodeFailure(
-        path,
-        `expected a ${profile.lossless ? "lossless" : "lossy"} file, found ${info.format}`,
-      );
-    }
-    if (!profile.alpha && info.alpha) {
-      encodeFailure(path, "the alpha channel was meant to be dropped");
-    }
-
-    await writeFile(resolveUnder(targetBase, outName), bytes);
-    emitted.push({ path, bytes });
-    rows.push({
-      path,
+    await produce({
+      path: `${EMITTED_TEXTURES_DIR}/${outName}`,
+      outName,
       source: sourceFile,
-      sourceSha256,
-      args,
-      encoder: usedEncoder ?? "",
-      bytes: bytes.length,
-      sha256: sha256Hex(bytes),
+      sourceSha256: sha256Hex(source),
+      size,
+      profile: profileFor(kinds),
+      encode: (args) => encoder.encode(sourcePath, args),
+    });
+  }
+
+  // The per-hull atlas images: built in memory, so each is written to a
+  // scratch PNG for the encoder. The emissive masks stay greyscale PNG
+  // (`textures.ts`).
+  for (const image of atlases) {
+    if (image.slot === "emissive") continue;
+    const outName = encodedTextureFile(image.name);
+    const png = encodeAtlasPng(image);
+    await produce({
+      path: `${EMITTED_TEXTURES_DIR}/${outName}`,
+      outName,
+      source: `atlas:${image.name}`,
+      sourceSha256: sha256Hex(png),
+      size: { width: image.side, height: image.side },
+      profile: profileFor([image.slot]),
+      inputs: [
+        ...image.inputTextures.map((name) => `${TEXTURES_DIR}/${name}`),
+        ...image.inputConfig,
+      ],
+      encode: async (args) => {
+        const scratch = await mkdtemp(join(tmpdir(), "wegolite-atlas-"));
+        try {
+          const file = join(scratch, image.name);
+          await writeFile(file, png);
+          return await encoder.encode(file, args);
+        } finally {
+          await rm(scratch, { recursive: true, force: true });
+        }
+      },
     });
   }
 
@@ -470,6 +565,7 @@ export async function encodeTextures({
         args: [...row.args],
         bytes: row.bytes,
         encoder: row.encoder,
+        ...(row.inputs === undefined ? {} : { inputs: [...row.inputs] }),
         path: row.path,
         sha256: row.sha256,
         source: row.source,

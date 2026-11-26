@@ -46,6 +46,7 @@ import { resolve, sep } from "node:path";
 import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
 import { sha256Hex } from "../canonical/hash.js";
 import { contentError } from "../content-error.js";
+import type { AtlasImage, RgbaImage, TextureLookup } from "./atlas.js";
 import {
   EMITTED_ENTRIES,
   LEGACY_TEXTURED_ENTRIES,
@@ -186,7 +187,9 @@ export type TextureMapKind =
   /** The alpha channel of the named file is an emission mask (baked apart). */
   | "emission"
   /** The named file is itself an RGB emission image. */
-  | "illumination";
+  | "illumination"
+  /** A constant authored gloss baked into a per-hull atlas (data, not colour). */
+  | "roughness";
 
 /** One material slot that names a texture file. */
 export interface TextureReference {
@@ -479,6 +482,50 @@ export interface EmitTexturesOptions {
   readonly inputRoot: string;
   readonly outRoot: string;
   readonly catalogue: ShipCatalogue;
+  /**
+   * The served file names the emitted GLBs reference (plan 21-17). When given,
+   * a baked emissive map no emitted GLB names is not written: a merged NPC hull
+   * names its atlas instead of its per-primitive maps.
+   */
+  readonly referenced?: ReadonlySet<string>;
+  /** The per-hull atlas images; the emissive masks are written as PNG. */
+  readonly atlases?: readonly AtlasImage[];
+}
+
+/**
+ * Decode the named vendored textures once and return a synchronous lookup, the
+ * seam the atlas builder reads (plan 21-17). A name that was not loaded is a
+ * build failure, never a silent stand-in.
+ */
+export async function loadTextureImages(
+  inputRoot: string,
+  names: Iterable<string>,
+): Promise<TextureLookup> {
+  const sourceBase = resolve(inputRoot, TEXTURES_DIR);
+  const images = new Map<string, RgbaImage>();
+  for (const name of [...new Set(names)].sort(compareCodeUnits)) {
+    const source = resolveUnder(sourceBase, name, name);
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(source);
+    } catch (cause) {
+      textureFailure(
+        name,
+        name,
+        `atlas input cannot be read from ${expectedPath(name)}${
+          cause instanceof Error ? `: ${cause.message}` : ""
+        }`,
+      );
+    }
+    images.set(name, decodeColourPng(new Uint8Array(bytes), name));
+  }
+  return (name) => {
+    const image = images.get(name);
+    if (image === undefined) {
+      return textureFailure(name, name, "atlas input was not loaded");
+    }
+    return image;
+  };
 }
 
 /** The largest dimension `decodePng` accepts, checked before any inflate. */
@@ -724,6 +771,38 @@ export function decodePng(bytes: Uint8Array, name = "texture.png"): DecodedPng {
   };
 }
 
+/**
+ * Decode a non-interlaced 8-bit PNG of colour type 2 (RGB) or 6 (RGBA) to
+ * RGBA (plan 21-17). The roster's vendored maps use both: a normal map has no
+ * alpha channel, a diffuse map keeps its emission mask in alpha. An RGB image
+ * decodes with an opaque alpha. Any other header fails before `inflateSync`.
+ */
+export function decodeColourPng(
+  bytes: Uint8Array,
+  name = "texture.png",
+): RgbaImage {
+  const header = readHeader(bytes, name);
+  if (header.colourType === 6) {
+    const decoded = decodePng(bytes, name);
+    return {
+      width: decoded.width,
+      height: decoded.height,
+      data: decoded.data,
+    };
+  }
+  validateHeader(header, name, 8, 2, "RGB or RGBA");
+  const raw = inflate(collectIdat(bytes, name), name);
+  const rgb = unfilter(raw, header.width, header.height, 3, name);
+  const data = new Uint8Array(header.width * header.height * 4);
+  for (let index = 0; index < header.width * header.height; index++) {
+    data[index * 4] = rgb[index * 3] ?? 0;
+    data[index * 4 + 1] = rgb[index * 3 + 1] ?? 0;
+    data[index * 4 + 2] = rgb[index * 3 + 2] ?? 0;
+    data[index * 4 + 3] = 255;
+  }
+  return { width: header.width, height: header.height, data };
+}
+
 /** Decode an 8-bit colour-type-0 PNG: the shape `encodeGreyscalePng` emits. */
 export function decodeGreyscalePng(
   bytes: Uint8Array,
@@ -807,28 +886,31 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
 }
 
 /**
- * Encode an 8-bit colour-type-0 greyscale PNG (D-08, T-02-19).
+ * Encode an 8-bit PNG of colour type 0 (greyscale) or 6 (RGBA) (D-08, T-02-19).
  *
  * Determinism is the point: every scanline uses filter type 0, the deflate
  * parameters are explicit (`level: 9`, `Z_FIXED`, `memLevel: 9`, `windowBits:
  * 15`), and no chunk carries a timestamp, a text note or a resolution hint.
  */
-export function encodeGreyscalePng(
-  grey: Uint8Array,
+function encodePng(
+  samples: Uint8Array,
   width: number,
   height: number,
+  channels: 1 | 4,
+  label: string,
 ): Uint8Array {
-  if (width < 1 || height < 1 || grey.length !== width * height) {
+  if (width < 1 || height < 1 || samples.length !== width * height * channels) {
     throw new Error(
-      `encodeGreyscalePng: ${String(grey.length)} samples do not fill ${String(width)}x${String(height)}`,
+      `${label}: ${String(samples.length)} samples do not fill ${String(width)}x${String(height)}`,
     );
   }
 
-  const raw = new Uint8Array(height * (width + 1));
+  const stride = width * channels;
+  const raw = new Uint8Array(height * (stride + 1));
   for (let row = 0; row < height; row++) {
-    const start = row * (width + 1);
+    const start = row * (stride + 1);
     raw[start] = 0; // filter type 0 on every scanline
-    raw.set(grey.subarray(row * width, (row + 1) * width), start + 1);
+    raw.set(samples.subarray(row * stride, (row + 1) * stride), start + 1);
   }
 
   const compressed = new Uint8Array(
@@ -845,7 +927,7 @@ export function encodeGreyscalePng(
   headerView.setUint32(0, width, false);
   headerView.setUint32(4, height, false);
   header[8] = 8; // bit depth
-  header[9] = 0; // colour type: greyscale
+  header[9] = channels === 1 ? 0 : 6; // colour type: greyscale or RGBA
   header[10] = 0; // compression
   header[11] = 0; // filter
   header[12] = 0; // interlace
@@ -864,6 +946,31 @@ export function encodeGreyscalePng(
     cursor += chunk.length;
   }
   return out;
+}
+
+/** Encode an 8-bit colour-type-0 greyscale PNG. */
+export function encodeGreyscalePng(
+  grey: Uint8Array,
+  width: number,
+  height: number,
+): Uint8Array {
+  return encodePng(grey, width, height, 1, "encodeGreyscalePng");
+}
+
+/** Encode an 8-bit colour-type-6 RGBA PNG (the atlas images, plan 21-17). */
+export function encodeRgbaPng(
+  rgba: Uint8Array,
+  width: number,
+  height: number,
+): Uint8Array {
+  return encodePng(rgba, width, height, 4, "encodeRgbaPng");
+}
+
+/** The PNG bytes of one atlas image, in its own channel layout. */
+export function encodeAtlasPng(image: AtlasImage): Uint8Array {
+  return image.channels === 1
+    ? encodeGreyscalePng(image.data, image.side, image.side)
+    : encodeRgbaPng(image.data, image.side, image.side);
 }
 
 /**
@@ -895,11 +1002,16 @@ export async function emitTextures({
   inputRoot,
   outRoot,
   catalogue,
+  referenced,
+  atlases = [],
 }: EmitTexturesOptions): Promise<EmittedTextureFile[]> {
   const references = resolveReferencedTextures(catalogue);
   const sources: string[] = [];
   for (const [name, referencing] of references) {
-    if (referencing.some((reference) => reference.mapKind === "emission")) {
+    if (
+      referencing.some((reference) => reference.mapKind === "emission") &&
+      (referenced === undefined || referenced.has(emissiveFile(name)))
+    ) {
       sources.push(name);
     }
   }
@@ -929,6 +1041,15 @@ export async function emitTextures({
     const baked = bakeEmissive(new Uint8Array(bytes), name);
     await writeFile(resolveUnder(targetBase, fileName, fileName), baked);
     emitted.push({ path: `${EMITTED_TEXTURES_DIR}/${fileName}`, bytes: baked });
+  }
+
+  // The emissive atlas masks stay greyscale PNG, as the per-map bakes do; the
+  // other atlas slots are encoded to WebP by `texture-encode.ts`.
+  for (const image of atlases) {
+    if (image.slot !== "emissive") continue;
+    const png = encodeAtlasPng(image);
+    await writeFile(resolveUnder(targetBase, image.name, image.name), png);
+    emitted.push({ path: `${EMITTED_TEXTURES_DIR}/${image.name}`, bytes: png });
   }
 
   return emitted.sort((left, right) => compareCodeUnits(left.path, right.path));
