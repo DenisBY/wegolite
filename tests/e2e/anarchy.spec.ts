@@ -256,6 +256,9 @@ test("a full anarchy of the 29 hulls and a fight with its debris and explosion: 
   await page.evaluate(() => window.__wegolite?.test?.setSpeed(0));
 
   // 1. The anarchy: one inert ship of every key on a ring ahead of the player.
+  // Since plan 22-14 the Lave is populated before the anarchy joins it; every
+  // count below is relative to `entitiesBefore`, so none follows the population
+  // (no re-pin), and the budgets are measured with the population present.
   const entitiesBefore = await page.evaluate(
     () => window.__wegolite?.sim?.entities ?? -1,
   );
