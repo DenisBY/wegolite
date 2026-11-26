@@ -48,12 +48,12 @@
  * texels per metre on the hull maps, up to 35 on the Python's gun map) at
  * Oolite's 57.2 degree flight field of view across 1 920 pixels, lambda reaches
  * 5 at about 2 to 8 km for a hull map and 1.6 km for the densest map, where the
- * ship is 25 to 50 pixels long. Past the gutter, the free atlas area holds the
- * nearest region's outermost gutter texel, extruded, never a neutral fill, so
- * beyond level 5 an edge facing free space still blends only with its own
- * content; an edge facing another region's gutter, or the opposite atlas edge
- * through the GLB's default REPEAT wrap, blends with that neighbour over less
- * than one screen pixel. A gutter of 2^5 costs 17 to 27 percent more texels
+ * ship is about 15 to 50 pixels long. Past the gutter, the free atlas area
+ * holds the nearest region's outermost gutter texel, extruded, never a neutral
+ * fill, so beyond level 5 an edge facing free space still blends only with its
+ * own content; an edge facing another region's gutter, or the opposite atlas
+ * edge through the GLB's default REPEAT wrap, blends with that neighbour over
+ * less than one screen pixel. A gutter of 2^5 costs 17 to 27 percent more texels
  * per atlas than an unpadded layout (the Anaconda's side grows from 1 536 to
  * 1 664).
  *
