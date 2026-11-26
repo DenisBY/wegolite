@@ -545,6 +545,7 @@ describe("NpcShipSchema role fields (DATA-17, plan 21-05)", () => {
       "autoWeapons",
       "hasScoop",
       "hasFuelInjection",
+      "hyperspaceMotor",
       "fuel",
       "scoopPosition",
       "countsAsKill",
@@ -556,6 +557,56 @@ describe("NpcShipSchema role fields (DATA-17, plan 21-05)", () => {
     for (const record of generated as Record<string, unknown>[]) {
       for (const field of fields) expect(record).toHaveProperty(field);
     }
+  });
+
+  it("takes hyperspaceMotor as a plain boolean, never a number or a probability", () => {
+    expect(accepts(withField("hyperspaceMotor", true))).toBe(true);
+    expect(accepts(withField("hyperspaceMotor", false))).toBe(true);
+    for (const bad of [0, 1, 0.5, "no", "yes", null]) {
+      expect(accepts(withField("hyperspaceMotor", bad)), String(bad)).toBe(
+        false,
+      );
+    }
+    const without = { ...firstRecord() };
+    delete without["hyperspaceMotor"];
+    expect(accepts([without])).toBe(false);
+  });
+
+  it("compiles hyperspaceMotor equal to the recorder's independent reading of shipdata.plist (plan 22-02)", () => {
+    // The recorder read each ship's `hasHyperspaceMotor` through Oolite's own
+    // populator script and a stub host, with no import of the converter; the
+    // catalogue compiles `hyperspace_motor` through `like_ship`. They must agree
+    // for every key, the nine hulls that author `no` included.
+    const facts = JSON.parse(
+      readFileSync(
+        join(REPO_ROOT, "tests/oracles/population/fixtures/ship-facts.json"),
+        "utf8",
+      ),
+    ) as { ships: { key: string; hasHyperspaceMotor: boolean }[] };
+    const records = generated as { key: string; hyperspaceMotor: boolean }[];
+    expect(records.map((record) => record.key)).toEqual(
+      facts.ships.map((ship) => ship.key),
+    );
+    for (const record of records) {
+      const fact = facts.ships.find((ship) => ship.key === record.key);
+      expect(
+        record.hyperspaceMotor,
+        `${record.key} against the recorder's fact`,
+      ).toBe(fact?.hasHyperspaceMotor);
+    }
+    expect(
+      records.filter((record) => !record.hyperspaceMotor).map((r) => r.key),
+    ).toEqual([
+      "gecko",
+      "krait",
+      "mamba",
+      "mamba-escort",
+      "shuttle",
+      "sidewinder",
+      "sidewinder-escort",
+      "viper",
+      "viper-pursuit",
+    ]);
   });
 
   it("bounds the fuzzy probabilities to 0..1", () => {

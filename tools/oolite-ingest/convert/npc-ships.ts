@@ -40,6 +40,9 @@
  * `scoopPosition`, `countsAsKill`, `escorts`, `escortRoles`, `missiles` and
  * `maxMissiles`. Fuzzy booleans are stored as float32 probabilities, as
  * `fragmentChance` is, and are rolled per ship at spawn, never at compile time.
+ *
+ * Plan 22-05 (WORLD-08) adds `hyperspaceMotor`, a plain boolean the system
+ * populator reads for an independent pirate's weapon level.
  */
 
 import { canonicalJson } from "../canonical/json.js";
@@ -237,6 +240,13 @@ export const DEFAULT_HAS_SCOOP = 0;
 
 /** Oolite's `has_fuel_injection` default, a fuzzy boolean defaulting to no (ShipEntity.m:361). */
 export const DEFAULT_HAS_FUEL_INJECTION = 0;
+
+/**
+ * Oolite's `hyperspace_motor` default: a plain boolean defaulting to yes
+ * (`oo_boolForKey:defaultValue:YES`, ShipEntity.m:382). Read by the system
+ * populator as `hasHyperspaceMotor` (`oolite-populator.js:1714`).
+ */
+export const DEFAULT_HYPERSPACE_MOTOR = true;
 
 /**
  * Oolite's `fuel` default (`oo_unsignedShortForKey`, ShipEntity.m:555; the
@@ -898,6 +908,12 @@ export function compileNpcShips(
         entry.extras,
         "has_fuel_injection",
         DEFAULT_HAS_FUEL_INJECTION,
+      ),
+      hyperspaceMotor: boolExtra(
+        key,
+        entry.extras,
+        "hyperspace_motor",
+        DEFAULT_HYPERSPACE_MOTOR,
       ),
       fuel: boundedUintExtra(key, entry.extras, "fuel", DEFAULT_FUEL, MAX_FUEL),
       scoopPosition: positionExtra(key, entry.extras, "scoop_position"),

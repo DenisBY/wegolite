@@ -6,10 +6,11 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (forty-one fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * records (forty-two fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
  * `radius`, the five Phase 13 combat fields, the four Phase 14 flight fields,
  * the ten Phase 15 DATA-14 fields, the Phase 16 `boundingBox`, the quick
- * 261119-i9g `laserColor` and the twelve plan 21-05 DATA-17 role fields)
+ * 261119-i9g `laserColor`, the twelve plan 21-05 DATA-17 role fields and the
+ * plan 22-05 `hyperspaceMotor`)
  * are compared with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -144,6 +145,7 @@ interface Golden {
     readonly autoWeapons: number;
     readonly hasScoop: number;
     readonly hasFuelInjection: number;
+    readonly hyperspaceMotor: boolean;
     readonly fuel: number;
     readonly scoopPosition: number[];
     readonly countsAsKill: boolean;
@@ -273,10 +275,10 @@ describe("NPC ship records", () => {
     expect(resolved.map((entry) => entry.key)).not.toContain("shuttle");
   });
 
-  it("carries exactly the golden's forty-one fields and passes the strict schema", () => {
+  it("carries exactly the golden's forty-two fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
-      expect(golden.fields).toHaveLength(41);
+      expect(golden.fields).toHaveLength(42);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
     }
   });
