@@ -8,8 +8,8 @@
  * hulls (one entry per model, with the keys that share it as aliases) live in their own generated file and are loaded only when something asks
  * for them: the glob below is non-eager, so Vite splits the file into its own
  * chunk that the first load never fetches, and the first-load ceiling is
- * unaffected. Nothing imports this module yet; the session start-up that wires
- * the load (alongside the NPC catalogue) is a later plan of Phase 13.
+ * unaffected. Loaded by `start-session.ts` (traffic on only) and built into the
+ * hull table by `hullTable` (`src/app/session/traffic.ts`), with aliases.
  *
  * The module name starts with `ships` on purpose, so the simulation's ESLint
  * denial of `**\/content/ships*` covers it: `src/sim` sees hull data only as a
