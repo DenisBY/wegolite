@@ -205,7 +205,7 @@ Ordering rules:
 **Pitfalls to address** (research PITFALLS.md): C1 (the frozen run and the inert goldens share the populate path and the catalogue), C2 (piecemeal hashed fields), C6 (the damage path lacks the AI-visible side effects: the hit-reaction stage), C9 (content scope: aft weapons, missiles, AI chosen by role), C11 (no non-lethal removal path), M6 (pod fields)
 **Decisions to settle**: the field set and its bounds (`src/sim/world/limits.ts` only); the draw-call fix; whether the Phase 18 standing approval to re-pin twin hashes (measured cause, Node equal to the browser) covers this milestone's re-pins (ask the owner once, in the first plan)
 **Todos**: `2026-11-17-skip-shiphit-for-a-doomed-target.md` (if the hit-reaction stage becomes the first `shipHit` consumer, the skip comes with it and must never skip the offence broadcast; guard `ship-hit-consumers`); candidate, by owner decision: `2026-11-24-debris-inherits-ship-velocity.md` (it moves the same debris pins, so if it joins the milestone it joins this phase's one re-pin; it decides where pods drift, which matters for scooping in Phase 24)
-**Plans**: 18/19 plans executed in 10 waves
+**Plans**: 19/19 plans executed in 10 waves
 
 Plans:
 **Wave 1**
@@ -245,7 +245,7 @@ Plans:
 - [x] 21-18-PLAN.md — Wave 9: D-05 fix (2): variant hulls share one instanced mesh set (identical content and texture variants), measured (DATA-18; QUAL-09 staged)
 
 **Wave 10** *(blocked on Wave 9 completion)*
-- [ ] 21-19-PLAN.md — Wave 10: GPU p95 and triangles, the budget decision after both fixes, shared budget constants, phase gate (DATA-18; QUAL-09 staged)
+- [x] 21-19-PLAN.md — Wave 10: GPU p95 and triangles, the budget decision after both fixes, shared budget constants, phase gate (DATA-18; QUAL-09 staged)
 
 **Cross-cutting constraints:** <!-- gsd:generated -->
 - The frozen run is 21 of 21 (remote, recorded; `src/sim/world/**` changes)
@@ -428,7 +428,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 18. Stations, Buoys and Collisions | v2.3 | 22/22 | Complete    | 2026-11-20 |
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
-| 21. Roster, State Shape and Seams | v2.4 | 18/19 | In Progress | - |
+| 21. Roster, State Shape and Seams | v2.4 | 19/19 | In Progress | - |
 | 22. Initial Population | v2.4 | 0/TBD | Not started | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
