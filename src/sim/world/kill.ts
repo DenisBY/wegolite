@@ -86,8 +86,10 @@
  */
 
 import type { SimEvent } from "../events.js";
+import type { Vec3 } from "../math.js";
 import { blastBuoy, blastDebrisPiece, releaseDebris } from "./debris.js";
 import type { DebrisContext } from "./debris.js";
+import { shipVelocity } from "./drift.js";
 import { NO_ENTITY, PLAYER_ID } from "./ids.js";
 import type { EntityId } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
@@ -125,6 +127,12 @@ function notifyKill(world: World, victim: EntityId, killer: EntityId): void {
   if (killer === NO_ENTITY || killer === PLAYER_ID) return;
   postAiEvent(world, { to: killer, name: "shipTargetDestroyed", a: victim });
   postAiEvent(world, { to: killer, name: "shipKilledOther", a: victim });
+}
+
+/** A value copy of `v`; a non-finite component counts as 0 (events carry finite values). */
+function copyVec(v: Vec3): Vec3 {
+  const c = (n: number): number => (Number.isFinite(n) ? n : 0);
+  return { x: c(v.x), y: c(v.y), z: c(v.z) };
 }
 
 /**
@@ -172,6 +180,8 @@ export function killShip(
     radius: entity.radius,
     specKey: entity.specKey,
     killer: normalised,
+    // A fresh vector, never the entity's drift (D-02).
+    velocity: shipVelocity(entity),
   });
   notifyKill(world, id, normalised);
   if (debris !== undefined) releaseDebris(world, entity, debris);
@@ -213,6 +223,8 @@ export function destroyBuoy(
     radius: layout[target.layoutKey].radius,
     specKey: target.identKey,
     killer: normaliseKiller(world, target.id, killer),
+    // A buoy's flight speed is 0, so its total velocity is its drift (a copy).
+    velocity: copyVec(world.buoys[target.layoutKey].velocity),
   });
   if (debris !== undefined) blastBuoy(world, layout, target.layoutKey, debris);
   return true;

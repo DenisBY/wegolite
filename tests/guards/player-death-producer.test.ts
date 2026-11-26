@@ -44,7 +44,9 @@ const CONSUMER = "src/app/session/event-router.ts";
 
 /** The two declaration lines of `events.ts`, by trimmed text, each once. */
 const DECLARATION_LINES: readonly string[] = [
-  '| { kind: "playerDestroyed"; position: Vec3; cause: PlayerDeathCause }',
+  // The union member spans lines since it carries `velocity` (21-13, D-02):
+  // its `kind` property line, a type member ended by `;`.
+  'kind: "playerDestroyed";',
   '"playerDestroyed",',
 ];
 
@@ -56,10 +58,19 @@ interface SourceFile {
   readonly source: string;
 }
 
-/** Whether the line only names the kind in a type (a union member or `Extract<`). */
+/**
+ * Whether the line only names the kind in a type (a union member, `Extract<`,
+ * or the `kind` property line of a multi-line member, which a type ends with
+ * `;` where an object literal ends it with `,`).
+ */
 function isTypePosition(line: string): boolean {
   const text = line.trim();
-  return text.startsWith("|") || text.startsWith("&") || /Extract</.test(text);
+  return (
+    text.startsWith("|") ||
+    text.startsWith("&") ||
+    /Extract</.test(text) ||
+    /^kind\s*:\s*["'`]playerDestroyed["'`];$/.test(text)
+  );
 }
 
 /**

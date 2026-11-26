@@ -133,11 +133,41 @@ describe("killShip", () => {
         radius: 30,
         specKey: "adder",
         killer: PLAYER_ID,
+        velocity: { x: 0, y: 0, z: 0 },
       },
     ]);
     expect(world.store.get(id)).toBeUndefined();
     expect(commitWorld(world)).toEqual([id]);
     expect(commitWorld(world)).toEqual([]);
+  });
+
+  it("carries the total velocity as a value copy: drift plus forward x speed, never the entity's drift (D-02)", () => {
+    const world = createWorld(1);
+    const result = spawnEntity(
+      world,
+      {
+        kind: "ship",
+        specKey: "adder",
+        scanClass: "CLASS_NEUTRAL",
+        position: vec(100, 200, 300),
+        orientation: identity(),
+        radius: 30,
+        speed: 100,
+        velocity: vec(1, 2, 3),
+        ai: null,
+      },
+      0,
+    );
+    if (!result.ok) throw new Error(`spawn refused: ${result.reason}`);
+    const entity = result.entity;
+    const events: SimEvent[] = [];
+    killShip(world, entity.id, PLAYER_ID, events);
+    const [event] = destroyed(events);
+    expect(event?.velocity).toEqual({ x: 1, y: 2, z: -97 });
+    expect(event?.velocity).not.toBe(entity.velocity);
+    // A later change of the entity's drift never reaches the event.
+    Object.assign(entity.velocity, { x: 999 });
+    expect(event?.velocity.x).toBe(1);
   });
 
   it("copies the position, so the event does not alias the entity", () => {
@@ -1171,6 +1201,7 @@ describe("destroyBuoy (D-04, D-13)", () => {
         radius: layout.navBuoy.radius,
         specKey: "buoy",
         killer: PLAYER_ID,
+        velocity: { x: 0, y: 0, z: 0 },
       },
     ]);
     // The event's position is a copy, not the world's offset or the layout's.
@@ -1183,6 +1214,17 @@ describe("destroyBuoy (D-04, D-13)", () => {
     expect(world.store.get(STATION_NAV_BUOY_ID)).toBeUndefined();
     expect(world.store.nextId).toBe(nextId);
     expect(world.staticHealth.navBuoy).toBe(0);
+  });
+
+  it("carries a destroyed buoy's own drift as a copy", () => {
+    const world = createWorld(1);
+    world.staticHealth.navBuoy = 0;
+    world.buoys.navBuoy.velocity = vec(3, 0, -4);
+    const events: SimEvent[] = [];
+    destroyBuoy(world, buoyRow(STATION_NAV_BUOY_ID), PLAYER_ID, events, layout);
+    const [event] = destroyed(events);
+    expect(event?.velocity).toEqual({ x: 3, y: 0, z: -4 });
+    expect(event?.velocity).not.toBe(world.buoys.navBuoy.velocity);
   });
 
   it("names the witchpoint buoy by its own ident key", () => {
@@ -1198,6 +1240,7 @@ describe("destroyBuoy (D-04, D-13)", () => {
         radius: layout.witchpoint.radius,
         specKey: "buoy-witchpoint",
         killer: PLAYER_ID,
+        velocity: { x: 0, y: 0, z: 0 },
       },
     ]);
   });

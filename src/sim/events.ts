@@ -160,6 +160,13 @@ export type SimEvent =
       specKey: string;
       /** `NO_ENTITY` when nothing is credited. */
       killer: EntityId;
+      /**
+       * A value copy of the dying ship's total velocity at the kill (D-02,
+       * `shipVelocity`): the drift plus the forward axis times the speed. Never
+       * an alias of the entity's drift. The explosion bursts drift with it
+       * (`OOParticleSystem.m:274`, `:324`). Events are not hashed.
+       */
+      velocity: Vec3;
     }
   | { kind: "entityRemoved"; id: EntityId }
   | {
@@ -189,9 +196,16 @@ export type SimEvent =
   /**
    * Posted by `killPlayer` (`./combat/death.ts`, DEATH-01), once, on the tick
    * the player's energy bank is emptied in flight. `position` is a copy of the
-   * player's position and `cause` names what killed it (D-04).
+   * player's position and `cause` names what killed it (D-04). `velocity` is a
+   * copy of the player's total velocity at the death (D-02, `playerVelocity`),
+   * which the player's explosion drifts with.
    */
-  | { kind: "playerDestroyed"; position: Vec3; cause: PlayerDeathCause }
+  | {
+      kind: "playerDestroyed";
+      position: Vec3;
+      cause: PlayerDeathCause;
+      velocity: Vec3;
+    }
   | { kind: "podEjected"; pod: EntityId; owner: EntityId }
   | { kind: "proximityWarning"; id: EntityId; other: EntityId }
   | { kind: "energyLow"; id: EntityId }

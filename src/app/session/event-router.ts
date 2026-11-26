@@ -570,6 +570,8 @@ export function createDockFeedbackFlow(
             event.radius,
             setting,
             ctx.core.state?.flightTime ?? 0,
+            // D-02: the burst drifts with the dead ship (a copy in the event).
+            { velocity: event.velocity },
           );
         }
         break;
@@ -878,6 +880,8 @@ export function createDeathFlow(
           kind: k <= PLAYER_EXPLOSION_FACTOR ? "small" : "big",
           variant: k,
           flash: k === 1,
+          // D-02: every burst drifts with the dead player's velocity.
+          velocity: event.velocity,
         },
       );
     }

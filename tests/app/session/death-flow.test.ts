@@ -284,6 +284,7 @@ describe("the latch (DEATH-06: latch before guards)", () => {
 
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: vec(1, 2, 3),
       cause: { damage: "scrape", culprit: "buoy" },
     });
@@ -461,6 +462,7 @@ function flowSession(
 
 const PLAYER_DIED: SimEvent = {
   kind: "playerDestroyed",
+  velocity: { x: 1, y: 2, z: -3 },
   position: DEATH_AT,
   cause: { damage: "laser", culprit: "viper" },
 };
@@ -496,6 +498,7 @@ describe("the death flow shuts the session down around the frozen world (D-08, D
 
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: { x: 0, y: 0, z: 0 },
       cause: { damage: "scrape" },
     });
@@ -530,14 +533,54 @@ describe("the player's explosion (D-01 as amended, D-01a, D-01b)", () => {
     // Oolite's small-burst loop, then its big-burst loop; flash passed
     // explicitly on every add (an omitted flash defaults to true).
     expect(adds.map((add) => add.options)).toStrictEqual([
-      { kind: "small", variant: 1, flash: true },
-      { kind: "small", variant: 2, flash: false },
-      { kind: "small", variant: 3, flash: false },
-      { kind: "small", variant: 4, flash: false },
-      { kind: "big", variant: 5, flash: false },
-      { kind: "big", variant: 6, flash: false },
-      { kind: "big", variant: 7, flash: false },
-      { kind: "big", variant: 8, flash: false },
+      {
+        kind: "small",
+        variant: 1,
+        flash: true,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
+      {
+        kind: "small",
+        variant: 2,
+        flash: false,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
+      {
+        kind: "small",
+        variant: 3,
+        flash: false,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
+      {
+        kind: "small",
+        variant: 4,
+        flash: false,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
+      {
+        kind: "big",
+        variant: 5,
+        flash: false,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
+      {
+        kind: "big",
+        variant: 6,
+        flash: false,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
+      {
+        kind: "big",
+        variant: 7,
+        flash: false,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
+      {
+        kind: "big",
+        variant: 8,
+        flash: false,
+        velocity: { x: 1, y: 2, z: -3 },
+      },
     ]);
     expect(adds.filter((add) => add.options?.flash === true)).toHaveLength(1);
   });
@@ -617,6 +660,7 @@ describe("the game-over overlay is shown by the death flow (DEATH-01, D-02, D-03
 
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "laser", culprit: "krait" },
     });
@@ -638,12 +682,14 @@ describe("the game-over overlay is shown by the death flow (DEATH-01, D-02, D-03
     liveTables(ctx);
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "laser", culprit: "krait" },
     });
 
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "scrape" },
     });
@@ -688,6 +734,7 @@ describe("the cause line reads the live tables (D-03)", () => {
 
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "scrape", culprit: "buoy" },
     });
@@ -704,6 +751,7 @@ describe("the cause line reads the live tables (D-03)", () => {
 
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "scrape", culprit: "buoy-witchpoint" },
     });
@@ -720,6 +768,7 @@ describe("the cause line reads the live tables (D-03)", () => {
 
     router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "laser", culprit: "unknown-ship" },
     });
@@ -737,6 +786,7 @@ describe("the cause line reads the live tables (D-03)", () => {
     expect(laser.ctx.core.targetNames).toBeUndefined();
     laser.router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "laser", culprit: "krait" },
     });
@@ -745,6 +795,7 @@ describe("the cause line reads the live tables (D-03)", () => {
     const ram = flowSession({ overlay: true });
     ram.router.dispatch({
       kind: "playerDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: DEATH_AT,
       cause: { damage: "scrape", culprit: "buoy" },
     });
@@ -773,6 +824,7 @@ describe("the game-over view does not depend on the save (D-13)", () => {
       liveTables(ctx);
       router.dispatch({
         kind: "playerDestroyed",
+        velocity: { x: 0, y: 0, z: 0 },
         position: DEATH_AT,
         cause: { damage: "laser", culprit: "krait" },
       });

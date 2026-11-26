@@ -36,11 +36,12 @@
  * rest is never written, so a world that pushes nothing hashes as before.
  */
 
-import { vec } from "../math.js";
-import type { Vec3 } from "../math.js";
+import type { FlightState } from "../flight/state.js";
+import { rotate, vec } from "../math.js";
+import type { Quat, Vec3 } from "../math.js";
 import { statsFor } from "../npc/stats.js";
 import type { NpcStepFacts } from "../npc/stats.js";
-import type { BuoyState } from "./entity.js";
+import type { BuoyState, Entity } from "./entity.js";
 import {
   MAX_BUOY_OFFSET,
   MAX_ENTITY_MAGNITUDE,
@@ -98,6 +99,61 @@ function advance(
     return undefined;
   }
   return vec(clamp(x, limit), clamp(y, limit), clamp(z, limit));
+}
+
+/** Wegolite's local forward axis (-Z); Oolite's `v_forward` is its +Z. */
+const LOCAL_FORWARD = vec(0, 0, -1);
+
+/** `n` when finite, else 0, and -0 as +0: the totality guard of the velocity helpers. */
+const finiteOr0 = (n: number): number => (Number.isFinite(n) ? n + 0 : 0);
+
+/**
+ * Oolite's total velocity of a ship (D-01): `-velocity` is `[super velocity]`
+ * (the Newtonian drift) plus `thrustVector`, `v_forward x flightSpeed`
+ * (`ShipEntity.m:11158-11166` at the pin 7437f22). Wegolite's local forward is
+ * -Z. The one definition the explosion bursts (`shipDestroyed.velocity`, plan
+ * 21-13) and the debris (plan 21-15) share.
+ *
+ * Total on malformed input: a non-finite drift component, speed or orientation
+ * component counts as 0, and a component that still overflows is 0, so the
+ * result is always finite. Entities are sanitised before any kill, so no live
+ * value changes. Returns a new object, never an alias of `drift`.
+ */
+export function totalVelocity(
+  drift: Vec3,
+  orientation: Quat,
+  speed: number,
+): Vec3 {
+  const q: Quat = {
+    w: finiteOr0(orientation.w),
+    x: finiteOr0(orientation.x),
+    y: finiteOr0(orientation.y),
+    z: finiteOr0(orientation.z),
+  };
+  const forward = rotate(q, LOCAL_FORWARD);
+  const s = finiteOr0(speed);
+  return vec(
+    finiteOr0(finiteOr0(drift.x) + finiteOr0(forward.x * s)),
+    finiteOr0(finiteOr0(drift.y) + finiteOr0(forward.y * s)),
+    finiteOr0(finiteOr0(drift.z) + finiteOr0(forward.z * s)),
+  );
+}
+
+/** `totalVelocity` of an NPC ship, cargo or any entity (`velocity` is its drift). */
+export function shipVelocity(
+  entity: Pick<Entity, "velocity" | "orientation" | "speed">,
+): Vec3 {
+  return totalVelocity(entity.velocity, entity.orientation, entity.speed);
+}
+
+/**
+ * The player's equivalent: its `drift` (Oolite's player `velocity`, CBT-18)
+ * plus its forward axis times its speed.
+ */
+export function playerVelocity(
+  state: Pick<FlightState, "drift" | "orientation" | "speed">,
+): Vec3 {
+  return totalVelocity(state.drift, state.orientation, state.speed);
 }
 
 /**

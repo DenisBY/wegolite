@@ -23,6 +23,7 @@
 import type { PlayerDeathCause, SimEvent } from "../events.js";
 import { clearHyperspaceAttempt } from "../flight/state.js";
 import type { FlightState } from "../flight/state.js";
+import { playerVelocity } from "../world/drift.js";
 import { NO_ENTITY } from "../world/ids.js";
 import { staticTargetById } from "../world/statics.js";
 import type { World } from "../world/world.js";
@@ -70,5 +71,6 @@ export function killPlayer(
     kind: "playerDestroyed",
     position: { ...player.position },
     cause,
+    velocity: playerVelocity(player),
   });
 }
