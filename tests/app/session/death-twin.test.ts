@@ -50,7 +50,7 @@ import { createSimDriver } from "../../../src/app/session/sim-driver.js";
 import type { SimDriver } from "../../../src/app/session/sim-driver.js";
 import { parseTestFlags } from "../../../src/app/session/test-flags.js";
 import {
-  createInertPopulate,
+  createSystemPopulate,
   trafficContent,
 } from "../../../src/app/session/traffic.js";
 import {
@@ -230,9 +230,13 @@ function continueSeed(): Twin {
   ctx.core.hulls = fullHullTable();
   const lifecycle = createWorldLifecycle({
     traffic: true,
-    populate: createInertPopulate(
+    // Plan 22-13 (WORLD-08): the session's populate is the system populator, so
+    // the twin populates the Lave world with it, as the browser will (22-14).
+    populate: createSystemPopulate(
       () => ctx.core.npcTraffic,
       () => ctx.core.layout,
+      () => ctx.core.system,
+      () => galaxy,
     ),
   });
   ctx.core.worldLifecycle = lifecycle;
@@ -401,7 +405,13 @@ describe("the death twin (plan 20-09, DEATH-01, D-14, D-16)", () => {
     expect(combat.energy).toBe(FULL_BANK);
     // The in-flight Continue rebuilt the traffic world without a bump.
     expect(lifecycle.epoch).toBe(0);
-    expect(lifecycle.world?.store.nextId).toBe(113);
+    // Re-pinned once in plan 22-13 (WORLD-08, owner-sanctioned under the Phase 21
+    // D-04 standing approval) from 113 (the 12 inert ships at ids 101 to 112): the
+    // twin populates through the system populator, and Lave at epoch 0, which the
+    // census does not cover (epochs 1 to 20), holds 16 ships, ids 101 to 116.
+    // Measured. The death tick and the cause do not move: the ram still meets
+    // only the nav buoy.
+    expect(lifecycle.world?.store.nextId).toBe(117);
   });
 
   it("the ram kills the restored player at DEATH_TICK_OFFSET with DEATH_CAUSE, from full shields and bank", () => {
