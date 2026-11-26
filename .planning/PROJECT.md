@@ -76,7 +76,7 @@ Open at close (todos): the docked F-key bug from the Phase 19 UAT (F2-F6 and F8 
 
 <!-- Later, unscheduled (former v2.1 Phases 13-23); the next milestone re-states its scope here. -->
 
-- [ ] (v2.4) NPC traders, pirates and police populate each system according to its economy and government, as Oolite's populator does
+- [ ] (v2.4) NPC traders, pirates and police populate each system according to its economy and government, as Oolite's populator does (initial population shipped in Phase 22, ships still inert; behaviour in Phases 23-26)
 - [ ] (v2.4) NPC ships fight with Oolite's priority AI, hand-ported to TypeScript, lasers only
 - [ ] (v2.4) Player can scoop cargo pods, earn bounties and a combat rating, and gain or lose legal status, with police responding
 - [ ] (later) Scavengers and shuttles in the populator
@@ -394,4 +394,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-25 at the start of milestone v2.4 (Pirates and Police)*
+*Last updated: 2026-11-26 after Phase 22 (Initial Population)*
