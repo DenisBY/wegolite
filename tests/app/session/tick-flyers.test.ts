@@ -26,8 +26,19 @@ const LAUNCHED: readonly TickStep[] = [
   { commands: [], ticks: 600 },
 ];
 
+/**
+ * The ships the Node replay's Lave launch world holds before the flyers join.
+ * Re-pinned once in plan 22-13 (WORLD-08, owner-sanctioned under the Phase 21
+ * D-04 standing approval) from 12 to 28: the replay populates through the
+ * system populator (`createSystemPopulate`), whose Lave world at epoch 1 holds
+ * the 28 ships the census golden records (`population-census.json`, digest
+ * `g0-s7`, first token), where it used the 12-ship inert table. The flyers
+ * still take the ids and the slots after the populated ships.
+ */
+const POPULATED = 28;
+
 describe("the spawnFlyers replay step", () => {
-  it("spawns the Shuttle, the Viper and the Adder after the 12 populated ships, before the step's ticks", () => {
+  it("spawns the Shuttle, the Viper and the Adder after the populated ships, before the step's ticks", () => {
     const spawned = runTickScript(
       [...LAUNCHED, { commands: [], ticks: 0, spawnFlyers: true }],
       { traffic: true },
@@ -35,18 +46,20 @@ describe("the spawnFlyers replay step", () => {
     const world = spawned.world;
     if (world === undefined) throw new Error("no world");
 
-    expect(world.store.live).toHaveLength(15);
-    expect(world.store.live.slice(12).map((entity) => entity.specKey)).toEqual([
-      "shuttle",
-      "viper",
-      "adder",
-    ]);
+    expect(world.store.live).toHaveLength(POPULATED + 3);
     expect(
-      world.store.live.slice(12).map((entity) => entity.ai?.params["script"]),
+      world.store.live.slice(POPULATED).map((entity) => entity.specKey),
+    ).toEqual(["shuttle", "viper", "adder"]);
+    expect(
+      world.store.live
+        .slice(POPULATED)
+        .map((entity) => entity.ai?.params["script"]),
     ).toEqual(["station", "intercept", "flee"]);
     // Spawned at the tick the step starts on, with no tick run since.
     expect(spawned.state.tick).toBe(601);
-    expect(world.store.live.slice(12).map((entity) => entity.speed)).toEqual(
+    expect(
+      world.store.live.slice(POPULATED).map((entity) => entity.speed),
+    ).toEqual(
       ["shuttle", "viper", "adder"].map(
         (key) =>
           realNpcFlightTable().find((row) => row.specKey === key)
@@ -73,8 +86,8 @@ describe("the spawnFlyers replay step", () => {
     );
     expect(ok).toBe(true);
 
-    const mine = world.store.live.slice(12);
-    const theirs = (viaStep.world?.store.live ?? []).slice(12);
+    const mine = world.store.live.slice(POPULATED);
+    const theirs = (viaStep.world?.store.live ?? []).slice(POPULATED);
     expect(mine).toHaveLength(3);
     expect(
       mine.map((e) => [e.specKey, e.position, e.orientation, e.speed]),

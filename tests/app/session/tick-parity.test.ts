@@ -47,7 +47,7 @@ import { createSimDriver } from "../../../src/app/session/sim-driver.js";
 import type { SimDriver } from "../../../src/app/session/sim-driver.js";
 import { parseTestFlags } from "../../../src/app/session/test-flags.js";
 import {
-  createInertPopulate,
+  createSystemPopulate,
   trafficContent,
 } from "../../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
@@ -139,7 +139,7 @@ interface Session {
 /**
  * A docked Lave New game over the real driver, router, lifecycle and probe
  * publisher; `search` is parsed exactly as the session parses the URL.
- * `populated` adds the inert populator and the NPC masses (with traffic on).
+ * `populated` adds the system populator and the NPC masses (with traffic on).
  * `hudRouting` wires the real HUD message subscriber (`createHudMessages`)
  * behind a recorder, so the routed event kinds and the message queue can be
  * read; every other session keeps the quiet stub.
@@ -172,8 +172,10 @@ function session(
   ctx.core.marketSeed = LAVE_SEED;
   ctx.core.market = generateMarket(lave.system, catalogue, LAVE_SEED);
   ctx.runtime.testFlags = parseTestFlags(search);
-  // `populated` (traffic on only) wires the real inert populate over the
-  // committed NPC records, as start-up does (start-session.ts). Every other
+  // `populated` (traffic on only) wires the real system populate over the
+  // committed NPC records, as start-up does (start-session.ts, from plan
+  // 22-14; plan 22-13 moved this mirror and the replay to the system
+  // populator first, so the Node twin is ready for the browser). Every other
   // session keeps the default populator, so the pre-existing rows, some of which
   // open with `traffic=1` and spawn their own entity, are unchanged.
   const traffic = ctx.runtime.testFlags.traffic;
@@ -227,9 +229,11 @@ function session(
     traffic,
     ...(populate
       ? {
-          populate: createInertPopulate(
+          populate: createSystemPopulate(
             () => ctx.core.npcTraffic,
             () => ctx.core.layout,
+            () => ctx.core.system,
+            () => galaxy,
           ),
         }
       : {}),
@@ -498,21 +502,29 @@ describe("tick parity with the Node replay (success criterion 5)", () => {
 describe("tick parity with the populated world (plan 12-09, WORLD-14)", () => {
   const TRAFFIC_ON = "?test=1&clock=manual&traffic=1";
 
-  it("the replay populates 12 inert ships with traffic on and none with traffic off, with the same epoch and flight hash", () => {
+  // Re-pinned once in plan 22-13 (WORLD-08, owner-sanctioned under the Phase 21
+  // D-04 standing approval) from 12 inert ships (ids 101 to 112, next id 113)
+  // to 28 ships (ids 101 to 128, next id 129): the replay and the session
+  // mirror populate through the system populator, whose Lave world at epoch 1
+  // holds the 28 ships the census golden records (`population-census.json`,
+  // digest `g0-s7`, first token).
+  const LAVE_POPULATED = 28;
+
+  it("the replay populates the Lave census count of ships with traffic on and none with traffic off, with the same epoch and flight hash", () => {
     const on = runTickScript(LAUNCH_AND_FLY, { traffic: true });
     const off = runTickScript(LAUNCH_AND_FLY, { traffic: false });
     if (on.world === undefined || off.world === undefined) {
       throw new Error("no world after the launch");
     }
-    expect(liveEntityCount(on.world)).toBe(12);
+    expect(liveEntityCount(on.world)).toBe(LAVE_POPULATED);
     expect(on.epoch).toBe(1);
-    expect(on.world.store.nextId).toBe(113);
+    expect(on.world.store.nextId).toBe(101 + LAVE_POPULATED);
     expect(liveEntityCount(off.world)).toBe(0);
     expect(off.world.store.nextId).toBe(101);
     expect(off.epoch).toBe(1);
     // D-01: a world with no NPC hashes as the v1 flight hash.
     expect(off.hash).toBe(hashFlight(off.state));
-    // Not vacuous: the 12 ships change the world hash, not the flight.
+    // Not vacuous: the populated ships change the world hash, not the flight.
     expect(on.hash).not.toBe(hashFlight(on.state));
     expect(hashFlight(on.state)).toBe(hashFlight(off.state));
   });
@@ -529,7 +541,7 @@ describe("tick parity with the populated world (plan 12-09, WORLD-14)", () => {
     const replay = runTickScript(LAUNCH_AND_FLY, { traffic: true });
     const world = s.lifecycle.world;
     if (world === undefined) throw new Error("no world after the launch");
-    expect(liveEntityCount(world)).toBe(12);
+    expect(liveEntityCount(world)).toBe(LAVE_POPULATED);
     expect(sessionHash(s)).toBe(replay.hash);
     expect(s.lifecycle.epoch).toBe(replay.epoch);
   });
@@ -714,7 +726,16 @@ function liveWorldOf(s: Session): NonNullable<WorldLifecycle["world"]> {
  * 360 ticks after the spawn, the bank at the kill 59.75 -> 83.8.
  */
 const KILL_OFFSET = 672;
-const ENERGY_AT_KILL = 83.7999999999947;
+// Re-pinned once in plan 22-13 (WORLD-08, owner-sanctioned under the Phase 21
+// D-04 standing approval) from 83.7999999999947. Cause, measured per tick against
+// the 12-ship inert populate: the two runs agree on the bank and the shield for
+// the first 585 ticks after the spawn, and the shooter's shot that empties the
+// shield lands at spawn + 586 here and spawn + 587 there. The hook-spawned
+// shooter takes id 129 in the 28-ship Lave world instead of 113 in the 12-ship
+// one, and an entity's combat stream is forked from (world seed, id, purpose),
+// so its fire-gate draws, and one shot's tick, move. The kill offset (672), the
+// shield and the bank at spawn + 360 do not move.
+const ENERGY_AT_KILL = 83.78333333332803;
 const ENERGY_AT_KILL_FLOOR = 62.4;
 /** The forward shield and the bank 360 ticks after the spawn, fire held. */
 const SHIELD_AFTER_SHOOTING = 0.13333333333333333;
@@ -827,8 +848,8 @@ describe("the browser kill step's twin (plan 15-04, FOUND-19, R2-1)", () => {
 // Re-pinned in plan 17-12 (G-17-1): the beam period is now 13, so the shooter's
 // combat stream is at a different point when the debris is drawn; wrecks 1 -> 2,
 // entities 15 -> 16 (2 pods + 2 wrecks + the rest of the world, unchanged).
-const DEBRIS_AT_KILL = { pods: 2, plates: 0, wrecks: 2 } as const;
-const ENTITIES_AT_KILL = 16;
+const DEBRIS_AT_KILL = { pods: 4, plates: 1, wrecks: 0 } as const;
+const ENTITIES_AT_KILL = 33;
 // Re-pinned in quick task 261117-pij from "a10b2dfc": a new game's clock now
 // starts at the standard scenario's ship_clock, and the hash includes the clock.
 // Re-pinned in quick task 261118-mb5 from "ca59f800": the launch now applies
@@ -848,7 +869,17 @@ const ENTITIES_AT_KILL = 16;
 // wrecks, the plate, every position and every rng line are unchanged. The D-01
 // velocity base moves nothing here (this shooter holds at speed 0). The
 // browser twin (`TWIN_HASH_60_AFTER_KILL`, tests/e2e/combat.spec.ts) equals it.
-const HASH_60_AFTER_KILL = "14a8a453";
+// Re-pinned once in plan 22-13 (WORLD-08, owner-sanctioned under the Phase 21
+// D-04 standing approval) from "14a8a453", together with `DEBRIS_AT_KILL` (2 pods,
+// 0 plates, 2 wrecks -> 4 pods, 1 plate, 0 wrecks) and `ENTITIES_AT_KILL` (16 ->
+// 33). Cause, measured: the twin's world is the system populator's 28-ship Lave
+// world (census epoch 1) instead of the 12-ship inert table, so the world text
+// holds 16 more ships, and the hook-spawned shooter takes id 129 instead of 113,
+// which moves its combat stream (forked from world seed, id, purpose) and with it
+// the debris drawn at the kill. 33 = 28 populated ships + 4 pods + 1 plate; the
+// shooter is gone. The browser twin (`TWIN_HASH_60_AFTER_KILL`) keeps its value
+// here and is matched by plan 22-14.
+const HASH_60_AFTER_KILL = "e0a3e3dc";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {
@@ -1145,9 +1176,10 @@ function runDamageFight(delay: number): DamageFight {
  * none is derived to fit.
  *
  * The chosen delay is the smallest one whose row shows a kill, at least one
- * debris piece and exactly one damaged item: delay 1 (delay 0 damages nothing).
- * Its row: `kill=672 damaged=EQ_GAL_DRIVE debris=0/0/1 entities=13
- * hash60=5028fc8f first=613:EQ_GAL_DRIVE` (the first-damage offset is a
+ * debris piece and exactly one damaged item: delay 1 on the 12-ship world, delay
+ * 2 on the 28-ship world since plan 22-13 (see `DAMAGE_SPAWN_DELAY`; the row
+ * below is the plan 19-13 one, `kill=672 damaged=EQ_GAL_DRIVE debris=0/0/1
+ * entities=13 hash60=5028fc8f first=613:EQ_GAL_DRIVE`; the first-damage offset is a
  * seventh literal the same row printed, so the browser can meet the damage on
  * its own tick). The kill offset equals the 15-04 twin's: the damage roll
  * draws from its own stream and changes no combat value.
@@ -1158,22 +1190,40 @@ function runDamageFight(delay: number): DamageFight {
  * follows the Phase 18 standing approval: the cause measured, Node equal to the
  * browser, the cause in the commit.
  */
-/** The ticks held between the cooled laser and the shooter's spawn. */
-const DAMAGE_SPAWN_DELAY = 1;
+/**
+ * The ticks held between the cooled laser and the shooter's spawn.
+ *
+ * Re-pinned once in plan 22-13 (WORLD-08, owner-sanctioned under the Phase 21
+ * D-04 standing approval), with the four pins below, from delay 1 (first damage
+ * 613, 13 entities, hash60 "5028fc8f") to delay 2 (first damage 612, 29
+ * entities, hash60 "7bb254ef"). Cause, measured by the plan's scan over the
+ * delays 0 to 240 on the populated world: the twin's world is the system
+ * populator's 28-ship Lave world and the hook-spawned shooter takes id 129
+ * instead of 113, which moves the streams its hits and the damage roll draw
+ * from. Delay 1 no longer damages an item, so the plan's selection rule (the
+ * smallest delay whose row shows a kill, at least one debris piece and exactly
+ * one damaged item) now chooses delay 2. Its row: `kill=672 damaged=EQ_GAL_DRIVE
+ * debris=0/0/1 entities=29 hash60=7bb254ef first=612:EQ_GAL_DRIVE`; delays 0 and
+ * 1 damage nothing. The damaged item, the debris and the kill offset are the same
+ * as before; 29 = 28 populated ships + the one wreck. The browser twin
+ * (`TWIN_DAMAGE_*` in tests/e2e/combat.spec.ts) keeps its values here and is
+ * matched by plan 22-14.
+ */
+const DAMAGE_SPAWN_DELAY = 2;
 /** The kill tick relative to the spawn. */
 const DAMAGE_KILL_OFFSET = 672;
 /**
  * The tick of the first damage relative to the spawn (the scan row's
  * `first=613:EQ_GAL_DRIVE`): the HUD shows the message on that tick.
  */
-const DAMAGE_FIRST_OFFSET = 613;
+const DAMAGE_FIRST_OFFSET = 612;
 /** The damaged list after the kill tick (the one item, EQ_GAL_DRIVE). */
 const DAMAGED_AT_KILL = ["EQ_GAL_DRIVE"] as const;
 /** The debris live on the kill tick: the one wreck, no pod, no plate. */
 const DAMAGE_DEBRIS_AT_KILL = { pods: 0, plates: 0, wrecks: 1 } as const;
-const DAMAGE_ENTITIES_AT_KILL = 13;
+const DAMAGE_ENTITIES_AT_KILL = 29;
 /** The world hash 60 ticks after the kill, fire released. */
-const DAMAGE_HASH_60_AFTER_KILL = "5028fc8f";
+const DAMAGE_HASH_60_AFTER_KILL = "7bb254ef";
 
 describe("the CBT-08 twin (plan 19-13, CBT-08)", () => {
   it("a hook-spawned fight destroys the shooter into its debris and leaves the player a damaged item", () => {

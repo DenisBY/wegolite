@@ -50,7 +50,9 @@
  * - the populated world (Phase 12, plan 12-09; Phase 8 deferred populated parity
  *   to Phase 12): with `traffic: true` the replay builds the same populate and
  *   the same step masses as the session, through the one shared source
- *   `src/app/session/traffic.ts` (`trafficContent`, `createInertPopulate`). The
+ *   `src/app/session/traffic.ts` (`trafficContent`, `createSystemPopulate`: since
+ *   plan 22-13, WORLD-08, the system populator of Phase 22 builds the Lave
+ *   world from the galaxy-0 list, the layout and the Lave record). The
  *   catalogue is read from `src/content/generated/ships-npc.json` with
  *   `readFileSync` and validated with the strict schema (no `import.meta.glob`),
  *   the populate reads the Lave layout, and `shipMasses` goes to
@@ -123,7 +125,7 @@ import type { PlayerCombatState } from "../../src/sim/combat/state.js";
 import type { World } from "../../src/sim/world/world.js";
 import { buildStepOptions } from "../../src/app/session/step-options.js";
 import {
-  createInertPopulate,
+  createSystemPopulate,
   hullTable,
   testFlyerRecords,
   trafficContent,
@@ -253,6 +255,11 @@ export function runTickScript(
   // Traffic on: the same populate and masses as the session (traffic.ts). Traffic
   // off reads nothing and keeps the default populator.
   const content = traffic ? committedTrafficContent() : undefined;
+  // The Lave galaxy's system list, as the session's galaxy getter holds it: the
+  // system populator reads the neighbourhood from it (plan 22-13).
+  const galaxy0 = traffic
+    ? (committedJson("systems/g0.json") as unknown[])
+    : undefined;
   const hulls = traffic ? committedHullTable() : undefined;
   const combat = createPlayerCombatState();
   const laserMounts = options.laserMounts ?? profile.laserMounts;
@@ -261,9 +268,11 @@ export function runTickScript(
     ...(content === undefined
       ? {}
       : {
-          populate: createInertPopulate(
+          populate: createSystemPopulate(
             () => content,
             () => layout,
+            () => system,
+            () => galaxy0,
           ),
         }),
   });

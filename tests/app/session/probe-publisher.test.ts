@@ -480,6 +480,7 @@ function trafficOf(
   return {
     catalogue: [],
     records,
+    populationRecords: [],
     masses: [],
     flight: [],
     weapons: new Map(),
