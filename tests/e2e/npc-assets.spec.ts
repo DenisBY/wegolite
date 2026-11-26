@@ -9,7 +9,7 @@
  * - `tools/oolite-ingest/convert/glb.test.ts` proves geometry and materials with
  *   an independent reader;
  * - `tests/e2e/models.spec.ts` proves the delivery path of the first-load GLBs;
- * - this spec proves that each of the NPC GLBs (nine today), and every image it
+ * - this spec proves that each of the NPC GLBs (one per compiled record), and every image it
  *   references, is served by the built preview and decodes in a real browser.
  *   The cold start must request none of them; `budget.spec.ts` asserts that.
  * - its second test (Phase 16, plan 16-09) proves the same of the seven debris
@@ -115,6 +115,27 @@ async function fetchGlbs(paths: readonly string[]): Promise<GlbResult[]> {
   return out;
 }
 
+/**
+ * The URL path of every image the committed NPC GLBs reference, read from each
+ * GLB's JSON chunk (length at byte 12, text from byte 20); image URIs resolve
+ * against the GLB's own path.
+ */
+function expectedImagePaths(): Set<string> {
+  const paths = new Set<string>();
+  for (const record of records) {
+    const glbUrl = new URL(`/${record.glb}`, "http://localhost");
+    const bytes = readFileSync(join(process.cwd(), "public", record.glb));
+    const jsonLength = bytes.readUInt32LE(12);
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + jsonLength).toString("utf8"),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    for (const image of json.images ?? []) {
+      paths.add(new URL(image.uri, glbUrl).pathname);
+    }
+  }
+  return paths;
+}
+
 test("each NPC role model is fetchable on demand and every texture it references decodes", async ({
   page,
 }) => {
@@ -123,7 +144,7 @@ test("each NPC role model is fetchable on demand and every texture it references
 
   const results = await page.evaluate(fetchGlbs, glbPaths);
 
-  // Plan 21-04: the model count follows the compiled records (9 today), so the
+  // Plan 21-04: the model count follows the compiled records (29 today), so the
   // roster plan grows the catalogue without editing this spec; the floor keeps
   // it from passing on an empty catalogue.
   expect(glbPaths.length, "NPC model count (vacuity guard)").toBeGreaterThan(0);
@@ -156,7 +177,14 @@ test("each NPC role model is fetchable on demand and every texture it references
       expect(image.height, `${where} height`).toBeGreaterThan(0);
     }
   }
-  expect(imagePaths.size, "unique NPC image paths").toBe(43);
+  // Plan 21-08: the unique image set equals the one the committed GLBs name in
+  // their own JSON chunks (read from disk here, so the oracle is the file bytes
+  // and not the page), with a floor so an empty catalogue cannot pass.
+  const expectedImages = expectedImagePaths();
+  expect(expectedImages.size, "expected NPC image paths").toBeGreaterThan(0);
+  expect([...imagePaths].sort(), "unique NPC image paths").toEqual(
+    [...expectedImages].sort(),
+  );
 });
 
 const debrisRecords = JSON.parse(

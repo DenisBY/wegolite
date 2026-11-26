@@ -251,8 +251,8 @@ describe("profiles and encoder arguments", () => {
     expect(alpha).toEqual(
       VENDORED_TEXTURES.filter((name) => name.includes("specular")),
     );
-    expect(lossless).toHaveLength(21);
-    expect(alpha).toHaveLength(16);
+    expect(lossless).toHaveLength(35);
+    expect(alpha).toHaveLength(28);
   });
 });
 

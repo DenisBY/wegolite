@@ -28,6 +28,8 @@ import {
   selectNormalMode,
 } from "./dat.js";
 import type { ParsedMesh, Vec3 } from "./dat.js";
+import { NPC_GLB_PATH_PATTERN } from "../../../src/content/npc-glb-path.js";
+import { NPC_SHIP_KEYS } from "./npc-ships.js";
 import {
   DEBRIS_GLBS,
   EMITTED_ENTRIES,
@@ -42,6 +44,7 @@ import {
   emissiveFile,
   encodedTextureFile,
   materialFor,
+  npcGlbFile,
   shipGlbFile,
   writeGlb,
 } from "./glb.js";
@@ -1181,14 +1184,14 @@ function soleElement(list: readonly string[] | undefined): string {
  */
 async function assertSingleMeshGlb(
   file: string,
-  nameRule: (model: string) => string,
+  nameRule: (model: string, owner: string) => string,
 ): Promise<void> {
   const source = soleElement(MODEL_SOURCE_FILES[file]);
   const owner = soleElement(EMITTED_ENTRIES[file]);
   const entry = shipEntry(owner);
 
   // (a) one owner, one source, and the naming rule closes the loop.
-  expect(nameRule(source)).toBe(file);
+  expect(nameRule(source, owner)).toBe(file);
   expect(entry.shipDef.model).toBe(source);
 
   // (b) the committed bytes are a fresh build of the row.
@@ -1289,7 +1292,7 @@ describe("NPC ship GLBs", () => {
   it.each([...NPC_SHIP_GLBS])(
     "%s is pinned by rows, bytes and geometry",
     async (file) => {
-      await assertSingleMeshGlb(file, shipGlbFile);
+      await assertSingleMeshGlb(file, (_model, owner) => npcGlbFile(owner));
     },
   );
 });
@@ -1385,12 +1388,48 @@ describe("the NPC GLB naming rule", () => {
     expect(shipGlbFile("oolite_cobramk1.dat")).toBe("cobramk1.glb");
   });
 
+  it("accepts the hyphen of oolite_boa-mk2.dat (plan 21-08)", () => {
+    expect(shipGlbFile("oolite_boa-mk2.dat")).toBe("boa-mk2.glb");
+  });
+
+  it("names each NPC GLB after its record key in lower case, passing NPC_GLB_PATH_PATTERN", () => {
+    expect(npcGlbFile("viper")).toBe("viper.glb");
+    expect(npcGlbFile("morayMED")).toBe("moraymed.glb");
+    expect(npcGlbFile("boa-mk2-pirate")).toBe("boa-mk2-pirate.glb");
+    for (const file of NPC_SHIP_GLBS) {
+      expect(NPC_GLB_PATH_PATTERN.test(`models/${file}`), file).toBe(true);
+    }
+    // One row per key, lower-cased: no two keys collapse to the same file.
+    expect(new Set(NPC_SHIP_KEYS.map(npcGlbFile)).size).toBe(
+      NPC_SHIP_KEYS.length,
+    );
+    expect(NPC_SHIP_KEYS.map(npcGlbFile).sort()).toEqual([...NPC_SHIP_GLBS]);
+  });
+
+  it.each(["", "Bad Key", "../viper", "_viper", "viper.v2", "vip\u00e9r"])(
+    "refuses the record key %j as a content error",
+    (key) => {
+      let caught: unknown;
+      try {
+        npcGlbFile(key);
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(ContentError);
+      expect((caught as ContentError).code).toBe("SCHEMA");
+    },
+  );
+
   it.each([
     "viper.dat",
     "oolite_viper.obj",
     "../oolite_viper.dat",
     "oolite_Viper.dat",
     "oolite_.dat",
+    "oolite_boa mk2.dat",
+    "oolite_boa.mk2.dat",
+    "oolite_boa-mk2.dat\n",
+    "oolite_boa+mk2.dat",
   ])("refuses %s as a content error", (model) => {
     let caught: unknown;
     try {

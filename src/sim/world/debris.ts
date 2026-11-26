@@ -26,8 +26,9 @@
  *    (`OCTANT_DRAWS_PER_WRECK`, D16-17), the lifetime, the model (uniform over
  *    the wreck list, D16-16), the expected mass, the quaternion (4) and the
  *    push; then `n_alloys = u x n_alloys` (`ShipEntity.m:8068`);
- * 4. the plates, `floor(n_alloys)` of them (0 or 1 for every compiled hull, 0
- *    when the victim cannot fragment): 13 draws each, as a pod, with no role
+ * 4. the plates, `floor(n_alloys)` of them (0 or 1 for the nine inert hulls, up
+ *    to 2 for the heavier roster hulls of plan 21-08, 0 when the victim cannot
+ *    fragment): 13 draws each, as a pod, with no role
  *    draw (D16-07);
  * 5. the blast, which draws nothing: every movable body near the victim is
  *    pushed once, in ascending id (D-03, see `blastFrom`).
@@ -1007,7 +1008,8 @@ export function releaseDebris(
   }
 
   // The alloy plates (ShipEntity.m:8072-8111): `floorf(n_alloys)`, 0 or 1 for
-  // every compiled hull, none when the victim cannot fragment. Oolite's
+  // the nine inert hulls and up to 2 for the heavier roster hulls (plan 21-08),
+  // none when the victim cannot fragment. Oolite's
   // `!add_debris` clamp (8077-8080) is not ported: the draws are taken as if
   // `add_debris` held and the cap gates each spawn (D16-05). One plate look
   // and no role draw (D16-07, D16-24).

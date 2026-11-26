@@ -519,7 +519,7 @@
       "kind": "absent"
     },
     "model": "oolite_anaconda.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "trader-courier(0.1)"
@@ -722,7 +722,7 @@
       "kind": "absent"
     },
     "model": "oolite_anaconda.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-heavy-freighter(0.05)"
     ],
@@ -933,7 +933,7 @@
       "kind": "absent"
     },
     "model": "oolite_anaconda.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -1939,7 +1939,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader"
     ],
@@ -2138,7 +2138,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa-mk2.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.25)",
       "trader-courier(0.05)"
@@ -2325,7 +2325,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa-mk2.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-heavy-freighter(0.2)"
     ],
@@ -2525,7 +2525,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa-mk2.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -2709,7 +2709,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-medium-freighter(0.25)",
       "pirate-heavy-freighter"
@@ -2909,7 +2909,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -6383,7 +6383,7 @@
       "kind": "absent"
     },
     "model": "oolite_ferdelance.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.25)",
       "trader-courier",
@@ -6582,7 +6582,7 @@
       "kind": "absent"
     },
     "model": "oolite_ferdelance.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -11112,7 +11112,7 @@
       "kind": "absent"
     },
     "model": "oolite_anaconda.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "trader-courier(0.1)"
@@ -11315,7 +11315,7 @@
       "kind": "absent"
     },
     "model": "oolite_anaconda.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-heavy-freighter(0.05)"
     ],
@@ -11526,7 +11526,7 @@
       "kind": "absent"
     },
     "model": "oolite_anaconda.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -12451,7 +12451,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader"
     ],
@@ -12650,7 +12650,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa-mk2.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.25)",
       "trader-courier(0.05)"
@@ -12837,7 +12837,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa-mk2.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-heavy-freighter(0.2)"
     ],
@@ -13037,7 +13037,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa-mk2.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -13221,7 +13221,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-medium-freighter(0.25)",
       "pirate-heavy-freighter"
@@ -13421,7 +13421,7 @@
       "kind": "absent"
     },
     "model": "oolite_boa.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -17271,7 +17271,7 @@
       "kind": "absent"
     },
     "model": "oolite_ferdelance.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.25)",
       "trader-courier",
@@ -17470,7 +17470,7 @@
       "kind": "absent"
     },
     "model": "oolite_ferdelance.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -19321,7 +19321,7 @@
       "kind": "absent"
     },
     "model": "oolite_python.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "trader-smuggler(0.2)",
@@ -19527,7 +19527,7 @@
       "kind": "absent"
     },
     "model": "oolite_python.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-medium-freighter",
       "pirate-heavy-freighter(0.25)",
@@ -19718,7 +19718,7 @@
       "kind": "absent"
     },
     "model": "oolite_python_trader.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -19911,7 +19911,7 @@
       "kind": "absent"
     },
     "model": "oolite_python_trader.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader"
     ],
@@ -20860,7 +20860,7 @@
       "kind": "absent"
     },
     "model": "oolite_sidewinder_escort.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "escort",
       "escort-medium(0.5)"
@@ -22811,7 +22811,7 @@
       "kind": "absent"
     },
     "model": "oolite_viper_interceptor.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "interceptor",
       "wingman"
@@ -23706,7 +23706,7 @@
       "kind": "absent"
     },
     "model": "oolite_python.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader(0.5)",
       "trader-smuggler(0.2)",
@@ -23912,7 +23912,7 @@
       "kind": "absent"
     },
     "model": "oolite_python.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "pirate-medium-freighter",
       "pirate-heavy-freighter(0.25)",
@@ -24103,7 +24103,7 @@
       "kind": "absent"
     },
     "model": "oolite_python_trader.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -24296,7 +24296,7 @@
       "kind": "absent"
     },
     "model": "oolite_python_trader.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader"
     ],
@@ -25245,7 +25245,7 @@
       "kind": "absent"
     },
     "model": "oolite_sidewinder_escort.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "escort",
       "escort-medium(0.5)"
@@ -26265,7 +26265,7 @@
       "kind": "absent"
     },
     "model": "oolite_viper_interceptor.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "interceptor",
       "wingman"

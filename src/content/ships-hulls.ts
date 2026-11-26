@@ -4,8 +4,8 @@
 /**
  * The lazy hull-octree catalogue (CBT-07, D-01).
  *
- * The octrees and collision radii of the player's Cobra Mk III and the nine NPC
- * hulls live in their own generated file and are loaded only when something asks
+ * The octrees and collision radii of the player's Cobra Mk III and the NPC
+ * hulls (one entry per model, with the keys that share it as aliases) live in their own generated file and are loaded only when something asks
  * for them: the glob below is non-eager, so Vite splits the file into its own
  * chunk that the first load never fetches, and the first-load ceiling is
  * unaffected. Nothing imports this module yet; the session start-up that wires

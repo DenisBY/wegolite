@@ -18,6 +18,14 @@
       "collisionRadius": 29.030517578125
     },
     {
+      "key": "anaconda",
+      "depth": 5,
+      "nodes": 3073,
+      "solidLeaves": 1129,
+      "rootHalfWidth": 83.76730346679688,
+      "collisionRadius": 86.34244537353516
+    },
+    {
       "key": "asp",
       "depth": 5,
       "nodes": 4121,
@@ -26,12 +34,36 @@
       "collisionRadius": 44.94221878051758
     },
     {
+      "key": "boa",
+      "depth": 5,
+      "nodes": 4169,
+      "solidLeaves": 1609,
+      "rootHalfWidth": 56.82720184326172,
+      "collisionRadius": 58.504058837890625
+    },
+    {
+      "key": "boa-mk2",
+      "depth": 5,
+      "nodes": 4897,
+      "solidLeaves": 1834,
+      "rootHalfWidth": 57.40650177001953,
+      "collisionRadius": 66.0627212524414
+    },
+    {
       "key": "cobramk1",
       "depth": 5,
       "nodes": 4937,
       "solidLeaves": 1859,
       "rootHalfWidth": 35.5,
       "collisionRadius": 39.260494232177734
+    },
+    {
+      "key": "ferdelance",
+      "depth": 5,
+      "nodes": 1961,
+      "solidLeaves": 724,
+      "rootHalfWidth": 47.898799896240234,
+      "collisionRadius": 47.74900436401367
     },
     {
       "key": "gecko",
@@ -66,6 +98,22 @@
       "collisionRadius": 36.18608093261719
     },
     {
+      "key": "python",
+      "depth": 5,
+      "nodes": 2825,
+      "solidLeaves": 1014,
+      "rootHalfWidth": 74.83300018310547,
+      "collisionRadius": 74.6480484008789
+    },
+    {
+      "key": "python-trader",
+      "depth": 5,
+      "nodes": 3401,
+      "solidLeaves": 1248,
+      "rootHalfWidth": 69.8584976196289,
+      "collisionRadius": 70.15701293945312
+    },
+    {
       "key": "shuttle",
       "depth": 5,
       "nodes": 5465,
@@ -82,10 +130,26 @@
       "collisionRadius": 37.465919494628906
     },
     {
+      "key": "sidewinder-escort",
+      "depth": 5,
+      "nodes": 2425,
+      "solidLeaves": 871,
+      "rootHalfWidth": 32.114601135253906,
+      "collisionRadius": 37.465919494628906
+    },
+    {
       "key": "viper",
       "depth": 5,
       "nodes": 3041,
       "solidLeaves": 1180,
+      "rootHalfWidth": 35.534400939941406,
+      "collisionRadius": 35.057655334472656
+    },
+    {
+      "key": "viper-interceptor",
+      "depth": 5,
+      "nodes": 3033,
+      "solidLeaves": 1160,
       "rootHalfWidth": 35.534400939941406,
       "collisionRadius": 35.057655334472656
     }

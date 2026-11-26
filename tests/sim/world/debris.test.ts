@@ -820,17 +820,37 @@ describe("the pod rule (ShipEntity.m:7814-7879)", () => {
 
 const HULL_KEYS = [...CONTENT.hulls.keys()];
 
-/** Planning arithmetic: n_alloys = sqrt(sqrt(mass / 6000)) for the nine hulls. */
+/** Planning arithmetic: n_alloys = sqrt(sqrt(mass / 6000)) for the 29 compiled hulls. */
 const N_ALLOYS: Readonly<Record<string, number>> = {
   adder: 1.2788,
+  anaconda: 2.92249,
+  "anaconda-pirate": 2.92249,
+  asp: 1.885803,
+  boa: 2.346141,
+  "boa-mk2": 2.448952,
+  "boa-mk2-pirate": 2.448952,
+  "boa-pirate": 2.346141,
+  "cobra3-alternate": 2.445903,
+  "cobra3-pirate": 2.445903,
+  "cobra3-trader": 2.445903,
   cobramk1: 1.7182,
+  "cobramk1-alt": 1.718188,
+  ferdelance: 1.72606,
   gecko: 1.424,
   krait: 1.9857,
   mamba: 1.563,
+  "mamba-escort": 1.562983,
   moray: 1.7092,
+  morayMED: 1.709177,
+  python: 2.58163,
+  "python-blackdog": 2.58163,
+  "python-trader": 2.564929,
   shuttle: 1.1719,
   sidewinder: 1.43,
+  "sidewinder-escort": 1.428239,
   viper: 1.5433,
+  "viper-interceptor": 1.556518,
+  "viper-pursuit": 1.54334,
 };
 
 function withHull(patch: Partial<DebrisHull>, key = "adder"): DebrisContent {
@@ -842,8 +862,8 @@ function withHull(patch: Partial<DebrisHull>, key = "adder"): DebrisContent {
 }
 
 describe("the wreckage rule (ShipEntity.m:8042-8069)", () => {
-  it("pins n_alloys for the nine hulls, all below MAX_WRECKS", () => {
-    expect(HULL_KEYS).toHaveLength(9);
+  it("pins n_alloys for the 29 hulls, all below MAX_WRECKS", () => {
+    expect(HULL_KEYS).toHaveLength(29);
     for (const key of HULL_KEYS) {
       const hull = CONTENT.hulls.get(key);
       if (hull === undefined) throw new Error(`no hull ${key}`);
@@ -976,7 +996,7 @@ describe("the wreckage rule (ShipEntity.m:8042-8069)", () => {
 });
 
 describe("the alloy plate (ShipEntity.m:8068-8111, D16-07)", () => {
-  it("throws out at most one plate for every hull, none when the victim cannot fragment", () => {
+  it("throws out at most floor(n_alloys) plates for every hull (one for the nine inert hulls), none when the victim cannot fragment", () => {
     let plates = 0;
     for (const key of HULL_KEYS) {
       for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
@@ -984,7 +1004,9 @@ describe("the alloy plate (ShipEntity.m:8068-8111, D16-07)", () => {
         const victim = spawnShip(world, { specKey: key, cargo: 0 });
         const { oracle: expected } = killAndOracle(world, victim);
         expectPlatesEqual(world, expected.plates);
-        expect(platesOf(world).length).toBeLessThanOrEqual(1);
+        expect(platesOf(world).length).toBeLessThanOrEqual(
+          Math.floor(N_ALLOYS[key] ?? Number.NaN),
+        );
         if (!expected.canFragment) expect(platesOf(world)).toHaveLength(0);
         plates += platesOf(world).length;
       }

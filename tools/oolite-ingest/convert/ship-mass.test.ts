@@ -104,12 +104,15 @@ function withEntry(
   };
 }
 
-/** The hull masses of the 24 vendored meshes, density 1, float32. */
+/** The hull masses of the 32 vendored meshes, density 1, float32. */
 const HULL_MASSES: Readonly<Record<string, number>> = {
   "oolite_adder.dat": 16045.4931640625,
   "oolite_alloy.dat": 273.4375,
+  "oolite_anaconda.dat": 437686.875,
   "oolite_asp.dat": 75881.5625,
   "oolite_barrel.dat": 993.3700561523438,
+  "oolite_boa-mk2.dat": 215810.5,
+  "oolite_boa.dat": 181788.90625,
   "oolite_buoy.dat": 691044.375,
   "oolite_buoy_subents.dat": 7646.7861328125,
   "oolite_cobra3.dat": 214737.6875,
@@ -118,13 +121,18 @@ const HULL_MASSES: Readonly<Record<string, number>> = {
   "oolite_coriolis_dock.dat": 7579321,
   "oolite_coriolis_faceplate.dat": 58255096,
   "oolite_coriolis_tris.dat": 220998576,
+  "oolite_ferdelance.dat": 53256.72265625,
   "oolite_gecko.dat": 24669.99609375,
   "oolite_krait.dat": 93291.40625,
   "oolite_mamba.dat": 35806.9921875,
   "oolite_moray.dat": 51203.4375,
+  "oolite_python.dat": 266518.46875,
+  "oolite_python_trader.dat": 259688.28125,
   "oolite_shuttle.dat": 11317.5634765625,
   "oolite_sidewinder.dat": 25087.62109375,
+  "oolite_sidewinder_escort.dat": 24966.326171875,
   "oolite_viper.dat": 34040.6796875,
+  "oolite_viper_interceptor.dat": 35218.2734375,
   "wreck1.dat": 3979.17236328125,
   "wreck2.dat": 5793.83251953125,
   "wreck3.dat": 2678.518310546875,
@@ -143,7 +151,7 @@ const DEPTH_FOUR = new Set(["oolite_alloy.dat", "oolite_barrel.dat"]);
 
 const COBRA_PLAYER = "oolite_template_cobra3-player";
 
-describe("the 24 vendored meshes", () => {
+describe("the 32 vendored meshes", () => {
   it("are exactly the meshes the table pins", () => {
     expect(Object.keys(meshes).sort()).toEqual(Object.keys(HULL_MASSES).sort());
   });

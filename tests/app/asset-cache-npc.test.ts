@@ -85,9 +85,11 @@ function viperGlb(): string {
 }
 
 describe("AssetCache.loadNpcModel", () => {
-  it("has nine compiled records to load (vacuity guard)", () => {
-    expect(glbs).toHaveLength(9);
-    expect(new Set(glbs).size).toBe(9);
+  it("has one distinct GLB per compiled record to load (vacuity guard)", () => {
+    // Plan 21-08: 29 records, each owning its GLB; the count follows the records.
+    expect(glbs.length).toBeGreaterThan(0);
+    expect(glbs).toHaveLength(records.length);
+    expect(new Set(glbs).size).toBe(records.length);
   });
 
   it("preload() requests exactly the three first-load models and no NPC path", async () => {
@@ -101,7 +103,7 @@ describe("AssetCache.loadNpcModel", () => {
     ]);
   });
 
-  it("fetches lazily, memoises one promise per path and loads nine distinct models", async () => {
+  it("fetches lazily, memoises one promise per path and loads one distinct model per record", async () => {
     const { loader, urls } = recordingLoader();
     const cache = createAssetCache("/base/", loader);
     expect(urls).toEqual([]);
@@ -113,8 +115,8 @@ describe("AssetCache.loadNpcModel", () => {
     expect(urls).toEqual(["/base/models/viper.glb"]);
 
     await Promise.all(glbs.map((glb) => cache.loadNpcModel(glb)));
-    expect(urls).toHaveLength(9);
-    expect(new Set(urls).size).toBe(9);
+    expect(urls).toHaveLength(records.length);
+    expect(new Set(urls).size).toBe(records.length);
   });
 
   it.each([
