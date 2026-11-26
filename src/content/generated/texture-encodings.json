@@ -79,16 +79,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 358370,
+      "bytes": 420296,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_anaconda_diffuse.png",
         "third_party/oolite/Textures/oolite_anaconda_subents.png"
       ],
-      "path": "public/textures/oolite_anaconda_diffuse_atlas_8334f537c1a3.webp",
-      "sha256": "609d274107bf825f551c220a0a2d630d905d266a7dfe8104a6748d4c48218591",
-      "source": "atlas:oolite_anaconda_diffuse_atlas_8334f537c1a3.png",
-      "sourceSha256": "8c218a5f70176f9d0b770033da0b68efca2f635fedb3798f1c1e29f2c946e5e1"
+      "path": "public/textures/oolite_anaconda_diffuse_atlas_1c4b74983ed9.webp",
+      "sha256": "8a84c12aad2d8d395beb26c557ff8995fbee130d7cf893fe1b4ed3ab745b0b01",
+      "source": "atlas:oolite_anaconda_diffuse_atlas_1c4b74983ed9.png",
+      "sourceSha256": "3ebbaebce1150b4cfcd1e03515f8ae160383953202d97e1e5426ccda60f7947d"
     },
     {
       "args": [
@@ -99,16 +99,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 210004,
+      "bytes": 217982,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_anaconda_normal.png",
         "third_party/oolite/Textures/oolite_anaconda_subents_normal.png"
       ],
-      "path": "public/textures/oolite_anaconda_normal_atlas_51fe2356a303.webp",
-      "sha256": "0417919ccfb67393beb354f09d81b358d7797aa9f1b8bc8034aa11fa12cc6ae6",
-      "source": "atlas:oolite_anaconda_normal_atlas_51fe2356a303.png",
-      "sourceSha256": "0c4435628323911a29ae3eb3e768172b6f8bb166d5cb482e5a4f06718004e8bb"
+      "path": "public/textures/oolite_anaconda_normal_atlas_06e435b97d6f.webp",
+      "sha256": "fb2f2d476c4c4e62ea15174d0d45068fa7f560c1894e156f5844d5ed02f5b00c",
+      "source": "atlas:oolite_anaconda_normal_atlas_06e435b97d6f.png",
+      "sourceSha256": "ac621a141ce71b1a8ed2a4df027793b97d277c88deb05a6d597d1bf582126383"
     },
     {
       "args": [
@@ -119,15 +119,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 278,
+      "bytes": 282,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_anaconda_roughness_atlas_d246e5e05cb9.webp",
-      "sha256": "a9fcdae409732fe560952196c0a2bade4a0ce4948dee7be02252f06eec25cff6",
-      "source": "atlas:oolite_anaconda_roughness_atlas_d246e5e05cb9.png",
-      "sourceSha256": "946f39dcd1f8757e4495f6fb37f1fb90ee8cf895765998dce1981b9451136976"
+      "path": "public/textures/oolite_anaconda_roughness_atlas_da825c93563f.webp",
+      "sha256": "73ea8062b8186e6c9eec8c691d47763dda93955059906f4caf6182d550cecd31",
+      "source": "atlas:oolite_anaconda_roughness_atlas_da825c93563f.png",
+      "sourceSha256": "5cdd0a3459a117f5bf0123625dfc3986d6626c1d1d623a5572709cec3a09bc3f"
     },
     {
       "args": [
@@ -141,16 +141,16 @@
         "100",
         "-quiet"
       ],
-      "bytes": 1394174,
+      "bytes": 1539932,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_anaconda_specular.png",
         "third_party/oolite/Textures/oolite_anaconda_subents_specular.png"
       ],
-      "path": "public/textures/oolite_anaconda_specular_atlas_5e931af31064.webp",
-      "sha256": "57d90501246dc54bdff5becb5d08513eadbd7e39725af53ba6adad6f4df0ec46",
-      "source": "atlas:oolite_anaconda_specular_atlas_5e931af31064.png",
-      "sourceSha256": "ec08e46c7a3ac53db970f45d706b6bfcbb24bba6ff8554f09839f0487390d094"
+      "path": "public/textures/oolite_anaconda_specular_atlas_af784d1c76d2.webp",
+      "sha256": "c1ab32c342796171a90291bbf7c89abc36762f8fab0ce2480c45baa4795a3b7e",
+      "source": "atlas:oolite_anaconda_specular_atlas_af784d1c76d2.png",
+      "sourceSha256": "ae7cc22ebd4f8416d77277637c7734d213f2cf2f1d00f5846c73d460d2c9d183"
     },
     {
       "args": [
@@ -162,16 +162,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 189836,
+      "bytes": 223932,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_asp_diffuse.png",
         "third_party/oolite/Textures/oolite_asp_subents.png"
       ],
-      "path": "public/textures/oolite_asp_diffuse_atlas_673ff9cb88a7.webp",
-      "sha256": "460e2ff84fa1f106868e3323ec96a65f18b036fbec963780adc9d40d6910549f",
-      "source": "atlas:oolite_asp_diffuse_atlas_673ff9cb88a7.png",
-      "sourceSha256": "efa07e64d3290974d0249b1eecac2dc1bace4fdd5a5a75f04bb8a03398bfc530"
+      "path": "public/textures/oolite_asp_diffuse_atlas_604e3746f028.webp",
+      "sha256": "bcab112a2ddd48404f918c9c688eb121d18aab51e8ff10bea87af7dac1b96040",
+      "source": "atlas:oolite_asp_diffuse_atlas_604e3746f028.png",
+      "sourceSha256": "656e85b2db3c05423eeb723744d77451813155d308610d34100bb7b995eb9e61"
     },
     {
       "args": [
@@ -182,15 +182,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 257448,
+      "bytes": 270072,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_asp_normal.png"
       ],
-      "path": "public/textures/oolite_asp_normal_atlas_17e5484076d1.webp",
-      "sha256": "4a2440357bdefa467b516ce65c53928c29d38a56f26f9c961c06ead6ce2422f1",
-      "source": "atlas:oolite_asp_normal_atlas_17e5484076d1.png",
-      "sourceSha256": "ca549cbd863e9637cabb7eda816f56bd4e250b4001570b56b3987a772d9f2c67"
+      "path": "public/textures/oolite_asp_normal_atlas_02c6be1a69e6.webp",
+      "sha256": "cfa37f4f806f0ac89a899d5210a388c09fef11bb8201825572c89e4255bf18a7",
+      "source": "atlas:oolite_asp_normal_atlas_02c6be1a69e6.png",
+      "sourceSha256": "32b5383b549de5795b07ccf092e147ad468ace4783e6cc375aca54bb78f6ff19"
     },
     {
       "args": [
@@ -201,15 +201,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 212,
+      "bytes": 230,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_asp_roughness_atlas_b892795284da.webp",
-      "sha256": "e7527153e9c30d8fd33e4477e3de27a5e32be0e711ad6dbce71b96a560abb967",
-      "source": "atlas:oolite_asp_roughness_atlas_b892795284da.png",
-      "sourceSha256": "53fa62e6d522511f32fda163675d3d0a7337df829755667c91000e5e26b740c9"
+      "path": "public/textures/oolite_asp_roughness_atlas_f128a54c129b.webp",
+      "sha256": "589e8522f8a70bfa9b90d7fd0c3e01b8b573d65ecbc6779837ac18a82dd805db",
+      "source": "atlas:oolite_asp_roughness_atlas_f128a54c129b.png",
+      "sourceSha256": "87ec43f168bff4d5cf3b70eb5ed64056619332ca0d935364bfabfdf76b0a9b30"
     },
     {
       "args": [
@@ -223,15 +223,15 @@
         "100",
         "-quiet"
       ],
-      "bytes": 663012,
+      "bytes": 736328,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_asp_specular.png"
       ],
-      "path": "public/textures/oolite_asp_specular_atlas_b64147d3e425.webp",
-      "sha256": "4056099ef8be7d358cdb9a5486d9080887862cc689f20ebe22e1837a7382e5ab",
-      "source": "atlas:oolite_asp_specular_atlas_b64147d3e425.png",
-      "sourceSha256": "a307d8ad2ab92ffbf8d006244a03d780bc46d3986bc85d4f8602d216cc30a0b5"
+      "path": "public/textures/oolite_asp_specular_atlas_f33e20da8931.webp",
+      "sha256": "cd11bb63dbd3a3b97ecdd76365beb33bae62359e14df958cab8afca95e37123c",
+      "source": "atlas:oolite_asp_specular_atlas_f33e20da8931.png",
+      "sourceSha256": "4306a54c9c24ac1c95f071249580f8b571d1f5d335ad0c84e0f82a72c0410f0b"
     },
     {
       "args": [
@@ -295,16 +295,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 227506,
+      "bytes": 255310,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_boa-mk2_diffuse.png",
         "third_party/oolite/Textures/oolite_boa-mk2_subents.png"
       ],
-      "path": "public/textures/oolite_boa-mk2_diffuse_atlas_919b784e16a0.webp",
-      "sha256": "465f136dd03ed5e738757e7060cf27c5395eb9342c05bfe80aba0ba3572aa64e",
-      "source": "atlas:oolite_boa-mk2_diffuse_atlas_919b784e16a0.png",
-      "sourceSha256": "d9f2b6ab1db4dd8d1efef365735ea825a773afa5ad07397bb269b049f96c6335"
+      "path": "public/textures/oolite_boa-mk2_diffuse_atlas_73441676b39c.webp",
+      "sha256": "ba27fe3570ddcd479274fa493b224eb4d81821910fd6065609812d41174c2022",
+      "source": "atlas:oolite_boa-mk2_diffuse_atlas_73441676b39c.png",
+      "sourceSha256": "2fc01964d7c39e6a707b579b9ef81618e74ecb6e0f2b839b4457cbdf6667a1f1"
     },
     {
       "args": [
@@ -315,16 +315,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 356148,
+      "bytes": 379744,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_boa-mk2_normal.png",
         "third_party/oolite/Textures/oolite_boa-mk2_subents_normal.png"
       ],
-      "path": "public/textures/oolite_boa-mk2_normal_atlas_981db2972612.webp",
-      "sha256": "999f39bb526ef7664308b6b9c0473d90a78ee620302af03fb4716375bc869b13",
-      "source": "atlas:oolite_boa-mk2_normal_atlas_981db2972612.png",
-      "sourceSha256": "38b45e54d7ffb297e98b62c133b892b7c95d4a0f87e518f5b8da29675518db61"
+      "path": "public/textures/oolite_boa-mk2_normal_atlas_bfda4128cb4b.webp",
+      "sha256": "0abb9ab33bf0221881b3648f7dfcfd13a39dff99699fa8d6c3261ee2c25a0baf",
+      "source": "atlas:oolite_boa-mk2_normal_atlas_bfda4128cb4b.png",
+      "sourceSha256": "3ca0a33c14cf1be36633436cff7bfb2d173ae5bea28532052c6b28d4688a580c"
     },
     {
       "args": [
@@ -338,16 +338,16 @@
         "100",
         "-quiet"
       ],
-      "bytes": 1134126,
+      "bytes": 1305788,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_boa-mk2_specular.png",
         "third_party/oolite/Textures/oolite_boa-mk2_subents_specular.png"
       ],
-      "path": "public/textures/oolite_boa-mk2_specular_atlas_462002d588f3.webp",
-      "sha256": "c255a506a59661f10e56b18963c46101fa0f6ff842243daad55ac804e550f8f2",
-      "source": "atlas:oolite_boa-mk2_specular_atlas_462002d588f3.png",
-      "sourceSha256": "a8bdcd32bac5b8406346fc7cf7989da08eff3de48eb2faf0511d2d25ff1995a9"
+      "path": "public/textures/oolite_boa-mk2_specular_atlas_93e2cb0df308.webp",
+      "sha256": "4174782943e130373c4a7aa5c93c83c76d0741de9f2425508ee19c4111deb3f8",
+      "source": "atlas:oolite_boa-mk2_specular_atlas_93e2cb0df308.png",
+      "sourceSha256": "17e0214fd7e8d892a509211739dfbd08b37fd6b3e22b8f73ed8241f08c9cff3a"
     },
     {
       "args": [
@@ -359,16 +359,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 259832,
+      "bytes": 302876,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_boa_diffuse.png",
         "third_party/oolite/Textures/oolite_boa_subents.png"
       ],
-      "path": "public/textures/oolite_boa_diffuse_atlas_dd078cca4576.webp",
-      "sha256": "e80892614512d2fbdd982acca52b3440beaf99d84f5e4a85f8875cfa6027d60f",
-      "source": "atlas:oolite_boa_diffuse_atlas_dd078cca4576.png",
-      "sourceSha256": "9c713175ead8d339574a75931c49a6ec0c2b26bd195947645b5ceb118e652973"
+      "path": "public/textures/oolite_boa_diffuse_atlas_9edf169bfabb.webp",
+      "sha256": "a543d0c492acfc4346913038af79e24d4b7a3a4435707fafcb9e77ffcf4c5a03",
+      "source": "atlas:oolite_boa_diffuse_atlas_9edf169bfabb.png",
+      "sourceSha256": "9f5da27a7bc299bdd8753665ae47b8e9b8e446ba6fa463f6af8ab6f18c7f3a9b"
     },
     {
       "args": [
@@ -379,16 +379,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 485006,
+      "bytes": 504906,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_boa_normal.png",
         "third_party/oolite/Textures/oolite_boa_subents_normal.png"
       ],
-      "path": "public/textures/oolite_boa_normal_atlas_79d439e6e0e2.webp",
-      "sha256": "92e78801e1a5ac4bb776835162da19d80c1c71594bae948800016a92f6067dfb",
-      "source": "atlas:oolite_boa_normal_atlas_79d439e6e0e2.png",
-      "sourceSha256": "bc329af1df1fdcbcf09df1f2d03e1bcccd4595f42e8fa737c1f133f6823f3cf2"
+      "path": "public/textures/oolite_boa_normal_atlas_3dc329bfd29f.webp",
+      "sha256": "1f58855f8757d182cf1490bb303b391b15815ad6bf21868283b68d8ce756428d",
+      "source": "atlas:oolite_boa_normal_atlas_3dc329bfd29f.png",
+      "sourceSha256": "39360ddd5c9b3274682611e6eac1eaa2e63940882c389f998fe20ed270312e02"
     },
     {
       "args": [
@@ -402,16 +402,16 @@
         "100",
         "-quiet"
       ],
-      "bytes": 1121952,
+      "bytes": 1309996,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_boa_specular.png",
         "third_party/oolite/Textures/oolite_boa_subents_specular.png"
       ],
-      "path": "public/textures/oolite_boa_specular_atlas_9e49d9fc9624.webp",
-      "sha256": "6fc0f9e74178a982624e982c572bce96af4d7903138e27ca83144be0af8e010b",
-      "source": "atlas:oolite_boa_specular_atlas_9e49d9fc9624.png",
-      "sourceSha256": "717498ad43daf638dde62207815ec61de114ca680417983379e64128adc7675e"
+      "path": "public/textures/oolite_boa_specular_atlas_626b00891720.webp",
+      "sha256": "fb5c6e5026834c228b6fafc76669d240fe250f27c151badefcb3482d4ca7a5c7",
+      "source": "atlas:oolite_boa_specular_atlas_626b00891720.png",
+      "sourceSha256": "1e020dd5b1bacf48d20391d49342b2e07da725be2f3a205927a5e2792eee33f4"
     },
     {
       "args": [
@@ -526,16 +526,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 242490,
+      "bytes": 286468,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_cobra3_diffuse_pirate.png",
         "third_party/oolite/Textures/oolite_cobra3_subents.png"
       ],
-      "path": "public/textures/oolite_cobra3_diffuse_atlas_0195dc01a6fe.webp",
-      "sha256": "ab4a7e964fa5bea639e33074950442662875e40c8c846c8b3b47f838b1397d34",
-      "source": "atlas:oolite_cobra3_diffuse_atlas_0195dc01a6fe.png",
-      "sourceSha256": "f094c6ef0ed17e4420abdd7bc3dfd601d2cf0cd72fa925049c147c76c18da4df"
+      "path": "public/textures/oolite_cobra3_diffuse_atlas_63437bd2726a.webp",
+      "sha256": "5349ab2f53052065d837c04f4a4421035ea123e670234a2a59eb3ce34eb4a97c",
+      "source": "atlas:oolite_cobra3_diffuse_atlas_63437bd2726a.png",
+      "sourceSha256": "bea78b4e14f317fd8932d54731a19cb8ac18a660be1155bcbfb0d9e7ecb41e92"
     },
     {
       "args": [
@@ -547,16 +547,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 238516,
+      "bytes": 285306,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_cobra3_diffuse.png",
         "third_party/oolite/Textures/oolite_cobra3_subents.png"
       ],
-      "path": "public/textures/oolite_cobra3_diffuse_atlas_76bab3bc095c.webp",
-      "sha256": "c988700c4d2b0eed4e156447aab0b441b59eb671d14500bb4e137457cd274aa7",
-      "source": "atlas:oolite_cobra3_diffuse_atlas_76bab3bc095c.png",
-      "sourceSha256": "b13c924e111808e2356abadd6296f313e6c7735e3f1ad0b69b88913e47a64641"
+      "path": "public/textures/oolite_cobra3_diffuse_atlas_897c569c5df0.webp",
+      "sha256": "9cd027630e89c7084f612d66880bb4b5aacd3637b69f28392a7854eb747eaade",
+      "source": "atlas:oolite_cobra3_diffuse_atlas_897c569c5df0.png",
+      "sourceSha256": "2119dc37317a5d544da0e742e323c9b857069533de30eea148aa2ada75052d96"
     },
     {
       "args": [
@@ -568,16 +568,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 233462,
+      "bytes": 280498,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_cobra3_diffuse_alt.png",
         "third_party/oolite/Textures/oolite_cobra3_subents.png"
       ],
-      "path": "public/textures/oolite_cobra3_diffuse_atlas_b15d73f71853.webp",
-      "sha256": "8421b606c8cef1adf94d284f6d48d2bb110cf775b01c59ab1426db4ded808012",
-      "source": "atlas:oolite_cobra3_diffuse_atlas_b15d73f71853.png",
-      "sourceSha256": "b1f84f8084d907c9040a7c442eecec7a1c0c8a21c2d1fad59bbcddb42f32e79b"
+      "path": "public/textures/oolite_cobra3_diffuse_atlas_ffdb0b28ab37.webp",
+      "sha256": "dd5511a3a18fd972e3b11f711d9e39fd545754aa470ef6a2d3561cf722a09615",
+      "source": "atlas:oolite_cobra3_diffuse_atlas_ffdb0b28ab37.png",
+      "sourceSha256": "3b9a8f860c4693a6a57ad87cc397056ad6c72468b95735b054e6575e8d734432"
     },
     {
       "args": [
@@ -604,16 +604,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 247720,
+      "bytes": 266314,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_cobra3_normal.png",
         "third_party/oolite/Textures/oolite_cobra3_subents_normal.png"
       ],
-      "path": "public/textures/oolite_cobra3_normal_atlas_51afa65861e3.webp",
-      "sha256": "bdcd90f92193c2dd523e3efd8dc57dd3864b9c1ae427bb9516c4f568ae8f4ac4",
-      "source": "atlas:oolite_cobra3_normal_atlas_51afa65861e3.png",
-      "sourceSha256": "1daf5cfa8bbddd271bf5cf0022e1e2fb5b0b1264f06286eeeb39cfbfafe260b3"
+      "path": "public/textures/oolite_cobra3_normal_atlas_62a8f3b61376.webp",
+      "sha256": "df81c7d67409f784a3b73e4c396bd5605a8e824c14d7e8754a259a3a31c10cf5",
+      "source": "atlas:oolite_cobra3_normal_atlas_62a8f3b61376.png",
+      "sourceSha256": "48ac1055fa1ff3a9d17a69b5657c11fcb3f9470f574f1ba72a3d06d159aa7c97"
     },
     {
       "args": [
@@ -624,15 +624,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 210,
+      "bytes": 230,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_cobra3_roughness_atlas_81040b0aafa7.webp",
-      "sha256": "9cf2e8b05134d56881adb1a3ae039461e09d7f34e946bda8733ef674fab1c010",
-      "source": "atlas:oolite_cobra3_roughness_atlas_81040b0aafa7.png",
-      "sourceSha256": "7edb2fe11872bc45fa64eec04b30f68c662429a48fe0af8713428fe13749fd21"
+      "path": "public/textures/oolite_cobra3_roughness_atlas_5200c8dc21d5.webp",
+      "sha256": "2b127f6d56b8d77f2344a1d83df1e911ea5f18194f58849d4dad5979541cf9cf",
+      "source": "atlas:oolite_cobra3_roughness_atlas_5200c8dc21d5.png",
+      "sourceSha256": "cc7021b1960e326b77f16ed5cd887219b813f6de32a14d6a299fb67f047feb88"
     },
     {
       "args": [
@@ -665,15 +665,15 @@
         "100",
         "-quiet"
       ],
-      "bytes": 1017198,
+      "bytes": 1107832,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_cobra3_specular.png"
       ],
-      "path": "public/textures/oolite_cobra3_specular_atlas_bc53de1dd8fc.webp",
-      "sha256": "f05087eecf625ec0d2fc157d6ce61566604378cb87716e8cb811638d148eea24",
-      "source": "atlas:oolite_cobra3_specular_atlas_bc53de1dd8fc.png",
-      "sourceSha256": "e1e68d694edabf86cbaa202f558ac63d2e5d894dc2eccc7853b49a02789645bb"
+      "path": "public/textures/oolite_cobra3_specular_atlas_f0096a0d11e3.webp",
+      "sha256": "508f3fea558f10a20f7a1d9000acfb33bd9560357e9964796180294bb63032c0",
+      "source": "atlas:oolite_cobra3_specular_atlas_f0096a0d11e3.png",
+      "sourceSha256": "2ff2167a9907b53f123abdfc823adca02f68ea3ba5a0d9aed97fa6fe4b00df8e"
     },
     {
       "args": [
@@ -976,16 +976,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 225932,
+      "bytes": 265476,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_ferdelance_diffuse.png",
         "third_party/oolite/Textures/oolite_ferdelance_subents.png"
       ],
-      "path": "public/textures/oolite_ferdelance_diffuse_atlas_632639129a35.webp",
-      "sha256": "c275de69665797421805608746e39245686bdc5668b28ffc70f667852ed1bb07",
-      "source": "atlas:oolite_ferdelance_diffuse_atlas_632639129a35.png",
-      "sourceSha256": "fe6b8c389bcfb1fbd7328506e72636e37daf3735dd45854d6df791f2b08ea789"
+      "path": "public/textures/oolite_ferdelance_diffuse_atlas_5c817b2c11d0.webp",
+      "sha256": "2758e329e8dc728c86121a49cd8c2583f1b9b4cdcecfcaa96f3b3e1f4decc2aa",
+      "source": "atlas:oolite_ferdelance_diffuse_atlas_5c817b2c11d0.png",
+      "sourceSha256": "8a00b7da24c759dc16b24569bfff4074035a47d4b9e62ecc659744a7f37ac4ab"
     },
     {
       "args": [
@@ -996,16 +996,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 130530,
+      "bytes": 140326,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_ferdelance_normal.png",
         "third_party/oolite/Textures/oolite_ferdelance_subents_normal.png"
       ],
-      "path": "public/textures/oolite_ferdelance_normal_atlas_9aaa7f0c9560.webp",
-      "sha256": "b7957dfbddade157fd810382b37174c254fe3dfc7e2830da758fa3121f9e024e",
-      "source": "atlas:oolite_ferdelance_normal_atlas_9aaa7f0c9560.png",
-      "sourceSha256": "5ad2ff4b77b274b66697b83f5d498aaf9aad9894144c25f15b90ff145d9b0b08"
+      "path": "public/textures/oolite_ferdelance_normal_atlas_2873d86dec01.webp",
+      "sha256": "e6105d966e966a0877b851201d9a2061c6dbfcf16a1c02149c7df3471dded717",
+      "source": "atlas:oolite_ferdelance_normal_atlas_2873d86dec01.png",
+      "sourceSha256": "9d3864934ff584360d99db9396caae5a6a5c23b19a934eba3d1d3e7f1999f882"
     },
     {
       "args": [
@@ -1019,16 +1019,16 @@
         "100",
         "-quiet"
       ],
-      "bytes": 1025584,
+      "bytes": 1128010,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_ferdelance_specular.png",
         "third_party/oolite/Textures/oolite_ferdelance_subents_specular.png"
       ],
-      "path": "public/textures/oolite_ferdelance_specular_atlas_497e7b82662c.webp",
-      "sha256": "b4defd4cd461697645cf4d5e0f9f0db5923788083d57c3b79092db59dcdc9b18",
-      "source": "atlas:oolite_ferdelance_specular_atlas_497e7b82662c.png",
-      "sourceSha256": "ff7a8ec9f1f14aada78ccbbe972a5c3a60f96c4cb5fc285c6922d20005c99701"
+      "path": "public/textures/oolite_ferdelance_specular_atlas_4c601ca26fff.webp",
+      "sha256": "805ae9a8bd4bf6e59a294746c94d7042e0fe0effcdca8a897544de4225b14911",
+      "source": "atlas:oolite_ferdelance_specular_atlas_4c601ca26fff.png",
+      "sourceSha256": "ae655a8273ad168af9398c418aec83cc1136266eba7529a2090119316b07db0c"
     },
     {
       "args": [
@@ -1040,16 +1040,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 232794,
+      "bytes": 274060,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_gecko_diffuse.png",
         "third_party/oolite/Textures/oolite_gecko_subents.png"
       ],
-      "path": "public/textures/oolite_gecko_diffuse_atlas_2667499f900c.webp",
-      "sha256": "97a26bbeb3bde16746030d536a5f5ce4741049d00fbfab25d35f41e05c575596",
-      "source": "atlas:oolite_gecko_diffuse_atlas_2667499f900c.png",
-      "sourceSha256": "3b1cb1242796f558af1a49a8b4a7d4146f79897114ccfe812317edc62599fd88"
+      "path": "public/textures/oolite_gecko_diffuse_atlas_91cb4e23df1d.webp",
+      "sha256": "4186cf501b9cb8a4aaac54fbb4edc0d4289d505cfbdbfac4d32561ad56fcdbd1",
+      "source": "atlas:oolite_gecko_diffuse_atlas_91cb4e23df1d.png",
+      "sourceSha256": "6420e66ed2d087c6614245f47406931e5c5bdf330a32dfe2189e0259fcc9c8a9"
     },
     {
       "args": [
@@ -1060,16 +1060,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 589928,
+      "bytes": 657462,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_gecko_normal.png",
         "third_party/oolite/Textures/oolite_gecko_subents_normal.png"
       ],
-      "path": "public/textures/oolite_gecko_normal_atlas_18a75ccafd38.webp",
-      "sha256": "f8e552754f0dcef32dc02af6ba5faa0f3d3fbc71261f14cd9ae78a0ff1d2f060",
-      "source": "atlas:oolite_gecko_normal_atlas_18a75ccafd38.png",
-      "sourceSha256": "0c51b3f8c2286668592eaae84b6ff81584825a1f33eff24fae84cb2ef6d0cf45"
+      "path": "public/textures/oolite_gecko_normal_atlas_d3dd7ff7d6e6.webp",
+      "sha256": "1258e71d78591e10a3785b4baa538b6bec6918a15d020922377e8c286695bf87",
+      "source": "atlas:oolite_gecko_normal_atlas_d3dd7ff7d6e6.png",
+      "sourceSha256": "e36d6eeb44e430681157b56d5b83e7f7b8c36122bc952074675ab3394f3492bd"
     },
     {
       "args": [
@@ -1080,15 +1080,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 212,
+      "bytes": 238,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_gecko_roughness_atlas_c3a3d0572277.webp",
-      "sha256": "f91fca89a5e1655bbf89cf6b2941dba53a3f5fce1c641161a530d8d456d1e900",
-      "source": "atlas:oolite_gecko_roughness_atlas_c3a3d0572277.png",
-      "sourceSha256": "2c5666ab12aba6b5282e913cee038c572694c1e434390d00355e42c3f02f7e8f"
+      "path": "public/textures/oolite_gecko_roughness_atlas_87e78cfa5473.webp",
+      "sha256": "13fdf452b39a53b27ad2d207fc6617b5a0a2b1ef792d55a3553ead1c51ea54a2",
+      "source": "atlas:oolite_gecko_roughness_atlas_87e78cfa5473.png",
+      "sourceSha256": "a95c6fdb682e8ae5ce8fa21109f6a7a6f5cfe19186553052028a8db5b9392f92"
     },
     {
       "args": [
@@ -1102,16 +1102,16 @@
         "100",
         "-quiet"
       ],
-      "bytes": 1094506,
+      "bytes": 1261720,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_gecko_specular.png",
         "third_party/oolite/Textures/oolite_gecko_subents_specular.png"
       ],
-      "path": "public/textures/oolite_gecko_specular_atlas_01d1e0c4a719.webp",
-      "sha256": "6b9d485cfaebb3e79a84af82c3fd2abf36bba194904b138c4abc770697d6e07d",
-      "source": "atlas:oolite_gecko_specular_atlas_01d1e0c4a719.png",
-      "sourceSha256": "148f04f9cfcd53a51eeb5fbfa5f2086b62bf7becf8816291f9ed367422d363bf"
+      "path": "public/textures/oolite_gecko_specular_atlas_cb5adb5d8821.webp",
+      "sha256": "f7f6be023ff825dad165e815ae435a96e6e19c11739055cf09b1be6eb41ec343",
+      "source": "atlas:oolite_gecko_specular_atlas_cb5adb5d8821.png",
+      "sourceSha256": "acf2fe9c558f7a72a6c65f307aaa8b2e15b351dd7f836a07daafe1119c54a643"
     },
     {
       "args": [
@@ -1175,37 +1175,37 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 191412,
-      "encoder": "cwebp 1.2.4",
-      "inputs": [
-        "third_party/oolite/Textures/oolite_mamba_diffuse.png",
-        "third_party/oolite/Textures/oolite_mamba_subents.png"
-      ],
-      "path": "public/textures/oolite_mamba_diffuse_atlas_3dcbf19de959.webp",
-      "sha256": "e1858d35134fc0d32f3cef933503d80964337d1eb43f2504a0b9b994590eec03",
-      "source": "atlas:oolite_mamba_diffuse_atlas_3dcbf19de959.png",
-      "sourceSha256": "ba625572c6f003a69ceb1b39ae5a4464fa8ccfa01142e76915e33cd197d37487"
-    },
-    {
-      "args": [
-        "-q",
-        "90",
-        "-m",
-        "6",
-        "-sharp_yuv",
-        "-noalpha",
-        "-quiet"
-      ],
-      "bytes": 197398,
+      "bytes": 217964,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_mamba_diffuse_escort.png",
         "third_party/oolite/Textures/oolite_mamba_subents.png"
       ],
-      "path": "public/textures/oolite_mamba_diffuse_atlas_5593021a9c07.webp",
-      "sha256": "e7e21edcd3f8b49360fcb065afb5e6f1a0c693ef283406993810d6ae205a0a95",
-      "source": "atlas:oolite_mamba_diffuse_atlas_5593021a9c07.png",
-      "sourceSha256": "9ac84ba462ef8c2aea047ecc16a1ce19976f6ecd7b20f9234095e59f688ae1db"
+      "path": "public/textures/oolite_mamba_diffuse_atlas_0c375e5c2337.webp",
+      "sha256": "c894306effa579838ebb777f0920aad1b358179a400538e9261aacd8634c30da",
+      "source": "atlas:oolite_mamba_diffuse_atlas_0c375e5c2337.png",
+      "sourceSha256": "8e4b2728d432825599f72c63d6ca59fe674b48c47ff716809873bc5c85e00120"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 222246,
+      "encoder": "cwebp 1.2.4",
+      "inputs": [
+        "third_party/oolite/Textures/oolite_mamba_diffuse.png",
+        "third_party/oolite/Textures/oolite_mamba_subents.png"
+      ],
+      "path": "public/textures/oolite_mamba_diffuse_atlas_e20231ccdf2a.webp",
+      "sha256": "e98ac587f9016cf5a94fcda53eab5990ae611362377ee1839b110e2e0d13dcd2",
+      "source": "atlas:oolite_mamba_diffuse_atlas_e20231ccdf2a.png",
+      "sourceSha256": "a5798d0d906afd3c5962d444051723123a1e19e5b94b49a9b7236dbbb4f84bf4"
     },
     {
       "args": [
@@ -1216,16 +1216,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 284538,
+      "bytes": 300894,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_mamba_normal.png",
         "third_party/oolite/Textures/oolite_mamba_subents_normal.png"
       ],
-      "path": "public/textures/oolite_mamba_normal_atlas_ab290bc01f00.webp",
-      "sha256": "be18613e1d012d5d25cb6312cd0304f1381fdbda86f9d922d236fcae276d2c05",
-      "source": "atlas:oolite_mamba_normal_atlas_ab290bc01f00.png",
-      "sourceSha256": "f7b0d47e14d45ce818290006a43d1a81b523c26e0b2edd95ef268c07f9b7639f"
+      "path": "public/textures/oolite_mamba_normal_atlas_4b112192787e.webp",
+      "sha256": "6f0468aadb10f6a21dba41cd0b75bb571995dad9c38de80f3323c8cc8fb0051f",
+      "source": "atlas:oolite_mamba_normal_atlas_4b112192787e.png",
+      "sourceSha256": "897403e08c94b256df82923ded4a0d1e91b1e5595a99851d500b26e19894c6bc"
     },
     {
       "args": [
@@ -1236,15 +1236,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 182,
+      "bytes": 200,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_mamba_roughness_atlas_af6ec3b35202.webp",
-      "sha256": "9466165f201c5a9475e5768aa7cca5b7b5a4b3e346cfce7400bd08e3ddb33c4b",
-      "source": "atlas:oolite_mamba_roughness_atlas_af6ec3b35202.png",
-      "sourceSha256": "dec9fd8817851dbd88a4dad8abbea16980577cdeb76c3d0674ef4aacfeac7ae8"
+      "path": "public/textures/oolite_mamba_roughness_atlas_bdef0395f49f.webp",
+      "sha256": "910b433bf212aa374f3769cf1fe1f997e70f24a3db6d89d61c15c00102604e1a",
+      "source": "atlas:oolite_mamba_roughness_atlas_bdef0395f49f.png",
+      "sourceSha256": "9b96c31ac8b406358e2f691d446f82c826b46d180284148702e996ad389b7568"
     },
     {
       "args": [
@@ -1258,15 +1258,15 @@
         "100",
         "-quiet"
       ],
-      "bytes": 817486,
+      "bytes": 907820,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_mamba_specular.png"
       ],
-      "path": "public/textures/oolite_mamba_specular_atlas_4e452cd3fef3.webp",
-      "sha256": "0b39fe238bfa231019ec78f65c42ee2742f8d533032d52a6b36cd3b663d50787",
-      "source": "atlas:oolite_mamba_specular_atlas_4e452cd3fef3.png",
-      "sourceSha256": "4607c7f8bbc36c0c8ec111438e33102b9b99468707e1064474828ec0a1cfc055"
+      "path": "public/textures/oolite_mamba_specular_atlas_ba248b41df93.webp",
+      "sha256": "53181d33145f93a379b3b6d54a36664bc078ede3e6e586a159b270c0cef19496",
+      "source": "atlas:oolite_mamba_specular_atlas_ba248b41df93.png",
+      "sourceSha256": "4b407219e1184fca91eefca9a0892229f07e1746d3ad484783288508ae9c3af1"
     },
     {
       "args": [
@@ -1278,16 +1278,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 143182,
+      "bytes": 170372,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_moray_diffuse.png",
         "third_party/oolite/Textures/oolite_moray_subents.png"
       ],
-      "path": "public/textures/oolite_moray_diffuse_atlas_57757ad8efd0.webp",
-      "sha256": "bfe8f9b6553b3f8469343e289f596e0931d6ea9aa4a5eddfebeee51a467a0ab6",
-      "source": "atlas:oolite_moray_diffuse_atlas_57757ad8efd0.png",
-      "sourceSha256": "6691859ea64707868a42e9b033b3cafeee3de6ccf741c0b7af2c23ca1397fa51"
+      "path": "public/textures/oolite_moray_diffuse_atlas_0425ce362234.webp",
+      "sha256": "8b2dd1b352ae357c09dc903aa56bea379f318508dbda09c58a43661ceb4f61ca",
+      "source": "atlas:oolite_moray_diffuse_atlas_0425ce362234.png",
+      "sourceSha256": "45e75265cd0c25abbf45f83cd184506dea799ca5f48a5c18d204930e29670bb4"
     },
     {
       "args": [
@@ -1299,16 +1299,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 156822,
+      "bytes": 183792,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_moray_diffuse_med.png",
         "third_party/oolite/Textures/oolite_moray_subents.png"
       ],
-      "path": "public/textures/oolite_moray_diffuse_atlas_9dd599e224e4.webp",
-      "sha256": "599c63e9514839958c39259393bf2a5d1b9fc84aa5e1acca3c06d83c1e44e216",
-      "source": "atlas:oolite_moray_diffuse_atlas_9dd599e224e4.png",
-      "sourceSha256": "3a682cc7c8b428f00462344ecf964b14cc09489cb0f982244ac1ea9ab7458b3f"
+      "path": "public/textures/oolite_moray_diffuse_atlas_9fb5996edde0.webp",
+      "sha256": "82b927f6d601bfa5185e527933e69c019d5fa3a1e49d97c15fb70f7aa78076f2",
+      "source": "atlas:oolite_moray_diffuse_atlas_9fb5996edde0.png",
+      "sourceSha256": "50028e262fce396b7ed414ef4c7e2efbada9dfc83651663e0a5b11fd4fa8b4f0"
     },
     {
       "args": [
@@ -1319,16 +1319,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 121140,
+      "bytes": 126038,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_moray_normal.png",
         "third_party/oolite/Textures/oolite_moray_subents_normal.png"
       ],
-      "path": "public/textures/oolite_moray_normal_atlas_26f3366415fe.webp",
-      "sha256": "b852f6fad92185bce9288c6543733d7dceb91e0862645841a645657f1579d4ec",
-      "source": "atlas:oolite_moray_normal_atlas_26f3366415fe.png",
-      "sourceSha256": "41d4115f39c5d3a3cb9e02c29e94eeff7fb62a7eaf064dde5afe5b323b4da20e"
+      "path": "public/textures/oolite_moray_normal_atlas_bc233ba4c2b2.webp",
+      "sha256": "26f9efc6e46c6b4aee2e58ca6b208e88961a7a2ebb42eec1851205d28e3c4de7",
+      "source": "atlas:oolite_moray_normal_atlas_bc233ba4c2b2.png",
+      "sourceSha256": "375e18ab3a362b1f80ba47758b87032621363a53343ea7c01e6045c803564a2c"
     },
     {
       "args": [
@@ -1339,15 +1339,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 212,
+      "bytes": 230,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_moray_roughness_atlas_b892795284da.webp",
-      "sha256": "e7527153e9c30d8fd33e4477e3de27a5e32be0e711ad6dbce71b96a560abb967",
-      "source": "atlas:oolite_moray_roughness_atlas_b892795284da.png",
-      "sourceSha256": "53fa62e6d522511f32fda163675d3d0a7337df829755667c91000e5e26b740c9"
+      "path": "public/textures/oolite_moray_roughness_atlas_f128a54c129b.webp",
+      "sha256": "589e8522f8a70bfa9b90d7fd0c3e01b8b573d65ecbc6779837ac18a82dd805db",
+      "source": "atlas:oolite_moray_roughness_atlas_f128a54c129b.png",
+      "sourceSha256": "87ec43f168bff4d5cf3b70eb5ed64056619332ca0d935364bfabfdf76b0a9b30"
     },
     {
       "args": [
@@ -1361,15 +1361,15 @@
         "100",
         "-quiet"
       ],
-      "bytes": 624690,
+      "bytes": 694322,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_moray_specular.png"
       ],
-      "path": "public/textures/oolite_moray_specular_atlas_8743c4566af6.webp",
-      "sha256": "1465712bc0c7f594054e4e39e4198c58f3cb9d8c214b3b360e61f3df02c543e0",
-      "source": "atlas:oolite_moray_specular_atlas_8743c4566af6.png",
-      "sourceSha256": "3c740124319cde785e0f6d7f322956d9b58549657b5a2777a80d0401c6146ac2"
+      "path": "public/textures/oolite_moray_specular_atlas_0f6374138df7.webp",
+      "sha256": "555b2c7d66caff4fcd1a014c487fb9b6088100c76c732f971b35fa4f9f203c5f",
+      "source": "atlas:oolite_moray_specular_atlas_0f6374138df7.png",
+      "sourceSha256": "a2b25aa4217c629a5f90ca7498843f44cf9e5ef6c6f60613783f1ab2df29c5f7"
     },
     {
       "args": [
@@ -1381,37 +1381,37 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 302860,
-      "encoder": "cwebp 1.2.4",
-      "inputs": [
-        "third_party/oolite/Textures/oolite_python_diffuse.png",
-        "third_party/oolite/Textures/oolite_python_subents.png"
-      ],
-      "path": "public/textures/oolite_python_diffuse_atlas_1d6389a07150.webp",
-      "sha256": "3b658da534db20ab47feaf3b5bea03956bda0264e4b22e7f04d197c11e99be75",
-      "source": "atlas:oolite_python_diffuse_atlas_1d6389a07150.png",
-      "sourceSha256": "cfd83135f6ff7966c85d4fcb9cd77e01db8196bab40457ffc55e8ddefa4aff97"
-    },
-    {
-      "args": [
-        "-q",
-        "90",
-        "-m",
-        "6",
-        "-sharp_yuv",
-        "-noalpha",
-        "-quiet"
-      ],
-      "bytes": 298272,
+      "bytes": 368562,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_python_diffuse_blackdog.png",
         "third_party/oolite/Textures/oolite_python_subents.png"
       ],
-      "path": "public/textures/oolite_python_diffuse_atlas_796e91696355.webp",
-      "sha256": "df9a4020ecfe99da36dfd32acc6faa653ae79c305346cfd76ef8a196710b4545",
-      "source": "atlas:oolite_python_diffuse_atlas_796e91696355.png",
-      "sourceSha256": "c6d134eb016944803bbb68a015ce7d51dce28763aae23f15bb698068de69c235"
+      "path": "public/textures/oolite_python_diffuse_atlas_cd7798525e51.webp",
+      "sha256": "b74dc95f958614f80f47b722fa3c7fd176c4d98b71e930649a6c3a296a262405",
+      "source": "atlas:oolite_python_diffuse_atlas_cd7798525e51.png",
+      "sourceSha256": "965823e0cfa0486fb4914593683ab6dbdf2ccb974710b60679371be45dde2916"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 376650,
+      "encoder": "cwebp 1.2.4",
+      "inputs": [
+        "third_party/oolite/Textures/oolite_python_diffuse.png",
+        "third_party/oolite/Textures/oolite_python_subents.png"
+      ],
+      "path": "public/textures/oolite_python_diffuse_atlas_e1858e44e8c3.webp",
+      "sha256": "1b5defb70aa0772d7abbf914313ec9f1586ac98b096d7df0ea42899b6a35c414",
+      "source": "atlas:oolite_python_diffuse_atlas_e1858e44e8c3.png",
+      "sourceSha256": "d61cb718ad19ad82c59f560acb553b7ab1227cd6595fd16e2ab6cb6e40d0cd60"
     },
     {
       "args": [
@@ -1422,16 +1422,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 1121482,
+      "bytes": 1208932,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_python_blackdog_normal.png",
         "third_party/oolite/Textures/oolite_python_subents_normal.png"
       ],
-      "path": "public/textures/oolite_python_normal_atlas_a3afc8b28494.webp",
-      "sha256": "3209f4652d9dfd58ea4163754d33ba0a95e2fb6286bd34a268725567447b0038",
-      "source": "atlas:oolite_python_normal_atlas_a3afc8b28494.png",
-      "sourceSha256": "27b92d15455e8052bf193f3e5f64c8fbaf5f99f1b0bfe465b1904cb03e2391f3"
+      "path": "public/textures/oolite_python_normal_atlas_f23034dbd61d.webp",
+      "sha256": "28a58b2e8de96697446a2373812c910b77da7d7bd676560dd2ed6ad27e53ed68",
+      "source": "atlas:oolite_python_normal_atlas_f23034dbd61d.png",
+      "sourceSha256": "1359cb3009b5bacd66371eb3da9099c7b5af1eb8192a4d9cdfd8dd6318717bca"
     },
     {
       "args": [
@@ -1442,15 +1442,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 278,
+      "bytes": 274,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_python_roughness_atlas_4ef10350cec8.webp",
-      "sha256": "7dd59f92cf7d67df59c10a25f0add671db86ca859d8e5b7b159e7bbffa9bd745",
-      "source": "atlas:oolite_python_roughness_atlas_4ef10350cec8.png",
-      "sourceSha256": "878149409c020411f336c6c7dfe8b841526d0bc1ced586ec1e24d0a30809216e"
+      "path": "public/textures/oolite_python_roughness_atlas_0588e6327cf8.webp",
+      "sha256": "d432c003233c1fca2d0b96663b2014dc9223c2491986d9e81d7d6d79b5e4e384",
+      "source": "atlas:oolite_python_roughness_atlas_0588e6327cf8.png",
+      "sourceSha256": "fe409ea8c7346f25aba5cdd83a6eebd6f7e9b0d54f5722203bb8adf603602b64"
     },
     {
       "args": [
@@ -1461,15 +1461,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 278,
+      "bytes": 274,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_python_roughness_atlas_5791e150b12a.webp",
-      "sha256": "a6a89ed4cc5cf090d2c9e492a9cf78568c3fba85c30455fdb47de7699646e73d",
-      "source": "atlas:oolite_python_roughness_atlas_5791e150b12a.png",
-      "sourceSha256": "528476e7862a2bf5d8880a28ec79ed0321cd1b4ff0556baebae596330ef44eb3"
+      "path": "public/textures/oolite_python_roughness_atlas_5a898ff98db0.webp",
+      "sha256": "02cf2cabd882a62292aff60cc86c7c2af2b76b0132435347a983d923c79e2c4b",
+      "source": "atlas:oolite_python_roughness_atlas_5a898ff98db0.png",
+      "sourceSha256": "d632b00c1cc09d34b3bb7397ed65f97c4b073d93b46d7d130be53327a0b3e82a"
     },
     {
       "args": [
@@ -1483,15 +1483,15 @@
         "100",
         "-quiet"
       ],
-      "bytes": 924686,
+      "bytes": 1050366,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_python_specular.png"
       ],
-      "path": "public/textures/oolite_python_specular_atlas_9f1adc73f562.webp",
-      "sha256": "06226a37db52108bc22c3be7ebfdbce40cbd102ec6026e9458a620c333b3e1a6",
-      "source": "atlas:oolite_python_specular_atlas_9f1adc73f562.png",
-      "sourceSha256": "2dc43815648c3a538aa63557155c6e01628ac3eb8b28ac3e3ae9c1111ab16b7c"
+      "path": "public/textures/oolite_python_specular_atlas_315c9dff3b97.webp",
+      "sha256": "a60b53b632f7bde0685a1df8d6d8c79d130ddf8f3073edc91a9ced036edcd441",
+      "source": "atlas:oolite_python_specular_atlas_315c9dff3b97.png",
+      "sourceSha256": "c9da93a5c58c21f3bf91b19c3ad709fe356f7131ea45654392a4cb0d960ff48e"
     },
     {
       "args": [
@@ -1503,16 +1503,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 249796,
+      "bytes": 301194,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_python_diffuse_trader.png",
         "third_party/oolite/Textures/oolite_python_subents_trader.png"
       ],
-      "path": "public/textures/oolite_python_trader_diffuse_atlas_9cc91a97ac97.webp",
-      "sha256": "c31709a464bf7f99ae49b12807c337db3e953fc72054216121a3ed27169a1374",
-      "source": "atlas:oolite_python_trader_diffuse_atlas_9cc91a97ac97.png",
-      "sourceSha256": "aafcc5f586d8ed45fd7251922bae913bc166b1f2fcceab2ec7e1f4c1819a9213"
+      "path": "public/textures/oolite_python_trader_diffuse_atlas_29c5eb52184a.webp",
+      "sha256": "5bc3fb878b7dfbfa9eebd31ac31c6a2e2b94c432f03852f55e8ab6dfe47a3813",
+      "source": "atlas:oolite_python_trader_diffuse_atlas_29c5eb52184a.png",
+      "sourceSha256": "df3347640e64e5cd7e66f0b0d92cef2fddd0f6d950efc41077b03c95cd7b4b54"
     },
     {
       "args": [
@@ -1523,16 +1523,16 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 627292,
+      "bytes": 692172,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_python_normal.png",
         "third_party/oolite/Textures/oolite_python_subents_normal_trader.png"
       ],
-      "path": "public/textures/oolite_python_trader_normal_atlas_e52cb258511a.webp",
-      "sha256": "f579c7a29bba286924c5e32d1c95b7d0e304f59eb3a115bfc6ed24e9a08d68e5",
-      "source": "atlas:oolite_python_trader_normal_atlas_e52cb258511a.png",
-      "sourceSha256": "dc1b95a440e0c9dd18de3cdc334d8d00fbe57064420a7449211338c1b6c5764d"
+      "path": "public/textures/oolite_python_trader_normal_atlas_5976d1128e14.webp",
+      "sha256": "aab1610246c479a38200cd549db41f8b3b6d3c661fdc5fb9efcd5d876803d41a",
+      "source": "atlas:oolite_python_trader_normal_atlas_5976d1128e14.png",
+      "sourceSha256": "bb5b3901f31df113ec3314a79106583b2f5d342f6262ba080232e2f888dc3923"
     },
     {
       "args": [
@@ -1543,15 +1543,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 278,
+      "bytes": 286,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Config/shipdata.plist"
       ],
-      "path": "public/textures/oolite_python_trader_roughness_atlas_e730199ab92f.webp",
-      "sha256": "cd245b03fb7b1857ea0e881d22fc5c99794f79fdf484e34cefcaa6e0a69534e0",
-      "source": "atlas:oolite_python_trader_roughness_atlas_e730199ab92f.png",
-      "sourceSha256": "64366eb893cef36c2900b3b269d9097efc8eeecb37fe7db7c78dcc7cedca4a50"
+      "path": "public/textures/oolite_python_trader_roughness_atlas_28e1e3bf387b.webp",
+      "sha256": "4c68c23a1691db40e58b5de74b4639273cc3f3e48ba2dd08e0156128d18d22a9",
+      "source": "atlas:oolite_python_trader_roughness_atlas_28e1e3bf387b.png",
+      "sourceSha256": "d4d27996349694fe0a613342de1f4981c3143887a49c5cd53dc0bb3dd8afe37c"
     },
     {
       "args": [
@@ -1565,16 +1565,16 @@
         "100",
         "-quiet"
       ],
-      "bytes": 1275394,
+      "bytes": 1459998,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_python_specular_trader.png",
         "third_party/oolite/Textures/oolite_python_subents_specular_trader.png"
       ],
-      "path": "public/textures/oolite_python_trader_specular_atlas_deae7b1fc427.webp",
-      "sha256": "c1b9bcd45bc08732e84aaae4262426c9936e17231e1cd2a90ce8da12adcc8f0c",
-      "source": "atlas:oolite_python_trader_specular_atlas_deae7b1fc427.png",
-      "sourceSha256": "4c58b00f0b0a60309d93e2435e99c13b4f42316e9c029619eda70fb22df6f3db"
+      "path": "public/textures/oolite_python_trader_specular_atlas_603dca48ad32.webp",
+      "sha256": "185f185e5e753f1bc1c0b1e2efdc9a62b7091a26e763d9377daf01aee0187366",
+      "source": "atlas:oolite_python_trader_specular_atlas_603dca48ad32.png",
+      "sourceSha256": "88edae4061d5e2d3b4b8752db87b7ffdf6b31dd1996c7eaf261b5665ff6763a5"
     },
     {
       "args": [
@@ -1742,35 +1742,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 123108,
-      "encoder": "cwebp 1.2.4",
-      "inputs": [
-        "third_party/oolite/Textures/oolite_viper_diffuse.png"
-      ],
-      "path": "public/textures/oolite_viper_diffuse_atlas_88b6f17e437f.webp",
-      "sha256": "6c8f54dc4d9ef4343c571e0339dabfc06491c61f5935ea32c4c91ca706952e1c",
-      "source": "atlas:oolite_viper_diffuse_atlas_88b6f17e437f.png",
-      "sourceSha256": "b810c575085cd68a1017a4d38ef639e2afad8f64e0b33146ee36a69203c4ef9b"
-    },
-    {
-      "args": [
-        "-q",
-        "90",
-        "-m",
-        "6",
-        "-sharp_yuv",
-        "-noalpha",
-        "-quiet"
-      ],
-      "bytes": 112758,
+      "bytes": 165224,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_viper_diffuse_pursuit.png"
       ],
-      "path": "public/textures/oolite_viper_diffuse_atlas_bab9bad8a806.webp",
-      "sha256": "a8e6b376e953416bb65878a0caf4a2684e0a5e6c19743945bed7872d4e4c8e6d",
-      "source": "atlas:oolite_viper_diffuse_atlas_bab9bad8a806.png",
-      "sourceSha256": "1600213b3b631ec67f5e97f32ef60a32212a41ab681740630308945df957ab13"
+      "path": "public/textures/oolite_viper_diffuse_atlas_a8d5d8de43cf.webp",
+      "sha256": "f10c7885d395bc665c6533234a20b187f49684b0e65c459c5989fdb1ee0324a5",
+      "source": "atlas:oolite_viper_diffuse_atlas_a8d5d8de43cf.png",
+      "sourceSha256": "cb6dc9b1b28a790d0655788e41ff5ac5835fa50a64f5b94f565ea9143528342a"
     },
     {
       "args": [
@@ -1782,15 +1762,35 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 114968,
+      "bytes": 169564,
+      "encoder": "cwebp 1.2.4",
+      "inputs": [
+        "third_party/oolite/Textures/oolite_viper_diffuse.png"
+      ],
+      "path": "public/textures/oolite_viper_diffuse_atlas_ef2f3b989172.webp",
+      "sha256": "18e657016b2934559be9a0c97b5c52d92fde0325eeeb8efb038692a34c324dce",
+      "source": "atlas:oolite_viper_diffuse_atlas_ef2f3b989172.png",
+      "sourceSha256": "ca958c1d106e9edd9843b9a374caf05de33b3c33e802fa7d9969371413177312"
+    },
+    {
+      "args": [
+        "-q",
+        "90",
+        "-m",
+        "6",
+        "-sharp_yuv",
+        "-noalpha",
+        "-quiet"
+      ],
+      "bytes": 163858,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_viper_interceptor_diffuse.png"
       ],
-      "path": "public/textures/oolite_viper_interceptor_diffuse_atlas_a8c4348c194d.webp",
-      "sha256": "e74a0fbb90b44538863136797fefe1a2656f606abee199bf3d2f92bef2cbd969",
-      "source": "atlas:oolite_viper_interceptor_diffuse_atlas_a8c4348c194d.png",
-      "sourceSha256": "6e48ce9e53b415787c8b120363b95a072333042b82b1170919510c39c896ea06"
+      "path": "public/textures/oolite_viper_interceptor_diffuse_atlas_6804b38feae8.webp",
+      "sha256": "3e287a015a9872decb44e999f9fc533d5f7d41b75323ca07a348b8ca4cf1a172",
+      "source": "atlas:oolite_viper_interceptor_diffuse_atlas_6804b38feae8.png",
+      "sourceSha256": "e3cbfe7338b0b29e8fabe296bc5f2966db729078cf7d54a405564aeb5b0e37bd"
     },
     {
       "args": [
@@ -1801,15 +1801,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 56804,
+      "bytes": 61656,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_viper_interceptor_normal.png"
       ],
-      "path": "public/textures/oolite_viper_interceptor_normal_atlas_065e43bb3cd9.webp",
-      "sha256": "f858fb7d292cc01c034acb4343c703fda87ccc64792928efd1ed40277fe15393",
-      "source": "atlas:oolite_viper_interceptor_normal_atlas_065e43bb3cd9.png",
-      "sourceSha256": "46bc6f4a70ee847d8f152db05c114e28ca66f9a20d5a0efa134e4ed45f53007f"
+      "path": "public/textures/oolite_viper_interceptor_normal_atlas_77c7655691ae.webp",
+      "sha256": "8df0aa42b9243df98536eac91e45a444f37638afb34c01ad46213880d1d94597",
+      "source": "atlas:oolite_viper_interceptor_normal_atlas_77c7655691ae.png",
+      "sourceSha256": "7254f94af2448c6d8346bbc2e65b8fb8df67ba5d234c7b881f5d568845ff9c65"
     },
     {
       "args": [
@@ -1820,15 +1820,15 @@
         "-noalpha",
         "-quiet"
       ],
-      "bytes": 60426,
+      "bytes": 65466,
       "encoder": "cwebp 1.2.4",
       "inputs": [
         "third_party/oolite/Textures/oolite_viper_normal.png"
       ],
-      "path": "public/textures/oolite_viper_normal_atlas_66356bc9e3b3.webp",
-      "sha256": "622e208e54891246a6ecc602e9705d35e4a01dca3e1b20d09a49643789db8f41",
-      "source": "atlas:oolite_viper_normal_atlas_66356bc9e3b3.png",
-      "sourceSha256": "0a00a9edbe0d29eb269fbc4c2f38b7bab30a9f9004e08423eb9e0cfc59983046"
+      "path": "public/textures/oolite_viper_normal_atlas_d7058fe3c050.webp",
+      "sha256": "ec4080ab8f7f61608315b6f7774551353fa7fff053a5a24526c3df5f9a8f015e",
+      "source": "atlas:oolite_viper_normal_atlas_d7058fe3c050.png",
+      "sourceSha256": "c9920534c4a74b8761853eea6451778212fcbe1be0c230527d8c5be3d2251712"
     },
     {
       "args": [

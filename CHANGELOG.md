@@ -22,6 +22,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Each NPC ship model now draws in one call: its parts share a texture atlas,
   with no visible change.
 
+### Fixed
+
+- NPC ships seen from a distance no longer show pale seams, or a strip of
+  another part's texture, along the edges of their texture maps: each part in
+  the shared texture atlas now has a mirrored border, so it looks as it does in
+  Oolite out to several kilometres.
+
 ## [0.8.2] - 2026-11-25
 
 Mouse support on the market and the remaining Oolite digit keys. A click picks

@@ -23,19 +23,39 @@
  * integer ratio with nearest-neighbour replication (every side is a power of
  * two), so nearest sampling stays texel-exact and a map is never shrunk. The
  * atlas is square, so every region has the same UV scale in u and v, which keeps
- * three.js's derivative tangent frame unchanged. Regions are placed on the grid
- * of the smallest region, each aligned to a multiple of its own side, largest
- * first, at the first free cell in row-major order, in the smallest atlas side
- * (a multiple of that cell) that holds them. The layout is a pure function of
- * the region sides and their order: never of a pixel, which is what lets the
+ * three.js's derivative tangent frame unchanged. Every region keeps a gutter
+ * of `ATLAS_GUTTER` texels on each side. The padded regions are placed on a
+ * grid of `ATLAS_GUTTER` texels, largest first (ties in input order), at the
+ * first free cell in row-major order, in the smallest atlas side (a multiple of
+ * the gutter) that holds them. The layout is a pure function of the region
+ * sides and their order: never of a pixel, which is what lets the
  * texture-variant records of one model share merged geometry (plan 21-18).
  *
- * No gutter. The region offsets are multiples of the region side, so a mip
- * texel whose block is at most the region side never straddles two regions, and
- * the layout wastes no area; the half-texel a bilinear fetch reads across a
- * region edge replaces the blend the source map's own repeat wrap read across
- * its edge. A gutter would double the side of every hull whose map is 1024
- * texels, which is the memory cost this plan measures and keeps down.
+ * The gutter (TOOLS-WR-01). Oolite samples a ship map with CLAMP_TO_EDGE
+ * (`OOConcreteTexture.m:432-434`; ship materials never set `repeat_s`), so a
+ * fetch at a map's edge reads that level's edge texel, at every mip level. In
+ * an atlas the texel past a region's edge belongs to something else: at mip
+ * level k a bilinear fetch at the edge reads the level-k texel across it, a
+ * block of 2^k base texels, and trilinear filtering reads levels floor(lambda)
+ * and floor(lambda) + 1. So each region's gutter holds the region's own edge
+ * mirrored (the texel at distance d past the edge is the region texel at
+ * distance d - 1 inside it): with the region offsets and the atlas side on the
+ * 2^5 = 32 texel grid, the level-k block past an edge is the mirror of the last
+ * level-k block inside it, so it averages to exactly the edge texel
+ * CLAMP_TO_EDGE reads at that level. The atlas therefore samples exactly like
+ * the separate clamped maps up to level 5, that is while lambda < 5 (every
+ * region of the roster is 128 texels or more). On the roster's maps (7 to 24
+ * texels per metre on the hull maps, up to 35 on the Python's gun map) at
+ * Oolite's 57.2 degree flight field of view across 1 920 pixels, lambda reaches
+ * 5 at about 2 to 8 km for a hull map and 1.6 km for the densest map, where the
+ * ship is 25 to 50 pixels long. Past the gutter, the free atlas area holds the
+ * nearest region's outermost gutter texel, extruded, never a neutral fill, so
+ * beyond level 5 an edge facing free space still blends only with its own
+ * content; an edge facing another region's gutter, or the opposite atlas edge
+ * through the GLB's default REPEAT wrap, blends with that neighbour over less
+ * than one screen pixel. A gutter of 2^5 costs 17 to 27 percent more texels
+ * per atlas than an unpadded layout (the Anaconda's side grows from 1 536 to
+ * 1 664).
  *
  * Exactness. For every corner of every source primitive and every slot, the
  * nearest texel of the atlas at the remapped UV equals the nearest texel of the
@@ -76,6 +96,13 @@ import type {
 
 /** The largest atlas side, in texels, a hull may need (T-21-41). */
 export const MAX_HULL_ATLAS_SIDE = 2048;
+
+/**
+ * The gutter every region keeps on each side, in texels: 2^5, so the atlas
+ * samples like the separate clamped maps up to mip level 5 (TOOLS-WR-01, see
+ * the module doc for the viewing distances this covers).
+ */
+export const ATLAS_GUTTER = 32;
 
 /** A decoded 8-bit RGBA image, rows top to bottom. */
 export interface RgbaImage {
@@ -160,17 +187,29 @@ function isPowerOfTwo(value: number): boolean {
 }
 
 /**
- * Place square regions of power-of-two sides on a square atlas.
+ * Place square regions of power-of-two sides on a square atlas, each with a
+ * gutter of `gutter` texels (a power of two) on every side.
  *
- * Deterministic and independent of any pixel: the regions are placed largest
- * first (ties in input order), each at the first free cell, scanning rows then
- * columns, whose offsets are multiples of the region's own side. The atlas side
- * is the smallest multiple of the smallest region side that holds them all,
- * searched upward from the area bound. The returned side may exceed
- * `MAX_HULL_ATLAS_SIDE`; the caller applies condition (c).
+ * Deterministic and independent of any pixel. A region's footprint is its side
+ * rounded up to a multiple of the gutter, plus the gutter on both sides. The
+ * footprints are placed largest first (ties in input order), each at the first
+ * free cell of the gutter grid, scanning rows then columns, without overlap.
+ * The atlas side is the smallest multiple of the gutter that holds them all,
+ * searched upward from the area bound. The returned regions are the inner
+ * squares (the maps), so every offset is a multiple of the gutter and at least
+ * one gutter from the atlas edge and two from another region. The returned side
+ * may exceed `MAX_HULL_ATLAS_SIDE`; the caller applies condition (c).
  */
-export function packHullAtlas(sides: readonly number[]): AtlasLayout {
+export function packHullAtlas(
+  sides: readonly number[],
+  gutter: number = ATLAS_GUTTER,
+): AtlasLayout {
   if (sides.length === 0) throw new Error("packHullAtlas: no regions");
+  if (!isPowerOfTwo(gutter)) {
+    throw new Error(
+      `packHullAtlas: gutter ${String(gutter)} is not a power of 2`,
+    );
+  }
   for (const side of sides) {
     if (!isPowerOfTwo(side)) {
       throw new Error(
@@ -178,51 +217,46 @@ export function packHullAtlas(sides: readonly number[]): AtlasLayout {
       );
     }
   }
-  const unit = Math.min(...sides);
+  const footprintOf = (side: number): number =>
+    Math.ceil(side / gutter) * gutter + 2 * gutter;
   const order = sides
-    .map((side, index) => ({ side, index }))
+    .map((side, index) => ({ side, index, footprint: footprintOf(side) }))
     .sort((left, right) => right.side - left.side || left.index - right.index);
-  const largest = Math.max(...sides);
-  const area = sides.reduce((sum, side) => sum + side * side, 0);
+  const largest = Math.max(...order.map((entry) => entry.footprint));
+  const area = order.reduce(
+    (sum, entry) => sum + entry.footprint * entry.footprint,
+    0,
+  );
   const lowerBound = Math.max(largest, Math.ceil(Math.sqrt(area)));
-  const sum = sides.reduce((total, side) => total + side, 0);
+  const sum = order.reduce((total, entry) => total + entry.footprint, 0);
 
+  interface Placed {
+    readonly x: number;
+    readonly y: number;
+    readonly size: number;
+  }
   for (
-    let side = Math.ceil(lowerBound / unit) * unit;
+    let side = Math.ceil(lowerBound / gutter) * gutter;
     side <= Math.max(sum, lowerBound);
-    side += unit
+    side += gutter
   ) {
-    const cells = side / unit;
-    const taken = new Uint8Array(cells * cells);
+    const footprints: Placed[] = [];
     const placed: AtlasRegion[] = new Array<AtlasRegion>(sides.length);
     let fits = true;
-    for (const { side: regionSide, index } of order) {
-      const span = regionSide / unit;
+    for (const { side: regionSide, index, footprint } of order) {
       let found = false;
-      for (let row = 0; row + span <= cells && !found; row += span) {
-        for (let column = 0; column + span <= cells && !found; column += span) {
-          let free = true;
-          for (let dy = 0; dy < span && free; dy++) {
-            for (let dx = 0; dx < span; dx++) {
-              if (taken[(row + dy) * cells + column + dx] !== 0) {
-                free = false;
-                break;
-              }
-            }
-          }
-          if (!free) continue;
-          for (let dy = 0; dy < span; dy++) {
-            taken.fill(
-              1,
-              (row + dy) * cells + column,
-              (row + dy) * cells + column + span,
-            );
-          }
-          placed[index] = {
-            x: column * unit,
-            y: row * unit,
-            side: regionSide,
-          };
+      for (let y = 0; y + footprint <= side && !found; y += gutter) {
+        for (let x = 0; x + footprint <= side && !found; x += gutter) {
+          const overlaps = footprints.some(
+            (other) =>
+              x < other.x + other.size &&
+              other.x < x + footprint &&
+              y < other.y + other.size &&
+              other.y < y + footprint,
+          );
+          if (overlaps) continue;
+          footprints.push({ x, y, size: footprint });
+          placed[index] = { x: x + gutter, y: y + gutter, side: regionSide };
           found = true;
         }
       }
@@ -233,7 +267,7 @@ export function packHullAtlas(sides: readonly number[]): AtlasLayout {
     }
     if (fits) return { side, regions: placed };
   }
-  // Unreachable: a row of the regions always fits an atlas of side `sum`.
+  // Unreachable: a row of the footprints always fits an atlas of side `sum`.
   throw new Error("packHullAtlas: no layout found");
 }
 
@@ -278,7 +312,6 @@ interface Tuple {
 const DIFFUSE_FILL = [255, 255, 255, 255] as const;
 const NORMAL_FILL = [128, 128, 255, 255] as const;
 const SPECULAR_FILL = [255, 255, 255, 255] as const;
-const ROUGHNESS_UNUSED = [0, 255, 0, 255] as const;
 const EMISSIVE_BAKE_SUFFIX = "_emissive.png";
 
 function isMergedExtras(
@@ -385,18 +418,81 @@ function fillRegion(
   }
 }
 
-function newImage(
+/**
+ * The symmetric reflection of an offset `t` from a region's first texel into
+ * `[0, side)`: `-1` is `0`, `side` is `side - 1`, periodic past twice the side.
+ */
+export function reflectOffset(t: number, side: number): number {
+  const period = 2 * side;
+  const folded = ((t % period) + period) % period;
+  return folded < side ? folded : period - 1 - folded;
+}
+
+/**
+ * For every atlas texel, the texel it holds: itself inside a region, else a
+ * texel of the nearest region (Chebyshev distance, then squared Euclidean
+ * distance, then region order), its offset from the region clamped to the
+ * gutter and reflected into the region. Within a region's gutter that region is
+ * always the nearest, because another region is at least two gutters away, so
+ * the gutter holds the region's edge mirrored, and past the gutter the free
+ * area holds the outermost gutter texel (TOOLS-WR-01).
+ */
+export function gutterSources(
   side: number,
-  channels: 1 | 4,
-  fill: readonly number[],
-): Uint8Array {
-  const data = new Uint8Array(side * side * channels);
-  for (let index = 0; index < data.length; index += channels) {
-    for (let channel = 0; channel < channels; channel++) {
-      data[index + channel] = fill[channel] ?? 0;
+  regions: readonly AtlasRegion[],
+  gutter: number = ATLAS_GUTTER,
+): Int32Array {
+  const sources = new Int32Array(side * side);
+  for (let y = 0; y < side; y++) {
+    for (let x = 0; x < side; x++) {
+      let bestChebyshev = Number.POSITIVE_INFINITY;
+      let bestSquared = Number.POSITIVE_INFINITY;
+      let sourceX = x;
+      let sourceY = y;
+      for (const region of regions) {
+        const last = region.side - 1;
+        const dx = Math.max(region.x - x, 0, x - (region.x + last));
+        const dy = Math.max(region.y - y, 0, y - (region.y + last));
+        const chebyshev = Math.max(dx, dy);
+        const squared = dx * dx + dy * dy;
+        if (
+          chebyshev < bestChebyshev ||
+          (chebyshev === bestChebyshev && squared < bestSquared)
+        ) {
+          bestChebyshev = chebyshev;
+          bestSquared = squared;
+          const offsetX = Math.min(
+            Math.max(x - region.x, -gutter),
+            last + gutter,
+          );
+          const offsetY = Math.min(
+            Math.max(y - region.y, -gutter),
+            last + gutter,
+          );
+          sourceX = region.x + reflectOffset(offsetX, region.side);
+          sourceY = region.y + reflectOffset(offsetY, region.side);
+        }
+      }
+      sources[y * side + x] = sourceY * side + sourceX;
     }
   }
-  return data;
+  return sources;
+}
+
+/** Copy every texel outside the regions from its gutter source. */
+function fillOutside(
+  target: Uint8Array,
+  channels: number,
+  sources: Int32Array,
+): void {
+  for (let index = 0; index < sources.length; index++) {
+    const source = sources[index] ?? index;
+    if (source === index) continue;
+    for (let channel = 0; channel < channels; channel++) {
+      target[index * channels + channel] =
+        target[source * channels + channel] ?? 0;
+    }
+  }
 }
 
 /**
@@ -532,13 +628,14 @@ export function mergeHullPrimitives(input: MergeInput): MergeOutcome {
   const rasters: Partial<Record<AtlasSlot, Uint8Array>> = {};
   const rgba = (name: string): RgbaImage => textures(name);
 
-  if (present.diffuse) rasters.diffuse = newImage(atlasSide, 4, DIFFUSE_FILL);
-  if (present.normal) rasters.normal = newImage(atlasSide, 4, NORMAL_FILL);
-  if (present.specular)
-    rasters.specular = newImage(atlasSide, 4, SPECULAR_FILL);
-  if (present.emissive) rasters.emissive = newImage(atlasSide, 1, [0]);
-  if (present.roughness)
-    rasters.roughness = newImage(atlasSide, 4, ROUGHNESS_UNUSED);
+  // Every texel is written: the regions are painted below, then every texel
+  // outside them is filled from the nearest region (`gutterSources`).
+  const texels = atlasSide * atlasSide;
+  if (present.diffuse) rasters.diffuse = new Uint8Array(texels * 4);
+  if (present.normal) rasters.normal = new Uint8Array(texels * 4);
+  if (present.specular) rasters.specular = new Uint8Array(texels * 4);
+  if (present.emissive) rasters.emissive = new Uint8Array(texels);
+  if (present.roughness) rasters.roughness = new Uint8Array(texels * 4);
 
   for (const [t, tuple] of tuples.entries()) {
     const region = alignedAt(layout.regions, t, "region");
@@ -588,6 +685,12 @@ export function mergeHullPrimitives(input: MergeInput): MergeOutcome {
         4,
       );
     }
+  }
+
+  // The gutters (each region's edge mirrored) and the free area.
+  const sources = gutterSources(atlasSide, layout.regions);
+  for (const [slot, raster] of Object.entries(rasters)) {
+    fillOutside(raster, slot === "emissive" ? 1 : 4, sources);
   }
 
   // The merged geometry: the primitives in authored order, UVs remapped.
