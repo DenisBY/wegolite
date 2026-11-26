@@ -1,10 +1,12 @@
 # Phase 22: Initial Population - Pattern Map
 
 **Mapped:** 2026-11-26
-**Files analyzed:** 27 new or modified
-**Analogs found:** 25 / 27 (all analog paths verified git-tracked: `tools/ai-harness/*`, `tests/oracles/npc/*`, `src/sim/**`, `tests/**`)
+**Files analyzed:** 31 new or modified (27 at mapping time; the `traders.ts`, `pirates.ts`, `police.ts` and `streams.ts` rows were added at plan revision 2)
+**Analogs found:** 29 / 31 (all analog paths verified git-tracked: `tools/ai-harness/*`, `tests/oracles/npc/*`, `src/sim/**`, `tests/**`)
 
 Line numbers below were read this session; verify with `rg -n` before quoting in a plan, since small edits may shift them.
+
+**Test path note (plan revisions 1 and 2):** the plans place every population test under `tests/sim/world/population/`, and `22-VALIDATION.md` uses the same paths; since plan revision 2 the rows and sections below use them too. `22-RESEARCH.md` keeps the names used at mapping time: `tests/sim/world/populate-system.oracle.test.ts` is now `tests/sim/world/population/{plan,traders,groups}.oracle.test.ts` (one replay per builder family), `tests/sim/world/populate-system.test.ts` is `tests/sim/world/population/spawn.test.ts`, `tests/sim/world/census.test.ts` is `tests/sim/world/population/census.test.ts`, and `tests/sim/world/population-cadence.test.ts` is `tests/sim/world/population/cadence.test.ts`; `tests/sim/world/neighbourhood.test.ts` keeps its name. The analogs are unchanged.
 
 ## File Classification
 
@@ -21,6 +23,10 @@ Line numbers below were read this session; verify with `rg -n` before quoting in
 | `src/sim/world/population/table.ts` | config (frozen table) | transform | `src/sim/world/populate.ts` `INERT_POPULATION` (:108) | role-match |
 | `src/sim/world/population/plan.ts` | service (pure planner) | transform | `src/sim/world/populate.ts` `planInertPopulation` (:273) | role-match |
 | `src/sim/world/population/groups.ts` | service (builders) | transform | `populate.ts` `planInertPopulation` + `pickRecord` (:179) | role-match |
+| `src/sim/world/population/traders.ts` | service (builders: freighters, couriers, smugglers) | transform | `populate.ts` `planInertPopulation` + `pickRecord` (:179); section "plan.ts and groups.ts" | role-match |
+| `src/sim/world/population/pirates.ts` | service (builders: independent pirates, pirate packs) | transform | `populate.ts` `planInertPopulation` + `pickRecord` (:179); section "plan.ts and groups.ts" (its draw discipline) and the shared pattern "Determinism bans" | role-match |
+| `src/sim/world/population/police.ts` | service (builders: light hunters, police patrols, interceptors) | transform | `populate.ts` `planInertPopulation` + `pickRecord` (:179); section "plan.ts and groups.ts" | role-match |
+| `src/sim/world/population/streams.ts` | utility (per-group forked draw streams) | transform | `src/sim/rng.ts` `forkSeed` (:161-171); the shared pattern "Forked stateless streams" | role-match |
 | `src/sim/world/population/kit.ts` | utility | transform | none in repo for float32 clamp; see No Analog | partial |
 | `src/sim/world/population/escorts.ts` | utility | transform | `src/sim/npc/escort.ts` `escortCoordinates` (:46) | role-match |
 | `src/sim/world/population/spawn.ts` | service (atomic spawn) | CRUD | `populate.ts` `populateInertWorld` (:374); `src/sim/ai/test-spawn.ts` (rollback) | role-match |
@@ -33,9 +39,9 @@ Line numbers below were read this session; verify with `rg -n` before quoting in
 | `tests/content/ships-npc.test.ts` (modify) | test | transform | its `autoWeapons` key lists (:545, :564) | exact |
 | `src/app/session/traffic.ts` (`createSystemPopulate`, record bridge) | service | request-response | `createInertPopulate` in same file | exact |
 | `src/app/session/start-session.ts:519`, `tests/helpers/tick-script.ts:264` (modify) | provider / test helper | request-response | `createInertPopulate(` call sites | exact |
-| `tests/sim/world/populate-system.oracle.test.ts` (replay) | test | transform | `tests/sim/world/blast.oracle.test.ts` | role-match |
-| `tests/sim/world/neighbourhood.test.ts`, `census.test.ts` | test | batch | `tests/sim/world/populate.test.ts:845-897` galaxy sweep | exact |
-| `tests/sim/world/population-cadence.test.ts` | test | event-driven | `tests/sim/world/v5-cadence.test.ts` | exact |
+| `tests/sim/world/population/{plan,traders,groups}.oracle.test.ts` (replay) | test | transform | `tests/sim/world/blast.oracle.test.ts` | role-match |
+| `tests/sim/world/neighbourhood.test.ts`, `tests/sim/world/population/census.test.ts` | test | batch | `tests/sim/world/populate.test.ts:845-897` galaxy sweep | exact |
+| `tests/sim/world/population/cadence.test.ts` | test | event-driven | `tests/sim/world/v5-cadence.test.ts` | exact |
 | `tests/e2e/anarchy.spec.ts` (modify) / new QUAL-09 spec | test (browser) | request-response | `tests/e2e/anarchy.spec.ts`, `tests/e2e/helpers/budgets.ts` | exact |
 | Spike: throwaway OXP + `tools/oolite-reference/steps/*.steps` | utility | batch | `tools/oolite-reference/steps/docked.steps` | role-match |
 
@@ -246,15 +252,15 @@ with `DEFAULT_AUTO_WEAPONS` at `:232` beside its Oolite source line. Add a `DEFA
 
 ---
 
-### `tests/sim/world/populate-system.oracle.test.ts` (replay)
+### `tests/sim/world/population/{plan,traders,groups}.oracle.test.ts` (replay)
 
 **Analog:** `tests/sim/world/blast.oracle.test.ts` and `ship-braking.oracle.test.ts` (Phase 14/17 ports replay oracle fixtures from outside the oracle tree and import `src/`). Replay skeleton in RESEARCH "Replay skeleton"; plus the edge-draw fixture set (draws exactly at 0.05, 0.5, `count - floor(count)`, 0, `1 - 2^-53`).
 
-### `tests/sim/world/census.test.ts` (2,048-system census)
+### `tests/sim/world/population/census.test.ts` (2,048-system census)
 
 **Analog:** `tests/sim/world/populate.test.ts:845-897` ("every galaxy-0 system populates without a fallback"). Extend to all 8 galaxies (`src/content/generated/systems/g0..g7.json`), many world seeds (epochs 1-20), assert: no group skipped, `fallbacks === 0`, peak group count vs `MAX_WORLD_GROUPS`, realised triangle sum under `TRIANGLE_BUDGET` minus scene, corridor-hit count using `src/sim/dock/corridor.ts` (D-02), no placed ship with `cargo > 0` and `cargoKind` 0 and kind matches context (folded pod-kind todo).
 
-### `tests/sim/world/population-cadence.test.ts`
+### `tests/sim/world/population/cadence.test.ts`
 
 **Analog:** `tests/sim/world/v5-cadence.test.ts`: scenario replayed at frame deltas 1/30, 1/60, 1/144 through the fixed-step accumulator, `hashWorld` equal at sampled ticks, log indexed by tick, with non-vacuity cases. Use a populated Lave and the largest anarchy for 600 ticks (Pitfall 10).
 

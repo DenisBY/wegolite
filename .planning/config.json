@@ -88,7 +88,67 @@
   },
   "project_code": null,
   "phase_naming": "sequential",
-  "agent_skills": {},
+  "agent_skills": {
+    "gsd-phase-researcher": [
+      "global:codebase-memory",
+      "global:context7-mcp",
+      "global:threejs-performance"
+    ],
+    "gsd-planner": [
+      "global:codebase-memory",
+      "global:context7-mcp",
+      "global:vitest",
+      ".agents/skills/javascript-testing-expert",
+      ".agents/skills/playwright-best-practices",
+      ".agents/skills/principle-test-behavior-not-implementation"
+    ],
+    "gsd-plan-checker": [
+      "global:codebase-memory",
+      "global:vitest",
+      ".agents/skills/playwright-best-practices",
+      ".agents/skills/principle-test-behavior-not-implementation",
+      ".agents/skills/typescript-best-practices",
+      ".agents/skills/principle-type-system-discipline",
+      ".agents/skills/principle-boundary-discipline"
+    ],
+    "gsd-executor": [
+      "global:codebase-memory",
+      "global:context7-mcp",
+      "global:vitest",
+      ".agents/skills/javascript-testing-expert",
+      ".agents/skills/playwright-best-practices",
+      ".agents/skills/typescript-best-practices",
+      ".agents/skills/principle-boundary-discipline",
+      ".agents/skills/principle-type-system-discipline",
+      ".agents/skills/principle-test-behavior-not-implementation"
+    ],
+    "gsd-verifier": [
+      "global:codebase-memory",
+      ".agents/skills/javascript-testing-expert",
+      ".agents/skills/principle-test-behavior-not-implementation"
+    ],
+    "gsd-nyquist-auditor": [
+      "global:codebase-memory",
+      "global:vitest",
+      ".agents/skills/javascript-testing-expert",
+      ".agents/skills/principle-test-behavior-not-implementation"
+    ],
+    "gsd-code-reviewer": [
+      "global:codebase-memory",
+      ".agents/skills/typescript-best-practices",
+      ".agents/skills/principle-type-system-discipline",
+      ".agents/skills/principle-boundary-discipline",
+      ".agents/skills/javascript-testing-expert",
+      ".agents/skills/principle-test-behavior-not-implementation"
+    ],
+    "gsd-debugger": [
+      "global:codebase-memory",
+      "global:context7-mcp"
+    ],
+    "gsd-pattern-mapper": [
+      "global:codebase-memory"
+    ]
+  },
   "claude_md_path": "./.claude/CLAUDE.md",
   "plan_review": {
     "source_grounding": true,

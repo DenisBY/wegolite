@@ -54,7 +54,7 @@ Port the initial-population half of Oolite's `oolite-populator.js`: each system 
   - a trader leaving the station gets PLENTIFUL_GOODS, and an arriving trader gets SCARCE_GOODS;
   - a medical ship gets MEDICAL_GOODS (narcotics, E-198);
   - offender opportunists and pirates get PIRATE_GOODS;
-  - couriers get ILLEGAL_GOODS;
+  - couriers get ILLEGAL_GOODS; *(corrected at planning: a transcription error. Couriers take PLENTIFUL_GOODS or SCARCE_GOODS, `oolite-populator.js:1492-1522`; only smugglers get ILLEGAL_GOODS, :1557. Plan 22-11 records it in the todo's resolution note.)*
   - a ship whose cargo type is never set carries no cargo.
 
   Add a runtime test over sample worlds that no placed ship has `cargo > 0` with `cargoKind` 0, and that each kind matches its spawn context. Do not widen the allow-list of `tests/guards/pod-kind-fallback.test.ts`. Update the FIDELITY rows that describe the fallback (E-197 and the E-78 rewrite) so they say it applies only to the inert path.

@@ -489,14 +489,20 @@ Not a rename or migration phase; omitted. One persistence note (SAVE-08): a save
 | A11 | `hasHyperspaceMotor` is the only missing record field (checked against the keys of the committed record and the populator's reads) | Summary | A second missing field would be found by the stub's `inventory.missing` during the first recorder run |
 | A12 | The real-Oolite scenario OXP route works | Spike | A failed spike is a recorded answer (D-07) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Escorts in or out?** (A3) The CONTEXT is silent; the evidence says in. Recommend: in, with the stub modelling `setUpMixedEscorts` and the port spawning them with `ownerId` and `escortSlot`; the owner should confirm before the recorder plan, because it changes the fixtures and the census.
+   **RESOLVED:** in. Owner decision D-08 (22-CONTEXT.md, 2026-11-26): the stub models the engine escorts and the fixtures record them (plan 22-01), the port spawns them with `ownerId` and `escortSlot` (plans 22-07 and 22-10), and the records land in plan 22-08.
 2. **Cut table granularity for equipment awards.** `EQ_ECM` and `EQ_SHIELD_BOOSTER` awards (pack leaders, `:1831-1832`) and `heatInsulation` have no entity field. Recommend recording them as cut writes that the replay asserts in the fixture only.
+   **RESOLVED:** as recommended. The recorder records them as cut writes (plan 22-01), `POPULATOR_CUTS` lists them (plan 22-06), the courier's `heatInsulation` is asserted as a cut in the trade replay (plan 22-08) and the pack leaders' shield booster and ECM awards in the whole-system replay (plan 22-09); no planned ship field carries them.
 3. **Group-record bound.** If the real census shows more than 128 groups in some world, which rule? Recommend skip-whole-group under the same reserve rule, plus a test.
+   **RESOLVED:** superseded by owner decision D-11 (22-CONTEXT.md): `MAX_WORLD_GROUPS` is raised to 256 (= `MAX_ENTITIES`) unconditionally with the empty-group pruning invariant, so the bound can never trigger (plan 22-03); the census records the peak group count as a measurement (plan 22-12).
 4. **QUAL-09 system.** Largest galaxy-0 anarchy by distinct hull keys (Onisqu by the scratch model) or the global largest; the spec can only boot galaxy 0 through `dockedSaveAt` today.
+   **RESOLVED:** the census picks it: `specSystems` in the census golden names the largest realised galaxy-0 anarchy and, if different, the galaxy-0 anarchy with the most distinct hull keys (plan 22-12); the browser spec boots both (plan 22-15).
 5. **`pos.isStation` branches.** Repopulation (Phase 26) will need the station-launch branch (`PLENTIFUL_GOODS`, `fuel = 7`); keep the builder's `arriving` flag a parameter now so Phase 26 adds a branch, not a rewrite.
+   **RESOLVED:** as recommended. The builders take an `arriving` option that initial population always sets (D-01), with the station-launch branch kept as a parameter for Phase 26 (plans 22-07 and 22-08).
 6. **Corridor-hit method (D-02).** Count STATION_AEGIS ships whose position lies inside the docking corridor box extended out along the launch axis (`src/sim/dock/corridor.ts`); measure over the 2,048-system census with many seeds; zero hits means no todo.
+   **RESOLVED:** owner decision D-02 (22-CONTEXT.md) with the method as recommended (CONTEXT discretion): `launchCorridorHits` over the census, pinned in `launch-corridor.test.ts`, and a todo with a tripwire for Phase 23 if the count is above zero (plan 22-12).
 
 ## Environment Availability
 

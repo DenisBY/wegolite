@@ -258,8 +258,8 @@ Plans:
 **Requirements**: WORLD-08, QUAL-09
 **First plan**: the populator recorder: Oolite's own `oolite-populator.js` run through the dev-only harness over a spread of systems, with its fixtures committed under `tests/oracles/population/` before the port (the oracle-first rule of Phases 14 and 17)
 **Success Criteria** (what must be TRUE):
-  1. For every recorded system (at least an anarchy, a feudal system and a corporate state, with rich and poor economies at low and high tech levels), the ported planner, fed the recorded draws, produces exactly the groups Oolite's script produced: kinds, counts, ship records, leaders and followers, bounties, cargo kinds, weapon levels, skill and fuel injection. Scavengers, shuttles, medium and heavy hunters, assassins and trader opportunists are absent as recorded cuts.
-  2. Arriving in a system with traffic on places the planned ships at Oolite's locations (witchpoint, lanes, station and planet) from the world seed through forked streams, so the same arrival always builds the same world and adding a group never moves another group's draws; a group spawns whole or not at all under the entity cap of 256, and no NPC carries a missile.
+  1. For every recorded system (at least an anarchy, a feudal system and a corporate state, with rich and poor economies at low and high tech levels), the ported planner, fed the recorded draws, produces exactly the groups Oolite's script produced: kinds, counts, ship records, leaders and followers, bounties, cargo kinds, weapon levels, skill and fuel injection. Scavengers, shuttles, medium and heavy hunters and assassins are absent as recorded cuts; trader opportunists keep their data effects (pirate goods, skill and weapons) and only their AI switch is a recorded cut (owner decision 22-CONTEXT D-10).
+  2. Arriving in a system with traffic on places the planned ships at Oolite's locations (witchpoint, lanes and the station aegis; no planet location is in scope, owner decision 22-CONTEXT D-03) from the world seed through forked streams, so the same arrival always builds the same world and adding a group never moves another group's draws; a group spawns whole or not at all under the entity cap of 256, and no NPC carries a missile.
   3. The initial population size of all 2,048 systems is computed and recorded (mean, peak and the anarchy tail), and the largest populated world stays under the entity cap with room for debris.
   4. The frozen 20-seed acceptance run, `INERT_POPULATION` and the inert Lave goldens are untouched (21 of 21; the Phase 21 pin holds), browser specs stay traffic-off unless they opt in, and a populated traffic-on world hashes equal at 30, 60 and 144 Hz.
   5. The largest anarchy population, with a fight and its debris, draws within the 50-call budget in a browser spec (or within a budget raise the owner records), completing QUAL-09.
@@ -275,7 +275,56 @@ Plans:
 **Pitfalls to address**: C1 (the frozen path stays untouched), C4 (one forked stream per group and roll), C12 (atomic groups and the entity cap), M7 (float and ordering traps in the populator formulas), m7 (process traps from earlier milestones)
 **Decisions to settle**: what the station and planet locations mean for a ship with no AI yet; how many systems the oracle records; the rule for a population that does not fit under the cap
 **Todos**: `2026-11-25-missiles-and-ecm.md` (missiles are forced to zero at spawn here; its tripwire guard lands with CBT-19 in Phase 23)
-**Plans**: TBD
+**Plans**: 16 plans in 14 waves
+
+Plans:
+**Wave 1**
+- [ ] 22-01-PLAN.md — Wave 1: the populator recorder (Oolite's own script in the dev-only harness, stub host, strict schema, self-test) end to end for Lave seed 1, with the byte-for-byte rerun test (WORLD-08)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 22-02-PLAN.md — Wave 2: the stratified sample (D-04), the all-2,048 neighbourhood table, the boundary draws and the ship facts, committed before the port (WORLD-08)
+- [ ] 22-03-PLAN.md — Wave 2: D-11, `MAX_WORLD_GROUPS` 256 and the empty-group pruning invariant (WORLD-08)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 22-04-PLAN.md — Wave 3: the pure neighbourhood facts (`systemsInRange`, `bottleneck`) equal to the recorded table (WORLD-08)
+- [ ] 22-05-PLAN.md — Wave 3: the `hyperspaceMotor` record field compiled from Oolite (WORLD-08)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 22-06-PLAN.md — Wave 4: the entry table, cuts, rates, `randomise` and counts on the `pop` streams; the FIDELITY contract admits the script (WORLD-08)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 22-07-PLAN.md — Wave 5: freighters, the kit helpers and the engine escorts (D-08, D-10) replayed exactly (WORLD-08)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 22-08-PLAN.md — Wave 6: couriers and smugglers, every trade group replayed; the D-08 and D-10 FIDELITY and Key Decisions records (WORLD-08)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 22-09-PLAN.md — Wave 7: pirates, packs, hunters, police and interceptors; every recorded system replayed exactly (WORLD-08)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 22-10-PLAN.md — Wave 8: placement (WITCHPOINT) and atomic spawn under the cap with the measured debris reserve (WORLD-08)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 22-11-PLAN.md — Wave 9: the pod-kind runtime check closes the folded todo; the WITCHPOINT, cap-rule and inert-fallback records (D-05, D-06) (WORLD-08)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 22-12-PLAN.md — Wave 10: the 2,048-system census, no skipped group, launch-corridor hits, triangle and call bounds, the spec systems (WORLD-08, QUAL-09)
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 22-13-PLAN.md — Wave 11: `createSystemPopulate`, the Node twin switch and its re-pins, the 30/60/144 Hz cadence (WORLD-08)
+
+**Wave 12** *(blocked on Wave 11 completion)*
+- [ ] 22-14-PLAN.md — Wave 12: the live session switch, the browser re-pins, changelog and Key Decisions beside WORLD-15 (WORLD-08)
+
+**Wave 13** *(blocked on Wave 12 completion)*
+- [ ] 22-15-PLAN.md — Wave 13: the QUAL-09 browser proof on the populated anarchy with a fight, and the phase gate (QUAL-09)
+
+**Wave 14** *(blocked on Wave 13 completion)*
+- [ ] 22-16-PLAN.md — Wave 14: the boxed real-Oolite census spike, after the phase gate; no plan depends on it and it never blocks the phase (D-07; QUAL-13 groundwork)
+
+**Cross-cutting constraints:** <!-- gsd:generated -->
+- QUAL-12 standing gate: the frozen 20-seed run is 21 of 21 on the remote machine after this plan
+- QUAL-12 standing gate: the frozen 20-seed run is 21 of 21 on the remote machine after this plan; the inert populator and its goldens are untouched
 
 ### Phase 23: Priority AI, Traders and Pirates
 
