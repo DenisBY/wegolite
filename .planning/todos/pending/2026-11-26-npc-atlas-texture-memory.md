@@ -17,6 +17,10 @@ summed over the 29 records (458.2 to 712.2 MiB counting each file once), and the
 background prefetch from 31.2 MB to 33.0 MB. The Cobra variants no longer share
 the player's six maps.
 
+Update 2026-11-26 (review fix TOOLS-WR-01): the 32-texel mirrored gutter raised
+it further, to 1,200.1 MiB summed (828.3 MiB counting each file once). The prefetch
+is now 35.75 MB. An atlas can no longer hold two 1,024-texel maps under the 2,048 cap.
+
 ## Solution
 
 Two reductions noted in 21-17-SUMMARY.md, not applied:
