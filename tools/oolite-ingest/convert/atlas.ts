@@ -287,6 +287,22 @@ function isMergedExtras(
   return extras !== null && "merged" in extras;
 }
 
+/**
+ * The element `at` of a list that is index-aligned with another by
+ * construction (the tuples, `tupleOf` and `layout.regions`). A miss is a broken
+ * invariant and fails the build: skipping it would misalign the vertex cursor
+ * of every later primitive (TOOLS-IN-02).
+ */
+function alignedAt<T>(list: readonly T[], at: number, what: string): T {
+  const value = list[at];
+  if (value === undefined) {
+    throw new Error(
+      `mergeHullPrimitives: no ${what} at index ${String(at)} of ${String(list.length)}`,
+    );
+  }
+  return value;
+}
+
 /** The nearest-texel index of a coordinate on a map of `size` texels. */
 function nearestIndex(coordinate: number, size: number): number {
   const index = Math.floor(coordinate * size);
@@ -525,8 +541,7 @@ export function mergeHullPrimitives(input: MergeInput): MergeOutcome {
     rasters.roughness = newImage(atlasSide, 4, ROUGHNESS_UNUSED);
 
   for (const [t, tuple] of tuples.entries()) {
-    const region = layout.regions[t];
-    if (region === undefined) continue;
+    const region = alignedAt(layout.regions, t, "region");
     const diffuse = rasters.diffuse;
     if (diffuse !== undefined) {
       if (tuple.diffuse === null) {
@@ -592,8 +607,11 @@ export function mergeHullPrimitives(input: MergeInput): MergeOutcome {
   let cursor = 0;
   let written = 0;
   for (const [index, primitive] of primitives.entries()) {
-    const region = layout.regions[tupleOf[index] ?? 0];
-    if (region === undefined) continue;
+    const region = alignedAt(
+      layout.regions,
+      alignedAt(tupleOf, index, "tuple index"),
+      "region",
+    );
     const count = primitive.positions.length / 3;
     positions.set(primitive.positions, cursor * 3);
     normals.set(primitive.normals, cursor * 3);
@@ -636,9 +654,9 @@ export function mergeHullPrimitives(input: MergeInput): MergeOutcome {
   // (e) texel exactness, for every corner and every slot.
   cursor = 0;
   for (const [index, primitive] of primitives.entries()) {
-    const tuple = tuples[tupleOf[index] ?? 0];
-    const region = layout.regions[tupleOf[index] ?? 0];
-    if (tuple === undefined || region === undefined) continue;
+    const tupleIndex = alignedAt(tupleOf, index, "tuple index");
+    const tuple = alignedAt(tuples, tupleIndex, "tuple");
+    const region = alignedAt(layout.regions, tupleIndex, "region");
     const count = primitive.positions.length / 3;
     for (let corner = 0; corner < count; corner++) {
       const u = primitive.uvs[corner * 2] ?? 0;
