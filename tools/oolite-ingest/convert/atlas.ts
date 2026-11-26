@@ -576,14 +576,21 @@ export function mergeHullPrimitives(input: MergeInput): MergeOutcome {
   }
 
   // The merged geometry: the primitives in authored order, UVs remapped.
+  // Each source index buffer is honoured, offset by the primitive's first
+  // vertex, so a deduplicated or reordered primitive keeps its triangles
+  // (TOOLS-IN-01); an index outside its own primitive fails the build.
   let vertexCount = 0;
-  for (const primitive of primitives)
+  let indexCount = 0;
+  for (const primitive of primitives) {
     vertexCount += primitive.positions.length / 3;
+    indexCount += primitive.indices.length;
+  }
   const positions = new Float32Array(vertexCount * 3);
   const normals = new Float32Array(vertexCount * 3);
   const uvs = new Float32Array(vertexCount * 2);
-  const indices = new Uint32Array(vertexCount);
+  const indices = new Uint32Array(indexCount);
   let cursor = 0;
+  let written = 0;
   for (const [index, primitive] of primitives.entries()) {
     const region = layout.regions[tupleOf[index] ?? 0];
     if (region === undefined) continue;
@@ -613,7 +620,15 @@ export function mergeHullPrimitives(input: MergeInput): MergeOutcome {
       }
       uvs[(cursor + corner) * 2] = settledU;
       uvs[(cursor + corner) * 2 + 1] = settledV;
-      indices[cursor + corner] = cursor + corner;
+    }
+    for (const sourceIndex of primitive.indices) {
+      if (sourceIndex >= count) {
+        throw new Error(
+          `mergeHullPrimitives: primitive ${primitive.materialName} index ${String(sourceIndex)} is outside its ${String(count)} vertices`,
+        );
+      }
+      indices[written] = cursor + sourceIndex;
+      written += 1;
     }
     cursor += count;
   }

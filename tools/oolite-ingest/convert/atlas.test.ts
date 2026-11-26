@@ -243,6 +243,49 @@ describe("mergeHullPrimitives: validity conditions", () => {
     );
   });
 
+  it("honours each source index buffer, offset by the primitive's first vertex (TOOLS-IN-01)", () => {
+    // A quad of four shared vertices, two triangles: not an identity buffer.
+    const quad: GlbPrimitive = {
+      materialName: "B",
+      positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]),
+      normals: new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]),
+      uvs: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
+      indices: new Uint32Array([0, 1, 2, 2, 1, 3]),
+      min: [0, 0, 0],
+      max: [1, 1, 0],
+    };
+    const first = triangle("A", [
+      [0, 0],
+      [1, 0],
+      [0, 1],
+    ]);
+    const merged = mergedOf(
+      mergeHullPrimitives({
+        model: "x",
+        primitives: [first, quad],
+        materials,
+        textures: lookupOf(maps),
+      }),
+    );
+    expect(merged.primitive.positions).toHaveLength(21);
+    expect(merged.primitive.indices).toEqual(
+      new Uint32Array([0, 1, 2, 3, 4, 5, 5, 4, 6]),
+    );
+
+    const broken: GlbPrimitive = {
+      ...quad,
+      indices: new Uint32Array([0, 1, 4]),
+    };
+    expect(() =>
+      mergeHullPrimitives({
+        model: "x",
+        primitives: [first, broken],
+        materials,
+        textures: lookupOf(maps),
+      }),
+    ).toThrow("outside its 4 vertices");
+  });
+
   it.each([1.0001, -0.0001, Number.NaN])(
     "refuses a UV of %s with condition (a)",
     (value) => {
