@@ -5,11 +5,11 @@ titles: json
 findings:
   - id: WR-01
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "`buildNeighbourhood` can throw for extreme integer chart coordinates, though the arrival install block relies on it being total"
   - id: WR-02
     severity: warning
-    disposition: open
+    disposition: fixed
     title: "The per-entry / per-group / per-site RNG stream design (assumption A8) is a divergence with no `FIDELITY.md` row"
   - id: IN-01
     severity: info
@@ -31,17 +31,17 @@ findings:
     severity: info
     disposition: skipped
     title: "Station-launch and repopulator branches with no caller"
-open: 2
+open: 0
 total: 7
-recorded: 2026-11-26T21:46:34.767Z
+recorded: 2026-11-26T21:46:41.881Z
 ---
 
 # Phase 22: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | open | - |
-| WR-02 | warning | open | - |
+| WR-01 | warning | fixed | 22-REVIEW-FIX.md |
+| WR-02 | warning | fixed | 22-REVIEW-FIX.md |
 | IN-01 | info | fixed | 22-REVIEW-FIX.md |
 | IN-02 | info | fixed | 22-REVIEW-FIX.md |
 | IN-03 | info | fixed | 22-REVIEW-FIX.md |
