@@ -351,3 +351,210 @@ export type PopulationEngineCall = z.infer<typeof EngineCallSchema>;
 export type PopulationEntry = z.infer<typeof EntrySchema>;
 export type PopulationNeighbour = z.infer<typeof NeighbourSchema>;
 export type PopulationDraws = z.infer<typeof DrawsSchema>;
+
+// ---------------------------------------------------------------------------
+// Plan 22-02: the widened oracle. Three more recorded files sit next to the
+// per-(system, seed) fixtures: the all-2,048 neighbourhood table, the
+// boundary-draw cases and the per-key ship facts. Each is strict and each is
+// recorded by `tools/ai-harness/populator-record.ts --all`, never edited.
+// ---------------------------------------------------------------------------
+
+/** Systems per galaxy and galaxies in the universe the table covers. */
+export const POPULATION_GALAXIES = 8;
+export const POPULATION_SYSTEMS_PER_GALAXY = 256;
+
+/** The header every widened file carries (the same pin as the fixtures). */
+export const WidenedHeaderSchema = z.strictObject({
+  oolitePin: z.literal(POPULATION_OOLITE_PIN),
+  scriptFile: z.literal(POPULATION_SCRIPT_FILE),
+  scriptSha256: z.literal(POPULATION_SCRIPT_SHA256),
+});
+
+const SystemIdList = z.array(z.number().int().min(0).max(255));
+
+/** True when the ids ascend strictly (system-id order, no duplicates). */
+function ascendingIds(ids: readonly number[]): boolean {
+  return ids.every((id, at) => at === 0 || id > (ids[at - 1] ?? -1));
+}
+
+/**
+ * One galaxy of the neighbourhood table, column by column (index = system id):
+ * the ids within 7 LY and within 3.5 LY in system-id order, the count within
+ * 25 LY, and the ids of the bottleneck systems (the script's own
+ * `_systemIsBottleneck(locals, seconds)` value).
+ */
+export const NeighbourhoodGalaxySchema = z
+  .strictObject({
+    galaxy: z
+      .number()
+      .int()
+      .min(0)
+      .max(POPULATION_GALAXIES - 1),
+    locals: z.array(SystemIdList).length(POPULATION_SYSTEMS_PER_GALAXY),
+    verylocals: z.array(SystemIdList).length(POPULATION_SYSTEMS_PER_GALAXY),
+    within25: z
+      .array(
+        z
+          .number()
+          .int()
+          .min(0)
+          .max(POPULATION_SYSTEMS_PER_GALAXY - 1),
+      )
+      .length(POPULATION_SYSTEMS_PER_GALAXY),
+    bottleneck: SystemIdList,
+  })
+  .superRefine((galaxy, context) => {
+    const lists: readonly (readonly number[])[] = [
+      ...galaxy.locals,
+      ...galaxy.verylocals,
+      galaxy.bottleneck,
+    ];
+    if (!lists.every(ascendingIds)) {
+      context.addIssue({
+        code: "custom",
+        message: "ids must ascend in system-id order",
+      });
+    }
+    galaxy.verylocals.forEach((very, at) => {
+      const locals = galaxy.locals[at] ?? [];
+      if (!very.every((id) => locals.includes(id))) {
+        context.addIssue({
+          code: "custom",
+          message: `system ${String(at)}: a 3.5 LY neighbour is not a 7 LY neighbour`,
+        });
+      }
+      if (locals.includes(at) || very.includes(at)) {
+        context.addIssue({
+          code: "custom",
+          message: `system ${String(at)} lists itself`,
+        });
+      }
+    });
+  });
+
+export const NeighbourhoodTableSchema = z.strictObject({
+  header: WidenedHeaderSchema,
+  /** `systemsInRange` ranges in light years (`oolite-populator.js:2477-2611`). */
+  ranges: z.strictObject({
+    local: z.literal(7),
+    veryLocal: z.literal(3.5),
+    far: z.literal(25),
+  }),
+  galaxies: z
+    .array(NeighbourhoodGalaxySchema)
+    .length(POPULATION_GALAXIES)
+    .refine(
+      (galaxies) => galaxies.every((galaxy, at) => galaxy.galaxy === at),
+      {
+        message: "galaxies must be listed in order 0 to 7",
+      },
+    ),
+});
+
+export type NeighbourhoodTable = z.infer<typeof NeighbourhoodTableSchema>;
+
+/** A value an edge-draw probe observed. */
+export const EdgeResultSchema = z.union([
+  z.number(),
+  z.string(),
+  z.boolean(),
+  z.array(z.number()),
+]);
+
+/**
+ * One boundary probe: the crafted doubles fed to the case's draw slots (the
+ * listed `slots`, in order; every other script draw is the case's `fixedDraw`)
+ * and what Oolite's script produced.
+ */
+export const EdgeProbeSchema = z.strictObject({
+  draws: z.array(z.number().min(0).lt(1)),
+  result: EdgeResultSchema,
+});
+
+/** Where in the script a crafted draw lands: the nth call on a source line. */
+export const EdgeSlotSchema = z.strictObject({
+  label: z.string().min(1),
+  line: z.number().int().min(1),
+  occurrence: NonNegativeInt,
+});
+
+export const EdgeCaseSchema = z
+  .strictObject({
+    id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+    /** `file:line` of the comparison the case probes. */
+    site: z.string().min(1),
+    /** The comparison in words, and what `result` is. */
+    boundary: z.string().min(1),
+    observes: z.string().min(1),
+    /** The (system, seed) the script ran for, and the entry run, if any. */
+    system: z.string().regex(/^g[0-7]-s\d+$/),
+    seed: NonNegativeInt,
+    entry: z.enum(POPULATION_ENTRY_NAMES).nullable(),
+    /** Facts the case needs besides the draws (for example the pre-draw count). */
+    inputs: z.record(z.string(), z.union([z.number(), z.string()])),
+    /** Every script draw not named by a slot takes this value. */
+    fixedDraw: z.number().min(0).lt(1),
+    slots: z.array(EdgeSlotSchema).min(1),
+    probes: z.array(EdgeProbeSchema).min(2),
+  })
+  .superRefine((edge, context) => {
+    edge.probes.forEach((probe, at) => {
+      if (probe.draws.length !== edge.slots.length) {
+        context.addIssue({
+          code: "custom",
+          message: `probe ${String(at)} has ${String(probe.draws.length)} draws for ${String(edge.slots.length)} slots`,
+        });
+      }
+    });
+  });
+
+/** A boundary the script cannot reach, kept as a recorded answer. */
+export const EdgeUnreachableSchema = z.strictObject({
+  id: z.string().regex(/^[a-z][a-z0-9-]*$/),
+  site: z.string().min(1),
+  boundary: z.string().min(1),
+  reason: z.string().min(1),
+});
+
+export const EdgeDrawsSchema = z.strictObject({
+  header: WidenedHeaderSchema,
+  cases: z.array(EdgeCaseSchema).min(1),
+  unreachable: z.array(EdgeUnreachableSchema),
+});
+
+export type EdgeDraws = z.infer<typeof EdgeDrawsSchema>;
+export type EdgeCase = z.infer<typeof EdgeCaseSchema>;
+
+/**
+ * Per catalogue key, the ship facts `shipdata.plist` carries that
+ * `ships-npc.json` does not (plan 22-05 compiles them): `hyperspace_motor`
+ * (default YES, `ShipEntity.m:382`), an authored `accuracy` (else the engine
+ * rolls one at spawn) and `cargo_carried`, resolved through `like_ship`.
+ */
+export const ShipFactRowSchema = z.strictObject({
+  key: z.string().min(1),
+  hasHyperspaceMotor: z.boolean(),
+  accuracy: z.number().nullable(),
+  cargoCarried: z.string().nullable(),
+});
+
+export const ShipFactsSchema = z
+  .strictObject({
+    header: WidenedHeaderSchema,
+    ships: z.array(ShipFactRowSchema).min(1),
+  })
+  .superRefine((facts, context) => {
+    const keys = facts.ships.map((ship) => ship.key);
+    const sorted = [...keys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    if (
+      keys.join("\n") !== sorted.join("\n") ||
+      new Set(keys).size !== keys.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "ship fact keys must be unique and in code-unit order",
+      });
+    }
+  });
+
+export type ShipFacts = z.infer<typeof ShipFactsSchema>;

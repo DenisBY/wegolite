@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  NeighbourhoodTableSchema,
   POPULATION_DRAW_TAGS,
   POPULATION_ENTRY_NAMES,
   POPULATION_EXACT_DRAW_TAGS,
@@ -26,6 +27,7 @@ import {
   POPULATION_SCRIPT_SHA256,
   POPULATION_UNCOMPARED_DRAW_TAGS,
   PopulationFixtureSchema,
+  type NeighbourhoodTable,
   type PopulationFixture,
   type PopulationGroup,
 } from "./schema.js";
@@ -68,7 +70,21 @@ function load(name: string): PopulationFixture {
 
 const FILES = fixtureFiles();
 
+/** The all-2,048 neighbourhood table, recorded with the fixtures. */
+let tableCache: NeighbourhoodTable | undefined;
+function table(): NeighbourhoodTable {
+  tableCache ??= NeighbourhoodTableSchema.parse(
+    readJson("neighbourhood-all.json"),
+  );
+  return tableCache;
+}
+
 describe("population oracle: the committed fixtures", () => {
+  it("includes the neighbourhood table and the isolated anchor (plan 22-02)", () => {
+    expect(existsSync(`${FIXTURE_DIR}neighbourhood-all.json`)).toBe(true);
+    expect(FILES).toContain("g7-s162-seed1.json");
+  });
+
   it("includes the tracer fixture: Lave, seed 1", () => {
     expect(FILES).toContain(TRACER_FILE);
   });
@@ -481,4 +497,148 @@ describe.each(FILES)("population oracle invariants: %s", (name) => {
     expect(inputs.laneLengths.l2).toBeGreaterThan(0);
     expect(inputs.laneLengths.l3).toBeGreaterThan(0);
   });
+
+  it("equals this system's row of the all-2,048 neighbourhood table", () => {
+    const row = table().galaxies[fixture.header.galaxy];
+    const at = fixture.header.systemIndex;
+    expect(row, "galaxy row").toBeDefined();
+    expect(fixture.inputs.locals.map((neighbour) => neighbour.id)).toEqual(
+      row?.locals[at],
+    );
+    expect(fixture.inputs.verylocals.map((neighbour) => neighbour.id)).toEqual(
+      row?.verylocals[at],
+    );
+    expect(fixture.inputs.within25).toHaveLength(row?.within25[at] ?? -1);
+    expect(fixture.inputs.bottleneck).toBe(
+      row?.bottleneck.includes(at) === true,
+    );
+  });
+});
+
+describe("population oracle: the neighbourhood table", () => {
+  it("holds 8 galaxies of 256 systems, recorded from the pinned script", () => {
+    expect(table().header.oolitePin).toBe(POPULATION_OOLITE_PIN);
+    expect(table().header.scriptSha256).toBe(POPULATION_SCRIPT_SHA256);
+    expect(table().galaxies).toHaveLength(8);
+    for (const galaxy of table().galaxies) {
+      expect(galaxy.locals).toHaveLength(256);
+      expect(galaxy.verylocals).toHaveLength(256);
+      expect(galaxy.within25).toHaveLength(256);
+    }
+  });
+
+  it("is symmetric: A is within 7 LY of B exactly when B is within 7 LY of A", () => {
+    for (const galaxy of table().galaxies) {
+      galaxy.locals.forEach((ids, at) => {
+        for (const other of ids) {
+          expect(
+            galaxy.locals[other],
+            `${String(at)} -> ${String(other)}`,
+          ).toContain(at);
+        }
+      });
+      galaxy.verylocals.forEach((ids, at) => {
+        for (const other of ids) {
+          expect(
+            galaxy.verylocals[other],
+            `${String(at)} -> ${String(other)}`,
+          ).toContain(at);
+        }
+      });
+    }
+  });
+
+  it("counts at least as many systems within 25 LY as within 7 LY", () => {
+    for (const galaxy of table().galaxies) {
+      galaxy.locals.forEach((ids, at) => {
+        expect(galaxy.within25[at] ?? -1).toBeGreaterThanOrEqual(ids.length);
+      });
+    }
+  });
+
+  it("marks no isolated system a bottleneck, and some systems of the universe", () => {
+    let total = 0;
+    for (const galaxy of table().galaxies) {
+      total += galaxy.bottleneck.length;
+      for (const id of galaxy.bottleneck) {
+        expect(galaxy.locals[id]?.length ?? 0).toBeGreaterThan(1);
+      }
+    }
+    expect(total).toBeGreaterThan(0);
+  });
+
+  it("refuses an unknown key, a short galaxy and a descending id list", () => {
+    expect(
+      NeighbourhoodTableSchema.safeParse({ ...table(), extra: 1 }).success,
+    ).toBe(false);
+    const first = table().galaxies[0];
+    expect(first).toBeDefined();
+    const short = {
+      ...table(),
+      galaxies: [
+        { ...first, locals: first?.locals.slice(1) },
+        ...table().galaxies.slice(1),
+      ],
+    };
+    expect(NeighbourhoodTableSchema.safeParse(short).success).toBe(false);
+    const at = first?.locals.findIndex((ids) => ids.length > 1) ?? -1;
+    expect(at).toBeGreaterThanOrEqual(0);
+    const reversed = first?.locals.map((ids, index) =>
+      index === at ? [...ids].reverse() : ids,
+    );
+    const descending = {
+      ...table(),
+      galaxies: [{ ...first, locals: reversed }, ...table().galaxies.slice(1)],
+    };
+    expect(NeighbourhoodTableSchema.safeParse(descending).success).toBe(false);
+  });
+});
+
+describe("population oracle: the isolated anchor (g7-s162, Oresrati)", () => {
+  const names = [
+    "g7-s162-seed1.json",
+    "g7-s162-seed2.json",
+    "g7-s162-seed3.json",
+  ];
+
+  it("is recorded for the three seeds", () => {
+    for (const name of names) {
+      expect(FILES, name).toContain(name);
+    }
+  });
+
+  it("has no neighbour within 7 LY and is no bottleneck", () => {
+    const row = table().galaxies[7];
+    expect(row?.locals[162]).toEqual([]);
+    expect(row?.verylocals[162]).toEqual([]);
+    expect(row?.bottleneck).not.toContain(162);
+  });
+
+  it.each(names)(
+    "%s records zero locals, zero counts for every trade, pirate and hunter entry, and only the station patrol",
+    (name) => {
+      const fixture = load(name);
+      expect(fixture.inputs.locals).toEqual([]);
+      expect(fixture.inputs.verylocals).toEqual([]);
+      expect(fixture.inputs.bottleneck).toBe(false);
+      for (const entry of fixture.entries) {
+        if (
+          /freighters|couriers|smugglers|hunters|pirate|police-route1|police-triangle/.test(
+            entry.name,
+          )
+        ) {
+          expect(entry.count, entry.name).toBe(0);
+        }
+      }
+      const spawned = fixture.groups.map(
+        (group) => fixture.entries[group.entry]?.name,
+      );
+      expect(spawned.length).toBeGreaterThan(0);
+      expect(new Set(spawned)).toEqual(
+        new Set(["oolite-police-stationpatrol"]),
+      );
+      expect(fixture.groups).toHaveLength(1);
+      expect(fixture.groups[0]?.ships).toHaveLength(1);
+    },
+  );
 });
