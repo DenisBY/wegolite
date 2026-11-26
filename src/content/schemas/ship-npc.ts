@@ -51,12 +51,16 @@ export const MAX_FLIGHT_MAGNITUDE_BOUND = 1e12;
 export const MAX_RECORD_BOUNTY = 65535;
 
 /**
- * The most `escort_roles` entries a record may author: Oolite's `MAX_ESCORTS`,
- * 16 (`ShipEntity.h:76`). Oolite bounds the escorts it places, not the list:
- * `setUpMixedEscorts` stops at 16 escorts inside the loop
+ * The most `escort_roles` entries a record may author. This is a defensive
+ * input bound of this schema, not an Oolite rule: Oolite leaves the list
+ * length unbounded. The number happens to equal `MAX_ESCORTS` (16,
+ * `ShipEntity.h:76`), but that constant caps a different thing, the escorts
+ * placed: `setUpMixedEscorts` stops at 16 escorts inside the loop
  * (`ShipEntity.m:1647`, `:1664`), so an entry that yields no escort takes no
- * slot and a longer list is read. The longest stock list has 4 entries (the
- * Boa), so a list past 16 is refused here rather than iterated per spawn.
+ * slot and a longer list is still read. The longest stock list has 4 entries
+ * (the Boa), so this bound never refuses stock data. The placement cap of 16
+ * escorts is gameplay and belongs to the Phase 22 populator, not to this
+ * schema.
  */
 export const MAX_ESCORT_ROLE_ENTRIES = 16;
 
