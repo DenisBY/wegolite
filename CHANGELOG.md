@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- With NPC traffic on, the game now downloads the NPC ship models in the
+  background while you are docked, two at a time, so ships draw at once when
+  they first appear. The download is outside the first-load size limit and is
+  not started at all with traffic off.
+
 ## [0.8.2] - 2026-11-25
 
 Mouse support on the market and the remaining Oolite digit keys. A click picks

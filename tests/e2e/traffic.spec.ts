@@ -17,6 +17,15 @@
  * nothing about a player's GPU (PITFALLS 11 and 28). Every wait timeout below is
  * a correctness bound, never an assertion. The probe shape is frozen: this spec
  * adds no probe key.
+ *
+ * Plan 21-11 (D-07): with traffic on, the NPC hull GLBs of every catalogue record
+ * are prefetched in the background from the first docked frame, at most
+ * `NPC_PREFETCH_CONCURRENCY` requests at a time. That download sits outside the
+ * first-load ceiling (the ceiling is measured on the transfer to the first
+ * in-flight frame minus the bytes of the NPC asset set, identified by path), and
+ * the "no NPC asset before the first in-flight frame" rule of plans 12-11 and
+ * 16-09 became "no NPC asset before the prefetch trigger" for traffic on; it is
+ * unchanged for traffic off (tests/e2e/budget.spec.ts).
  */
 
 import { readFileSync } from "node:fs";
@@ -26,6 +35,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 import { buildHudModel } from "../../src/app/hud-model.js";
+import { NPC_PREFETCH_CONCURRENCY } from "../../src/app/npc-models.js";
 import { hashFlight, initFlightState } from "../../src/sim/flight/state.js";
 import { npcContacts } from "../../src/sim/world/contacts.js";
 import { laveFixture } from "../helpers/lave.js";
@@ -258,9 +268,19 @@ test("a launch populates the world, draws the ships within budget and matches th
   const records = npcRecords();
   const glbByKey = new Map(records.map((r) => [r.key, glbPath(r)]));
   const npcGlbs = new Set(glbByKey.values());
-  // Plan 21-04: follows the compiled records (9 today), floor above 0.
+  // Plan 21-04: follows the compiled records (29 today), floor above 0.
   expect(npcGlbs.size, "NPC GLB paths (vacuity guard)").toBeGreaterThan(0);
   expect(npcGlbs.size, "NPC GLB paths (vacuity guard)").toBe(records.length);
+  // Plan 21-11 (D-07): the prefetch starts the first records of the catalogue,
+  // in catalogue order. While every GLB request is held none of them settles,
+  // so the prefetch stays at its concurrency bound and no later key is queued.
+  const prefetchGlbs = records
+    .slice(0, NPC_PREFETCH_CONCURRENCY)
+    .map((record) => glbPath(record))
+    .sort();
+  expect(prefetchGlbs.length, "prefetch GLBs (vacuity guard)").toBe(
+    NPC_PREFETCH_CONCURRENCY,
+  );
 
   // Hold every NPC GLB request until released, so the "models held" counts are
   // read with no NPC model drawn. The release sits in a `finally` (T-12-34).
@@ -294,6 +314,11 @@ test("a launch populates the world, draws the ships within budget and matches th
 
   try {
     await bootDocked(page, TRAFFIC_URL);
+    // Plan 21-11 (D-07): the docked session prefetches in the background, and
+    // the held requests keep it at NPC_PREFETCH_CONCURRENCY GLBs.
+    await expect
+      .poll(() => [...new Set(requested)].sort(), { timeout: SLOW })
+      .toEqual(prefetchGlbs);
     await page.click('button[data-action="launch"]');
     // One frame after the click, so the launch command is queued before stepping.
     await waitForFrames(page, 1);
@@ -303,14 +328,18 @@ test("a launch populates the world, draws the ships within budget and matches th
     await waitForFrames(page, 10);
 
     // The 12 ships exist from the launch tick, but the session is still
-    // launching, so no NPC model has been requested (plan 12-11).
+    // launching, so the only NPC models requested are the prefetch's first
+    // ones, held (plan 12-11, plan 21-11).
     const launching = await page.evaluate(() => ({
       mode: window.__wegolite?.mode,
       entities: window.__wegolite?.sim?.entities,
     }));
     expect(launching.mode).toBe("launching");
     expect(launching.entities).toBe(12);
-    expect(requested, "NPC GLBs requested while launching").toEqual([]);
+    expect(
+      [...new Set(requested)].sort(),
+      "NPC GLBs requested while launching (the held prefetch only)",
+    ).toEqual(prefetchGlbs);
 
     expect(
       await page.evaluate(() => window.__wegolite?.test?.advanceTicks(600)),
@@ -333,11 +362,13 @@ test("a launch populates the world, draws the ships within budget and matches th
     );
     expect(expectedGlbs.length).toBeGreaterThan(0);
 
-    // Models on demand: after the first in-flight frame exactly the GLBs of the
-    // keys present in the replay world are requested (and stay held).
+    // Models on demand: after the first in-flight frame the GLBs of the keys
+    // present in the replay world are requested as well (and stay held), beside
+    // the prefetch's held ones.
+    const heldGlbs = [...new Set([...prefetchGlbs, ...expectedGlbs])].sort();
     await expect
       .poll(() => [...new Set(requested)].sort(), { timeout: SLOW })
-      .toEqual(expectedGlbs);
+      .toEqual(heldGlbs);
 
     const held = await page.evaluate(() => {
       const probe = window.__wegolite;
@@ -362,11 +393,12 @@ test("a launch populates the world, draws the ships within budget and matches th
     expect(replay.hash).not.toBe(hashFlight(replay.state));
     expect(held.calls, "draw calls with the models held").toBeGreaterThan(0);
 
-    // Release the models and wait until every held request has finished.
+    // Release the models and wait until every held request has finished and
+    // the prefetch has drained: every catalogue GLB is downloaded (D-07).
     release();
     await expect
       .poll(() => [...new Set(finished)].sort(), { timeout: 240_000 })
-      .toEqual(expectedGlbs);
+      .toEqual([...npcGlbs].sort());
     // The loaded models are drawn from the first frame that sees them; the wait
     // is a correctness bound, the assertion below is a count.
     await page.waitForFunction(
@@ -415,7 +447,7 @@ interface FetchStamp {
   readonly mode: string;
 }
 
-test("a traffic-on cold start requests no NPC model before the first in-flight frame, stays under the first-load ceiling and loads the present models within a fixed frame window", async ({
+test("a traffic-on cold start requests no NPC model before the prefetch trigger, stays under the first-load ceiling without the prefetch and downloads the whole catalogue in the background", async ({
   page,
   baseURL,
 }) => {
@@ -458,9 +490,20 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
   const failed: string[] = [];
   const finished: { readonly path: string; readonly bytes: Promise<number> }[] =
     [];
+  // Plan 21-11: the request and finish events of one page in arrival order, with
+  // the wall-clock time of each, so the prefetch trigger can be placed after the
+  // first-load assets and the prefetch's duration can be recorded.
+  const events: {
+    readonly kind: "request" | "finished";
+    readonly path: string;
+    readonly at: number;
+  }[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
-    if (url.origin === origin) requested.push(url.pathname);
+    if (url.origin === origin) {
+      requested.push(url.pathname);
+      events.push({ kind: "request", path: url.pathname, at: Date.now() });
+    }
   });
   page.on("requestfailed", (request) => {
     const url = new URL(request.url());
@@ -469,6 +512,7 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
   page.on("requestfinished", (request) => {
     const url = new URL(request.url());
     if (url.origin !== origin) return;
+    events.push({ kind: "finished", path: url.pathname, at: Date.now() });
     finished.push({
       path: url.pathname,
       bytes: request.sizes().then((sizes) => sizes.responseBodySize),
@@ -513,8 +557,15 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
     "traffic is on",
   ).toBe(true);
 
-  // Launch frames: the ships exist, the session is launching, and the request
-  // log holds no NPC GLB or texture across many real loop frames.
+  // Plan 21-11 (D-07): the docked session has started the background prefetch.
+  await expect
+    .poll(() => requested.some((path) => npcPaths.has(path)), {
+      timeout: SLOW,
+    })
+    .toBe(true);
+
+  // Launch frames: the ships exist and the session is launching while the
+  // prefetch runs on across many real loop frames.
   await page.click('button[data-action="launch"]');
   await waitForFrames(page, 1);
   expect(
@@ -527,10 +578,6 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
   }));
   expect(launching.mode).toBe("launching");
   expect(launching.entities).toBe(12);
-  expect(
-    requested.filter((path) => npcPaths.has(path)),
-    "NPC paths requested during the launch frames",
-  ).toEqual([]);
 
   expect(
     await page.evaluate(() => window.__wegolite?.test?.advanceTicks(600)),
@@ -556,9 +603,41 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
   }
   const firstInFlight = firstInFlightRead;
 
+  // Plan 21-11 (D-07): no NPC asset is requested before the prefetch trigger,
+  // the first docked frame with traffic content. That frame draws the scene, so
+  // the first-load models (the player's Cobra, the Coriolis, the buoy) and the
+  // hull chunk were requested before it: no NPC request precedes any of them.
+  const firstNpcRequest = events.findIndex(
+    (event) => event.kind === "request" && npcPaths.has(event.path),
+  );
+  expect(firstNpcRequest, "the prefetch trigger was observed").toBeGreaterThan(
+    -1,
+  );
+  for (const glb of ["cobra3.glb", "coriolis.glb", "buoy.glb"]) {
+    const index = events.findIndex(
+      (event) =>
+        event.kind === "request" && event.path.endsWith(`/models/${glb}`),
+    );
+    expect(index, `first-load model requested: ${glb}`).toBeGreaterThan(-1);
+    expect(
+      index,
+      `${glb} is requested before the first NPC asset (the prefetch trigger)`,
+    ).toBeLessThan(firstNpcRequest);
+  }
+  const hullChunk = events.findIndex(
+    (event) =>
+      event.kind === "request" &&
+      /\/assets\/ships-hulls-[^/]+\.js$/.test(event.path),
+  );
+  expect(hullChunk, "the hull chunk was requested").toBeGreaterThan(-1);
+  expect(
+    hullChunk,
+    "the hull chunk is requested before the first NPC asset",
+  ).toBeLessThan(firstNpcRequest);
+
   // Bytes to the first in-flight frame, the same measure as budget.spec.ts,
-  // excluding the NPC paths (none may be requested before this frame; any
-  // requested after it are not part of the cold start).
+  // minus the bytes of the NPC asset set, identified by path: the background
+  // prefetch is outside the ceiling (D-07), whether or not it has finished.
   const coldStart = finished.filter((entry) => !npcPaths.has(entry.path));
   const total = (
     await Promise.all(coldStart.map((entry) => entry.bytes))
@@ -615,6 +694,18 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
     firstInFlight.frames + MODEL_LOAD_WINDOW_FRAMES,
     { timeout: 240_000 },
   );
+  // Plan 21-11 (D-07): the prefetch downloads every catalogue GLB and the
+  // textures they reference, a long background transfer on a loaded loop; the
+  // wait is a correctness bound, never an assertion on time.
+  await expect
+    .poll(
+      () => {
+        const done = new Set(finished.map((entry) => entry.path));
+        return [...npcPaths].filter((path) => !done.has(path));
+      },
+      { timeout: 240_000 },
+    )
+    .toEqual([]);
 
   const replay = runTickScript(LAUNCH_AND_FLY, { traffic: true });
   const glbByKey = new Map(npcRecords().map((r) => [r.key, glbPath(r)]));
@@ -634,22 +725,40 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
     "textures of the present GLBs (vacuity guard)",
   ).toBeGreaterThan(0);
 
-  // Models on demand: exactly the present keys' GLBs were requested.
+  // The prefetch: every catalogue GLB was requested once (a key the flight
+  // also asked for is not fetched twice), and the present keys' GLBs and
+  // textures finished.
   const requestedGlbs = [
     ...new Set(requested.filter((path) => npc.glbs.includes(path))),
   ].sort();
-  expect(requestedGlbs, "NPC GLBs requested").toEqual(presentGlbs);
+  expect(requestedGlbs, "NPC GLBs requested").toEqual([...npc.glbs].sort());
+  for (const glb of npc.glbs) {
+    expect(
+      requested.filter((path) => path === glb),
+      `${glb} requested once`,
+    ).toHaveLength(1);
+  }
   const finishedPaths = new Set(finished.map((entry) => entry.path));
   for (const path of [...presentGlbs, ...presentTextures]) {
     expect(finishedPaths.has(path), `finished: ${path}`).toBe(true);
   }
+  // The prefetch's volume and duration, measured on the NPC asset set.
+  const npcFinished = finished.filter((entry) => npcPaths.has(entry.path));
+  const prefetchBytes = (
+    await Promise.all(npcFinished.map((entry) => entry.bytes))
+  ).reduce((sum, bytes) => sum + bytes, 0);
+  const npcEvents = events.filter((event) => npcPaths.has(event.path));
+  const prefetchMs =
+    Math.max(...npcEvents.map((event) => event.at)) -
+    Math.min(...npcEvents.map((event) => event.at));
   expect(
     failed.filter((path) => npcPaths.has(path)),
     "failed NPC requests",
   ).toEqual([]);
 
   // Ordering: every NPC request in the Playwright log has a page-side stamp,
-  // and every such stamp reads inFlight (none before the first in-flight frame).
+  // and the first stamp is the prefetch trigger, made from a docked frame (the
+  // probe's mode lags the frame by one, so it still reads menu then).
   const stamps = await page.evaluate(
     () =>
       (window as unknown as { __npcFetchStamps: FetchStamp[] })
@@ -666,24 +775,29 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
     ).toBe(true);
   }
   expect(
-    stampedNpc.filter((stamp) => stamp.mode !== "inFlight"),
-    "NPC requests made before the first in-flight frame",
-  ).toEqual([]);
+    ["menu", "docked"],
+    "the prefetch trigger's session mode (plan 21-11)",
+  ).toContain(stampedNpc[0]?.mode);
 
   const loadedCalls = await page.evaluate(() => window.__wegolite?.calls ?? -1);
   test.info().annotations.push(
     {
       type: "traffic-npc-requests",
-      description: `${requestedGlbs.length} GLBs, ${presentTextures.length} textures`,
+      description: `${requestedGlbs.length} GLBs, ${npcFinished.length - requestedGlbs.length} texture responses`,
+    },
+    {
+      type: "traffic-prefetch",
+      description: `${prefetchBytes} bytes in ${prefetchMs} ms (concurrency ${NPC_PREFETCH_CONCURRENCY})`,
     },
     {
       type: "traffic-cold-start-calls",
       description: `${firstInFlight.calls} calls at the first in-flight frame, ${loadedCalls} after the window`,
     },
   );
-  expect(loadedCalls, "draw calls after the models load").toBeGreaterThan(
-    firstInFlight.calls,
-  );
+  // Plan 21-11: the prefetched models may already be drawn at the first
+  // in-flight read, so the count is not compared with it any more (the held
+  // test above proves a loaded model is drawn on arrival).
+  expect(loadedCalls, "draw calls after the models load").toBeGreaterThan(0);
   expect(loadedCalls, "draw-call budget").toBeLessThanOrEqual(DRAW_CALL_BUDGET);
   expect(errors).toEqual([]);
 });
