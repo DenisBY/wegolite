@@ -437,6 +437,9 @@ export function hullTable(
 /**
  * The lifecycle's `Populate` for the inert populator. Structurally the same
  * type as `Populate` in world-lifecycle.ts, which this module does not import.
+ * No session code installs it since Phase 22 (`createSystemPopulate` replaced
+ * it); it stays for the frozen inert path: the epoch 1-20 pin and the 20-seed
+ * acceptance run build their worlds through it.
  */
 export function createInertPopulate(
   content: () => TrafficContent | undefined,

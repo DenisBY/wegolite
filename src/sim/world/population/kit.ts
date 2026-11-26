@@ -290,7 +290,10 @@ export function setFuel(
 
 /**
  * `_setReturnFuel` (`oolite-populator.js:2335-2345`): the same rule over the
- * destination system.
+ * destination system. No builder calls it yet: its upstream callers are the
+ * returning leg of `_addPiratePack` (`:1839`), which the repopulator takes in
+ * Phase 26, and `_addHunterPack` (`:1648`, hunters are cut). It is ported now
+ * and pinned by `kit.test.ts`.
  */
 export function setReturnFuel(
   destinationSystem: number,
