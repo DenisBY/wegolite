@@ -36,6 +36,7 @@ import { flightTableFrom } from "../../../src/sim/npc/stats.js";
 import { liveEntityCount, createWorld } from "../../../src/sim/world/world.js";
 import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { fullHullTable, realHullTable } from "../../helpers/hull-table.js";
+import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
 
 const lave = laveFixture();
@@ -222,6 +223,29 @@ describe("debrisContentFrom (plan 16-06, WORLD-17)", () => {
     }
   });
 
+  it("sets goods to the commodity catalogue in catalogue order when it is given, and no goods key otherwise (plan 21-15, CBT-11 pod clause)", () => {
+    const commodities = commoditiesFixture();
+    const withGoods = debrisContentFrom(
+      catalogue(),
+      debrisRecords(),
+      commodities,
+    );
+    if (withGoods === undefined) throw new Error("no debris content");
+    expect(withGoods.goods).toEqual(commodities);
+    expect(withGoods.goods?.map((good) => good.key)).toEqual(
+      commodities.map((good) => good.key),
+    );
+    // The pod draw's market is the step builder's, never this one's.
+    expect(withGoods).not.toHaveProperty("market");
+    const plain = debrisContentFrom(catalogue(), debrisRecords());
+    if (plain === undefined) throw new Error("no debris content");
+    expect(plain).not.toHaveProperty("goods");
+    expect({ ...withGoods, goods: undefined }).toEqual({
+      ...plain,
+      goods: undefined,
+    });
+  });
+
   it("returns undefined for a catalogue without a pod or without a plate", () => {
     const records = debrisRecords();
     expect(
@@ -254,6 +278,22 @@ describe("trafficContent with the debris and explosion catalogues (plan 16-06)",
     expect(full.flight).toEqual(plain.flight);
     expect(full.weapons).toEqual(plain.weapons);
     expect(Object.isFrozen(full)).toBe(true);
+  });
+
+  it("carries the commodity catalogue into the debris goods, and none without it (plan 21-15)", () => {
+    const commodities = commoditiesFixture();
+    const source = catalogue();
+    const records = debrisRecords();
+    const full = trafficContent(source, { debris: records, commodities });
+    expect(full.debris?.goods).toEqual(commodities);
+    expect(full.debris).toEqual(
+      debrisContentFrom(source, records, commodities),
+    );
+    expect(
+      trafficContent(source, { debris: records }).debris,
+    ).not.toHaveProperty("goods");
+    // Commodities without a debris catalogue add nothing.
+    expect(trafficContent(source, { commodities }).debris).toBeUndefined();
   });
 
   it("omits each key whose source is absent", () => {

@@ -1348,12 +1348,7 @@ export function releaseDebris(
   const plateCount = canFragment ? Math.floor(nAlloys) : 0;
   const plate = modelOf(ctx.content.plate);
   for (let i = 0; i < plateCount; i += 1) {
-    spawnCargoPiece(
-      world,
-      plate,
-      scatter(stream, box, origin, base),
-      ctx.tick,
-    );
+    spawnCargoPiece(world, plate, scatter(stream, box, origin, base), ctx.tick);
   }
 
   // The blast, last, over every body now live (ShipEntity.m:8123-8126).

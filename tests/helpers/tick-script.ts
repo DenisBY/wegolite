@@ -130,6 +130,7 @@ import {
 } from "../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../src/app/session/world-lifecycle.js";
+import { CommoditySchema } from "../../src/content/schemas/commodity.js";
 import { ExplosionCatalogueSchema } from "../../src/content/schemas/explosion.js";
 import { DebrisCatalogueSchema } from "../../src/content/schemas/ship-debris.js";
 import { ShipHullCatalogueSchema } from "../../src/content/schemas/ship-hull.js";
@@ -202,13 +203,18 @@ function committedJson(name: string): unknown {
  * session loads them: read with `readFileSync` and validated with the strict
  * schemas, then built into the shared content (debris included).
  */
-function committedTrafficContent(): TrafficContent {
+export function committedTrafficContent(): TrafficContent {
   return trafficContent(
     NpcShipCatalogueSchema.parse(committedJson("ships-npc.json")),
     {
       debris: DebrisCatalogueSchema.parse(committedJson("ships-debris.json")),
       explosions: ExplosionCatalogueSchema.parse(
         committedJson("explosions.json"),
+      ),
+      // The goods of the pod draw (plan 21-15): the same strict schema the
+      // session's loader validates with, without its `import.meta.glob`.
+      commodities: (committedJson("commodities.json") as unknown[]).map(
+        (record) => CommoditySchema.parse(record),
       ),
     },
   );

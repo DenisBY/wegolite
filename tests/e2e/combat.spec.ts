@@ -98,7 +98,10 @@ const TWIN_ENERGY_AFTER_SHOOTING = 222.18333333333135;
 // (G-17-1), from "a545cb4b".
 // Follows plan 18-05: the warm-up burst now hits the nav buoy (owner decision 2026-11-20).
 // Follows plan 18-06: ident now re-locks the nav buoy on the kill tick (owner decision 2026-11-20).
-const TWIN_HASH_60_AFTER_KILL = "f6927215";
+// Follows the Node twin's re-pin in plan 21-15 (D-04, owner-sanctioned), from
+// "f6927215": the two surviving pods now carry contents (`pod:"furs",1`), the
+// only segments that differ; the browser equals Node.
+const TWIN_HASH_60_AFTER_KILL = "14a8a453";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
 /**

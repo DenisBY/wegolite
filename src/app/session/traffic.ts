@@ -33,6 +33,7 @@
  */
 
 import type {
+  Commodity,
   DebrisRecord,
   ExplosionRecord,
   NpcShip,
@@ -112,6 +113,12 @@ export interface TrafficContent {
 export interface TrafficExtras {
   readonly debris?: readonly DebrisRecord[] | undefined;
   readonly explosions?: readonly ExplosionRecord[] | undefined;
+  /**
+   * The commodity catalogue, the goods a released cargo pod can carry (plan
+   * 21-14, CBT-11's pod clause; plan 21-15 supplies it). It becomes
+   * `DebrisContent.goods`; absent, pods stay anonymous.
+   */
+  readonly commodities?: readonly Commodity[] | undefined;
 }
 
 /**
@@ -136,12 +143,17 @@ function debrisModel(record: DebrisRecord): DebrisModel {
  * replay, so they cannot drift apart. Each NPC record becomes a hull entry
  * (mass, fragment chance, bounding box in Oolite model axes) keyed by its spec
  * key; the pod and plate records become the pod and plate models and the wreck
- * records the wreck list, in catalogue order. Undefined when the catalogue has
- * no pod or no plate (the strict schema already refuses such a file).
+ * records the wreck list, in catalogue order. With the commodity catalogue the
+ * content also carries `goods`, the records in catalogue order (the pod draw of
+ * plan 21-14; the per-system `market` is added by `buildStepOptions`); without
+ * it there is no `goods` key and pods stay anonymous. Undefined when the
+ * catalogue has no pod or no plate (the strict schema already refuses such a
+ * file).
  */
 export function debrisContentFrom(
   catalogue: readonly NpcShip[],
   debris: readonly DebrisRecord[],
+  commodities?: readonly Commodity[],
 ): DebrisContent | undefined {
   const pod = debris.find((record) => record.role === "pod");
   const plate = debris.find((record) => record.role === "plate");
@@ -169,6 +181,9 @@ export function debrisContentFrom(
     wrecks: Object.freeze(
       debris.filter((record) => record.role === "wreck").map(debrisModel),
     ),
+    ...(commodities === undefined
+      ? {}
+      : { goods: Object.freeze([...commodities]) }),
   });
 }
 
@@ -221,7 +236,7 @@ export function trafficContent(
   const debris =
     extras.debris === undefined
       ? undefined
-      : debrisContentFrom(ships, extras.debris);
+      : debrisContentFrom(ships, extras.debris, extras.commodities);
   const explosion = extras.explosions?.find(
     (record) => record.key === DEFAULT_SHIP_EXPLOSION_KEY,
   );

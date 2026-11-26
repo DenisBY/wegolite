@@ -193,6 +193,8 @@ function session(
         ),
       ) as NpcShip[],
       {
+        // The pod draw's goods, as start-session.ts supplies them (plan 21-15).
+        commodities: catalogue,
         debris: DebrisCatalogueSchema.parse(
           JSON.parse(
             readFileSync(
@@ -837,7 +839,16 @@ const ENTITIES_AT_KILL = 16;
 // moves every shot and the shooter's stream. Measured, not derived.
 // Follows plan 18-05: the warm-up burst now hits the nav buoy (owner decision 2026-11-20).
 // Follows plan 18-06: ident now re-locks the nav buoy on the kill tick (owner decision 2026-11-20).
-const HASH_60_AFTER_KILL = "f6927215";
+// Re-pinned in plan 21-15 (D-04, owner-sanctioned under the standing v2.4
+// approval) from "f6927215", the one move of this twin in Phase 21: the kill's
+// two surviving pods now carry contents (plan 21-14's draw, fed live by the
+// commodity catalogue and the system's first-generation market). Measured: the
+// 60-tick world text differs only in the pods' segments, `e114` and `e115`
+// each gain `;pod:"furs",1`; the shooter is gone from the world (no `ck:`), the
+// wrecks, the plate, every position and every rng line are unchanged. The D-01
+// velocity base moves nothing here (this shooter holds at speed 0). The
+// browser twin (`TWIN_HASH_60_AFTER_KILL`, tests/e2e/combat.spec.ts) equals it.
+const HASH_60_AFTER_KILL = "14a8a453";
 
 /** The world's live debris by kind: pods, plates and wrecks. */
 function debrisCounts(world: NonNullable<WorldLifecycle["world"]>): {
