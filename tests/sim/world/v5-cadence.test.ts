@@ -180,10 +180,10 @@ class V5Scenario {
       }
       if (variant.records) {
         world.station = { alert: 3, launched: 4, marks: [100, 101, 102] };
-        world.groups = [
-          { id: 101, leader: 101 },
-          { id: 102, leader: 101 },
-        ];
+        // One record, whose group has live members only when the entity
+        // fields are set: `commitWorld` prunes a record with no live member
+        // (D-11), so a second record would not survive the first step.
+        world.groups = [{ id: 101, leader: 101 }];
         world.populator = { nextTick: 2400, rolls: 3 };
         combat.standing = { legalStatus: 64, kills: 3 };
       }
@@ -297,10 +297,7 @@ describe("the whole v5 field set replays equally at 30, 60 and 144 Hz (FOUND-20,
       launched: 4,
       marks: [100, 101, 102],
     });
-    expect(world.groups).toEqual([
-      { id: 101, leader: 101 },
-      { id: 102, leader: 101 },
-    ]);
+    expect(world.groups).toEqual([{ id: 101, leader: 101 }]);
     expect(world.populator).toEqual({ nextTick: 2400, rolls: 3 });
     expect(reference.combat.standing).toEqual({ legalStatus: 64, kills: 3 });
     const first = world.store.live[0];

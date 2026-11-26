@@ -2218,7 +2218,7 @@ describe("sanitizeGroups (FOUND-20, plan 21-06)", () => {
     expect(Object.keys(world.groups[0] as object)).toEqual(["id", "leader"]);
   });
 
-  it("accepts 128 groups and keeps the lowest 128 of 129", () => {
+  it("accepts 256 groups and keeps the lowest 256 of 257", () => {
     const make = (count: number): { id: number; leader: number }[] =>
       Array.from({ length: count }, (_, i) => ({ id: 101 + i, leader: 101 }));
     const full = worldWith(make(MAX_WORLD_GROUPS));

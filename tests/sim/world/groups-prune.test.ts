@@ -191,11 +191,7 @@ const OPERATIONS = fc.array(
 function apply(world: World, step: Operation): void {
   if (step.op === "group") {
     const first = world.store.nextId;
-    const leader = spawnEntity(
-      world,
-      shipInit(first, { groupId: first }),
-      3,
-    );
+    const leader = spawnEntity(world, shipInit(first, { groupId: first }), 3);
     if (!leader.ok) return;
     world.groups.push({ id: leader.entity.id, leader: leader.entity.id });
     for (let i = 1; i < step.size; i += 1) {
@@ -227,7 +223,9 @@ describe("the pruning invariant (D-11)", () => {
           );
           for (const g of world.groups) expect(carried.has(g.id)).toBe(true);
           for (let i = 1; i < world.groups.length; i += 1) {
-            expect(world.groups[i]!.id).toBeGreaterThan(world.groups[i - 1]!.id);
+            expect(world.groups[i]!.id).toBeGreaterThan(
+              world.groups[i - 1]!.id,
+            );
           }
         }
       }),

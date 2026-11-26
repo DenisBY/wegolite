@@ -38,6 +38,7 @@ import {
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
   MAX_UINT32,
+  MAX_WORLD_GROUPS,
   BUOY_MAX_ENERGY,
   MAX_WEAPON_TEMPERATURE,
   STATION_MAX_ENERGY,
@@ -3114,11 +3115,11 @@ const RECORD_REJECTIONS: readonly (readonly [
     "type",
   ],
   [
-    "129 groups",
+    "257 groups",
     "groups",
     set(
       "groups",
-      idRun(101, 129).map((id) => ({ id, leader: id })),
+      idRun(101, MAX_WORLD_GROUPS + 1).map((id) => ({ id, leader: id })),
     ),
     "range",
   ],
@@ -3237,7 +3238,7 @@ describe("the v5 world records at the snapshot boundary (FOUND-20, plan 21-06)",
     setAt(
       snapshot,
       "groups",
-      idRun(101, 128).map((id) => ({ id, leader: id })),
+      idRun(101, MAX_WORLD_GROUPS).map((id) => ({ id, leader: id })),
     );
     setAt(snapshot, "populator.nextTick", MAX_UINT32);
     setAt(snapshot, "populator.rolls", MAX_UINT32);
@@ -3315,6 +3316,10 @@ describe("the v5 world records in the snapshot (FOUND-20, plan 21-06)", () => {
     /** Groups out of order, marks out of order, a launch count past 255. */
     function corrupted(): World {
       const world = createWorld(5);
+      // One live member per group: commitWorld prunes a record whose group is
+      // empty (D-11), and this case is about the repair of a live one.
+      spawnOk(world, { ...shipInit(0, null), groupId: 105 });
+      spawnOk(world, { ...shipInit(1, null), groupId: 102 });
       world.groups.push({ id: 105, leader: 105 }, { id: 102, leader: 102 });
       world.station.marks.push(140, 120);
       world.station.launched = 300;
