@@ -50,6 +50,26 @@ export const MAX_FLIGHT_MAGNITUDE_BOUND = 1e12;
 /** The largest record `bounty`, equal to the sim's `MAX_BOUNTY` (pinned by a test). */
 export const MAX_RECORD_BOUNTY = 65535;
 
+/**
+ * The most `escort_roles` entries a record may author: Oolite's `MAX_ESCORTS`,
+ * 16 (`ShipEntity.h:76`). Oolite bounds the escorts it places, not the list:
+ * `setUpMixedEscorts` stops at 16 escorts inside the loop
+ * (`ShipEntity.m:1647`, `:1664`), so an entry that yields no escort takes no
+ * slot and a longer list is read. The longest stock list has 4 entries (the
+ * Boa), so a list past 16 is refused here rather than iterated per spawn.
+ */
+export const MAX_ESCORT_ROLE_ENTRIES = 16;
+
+/** The longest escort role name accepted (the role-categories bound). */
+export const MAX_ESCORT_ROLE_LENGTH = 64;
+
+/**
+ * An escort role as authored: empty (the Boa's spare wandering escorts), or a
+ * role token of letters, digits, `_` and `-` with an optional `+`, the
+ * role-categories `ROLE_PATTERN`.
+ */
+export const ESCORT_ROLE_PATTERN = /^(?:[A-Za-z0-9][A-Za-z0-9_-]*\+?)?$/;
+
 export { NPC_GLB_PATH_PATTERN };
 
 const WEAPON_KEY = z.enum([
@@ -194,16 +214,18 @@ export const NpcShipSchema = z.strictObject({
   // `escorts` (default 0, at most `MAX_ESCORTS`, 16: ShipEntity.m:680).
   escorts: z.number().int().min(0).max(16),
   // `escort_roles` (ShipEntity.m:1543, :1621): the authored list, or null for
-  // Oolite's nil. `min` may be negative; `role` may be the empty string (the
-  // Boa authors one for its spare wandering escorts).
+  // Oolite's nil, at most `MAX_ESCORT_ROLE_ENTRIES` long. `min` may be
+  // negative; `role` may be the empty string (the Boa authors one for its spare
+  // wandering escorts) and is otherwise a bounded role token.
   escortRoles: z
     .array(
       z.strictObject({
         min: z.number().int().min(-128).max(127),
         max: z.number().int().min(-128).max(127),
-        role: z.string(),
+        role: z.string().max(MAX_ESCORT_ROLE_LENGTH).regex(ESCORT_ROLE_PATTERN),
       }),
     )
+    .max(MAX_ESCORT_ROLE_ENTRIES)
     .nullable(),
   // `missiles` and `max_missiles` (ShipEntity.m:313-328), DATA ONLY: no spawn
   // path reads them in v2.4, every NPC launches with none (FIDELITY E-194,
