@@ -53,6 +53,13 @@
 import { contentError } from "../content-error.js";
 import { NPC_GLB_PATH_PATTERN } from "../../../src/content/npc-glb-path.js";
 import type { ContentErrorOptions } from "../content-error.js";
+import { mergeHullPrimitives } from "./atlas.js";
+import type {
+  AtlasImage,
+  MergeOutcome,
+  MergeRefusal,
+  TextureLookup,
+} from "./atlas.js";
 import {
   resolveCornerNormals,
   selectNormalMode,
@@ -337,6 +344,8 @@ const TRIANGLES = 4;
 
 const TEXTURE_URI_PREFIX = "../textures/";
 const EMISSIVE_SUFFIX = "_emissive.png";
+/** The emissive mask of a per-hull atlas: a baked greyscale PNG, like the others. */
+const EMISSIVE_ATLAS_PATTERN = /_emissive_atlas_[0-9a-f]{12}\.png$/;
 const WEBP_SUFFIX = ".webp";
 const WEBP_EXTENSION = "EXT_texture_webp";
 
@@ -386,14 +395,24 @@ export interface OoliteExtras {
   readonly emission_map: string | null;
 }
 
+/**
+ * The extras of a merged hull material (plan 21-17): every source primitive's
+ * authored values, in the authored material order.
+ */
+export interface MergedOoliteExtras {
+  readonly merged: readonly OoliteExtras[];
+}
+
 export interface GlbMaterial {
   readonly name: string;
   readonly baseColorTexture: string | null;
   readonly normalTexture: string | null;
   readonly specularTexture: string | null;
   readonly emissiveTexture: string | null;
+  /** A per-hull roughness atlas (G = roughness); `roughnessFactor` is then 1. */
+  readonly metallicRoughnessTexture?: string | null;
   readonly roughnessFactor: number;
-  readonly extrasOolite: OoliteExtras | null;
+  readonly extrasOolite: OoliteExtras | MergedOoliteExtras | null;
 }
 
 export interface GlbScene {
@@ -616,6 +635,7 @@ interface MaterialJson {
     readonly metallicFactor: number;
     readonly roughnessFactor: number;
     readonly baseColorTexture?: { readonly index: number };
+    readonly metallicRoughnessTexture?: { readonly index: number };
   };
   readonly normalTexture?: { readonly index: number };
   readonly emissiveTexture?: { readonly index: number };
@@ -628,7 +648,7 @@ interface MaterialJson {
       readonly specularColorTexture: { readonly index: number };
     };
   };
-  readonly extras?: { readonly oolite: OoliteExtras };
+  readonly extras?: { readonly oolite: OoliteExtras | MergedOoliteExtras };
 }
 
 /** Serialise a scene into GLB bytes. The one place the container is assembled. */
@@ -707,6 +727,14 @@ export function writeGlb(scene: GlbScene): Uint8Array {
           : {
               baseColorTexture: {
                 index: textureRef(material.baseColorTexture),
+              },
+            }),
+        ...(material.metallicRoughnessTexture === undefined ||
+        material.metallicRoughnessTexture === null
+          ? {}
+          : {
+              metallicRoughnessTexture: {
+                index: textureRef(material.metallicRoughnessTexture),
               },
             }),
       },
@@ -1069,7 +1097,13 @@ export function emissiveFile(name: string): string {
  * share, so an emitted URI and a written file cannot drift apart.
  */
 export function encodedTextureFile(name: string): string {
-  if (name.endsWith(EMISSIVE_SUFFIX) || !name.endsWith(".png")) return name;
+  if (
+    name.endsWith(EMISSIVE_SUFFIX) ||
+    EMISSIVE_ATLAS_PATTERN.test(name) ||
+    !name.endsWith(".png")
+  ) {
+    return name;
+  }
   return `${name.slice(0, -".png".length)}${WEBP_SUFFIX}`;
 }
 
@@ -1096,7 +1130,7 @@ export function materialFor(
   materialKey: string,
   shipDef: ShipDef,
   shipKey: string,
-): GlbMaterial {
+): GlbMaterial & { readonly extrasOolite: OoliteExtras } {
   const config = Object.hasOwn(shipDef.materials, materialKey)
     ? shipDef.materials[materialKey]
     : materialKey.endsWith(".png") &&
@@ -1279,6 +1313,7 @@ export function buildShipGlb(
   meshName: string,
   mesh: ParsedMesh,
   entry: ShipEntry,
+  extras?: Readonly<Record<string, unknown>>,
 ): Uint8Array {
   const built = buildNodeMesh(meshName, mesh, entry);
   const legacy = legacyTextures(entry.key);
@@ -1297,6 +1332,7 @@ export function buildShipGlb(
     materials: built.primitives.map((primitive) =>
       materialFor(primitive.materialName, entry.shipDef, entry.key),
     ),
+    ...(extras === undefined ? {} : { extras }),
   });
 }
 
@@ -1439,6 +1475,177 @@ function requireEntry(
 }
 
 /**
+ * The NPC GLBs whose primitives are merged into one through a per-hull atlas
+ * (D-05 fix (1), plan 21-17). Every NPC hull is a candidate; the player's Cobra
+ * Mk III, the station, the buoy and the debris models are never merged.
+ */
+export const MERGED_NPC_GLBS: readonly string[] = [
+  "anaconda-pirate.glb",
+  "anaconda.glb",
+];
+
+/** `oolite_boa-mk2.dat` is the model `boa-mk2`: the name the atlas files carry. */
+function modelName(source: string): string {
+  const match = SHIP_MODEL_PATTERN.exec(source);
+  if (match === null || match[1] === undefined) {
+    return glbFailure(
+      "models",
+      `model "${source}" does not follow the oolite_<name>.dat naming rule`,
+    );
+  }
+  return match[1];
+}
+
+interface SingleMeshHull {
+  readonly source: string;
+  readonly entry: ShipEntry;
+  readonly mesh: ParsedMesh;
+}
+
+/** Resolve one NPC GLB row to its source mesh and owning entry. */
+function npcHull(
+  file: string,
+  models: Readonly<Record<string, ParsedMesh>>,
+  entries: Readonly<Record<string, ShipEntry>>,
+): SingleMeshHull {
+  const source = (MODEL_SOURCE_FILES[file] ?? [])[0];
+  const owner = (EMITTED_ENTRIES[file] ?? [])[0];
+  if (source === undefined || owner === undefined) {
+    return glbFailure(file, "an NPC ship needs one source mesh and one owner");
+  }
+  return {
+    source,
+    entry: requireEntry(entries, owner),
+    mesh: requireModel(models, source),
+  };
+}
+
+/**
+ * The vendored texture names the atlas builder reads for `files`: the maps of
+ * every material the hulls' meshes use, and the sources of their emission
+ * masks. The generator decodes exactly these.
+ */
+export function hullTextureNames(
+  models: Readonly<Record<string, ParsedMesh>>,
+  entries: Readonly<Record<string, ShipEntry>>,
+  files: readonly string[] = MERGED_NPC_GLBS,
+): string[] {
+  const names = new Set<string>();
+  for (const file of files) {
+    const { entry, mesh } = npcHull(file, models, entries);
+    for (const meshMaterial of mesh.materials) {
+      const material = materialFor(meshMaterial.name, entry.shipDef, entry.key);
+      for (const name of [
+        material.baseColorTexture,
+        material.normalTexture,
+        material.specularTexture,
+      ]) {
+        if (name !== null) names.add(name);
+      }
+      const extras = material.extrasOolite;
+      if (
+        material.emissiveTexture?.endsWith(EMISSIVE_SUFFIX) === true &&
+        extras !== null &&
+        "emission_map" in extras &&
+        extras.emission_map !== null
+      ) {
+        names.add(extras.emission_map);
+      }
+    }
+  }
+  return [...names].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+}
+
+/**
+ * Decide the merge of every hull in `files` (D-05 fix (1)): the outcome per GLB
+ * file is a merged primitive with its atlas images, a refusal naming the failed
+ * validity condition, or `single` for a hull of one primitive. The mesh is
+ * converted exactly as `buildShipGlb` converts it, so a merged hull and an
+ * unmerged one come from the same geometry.
+ */
+export function planHullMerges(
+  models: Readonly<Record<string, ParsedMesh>>,
+  entries: Readonly<Record<string, ShipEntry>>,
+  textures: TextureLookup,
+  files: readonly string[] = MERGED_NPC_GLBS,
+): Map<string, MergeOutcome> {
+  const outcomes = new Map<string, MergeOutcome>();
+  for (const file of files) {
+    const { source, entry, mesh } = npcHull(file, models, entries);
+    const built = buildNodeMesh(source.slice(0, -".dat".length), mesh, entry);
+    outcomes.set(
+      file,
+      mergeHullPrimitives({
+        model: modelName(source),
+        primitives: built.primitives,
+        materials: built.primitives.map((primitive) =>
+          materialFor(primitive.materialName, entry.shipDef, entry.key),
+        ),
+        textures,
+      }),
+    );
+  }
+  return outcomes;
+}
+
+/** Every atlas image of a merge plan, once per content-addressed name. */
+export function atlasImagesOf(
+  outcomes: ReadonlyMap<string, MergeOutcome>,
+): AtlasImage[] {
+  const images = new Map<string, AtlasImage>();
+  for (const outcome of outcomes.values()) {
+    if (outcome.kind !== "merged") continue;
+    for (const image of outcome.images) images.set(image.name, image);
+  }
+  return [...images.values()].sort((left, right) =>
+    left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+  );
+}
+
+/** The scene `extras` a refused hull carries: the condition that failed. */
+function refusalExtras(refusal: MergeRefusal): Record<string, unknown> {
+  return {
+    wegolite: {
+      mergeRefusal: { condition: refusal.condition, detail: refusal.detail },
+    },
+  };
+}
+
+/**
+ * The texture file names (`../textures/` stripped) that `emitted` GLBs
+ * reference: the set the texture emitters write, in both directions.
+ */
+export function referencedTextureFiles(
+  emitted: readonly EmittedModel[],
+): Set<string> {
+  const files = new Set<string>();
+  for (const model of emitted) {
+    const view = new DataView(
+      model.bytes.buffer,
+      model.bytes.byteOffset,
+      model.bytes.byteLength,
+    );
+    const json = JSON.parse(
+      new TextDecoder().decode(
+        model.bytes.subarray(20, 20 + view.getUint32(12, true)),
+      ),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    for (const image of json.images ?? []) {
+      if (!image.uri.startsWith(TEXTURE_URI_PREFIX)) {
+        glbFailure(
+          model.path,
+          `image uri "${image.uri}" is outside ${TEXTURE_URI_PREFIX}`,
+        );
+      }
+      files.add(image.uri.slice(TEXTURE_URI_PREFIX.length));
+    }
+  }
+  return files;
+}
+
+/**
  * The single-mesh GLBs of one row set (`NPC_SHIP_GLBS` or `DEBRIS_GLBS`): one
  * source, one owner, the naming rule closes the loop, and the owner's resolved
  * model is the source.
@@ -1449,6 +1656,7 @@ function emitSingleMeshGlbs(
   kind: string,
   models: Readonly<Record<string, ParsedMesh>>,
   entries: Readonly<Record<string, ShipEntry>>,
+  merges?: ReadonlyMap<string, MergeOutcome>,
 ): EmittedModel[] {
   const emitted: EmittedModel[] = [];
   for (const file of files) {
@@ -1477,14 +1685,31 @@ function emitSingleMeshGlbs(
         `owner "${owner}" resolves model "${entry.shipDef.model ?? "none"}", expected "${source}"`,
       );
     }
+    const nodeName = file.slice(0, -".glb".length);
+    const meshName = source.slice(0, -".dat".length);
+    const outcome = merges?.get(file);
     emitted.push({
       path: `${EMITTED_MODELS_DIR}/${file}`,
-      bytes: buildShipGlb(
-        file.slice(0, -".glb".length),
-        source.slice(0, -".dat".length),
-        requireModel(models, source),
-        entry,
-      ),
+      bytes:
+        outcome?.kind === "merged"
+          ? writeGlb({
+              nodes: [
+                {
+                  name: nodeName,
+                  mesh: { name: meshName, primitives: [outcome.primitive] },
+                },
+              ],
+              materials: [outcome.material],
+            })
+          : buildShipGlb(
+              nodeName,
+              meshName,
+              requireModel(models, source),
+              entry,
+              outcome?.kind === "refused"
+                ? refusalExtras(outcome.refusal)
+                : undefined,
+            ),
     });
   }
   return emitted;
@@ -1499,6 +1724,7 @@ function emitSingleMeshGlbs(
 export function emitModels(
   models: Readonly<Record<string, ParsedMesh>>,
   entries: Readonly<Record<string, ShipEntry>>,
+  merges?: ReadonlyMap<string, MergeOutcome>,
 ): EmittedModel[] {
   const emitted: EmittedModel[] = [];
 
@@ -1588,6 +1814,7 @@ export function emitModels(
       "an NPC ship",
       models,
       entries,
+      merges,
     ),
     ...emitSingleMeshGlbs(
       DEBRIS_GLBS,

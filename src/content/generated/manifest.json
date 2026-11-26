@@ -11,14 +11,14 @@
       "sha256": "462cd610541068c715180defdd6f122ec7f082366e1dbf0e19e35c7b7e5ff27b"
     },
     {
-      "bytes": 158332,
+      "bytes": 156156,
       "path": "public/models/anaconda-pirate.glb",
-      "sha256": "0215db5728ceeab8c70ab1214ced9ca93a6d229c5d9d46040628fb213c1133fe"
+      "sha256": "bf39e8df71dad073643a13496d5928e999f9d847fbe3b7c82c799eb391b29ad7"
     },
     {
-      "bytes": 158304,
+      "bytes": 156128,
       "path": "public/models/anaconda.glb",
-      "sha256": "7098b4114354ab96eba1fffc0bf5bd5f3ce3c0a0861703eee341e81e73b5f5d2"
+      "sha256": "e30859f5c84ee7bf28b18e573a2af754e325cacba35a90c081af6b744891dfa3"
     },
     {
       "bytes": 82120,
@@ -256,44 +256,29 @@
       "sha256": "a5b0bd5583b0ff352251ff5c490874200d42af2f35d3b64d2464d9511516823f"
     },
     {
-      "bytes": 262958,
-      "path": "public/textures/oolite_anaconda_diffuse.webp",
-      "sha256": "8664185e993f891b3e448d1f7c7ab5cfbd2c4327cc7e3919f47b658e8a826f56"
+      "bytes": 358370,
+      "path": "public/textures/oolite_anaconda_diffuse_atlas_8334f537c1a3.webp",
+      "sha256": "609d274107bf825f551c220a0a2d630d905d266a7dfe8104a6748d4c48218591"
     },
     {
-      "bytes": 59126,
-      "path": "public/textures/oolite_anaconda_diffuse_emissive.png",
-      "sha256": "238223cd0868c8f7c59cfda61f3cc1a13e3d4b8fd4ba027dfa41a47a349923a3"
+      "bytes": 134541,
+      "path": "public/textures/oolite_anaconda_emissive_atlas_25ca60a452db.png",
+      "sha256": "1013ccd6dfed64faeea82f2e71861f59d2d3954449e79761e6711b80388ccc47"
     },
     {
-      "bytes": 192066,
-      "path": "public/textures/oolite_anaconda_normal.webp",
-      "sha256": "216721ea89c3775c1367299c10ee119c5c1834a9e5bdedb71ae80c6e2279d3a1"
+      "bytes": 210004,
+      "path": "public/textures/oolite_anaconda_normal_atlas_51fe2356a303.webp",
+      "sha256": "0417919ccfb67393beb354f09d81b358d7797aa9f1b8bc8034aa11fa12cc6ae6"
     },
     {
-      "bytes": 1106528,
-      "path": "public/textures/oolite_anaconda_specular.webp",
-      "sha256": "4c3f5418c84ca73e4c526aecd0331cc67014880c883d755a52dde90929b119eb"
+      "bytes": 278,
+      "path": "public/textures/oolite_anaconda_roughness_atlas_d246e5e05cb9.webp",
+      "sha256": "a9fcdae409732fe560952196c0a2bade4a0ce4948dee7be02252f06eec25cff6"
     },
     {
-      "bytes": 51688,
-      "path": "public/textures/oolite_anaconda_subents.webp",
-      "sha256": "2176d4346ab2981304bc2acb48f4ea8078af975b5fa01eb072d11528c990a63b"
-    },
-    {
-      "bytes": 66203,
-      "path": "public/textures/oolite_anaconda_subents_emissive.png",
-      "sha256": "7b1aae74d0ae065be0a200e54b1e647641552616a53f46214d257536a12b1f8e"
-    },
-    {
-      "bytes": 9926,
-      "path": "public/textures/oolite_anaconda_subents_normal.webp",
-      "sha256": "8cccfed7b79db6606ca739ac68e2fdde2db58dd43533646af0c66fcdfb9ee39d"
-    },
-    {
-      "bytes": 276982,
-      "path": "public/textures/oolite_anaconda_subents_specular.webp",
-      "sha256": "fa96a292a704efa47068addf278a0c3d1b1f95a173179d1511b2c886479f7996"
+      "bytes": 1394174,
+      "path": "public/textures/oolite_anaconda_specular_atlas_5e931af31064.webp",
+      "sha256": "57d90501246dc54bdff5becb5d08513eadbd7e39725af53ba6adad6f4df0ec46"
     },
     {
       "bytes": 187014,
@@ -1081,9 +1066,9 @@
       "sha256": "40f906335a3a074acb0db3cae5cc034e9acb7554950a9f3cfd1b4aedff9af5b4"
     },
     {
-      "bytes": 57639,
+      "bytes": 57182,
       "path": "src/content/generated/texture-encodings.json",
-      "sha256": "cc6abfaca6493d7255f8cd35b943946fdd2c04c55b78b9f2619526f182f7cd90"
+      "sha256": "74e273ab92443d8442e2d870a5d4455935b0c34f1433cb7e2cad6e961c210ddb"
     }
   ],
   "format": "wegolite-content-manifest",

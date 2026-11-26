@@ -32,7 +32,11 @@ import {
   BUOY_STATION_ROLE,
   BUOY_WITCHPOINT_ROLE,
   MODEL_SOURCE_FILES,
+  atlasImagesOf,
   emitModels,
+  hullTextureNames,
+  planHullMerges,
+  referencedTextureFiles,
 } from "./convert/glb.js";
 import type { ShipEntry } from "./convert/glb.js";
 import { emitEquipment } from "./convert/equipment.js";
@@ -61,6 +65,7 @@ import {
   copyParticleTextures,
   copySkyTextures,
   emitTextures,
+  loadTextureImages,
 } from "./convert/textures.js";
 import { encodeTextures } from "./convert/texture-encode.js";
 import { parseOpenStep } from "./openstep/parser.js";
@@ -246,8 +251,22 @@ export async function generateContent({
     emitShipHulls(catalogue, models),
     emitStaticHulls(catalogue, models, staticMasses),
     emitDockPort(models),
-    ...emitModels(models, entries),
   ];
+
+  // D-05 fix (1), plan 21-17: each NPC hull's primitives are merged into one
+  // through a per-hull texture atlas, or the hull records why it was not. The
+  // atlases are built from the vendored maps before any GLB is written.
+  const merges = planHullMerges(
+    models,
+    entries,
+    await loadTextureImages(inputRoot, hullTextureNames(models, entries)),
+  );
+  const atlases = atlasImagesOf(merges);
+  const emittedModels = emitModels(models, entries, merges);
+  emitted.push(...emittedModels);
+  // The textures written are the textures the emitted GLBs reference, in both
+  // directions: a merged hull names its atlases, not its per-primitive maps.
+  const referenced = referencedTextureFiles(emittedModels);
 
   for (const file of emitted) {
     const target = resolveOutputFile(outRoot, file.path);
@@ -262,12 +281,16 @@ export async function generateContent({
     inputRoot,
     outRoot,
     catalogue: catalogue.entries,
+    referenced,
+    atlases,
     ...(reuseRoot === undefined ? {} : { reuseRoot }),
   });
   const emissives = await emitTextures({
     inputRoot,
     outRoot,
     catalogue: catalogue.entries,
+    referenced,
+    atlases,
   });
 
   // The nebula textures for the High graphics quality: listed in
