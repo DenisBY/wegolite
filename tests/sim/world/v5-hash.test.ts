@@ -449,7 +449,9 @@ describe("CARGO_KINDS (FOUND-20)", () => {
 
 describe("a fast-check property over random v5 entities", () => {
   const roleArb = fc.stringMatching(/^[a-z0-9-]{0,32}$/);
-  const keyArb = fc.stringMatching(/^[a-z0-9_]{0,64}$/);
+  const keyArb = fc
+    .stringMatching(/^[a-z0-9_]{0,64}$/)
+    .filter((key) => key !== "__proto__");
   const weaponTypeArb = fc.oneof(
     fc.constant(null),
     fc.stringMatching(/^EQ_WEAPON_[A-Z0-9_]{1,22}$/),
@@ -779,5 +781,32 @@ describe("the standing prints as the |std: suffix of the combat line (FOUND-20, 
           "temp:0.000000,0.000000,0.000000,0.000000|shot:12000,12000,12000,12000|ident:false:0",
       ),
     );
+  });
+});
+
+describe("commodity keys never name the prototype (phase 21 security audit note 2)", () => {
+  it("refuses __proto__ and keeps every real commodity key", async () => {
+    const { COMMODITY_KEY_PATTERN } =
+      await import("../../../src/sim/world/limits.js");
+    expect(COMMODITY_KEY_PATTERN.test("__proto__")).toBe(false);
+    for (const key of [
+      "",
+      "food",
+      "liquor_wines",
+      "gem_stones",
+      "__proto",
+      "proto__",
+    ]) {
+      expect(COMMODITY_KEY_PATTERN.test(key)).toBe(true);
+    }
+    const commodities =
+      (await import("../../../src/content/generated/commodities.json")) as unknown as {
+        default: unknown;
+      };
+    const keys =
+      JSON.stringify(commodities.default).match(/"key":"([^"]+)"/g) ?? [];
+    for (const raw of keys) {
+      expect(COMMODITY_KEY_PATTERN.test(raw.slice(7, -1))).toBe(true);
+    }
   });
 });

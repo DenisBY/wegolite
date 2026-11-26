@@ -216,8 +216,13 @@ export const ROLE_PATTERN = /^[a-z0-9-]*$/;
  */
 export const MAX_COMMODITY_KEY_LENGTH = 64;
 
-/** What a commodity key may hold: lower-case letters, digits and underscores. */
-export const COMMODITY_KEY_PATTERN = /^[a-z0-9_]*$/;
+/**
+ * What a commodity key may hold: lower-case letters, digits and underscores,
+ * never the prototype name `__proto__`. That is the one such name the character
+ * class admits, so a later lookup keyed by the value cannot reach
+ * `Object.prototype` (phase 21 security audit note 2).
+ */
+export const COMMODITY_KEY_PATTERN = /^(?!__proto__$)[a-z0-9_]*$/;
 
 /**
  * The most units in one pod (`Entity.podAmount`). Oolite's largest drawn

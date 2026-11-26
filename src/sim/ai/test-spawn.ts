@@ -411,9 +411,9 @@ const LOCAL_UP = vec(0, 1, 0);
  * world lacks room for every valid one, or when the id counter could not number
  * them all; otherwise it spawns one ship per valid record and returns true.
  *
- * Like the other seams it is reachable only from the `?test=1` hook, which
- * taints the session before it calls this, and from tests; the populator never
- * calls it.
+ * Like the other seams it is reachable only from the `?test=1` hook and from
+ * tests; the hook taints the session once the call returns (synchronously, so
+ * no save runs in between), and the populator never calls it.
  */
 export function spawnTestAnarchy(
   world: World,
