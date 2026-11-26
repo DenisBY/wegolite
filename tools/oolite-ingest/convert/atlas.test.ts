@@ -32,7 +32,9 @@ import {
   MERGED_NPC_GLBS,
   MODEL_SOURCE_FILES,
   EMITTED_ENTRIES,
+  atlasImagesOf,
   convertMesh,
+  encodedTextureFile,
   hullTextureNames,
   materialFor,
   planHullMerges,
@@ -664,6 +666,70 @@ describe("mergeHullPrimitives: texel exactness through the PNG path", () => {
   });
 });
 
+describe("atlasImagesOf (TOOLS-IN-03)", () => {
+  function image(fields: Partial<AtlasImage>): AtlasImage {
+    return {
+      slot: "emissive",
+      name: "oolite_x_emissive_atlas_000000000000.png",
+      side: 2,
+      channels: 1,
+      data: new Uint8Array([1, 2, 3, 4]),
+      inputTextures: ["a.png"],
+      inputConfig: [],
+      regions: 1,
+      ...fields,
+    };
+  }
+  function plan(...images: AtlasImage[][]): Map<string, MergeOutcome> {
+    return new Map(
+      images.map((list, index): [string, MergeOutcome] => [
+        `hull-${String(index)}.glb`,
+        {
+          kind: "merged",
+          primitive: triangle("A", [
+            [0, 0],
+            [1, 0],
+            [0, 1],
+          ]),
+          material: material("A", {}),
+          images: list,
+          layout: { side: 2, regions: [] },
+        },
+      ]),
+    );
+  }
+
+  it("keeps one image per name and names the union of its producers' inputs", () => {
+    const merged = atlasImagesOf(
+      plan(
+        [image({ inputTextures: ["b.png"], inputConfig: ["y.plist"] })],
+        [
+          image({
+            inputTextures: ["a.png", "b.png"],
+            inputConfig: ["x.plist"],
+          }),
+        ],
+      ),
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.inputTextures).toEqual(["a.png", "b.png"]);
+    expect(merged[0]?.inputConfig).toEqual(["x.plist", "y.plist"]);
+  });
+
+  it("fails loudly on one name with different content", () => {
+    for (const other of [
+      image({ data: new Uint8Array([1, 2, 3, 5]) }),
+      image({ side: 4, data: new Uint8Array(16) }),
+      image({ slot: "diffuse" }),
+      image({ channels: 4, data: new Uint8Array(16) }),
+    ]) {
+      expect(() => atlasImagesOf(plan([image({})], [other]))).toThrow(
+        "produced twice with different content",
+      );
+    }
+  });
+});
+
 describe("the vendored hulls", () => {
   const ENTRY_KEYS = ["anaconda", "anaconda-pirate"];
 
@@ -897,6 +963,52 @@ describe("the vendored hulls", () => {
     },
     300_000,
   );
+
+  it("names every producer's inputs in each atlas file's ASSETS.md row (TOOLS-IN-03)", async () => {
+    const { outcomes } = await planAll();
+    const assets = readFileSync(join(REPO_ROOT, "ASSETS.md"), "utf8").split(
+      "\n",
+    );
+    const images = atlasImagesOf(outcomes);
+    let shared = 0;
+    for (const image of images) {
+      const path = `public/textures/${encodedTextureFile(image.name)}`;
+      const row = assets.find((line) => line.startsWith(`| ${path} `));
+      expect(row, path).toBeDefined();
+      const producers = [...outcomes.values()].flatMap((outcome) =>
+        outcome.kind === "merged"
+          ? outcome.images.filter((candidate) => candidate.name === image.name)
+          : [],
+      );
+      for (const producer of producers) {
+        for (const input of producer.inputTextures) {
+          expect(image.inputTextures, `${image.name} ${input}`).toContain(
+            input,
+          );
+        }
+      }
+      if (new Set(producers.map((p) => p.inputTextures.join())).size > 1) {
+        shared += 1;
+      }
+      for (const input of image.inputTextures) {
+        expect(row, `${path} names ${input}`).toContain(input);
+      }
+    }
+    // The Cobra Mk III variants' shared emissive mask has three producers.
+    const cobra = images.find(
+      (candidate) =>
+        candidate.slot === "emissive" &&
+        candidate.name.startsWith("oolite_cobra3_"),
+    );
+    expect(cobra?.inputTextures).toEqual([
+      "oolite_cobra3_diffuse.png",
+      "oolite_cobra3_diffuse_alt.png",
+      "oolite_cobra3_diffuse_pirate.png",
+    ]);
+    // Five emissive masks are shared by variants with different inputs: the
+    // Cobra Mk III, Mamba, Moray, Python and Viper families.
+    expect(shared).toBe(5);
+  }, 300_000);
 
   it("gives the variant records of one model the same layout and merged geometry", async () => {
     const { outcomes } = await planAll();

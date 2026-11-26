@@ -1596,14 +1596,63 @@ export function planHullMerges(
   return outcomes;
 }
 
-/** Every atlas image of a merge plan, once per content-addressed name. */
+function sortedUnion(
+  left: readonly string[],
+  right: readonly string[],
+): string[] {
+  return [...new Set([...left, ...right])].sort((a, b) =>
+    a < b ? -1 : a > b ? 1 : 0,
+  );
+}
+
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index++) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+/**
+ * Every atlas image of a merge plan, once per content-addressed name.
+ *
+ * Two hulls may produce the same file from different vendored inputs: the
+ * texture variants of one model recolour the hull but keep its alpha, so their
+ * emissive masks are pixel-identical (the Cobra Mk III, Mamba, Moray, Python
+ * and Viper variants). The kept image then names the union of every
+ * producer's inputs, so no provenance is dropped. Two images that share a name
+ * but differ in slot, size, channels or pixels cannot be one file, and fail
+ * the build (TOOLS-IN-03).
+ */
 export function atlasImagesOf(
   outcomes: ReadonlyMap<string, MergeOutcome>,
 ): AtlasImage[] {
   const images = new Map<string, AtlasImage>();
-  for (const outcome of outcomes.values()) {
+  for (const [file, outcome] of outcomes) {
     if (outcome.kind !== "merged") continue;
-    for (const image of outcome.images) images.set(image.name, image);
+    for (const image of outcome.images) {
+      const kept = images.get(image.name);
+      if (kept === undefined) {
+        images.set(image.name, image);
+        continue;
+      }
+      if (
+        kept.slot !== image.slot ||
+        kept.side !== image.side ||
+        kept.channels !== image.channels ||
+        !sameBytes(kept.data, image.data)
+      ) {
+        glbFailure(
+          file,
+          `atlas "${image.name}" is produced twice with different content`,
+        );
+      }
+      images.set(image.name, {
+        ...kept,
+        inputTextures: sortedUnion(kept.inputTextures, image.inputTextures),
+        inputConfig: sortedUnion(kept.inputConfig, image.inputConfig),
+      });
+    }
   }
   return [...images.values()].sort((left, right) =>
     left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
