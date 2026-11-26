@@ -8,9 +8,11 @@
 
 import { FLIGHT_SCRIPT } from "./pilots/flight-script.js";
 import { TEST_PILOT } from "./pilots/test-pilot.js";
+import { priorityAi } from "./priority.js";
 import type { AiKey, AiModule } from "./types.js";
 
 export const AI_REGISTRY: Readonly<Record<AiKey, AiModule>> = Object.freeze({
   "test-pilot": Object.freeze(TEST_PILOT),
   "flight-script": Object.freeze(FLIGHT_SCRIPT),
+  priority: Object.freeze(priorityAi),
 });
