@@ -6,17 +6,19 @@ This document records the frame budget Wegolite is held to, what the container m
 
 Each rendered frame must stay inside these limits. Each row names the gate that enforces it.
 
-| Quantity                      | Budget          | Source                                   | Enforced by                                                                                           |
-| ----------------------------- | --------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Draw calls per rendered frame | at most 50      | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`DRAW_CALL_BUDGET`); `tests/e2e/traffic.spec.ts` for the traffic-on scene |
-| Triangles per rendered frame  | at most 250 000 | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`TRIANGLE_BUDGET`)                                                        |
-| Planet noise evaluations      | at most 9       | `BUDGET_CEILING` (D-12, unchanged)       | `tests/render/planet-budget.test.ts` (`BUDGET_CEILING = 9`)                                           |
+| Quantity                      | Budget          | Source                                   | Enforced by                                                                                                                                                                                               |
+| ----------------------------- | --------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draw calls per rendered frame | at most 50      | STACK.md lines 442-443 (research target) | `DRAW_CALL_BUDGET` in `tests/e2e/helpers/budgets.ts`, asserted by `budget.spec.ts`, `traffic.spec.ts` (traffic on), `npc-flight.spec.ts`, `combat.spec.ts` and `anarchy.spec.ts` (the full anarchy, D-05) |
+| Triangles per rendered frame  | at most 250 000 | STACK.md lines 442-443 (research target) | `TRIANGLE_BUDGET` in `tests/e2e/helpers/budgets.ts`, asserted by `budget.spec.ts` and `anarchy.spec.ts`                                                                                                   |
+| Planet noise evaluations      | at most 9       | `BUDGET_CEILING` (D-12, unchanged)       | `tests/render/planet-budget.test.ts` (`BUDGET_CEILING = 9`)                                                                                                                                               |
 
 The budget applies to the default Standard quality, which is what every test renders. The opt-in High quality (the "High-quality graphics" setting) spends up to 17 planet noise evaluations (`HIGH_NOISE_EVAL_BUDGET`) and adds up to five draw calls: one for the atmosphere shell and one per nebula texture. It has no frame-rate evidence yet; measure it with the reference-desktop protocol below before changing the default.
 
 The Settings "Show FPS counter" option shows the animation-frame rate over 500 ms windows, the same interval the sampler below measures, as a quick on-screen reading. It is not QUAL-01 evidence and does not replace the reference-desktop protocol. It is a DOM text element in the document footer, so it adds no draw call and no triangles. Docked, it reports the loop rate, while the redraw gate skips unchanged GPU draws.
 
 Both draw-call and triangle comparisons are inclusive: 50 calls and 250 000 triangles pass, while 51 calls and 250 001 triangles fail. A scene that reports zero calls or zero triangles also fails, so a blank frame cannot pass the budget.
+
+The draw-call budget stayed at 50 through Phase 21's full-anarchy spike (D-05, plan 21-19, 2026-11-26): after fix (1), the per-hull primitive merge of plan 21-17, the 29-hull anarchy draws 39 calls and 42 after a kill with its debris and explosion live, and the bound with all seven debris models present is 49. Fix (2), variant instancing (plan 21-18), is deferred, and no raise is allowed while it is. The numbers are in "Full-anarchy draw-call spike (Phase 21, D-05)" below. The browser budgets and `withinBudget`, the inclusive comparison with the zero rule, have one source, `tests/e2e/helpers/budgets.ts`, proven at the boundary by `tests/app/e2e-budgets.test.ts`.
 
 ## Container measurements
 

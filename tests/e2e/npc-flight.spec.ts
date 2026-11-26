@@ -42,13 +42,12 @@ import type { World } from "../../src/sim/world/world.js";
 import { laveFixture } from "../helpers/lave.js";
 import { runTickScript } from "../helpers/tick-script.js";
 import type { TickStep } from "../helpers/tick-script.js";
+import { DRAW_CALL_BUDGET } from "./helpers/budgets.js";
 import { waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
 /** A correctness bound, not a performance claim (the SwiftShader loop is slow). */
 const SLOW = 30_000;
-/** The draw-call budget per rendered frame (tests/e2e/budget.spec.ts). */
-const DRAW_CALL_BUDGET = 50;
 /** The URL this spec boots: traffic on, manual clock (opt-in by URL only). */
 const FLIGHT_URL = "/?test=1&traffic=1&clock=manual";
 /**

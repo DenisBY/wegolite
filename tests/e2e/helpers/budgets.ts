@@ -32,9 +32,13 @@ const MIB = 1_048_576;
 /**
  * Regression ceiling for the cold-start transfer to the first in-flight frame
  * (T-07-14, D-14): 9 MiB, 9,437,184 bytes. The measured baseline was
- * 8,814,224 bytes on 2026-11-11, rounded up to the next MiB; with traffic on it
- * is 8,933,196 bytes after plan 21-17. Background NPC model prefetch (D-07)
- * stays outside it.
+ * 8,814,224 bytes (8.41 MiB) on 2026-11-11, rounded up to the next MiB. It was
+ * 7,490,424 bytes before the navigation buoy model and its textures were
+ * added, and 20,996,848 bytes before the textures were re-encoded to WebP and
+ * the client ship catalogue was trimmed. The owner decision of 2026-11-14
+ * (option A) kept the same ceiling with traffic on, which measures
+ * 8,933,196 bytes after plan 21-17. Background NPC model prefetch (D-07) stays
+ * outside it.
  */
 export const FIRST_LOAD_BYTES_CEILING = 9 * MIB;
 

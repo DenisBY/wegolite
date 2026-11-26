@@ -16,7 +16,9 @@
  * The four counts are attached to the report and printed, and compared with
  * the shared budgets of `helpers/budgets.ts` (plan 21-19): both triangle counts
  * must be within `TRIANGLE_BUDGET` (250,000; no authorisation covers a triangle
- * raise). `docs/PERFORMANCE.md` "Full-anarchy draw-call spike" records them.
+ * raise), and both call counts within `DRAW_CALL_BUDGET` (50, kept by D-05
+ * after fix (1); the tripwire of the deferred plan 21-18). `docs/PERFORMANCE.md`
+ * "Full-anarchy draw-call spike" records them.
  *
  * Readiness is by key, never a fixed sleep: every catalogue key's GLB and the
  * textures it references (the NPC-owned ones) must have finished downloading,
@@ -383,6 +385,18 @@ test("a full anarchy of the 29 hulls and a fight with its debris and explosion: 
   });
   console.log(`anarchy-counts: ${JSON.stringify(report)}`);
 
+  // The 21-18 deferral tripwire (orchestrator decision 2026-11-26): fix (2) of
+  // D-05 is deferred because fix (1) put the anarchy within the budget, so a
+  // call count above it brings todo 2026-11-26-npc-variant-family-instancing
+  // back before any raise.
+  expect(
+    withinBudget(worst.calls, DRAW_CALL_BUDGET),
+    `worst-case calls ${worst.calls} within the ${DRAW_CALL_BUDGET}-call budget`,
+  ).toBe(true);
+  expect(
+    withinBudget(afterKill.calls, DRAW_CALL_BUDGET),
+    `after-kill calls ${afterKill.calls} within the ${DRAW_CALL_BUDGET}-call budget`,
+  ).toBe(true);
   expect(
     withinBudget(worst.triangles, TRIANGLE_BUDGET),
     `worst-case triangles ${worst.triangles} within the ${TRIANGLE_BUDGET} triangle budget`,

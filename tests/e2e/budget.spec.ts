@@ -43,6 +43,11 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import {
+  DRAW_CALL_BUDGET,
+  FIRST_LOAD_BYTES_CEILING,
+  TRIANGLE_BUDGET,
+} from "./helpers/budgets.js";
 import { systemByName } from "./helpers/chart.js";
 import { dockedSaveAt } from "./helpers/save-fixtures.js";
 import { writeRaw } from "./helpers/save-store.js";
@@ -58,25 +63,10 @@ import { startNewGame } from "./helpers/title.js";
 // 261121-bjl).
 test.setTimeout(240_000 + FIRST_LAUNCH_WAIT_MS);
 
-/** Draw calls per rendered frame (STACK.md lines 442-443, research target). */
-const DRAW_CALL_BUDGET = 50;
-/** Triangles per rendered frame (STACK.md lines 442-443, research target). */
-const TRIANGLE_BUDGET = 250_000;
 /** Loop frames to wait for after a scene is reached, so counters settle. */
 const SETTLE_FRAMES = 3;
 /** The Diso system, reached through an IndexedDB save fixture. */
 const DISO_ID = systemByName("Diso").id;
-/** One MiB, the rounding unit of the first-load ceiling. */
-const MIB = 1_048_576;
-/**
- * Regression ceiling for the cold-start transfer to the first in-flight frame
- * (T-07-14, D-14). The measured baseline is 8 814 224 bytes (8.41 MiB) on
- * 2026-11-11, rounded up to the next MiB. It was 7 490 424 bytes before the
- * navigation buoy model and its textures were added, and 20 996 848 bytes
- * before the textures were re-encoded to WebP and the client ship catalogue
- * was trimmed.
- */
-const FIRST_LOAD_BYTES_CEILING = 9 * MIB;
 
 interface NpcAssetPaths {
   readonly glbs: readonly string[];
