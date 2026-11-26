@@ -30,7 +30,7 @@ import { lineOf, listSrcFiles, withoutComments } from "./source-scan.js";
 const REPO_ROOT = process.cwd();
 
 const PHASE_22_TODO =
-  ".planning/todos/pending/2026-11-25-pod-kind-live-populator.md";
+  ".planning/todos/completed/2026-11-25-pod-kind-live-populator.md";
 
 /** The one spawn path allowed to leave a ship with cargo and no kind (frozen). */
 const INERT_PATH_FILES: readonly string[] = ["src/sim/world/populate.ts"];
