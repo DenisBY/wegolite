@@ -257,3 +257,33 @@ describe("committed public assets", () => {
     expect(problems).toEqual([]);
   });
 });
+
+/**
+ * Plan 21-10 follow-up: `ASSETS.md` rows for generated content under
+ * `src/content/generated/` carry a SHA-256 cell too, and a regeneration that
+ * changes the file must refresh it. Only the rows that exist are checked; this
+ * does not require a row for every generated file.
+ */
+describe("generated content rows", () => {
+  const GENERATED_ROWS = ROWS.filter((row) =>
+    (row.cells[0] ?? "").startsWith("src/content/generated/"),
+  );
+
+  it("finds the generated rows (vacuity guard)", () => {
+    expect(GENERATED_ROWS.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("records the actual SHA-256 of every generated file it lists", () => {
+    const problems = GENERATED_ROWS.flatMap((row) => {
+      const file = row.cells[0] ?? "";
+      const actual = sha256Of(file);
+      return row.cells[7] === actual
+        ? []
+        : [
+            `${ASSETS_PATH}:${String(row.line)}: ${file} row has ${String(row.cells[7])}, actual ${actual}`,
+          ];
+    });
+
+    expect(problems).toEqual([]);
+  });
+});
