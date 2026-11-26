@@ -32,8 +32,14 @@
  * message needs the name only.
  *
  * The compiled `aiType` is the authored `ai_type`. Oolite replaces it at spawn
- * from `autoAImap.plist` when `auto_ai` is on; that is Phase 12's concern and
- * is not compiled.
+ * from `autoAImap.plist` when `auto_ai` is on; that is the populator's concern.
+ * `autoAi` (below) records whether the ship takes part in that replacement.
+ *
+ * DATA-17 (plan 21-05) adds the fields the milestone's roles need: `bounty`,
+ * `autoAi`, `autoWeapons`, `hasScoop`, `hasFuelInjection`, `fuel`,
+ * `scoopPosition`, `countsAsKill`, `escorts`, `escortRoles`, `missiles` and
+ * `maxMissiles`. Fuzzy booleans are stored as float32 probabilities, as
+ * `fragmentChance` is, and are rolled per ship at spawn, never at compile time.
  */
 
 import { canonicalJson } from "../canonical/json.js";
@@ -182,6 +188,76 @@ export const DEFAULT_EXPLOSION_TYPE: readonly string[] | null = null;
 export const DEFAULT_LASER_COLOR: readonly [number, number, number] | null =
   null;
 
+/** Oolite's `bounty` default (`oo_unsignedIntForKey`, ShipEntity.m:559). */
+export const DEFAULT_BOUNTY = 0;
+
+/** The largest bounty an unsigned 32-bit Oolite `unsigned int` can hold. */
+export const MAX_BOUNTY = 4294967295;
+
+/**
+ * Oolite's `auto_ai` default: a fuzzy boolean defaulting to yes
+ * (`oo_fuzzyBooleanForKey:defaultValue:YES`, ShipEntity.m:6915).
+ */
+export const DEFAULT_AUTO_AI = 1;
+
+/** Oolite's `auto_weapons` default, a fuzzy boolean defaulting to no (ShipEntity.m:6925). */
+export const DEFAULT_AUTO_WEAPONS = 0;
+
+/** Oolite's `has_scoop` default, a fuzzy boolean defaulting to no (ShipEntity.m:338). */
+export const DEFAULT_HAS_SCOOP = 0;
+
+/** Oolite's `has_fuel_injection` default, a fuzzy boolean defaulting to no (ShipEntity.m:361). */
+export const DEFAULT_HAS_FUEL_INJECTION = 0;
+
+/**
+ * Oolite's `fuel` default (`oo_unsignedShortForKey`, ShipEntity.m:555; the
+ * source comment there questions the 0, and 0 is what ships get).
+ */
+export const DEFAULT_FUEL = 0;
+
+/** The largest `fuel` an unsigned short holds. */
+export const MAX_FUEL = 65535;
+
+/** Oolite's `counts_as_kill` default (`oo_boolForKey:defaultValue:YES`, ShipEntity.m:1529). */
+export const DEFAULT_COUNTS_AS_KILL = true;
+
+/** Oolite's `escorts` default (`oo_unsignedCharForKey:defaultValue:0`, ShipEntity.m:680). */
+export const DEFAULT_ESCORTS = 0;
+
+/** Oolite's `MAX_ESCORTS` (ShipEntity.h:76), the cap `escorts` is clamped to (ShipEntity.m:680). */
+export const MAX_ESCORTS = 16;
+
+/**
+ * Oolite's `escort_roles` default: nil (`oo_arrayForKey:defaultValue:nil`,
+ * ShipEntity.m:1543, :1621). Nil is not an empty list, so an absent key
+ * compiles to null.
+ */
+export const DEFAULT_ESCORT_ROLES: readonly EscortRole[] | null = null;
+
+/** Oolite's `missiles` default (`oo_intForKey:defaultValue:0`, ShipEntity.m:313). */
+export const DEFAULT_MISSILES = 0;
+
+/**
+ * Oolite's `SHIPENTITY_MAX_MISSILES` (ShipEntity.h:79), the cap `max_missiles`
+ * is clamped to (ShipEntity.m:326-328).
+ */
+export const SHIPENTITY_MAX_MISSILES = 32;
+
+/**
+ * The bounds of an `escort_roles` entry's `min` and `max`: Oolite reads both
+ * with `oo_intForKey` into an `int8_t` (ShipEntity.m:1655-1656), and a negative
+ * `min` is meaningful there ("a use to giving a negative value").
+ */
+export const ESCORT_BOUND_MIN = -128;
+export const ESCORT_BOUND_MAX = 127;
+
+/** One authored `escort_roles` entry (ShipEntity.m:1655-1658). */
+export interface EscortRole {
+  readonly min: number;
+  readonly max: number;
+  readonly role: string;
+}
+
 /**
  * The fifteen named colours of OOColor (OOColor.m:234-307, the `+fooColor`
  * class methods that `colorWithDescription:` reaches for a description with the
@@ -233,9 +309,11 @@ export const FORWARD_WEAPON_KEYS: Readonly<Record<string, string>> =
  * defaults, so a pin bump that authors one of these keys must fail the build and
  * needs a new decision, not a silent change in reachability.
  *
- * `has_fuel_injection` (the afterburner) and `missiles` are deliberately not
- * compiled and not refused: afterburner and missiles are recorded scope cuts
- * with no consumer in v2.2.
+ * `has_fuel_injection` (the afterburner) and `missiles`/`max_missiles` are now
+ * compiled as data (DATA-17, plan 21-05): the injector is consumed from Phase
+ * 22, and no one consumes the missile counts in v2.4 (FIDELITY E-194, the
+ * tripwire `tests/guards/npc-missiles-tripwire.test.ts`). `has_escape_pod` and
+ * `heat_insulation` are not compiled (FIDELITY E-195 and E-196).
  */
 export const STEERING_ASSUMED_ABSENT_KEYS: readonly string[] = [
   "accuracy",
@@ -321,6 +399,140 @@ function positionExtra(
     return single === 0 ? 0 : single;
   });
   return [x, y, z];
+}
+
+/**
+ * A fuzzy boolean extra as a float32 probability in 0..1, or the default when
+ * the key is absent (Oolite's `oo_fuzzyBooleanForKey:defaultValue:`, which rolls
+ * the probability at ship setup; the record keeps the probability and the roll
+ * is per ship at spawn, Phase 22). `yes` and `no` arrive as booleans and give 1
+ * and 0.
+ *
+ * Deliberate narrowing, in the style of `fragment_chance`: Oolite also accepts
+ * string spellings and treats a number above 1 as certain; the converter reads a
+ * boolean or a finite number in 0..1 only, and a present value outside that
+ * fails the build rather than taking the default.
+ */
+function fuzzyExtra(
+  key: string,
+  extras: Record<string, unknown>,
+  field: string,
+  fallback: number,
+): number {
+  const value = extras[field];
+  if (value === undefined) return fallback;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > 1
+  ) {
+    return fail(
+      key,
+      `${field} is not a boolean or a number in 0..1: ${JSON.stringify(value)}`,
+    );
+  }
+  return Math.fround(value);
+}
+
+/**
+ * A boolean extra, or the default when the key is absent (Oolite's
+ * `oo_boolForKey:defaultValue:`). A present non-boolean value fails the build.
+ */
+function boolExtra(
+  key: string,
+  extras: Record<string, unknown>,
+  field: string,
+  fallback: boolean,
+): boolean {
+  const value = extras[field];
+  if (value === undefined) return fallback;
+  if (typeof value !== "boolean") {
+    return fail(key, `${field} is not a boolean: ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+/** An unsigned integer extra that must not exceed `max` (a larger present value fails the build). */
+function boundedUintExtra(
+  key: string,
+  extras: Record<string, unknown>,
+  field: string,
+  fallback: number,
+  max: number,
+): number {
+  const value = uintExtra(key, extras, field, fallback);
+  if (value > max) {
+    return fail(key, `${field} ${String(value)} is above the limit ${max}`);
+  }
+  return value;
+}
+
+/**
+ * `escort_roles` as a copy of the authored list of `{ min, max, role }`, or
+ * null when the key is absent (ShipEntity.m:1543, :1621). Oolite reads `min` and
+ * `max` with `oo_intForKey` into an `int8_t` and the role with a default of
+ * "escort" (ShipEntity.m:1655-1658); here every authored entry must carry all
+ * three, the bounds must be integers inside the `int8_t` range, and the role may
+ * be an empty string (the stock Boa authors one, for its spare wandering
+ * escorts). Anything else fails the build.
+ */
+function escortRolesExtra(
+  key: string,
+  extras: Record<string, unknown>,
+): EscortRole[] | null {
+  const value = extras["escort_roles"];
+  if (value === undefined) return DEFAULT_ESCORT_ROLES as null;
+  if (!Array.isArray(value)) {
+    return fail(key, `escort_roles is not an array: ${JSON.stringify(value)}`);
+  }
+  const inRange = (bound: unknown): bound is number =>
+    typeof bound === "number" &&
+    Number.isInteger(bound) &&
+    bound >= ESCORT_BOUND_MIN &&
+    bound <= ESCORT_BOUND_MAX;
+  return value.map((item: unknown, index: number): EscortRole => {
+    const entry =
+      typeof item === "object" && item !== null && !Array.isArray(item)
+        ? (item as Record<string, unknown>)
+        : undefined;
+    const min = entry?.["min"];
+    const max = entry?.["max"];
+    const role = entry?.["role"];
+    if (!inRange(min) || !inRange(max) || typeof role !== "string") {
+      return fail(
+        key,
+        `escort_roles[${String(index)}] is not { min, max, role } with integer ` +
+          `bounds in ${String(ESCORT_BOUND_MIN)}..${String(ESCORT_BOUND_MAX)}: ` +
+          JSON.stringify(item),
+      );
+    }
+    return { min, max, role };
+  });
+}
+
+/**
+ * `missiles` and `max_missiles`, as data only: no spawn path reads them in v2.4,
+ * every NPC launches with none (FIDELITY E-194, the tripwire
+ * `tests/guards/npc-missiles-tripwire.test.ts`, CBT-19 in Phase 23).
+ *
+ * Oolite's resolution (ShipEntity.m:313-328): `max_missiles` defaults to
+ * `missiles`, is clamped to `SHIPENTITY_MAX_MISSILES`, and `missiles` is then
+ * clamped to it. The reader applies the same clamps, and fails the build on a
+ * negative or non-integer value (Oolite reads a signed int). The
+ * `has_energy_bomb` slot adjustment (ShipEntity.m:343-358) is not ported.
+ */
+function missileCounts(
+  key: string,
+  extras: Record<string, unknown>,
+): { missiles: number; maxMissiles: number } {
+  const authored = uintExtra(key, extras, "missiles", DEFAULT_MISSILES);
+  const maxMissiles = Math.min(
+    uintExtra(key, extras, "max_missiles", authored),
+    SHIPENTITY_MAX_MISSILES,
+  );
+  return { missiles: Math.min(authored, maxMissiles), maxMissiles };
 }
 
 /**
@@ -633,6 +845,44 @@ export function compileNpcShips(
       explosionType: explosionTypeExtra(key, entry.extras),
       laserColor: laserColorExtra(key, entry.extras),
       boundingBox: hullBox(mesh),
+      bounty: boundedUintExtra(
+        key,
+        entry.extras,
+        "bounty",
+        DEFAULT_BOUNTY,
+        MAX_BOUNTY,
+      ),
+      autoAi: fuzzyExtra(key, entry.extras, "auto_ai", DEFAULT_AUTO_AI),
+      autoWeapons: fuzzyExtra(
+        key,
+        entry.extras,
+        "auto_weapons",
+        DEFAULT_AUTO_WEAPONS,
+      ),
+      hasScoop: fuzzyExtra(key, entry.extras, "has_scoop", DEFAULT_HAS_SCOOP),
+      hasFuelInjection: fuzzyExtra(
+        key,
+        entry.extras,
+        "has_fuel_injection",
+        DEFAULT_HAS_FUEL_INJECTION,
+      ),
+      fuel: boundedUintExtra(key, entry.extras, "fuel", DEFAULT_FUEL, MAX_FUEL),
+      scoopPosition: positionExtra(key, entry.extras, "scoop_position"),
+      countsAsKill: boolExtra(
+        key,
+        entry.extras,
+        "counts_as_kill",
+        DEFAULT_COUNTS_AS_KILL,
+      ),
+      escorts: boundedUintExtra(
+        key,
+        entry.extras,
+        "escorts",
+        DEFAULT_ESCORTS,
+        MAX_ESCORTS,
+      ),
+      escortRoles: escortRolesExtra(key, entry.extras),
+      ...missileCounts(key, entry.extras),
     };
 
     const parsed = NpcShipSchema.safeParse(candidate);

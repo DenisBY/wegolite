@@ -15,13 +15,22 @@
     "aftWeapon",
     "aftWeaponPosition",
     "aiType",
+    "autoAi",
+    "autoWeapons",
     "boundingBox",
+    "bounty",
+    "countsAsKill",
     "energyRechargeRate",
+    "escortRoles",
+    "escorts",
     "explosionType",
     "forwardWeapon",
     "forwardWeaponPosition",
     "fragmentChance",
+    "fuel",
     "glb",
+    "hasFuelInjection",
+    "hasScoop",
     "key",
     "laserColor",
     "likelyCargo",
@@ -31,6 +40,8 @@
     "maxFlightPitch",
     "maxFlightRoll",
     "maxFlightSpeed",
+    "maxMissiles",
+    "missiles",
     "model",
     "name",
     "portWeapon",
@@ -38,6 +49,7 @@
     "radius",
     "roles",
     "scanClass",
+    "scoopPosition",
     "starboardWeapon",
     "starboardWeaponPosition",
     "thrust"
@@ -64,7 +76,18 @@
     "fragmentChance": 0.8999999761581421,
     "explosionType": null,
     "laserColor": null,
-    "weaponFacings": 15
+    "weaponFacings": 15,
+    "bounty": 0,
+    "autoAi": 1,
+    "autoWeapons": 0,
+    "hasScoop": 0,
+    "hasFuelInjection": 0,
+    "fuel": 0,
+    "scoopPosition": [0, 0, 0],
+    "countsAsKill": true,
+    "escorts": 0,
+    "escortRoles": null,
+    "missiles": 0
   },
   "examples": [
     {
@@ -99,7 +122,19 @@
       "boundingBox": {
         "min": [-25, -8.790610313415527, -30.165000915527344],
         "max": [25, 9.345720291137695, 35.034400939941406]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 0,
+      "hasScoop": 0,
+      "hasFuelInjection": 0,
+      "fuel": 0,
+      "scoopPosition": [0, 0, 0],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 1,
+      "maxMissiles": 1
     },
     {
       "key": "adder",
@@ -142,7 +177,19 @@
       "boundingBox": {
         "min": [-14.009300231933594, -5.190680027008057, -22.232799530029297],
         "max": [14.009300231933594, 9.70464038848877, 28.952299118041992]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "hasScoop": 1,
+      "hasFuelInjection": 0,
+      "fuel": 70,
+      "scoopPosition": [0, -5.099999904632568, 22.724000930786133],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 1,
+      "maxMissiles": 1
     },
     {
       "key": "sidewinder",
@@ -176,7 +223,19 @@
       "boundingBox": {
         "min": [-31.614599227905273, -7.212170124053955, -22.215499877929688],
         "max": [31.614599227905273, 7.212170124053955, 22.215499877929688]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "hasScoop": 0,
+      "hasFuelInjection": 0,
+      "fuel": 0,
+      "scoopPosition": [0, 0, 0],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 0,
+      "maxMissiles": 0
     },
     {
       "key": "shuttle",
@@ -210,7 +269,19 @@
       "boundingBox": {
         "min": [-11.574000358581543, -9.826910018920898, -19.704999923706055],
         "max": [11.574000358581543, 9.826910018920898, 19.704999923706055]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 0,
+      "hasScoop": 0,
+      "hasFuelInjection": 0,
+      "fuel": 0,
+      "scoopPosition": [0, 0, 0],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 0,
+      "maxMissiles": 0
     },
     {
       "key": "gecko",
@@ -252,7 +323,19 @@
       "boundingBox": {
         "min": [-30.737899780273438, -7.4102301597595215, -25.641599655151367],
         "max": [30.737899780273438, 7.223869800567627, 25.641599655151367]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "hasScoop": 1,
+      "hasFuelInjection": 0,
+      "fuel": 0,
+      "scoopPosition": [0, -6.599999904632568, 8.399999618530273],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 1,
+      "maxMissiles": 1
     },
     {
       "key": "cobramk1",
@@ -299,7 +382,19 @@
       "boundingBox": {
         "min": [-35, -9.377209663391113, -32.0536003112793],
         "max": [35, 8.36658000946045, 34.85029983520508]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "hasScoop": 0.949999988079071,
+      "hasFuelInjection": 0,
+      "fuel": 70,
+      "scoopPosition": [0, -5, -9],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 1,
+      "maxMissiles": 1
     },
     {
       "key": "krait",
@@ -339,7 +434,19 @@
       "boundingBox": {
         "min": [-47.203800201416016, -11.108799934387207, -41.30690002441406],
         "max": [47.203800201416016, 10.684300422668457, 41.50809860229492]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "hasScoop": 0.949999988079071,
+      "hasFuelInjection": 0.6499999761581421,
+      "fuel": 70,
+      "scoopPosition": [0, -7.283999919891357, 4.627999782562256],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 0,
+      "maxMissiles": 0
     },
     {
       "key": "mamba",
@@ -373,7 +480,19 @@
       "boundingBox": {
         "min": [-31.78619956970215, -7.750800132751465, -33.558101654052734],
         "max": [31.78619956970215, 7.750800132751465, 33.558101654052734]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "hasScoop": 0.949999988079071,
+      "hasFuelInjection": 0,
+      "fuel": 0,
+      "scoopPosition": [0, -2, -3],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 0,
+      "maxMissiles": 0
     },
     {
       "key": "moray",
@@ -418,7 +537,19 @@
       "boundingBox": {
         "min": [-29.678300857543945, -14.354700088500977, -34.85070037841797],
         "max": [29.678300857543945, 14.354700088500977, 34.85070037841797]
-      }
+      },
+      "bounty": 0,
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "hasScoop": 1,
+      "hasFuelInjection": 0,
+      "fuel": 70,
+      "scoopPosition": [0, -15.212808609008789, 26.539899826049805],
+      "countsAsKill": true,
+      "escorts": 0,
+      "escortRoles": null,
+      "missiles": 2,
+      "maxMissiles": 2
     }
   ],
   "sources": [
@@ -472,6 +603,7 @@
     "facing, fragment and explosion defaults: weapon_facings defaults to VALID_WEAPON_FACINGS 15 and is masked with 15, and each facing type is read only when its bit is set, default EQ_WEAPON_NONE (ShipEntity.m:298-306; bits forward 1, aft 2, port 4, starboard 8, OOTypes.h:196-206); weapon_position_aft, _port and _starboard default to 0 0 0 (ShipEntity.m:479-481); fragment_chance defaults to 0.9 as a float parameter, so the float32 0.8999999761581421 (ShipEntity.m:372, OOCollectionExtractors.h:152); explosion_type defaults to nil, recorded as null, never [] (ShipEntity.m:491); none of the nine templates authors fragment_chance or explosion_type (the keys appear only on other templates in shipdata.plist)",
     "float32 note: the float32 values (the three new positions and fragmentChance) are computed with Math.fround, the same rounding the converter applies, so this golden is an independent oracle for the authored strings, the line numbers and the mask semantics but not for the rounding",
     "boundingBox (D16-23): the float32 minimum and maximum per axis of each hull's VERTEX block in third_party/oolite/Models/oolite_<key>.dat (Oolite's model axes, no subentity: none of the nine has a solid one), read by an independent scratch Node script that parses the NVERTS count and the VERTEX lines directly and rounds each component with Math.fround, not by the converter; Oolite's drawable box is the same vertex extremes (OOMesh.m:1786-1805, OOEntityWithDrawable.m:55), the box releaseCargoPodsDebris samples (OOVector.m:107-113). Adder: min [-14.0093, -5.19068, -22.2328], max [14.0093, 9.70464, 28.9523] over 1102 vertices; Krait: min [-47.2038, -11.1088, -41.3069], max [47.2038, 10.6843, 41.5081] over 1023 vertices; the other seven come from the same run",
-    "laserColor (quick 261119-i9g): viper: third_party/oolite/Config/shipdata.plist line 3848 (laser_color = \"magentaColor\") of oolite_template_viper, resolved through the like_ship child viper at lines 4537-4540; magentaColor is OOColor's [1, 0, 1] RGB (OOColor.m:284-287), and brightColorWithDescription returns a colour of brightness 0.5 or more unchanged (OOColor.m:202-209, 397-401), so the stock value is [1, 0, 1]; the other eight templates (adder, sidewinder, shuttle, gecko, cobramk1, krait, mamba, moray) author no laser_color (the key appears only on oolite_template_tharglet, oolite_template_thargoid, oolite_template_viper-interceptor, ballturret and their children), so laserColor is null and the weapon_info colour applies (ShipEntity.m:421-427, 6469-6474)"
+    "laserColor (quick 261119-i9g): viper: third_party/oolite/Config/shipdata.plist line 3848 (laser_color = \"magentaColor\") of oolite_template_viper, resolved through the like_ship child viper at lines 4537-4540; magentaColor is OOColor's [1, 0, 1] RGB (OOColor.m:284-287), and brightColorWithDescription returns a colour of brightness 0.5 or more unchanged (OOColor.m:202-209, 397-401), so the stock value is [1, 0, 1]; the other eight templates (adder, sidewinder, shuttle, gecko, cobramk1, krait, mamba, moray) author no laser_color (the key appears only on oolite_template_tharglet, oolite_template_thargoid, oolite_template_viper-interceptor, ballturret and their children), so laserColor is null and the weapon_info colour applies (ShipEntity.m:421-427, 6469-6474)",
+    "DATA-17 (plan 21-05): bounty, auto_ai, auto_weapons, has_scoop, has_fuel_injection, fuel, scoop_position, counts_as_kill, escorts, escort_roles, missiles and max_missiles, transcribed from the nine oolite_template_* parents in shipdata.plist (the like_ship children add nothing): adder auto_ai 51, auto_weapons 52, fuel 120, has_scoop yes 122, max_missiles 148, missiles 150, scoop_position 154; cobramk1 auto_ai 1447, auto_weapons 1448, fuel 1520, has_scoop 0.95 1521, max_missiles 1547, missiles 1549, scoop_position 1553; gecko auto_ai 2280, auto_weapons 2281, has_scoop yes 2288, missiles 1 2324 (no max_missiles, so it defaults to missiles, ShipEntity.m:325), scoop_position 2328; krait auto_ai 2514, auto_weapons 2515, fuel 2524, has_fuel_injection 0.65 2526, has_scoop 0.95 2527, missiles 0 2555, scoop_position 2559; mamba auto_ai 2588, auto_weapons 2589, has_scoop 0.95 2600, missiles 0 2635, scoop_position 2639; moray auto_ai 2726, auto_weapons 2727, fuel 2795, has_scoop yes 2796, max_missiles 2836, missiles 2838, scoop_position 2842; shuttle authors none of the twelve keys (missiles 0 at 3537), so every field takes Oolite's default (auto_ai defaults to yes, ShipEntity.m:6915); sidewinder auto_ai 3563, auto_weapons 3564, missiles 0 3593; viper authors missiles 1 (line 3882) only. No template authors bounty, counts_as_kill, escorts or escort_roles, so those take the defaults 0, true, 0 and null (ShipEntity.m:559, 1529, 680, 1543). A fuzzy boolean `yes` is the probability 1, `no` 0, and a number its float32 (0.95 -> 0.949999988079071, 0.65 -> 0.6499999761581421). The viper authors has_escape_pod (line 3845) and the adder and others author has_ecm; neither is compiled (FIDELITY E-195; ECM is deferred with missiles, todo 2026-11-25-missiles-and-ecm)."
   ]
 }
