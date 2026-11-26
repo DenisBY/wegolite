@@ -32,6 +32,8 @@ import { trafficContent } from "../../../src/app/session/traffic.js";
 import { parseEquipment } from "../../../src/content/equipment.js";
 import type { NpcShip } from "../../../src/content/types.js";
 import {
+  ANARCHY_RING_AHEAD_M,
+  ANARCHY_RING_RADIUS_M,
   TEST_ATTACKER_DISTANCE,
   TEST_FLYER_DISTANCE,
 } from "../../../src/sim/ai/test-spawn.js";
@@ -1024,6 +1026,142 @@ describe("the spawnTestAttacker hook (plan 17-10, D-02, T-17-24)", () => {
       ).toBeGreaterThanOrEqual(13); // the literal beam period (D-07 revised)
     }
     expect(shieldFell).toBe(true);
+  });
+});
+
+describe("the spawnTestAnarchy hook (plan 21-16, QUAL-09 staged, T-21-30)", () => {
+  const ANARCHY_CATALOGUE = JSON.parse(
+    readFileSync("src/content/generated/ships-npc.json", "utf8"),
+  ) as NpcShip[];
+
+  function anarchyHarness() {
+    const h = harness();
+    const state = flyingState();
+    const world = createWorld(7);
+    h.ctx.core.state = state;
+    h.ctx.core.layout = layout;
+    h.ctx.core.worldLifecycle = lifecycleOf(world);
+    h.ctx.core.npcTraffic = trafficContent(ANARCHY_CATALOGUE);
+    h.publisher.bindTestHook(state);
+    const hook = h.probe.test;
+    if (hook === undefined) throw new Error("no hook");
+    return { ...h, state, world, hook };
+  }
+
+  it("spawns one inert ship of every catalogue key on the ring, taints the session and returns true", () => {
+    const { ctx, state, world, hook } = anarchyHarness();
+    expect(ctx.runtime.testTainted).toBe(false);
+
+    expect(hook.spawnTestAnarchy()).toBe(true);
+
+    expect(ctx.runtime.testTainted).toBe(true);
+    expect(hook.tainted).toBe(true);
+    expect(ANARCHY_CATALOGUE).toHaveLength(29);
+    expect(world.store.live.map((entity) => entity.specKey)).toEqual(
+      ANARCHY_CATALOGUE.map((ship) => ship.key),
+    );
+    const slant = Math.hypot(ANARCHY_RING_AHEAD_M, ANARCHY_RING_RADIUS_M);
+    for (const ship of world.store.live) {
+      // No AI: no fire decision exists, whatever hull it is (the aft tripwire).
+      expect(ship.ai, ship.specKey).toBeNull();
+      expect(ship.speed, ship.specKey).toBe(0);
+      expect(length(sub(ship.position, state.position))).toBeCloseTo(slant, 6);
+    }
+  });
+
+  it("taints before it touches the world", () => {
+    const { ctx, world, hook } = anarchyHarness();
+    let taintedAtSpawn: boolean | undefined;
+    const original = world.store.live;
+    Object.defineProperty(world.store, "live", {
+      get() {
+        taintedAtSpawn ??= ctx.runtime.testTainted;
+        return original;
+      },
+    });
+
+    hook.spawnTestAnarchy();
+
+    expect(taintedAtSpawn).toBe(true);
+  });
+
+  it("asks the redraw gate for a frame, as every other hook mutation does", () => {
+    const { gate, state, hook } = anarchyHarness();
+    const keys = [state];
+    while (gate.next(true, keys)) gate.drawn(keys);
+    expect(gate.next(true, keys)).toBe(false);
+
+    hook.spawnTestAnarchy();
+
+    expect(gate.next(true, keys)).toBe(true);
+  });
+
+  it("refuses without touching anything outside flight, a world, traffic content or while disposed", () => {
+    const refusals: [string, (h: ReturnType<typeof anarchyHarness>) => void][] =
+      [
+        ["docked", (h) => void (h.state.mode = "docked")],
+        ["launching", (h) => void (h.state.mode = "launching")],
+        ["no world", (h) => void (h.ctx.core.worldLifecycle = undefined)],
+        ["no traffic content", (h) => void (h.ctx.core.npcTraffic = undefined)],
+        ["disposed", (h) => void (h.ctx.runtime.disposed = true)],
+      ];
+    for (const [name, arrange] of refusals) {
+      const h = anarchyHarness();
+      arrange(h);
+
+      expect(h.hook.spawnTestAnarchy(), name).toBe(false);
+
+      expect(h.ctx.runtime.testTainted, name).toBe(false);
+      expect(h.hook.tainted, name).toBe(false);
+      expect(h.world.store.live, name).toHaveLength(0);
+    }
+  });
+
+  it("is refused once the session state is gone", () => {
+    const { ctx, hook, world } = anarchyHarness();
+    ctx.core.state = undefined;
+
+    expect(hook.spawnTestAnarchy()).toBe(false);
+    expect(world.store.live).toHaveLength(0);
+  });
+
+  it("returns false, spawns nothing and leaves the session tainted when the world lacks room for the whole roster", () => {
+    const h = anarchyHarness();
+    const room = ANARCHY_CATALOGUE.length - 1;
+    for (let i = 0; i < MAX_ENTITIES - room; i += 1) {
+      const filler = spawnEntity(
+        h.world,
+        {
+          kind: "ship",
+          specKey: "viper",
+          scanClass: "CLASS_NEUTRAL",
+          position: vec(0, 0, 0),
+          orientation: identity(),
+          radius: 30,
+          maxEnergy: 100,
+        },
+        0,
+      );
+      if (!filler.ok) throw new Error(`filler refused: ${filler.reason}`);
+    }
+    const before = h.world.store.live.length;
+    const nextId = h.world.store.nextId;
+
+    expect(h.hook.spawnTestAnarchy()).toBe(false);
+
+    expect(h.world.store.live).toHaveLength(before);
+    expect(h.world.store.nextId).toBe(nextId);
+    expect(h.ctx.runtime.testTainted).toBe(true);
+  });
+
+  it("publishes no entity id: the probe and the hook's return are values only", () => {
+    const h = anarchyHarness();
+
+    const result = h.hook.spawnTestAnarchy();
+    h.publisher.updateProbe();
+
+    expect(typeof result).toBe("boolean");
+    expect(JSON.stringify(h.probe)).not.toMatch(/"(entityId|ids?)"\s*:/);
   });
 });
 

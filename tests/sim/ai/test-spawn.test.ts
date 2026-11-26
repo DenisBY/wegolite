@@ -19,7 +19,10 @@ import { describe, expect, it } from "vitest";
 
 import { TEST_PILOT } from "../../../src/sim/ai/pilots/test-pilot.js";
 import {
+  ANARCHY_RING_AHEAD_M,
+  ANARCHY_RING_RADIUS_M,
   FLYER_SCRIPT_RANGES,
+  spawnTestAnarchy,
   spawnTestAttacker,
   spawnTestFlyers,
   spawnTestShooter,
@@ -46,6 +49,7 @@ import {
   length,
   normalize,
   rotate,
+  scale,
   sub,
   vec,
 } from "../../../src/sim/math.js";
@@ -104,14 +108,24 @@ interface NpcJson {
   readonly forwardWeaponPosition: readonly [number, number, number];
 }
 
-const VIPER_JSON = (
-  JSON.parse(
-    readFileSync(
-      new URL("../../../src/content/generated/ships-npc.json", import.meta.url),
-      "utf8",
-    ),
-  ) as NpcJson[]
-).find((record) => record.key === "viper") as NpcJson;
+const NPC_JSON = JSON.parse(
+  readFileSync(
+    new URL("../../../src/content/generated/ships-npc.json", import.meta.url),
+    "utf8",
+  ),
+) as NpcJson[];
+
+const VIPER_JSON = NPC_JSON.find((record) => record.key === "viper") as NpcJson;
+
+/** Every committed catalogue record as the populator's input (29 today). */
+const ALL_RECORDS: readonly InertShipRecord[] = NPC_JSON.map((record) => ({
+  key: record.key,
+  roles: record.roles,
+  scanClass: record.scanClass,
+  radius: record.radius,
+  maxEnergy: record.maxEnergy,
+  energyRechargeRate: record.energyRechargeRate,
+}));
 
 const VIPER: InertShipRecord = {
   key: VIPER_JSON.key,
@@ -839,6 +853,102 @@ describe("spawnTestFlyers", () => {
     const speeds = [...world.store.live].map((entity) => entity.speed);
     expect(new Set(speeds).size).toBe(1);
     expect(speeds[0]).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// spawnTestAnarchy (plan 21-16, QUAL-09 staged)
+// ---------------------------------------------------------------------------
+
+describe("spawnTestAnarchy", () => {
+  it("pins the ring constants and the 29-record catalogue the spike draws", () => {
+    expect(ANARCHY_RING_RADIUS_M).toBe(1_200);
+    expect(ANARCHY_RING_AHEAD_M).toBe(2_500);
+    expect(ALL_RECORDS).toHaveLength(29);
+    expect(new Set(ALL_RECORDS.map((record) => record.key)).size).toBe(29);
+  });
+
+  it("spawns one inert ship of every record, in catalogue order, with its radius and energy", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+
+    expect(spawnTestAnarchy(world, player, ALL_RECORDS, player.tick)).toBe(
+      true,
+    );
+
+    const ships = [...world.store.live];
+    expect(ships.map((ship) => ship.specKey)).toEqual(
+      ALL_RECORDS.map((record) => record.key),
+    );
+    ships.forEach((ship, index) => {
+      const record = ALL_RECORDS[index] as InertShipRecord;
+      expect(ship.kind, record.key).toBe("ship");
+      expect(ship.scanClass, record.key).toBe(record.scanClass);
+      expect(ship.radius, record.key).toBe(record.radius);
+      expect(ship.maxEnergy, record.key).toBe(record.maxEnergy);
+      expect(ship.energy, record.key).toBe(record.maxEnergy);
+      expect(ship.speed, record.key).toBe(0);
+      // Inert: no AI, so no fire decision and no attacking AI on an aft hull.
+      expect(ship.ai, record.key).toBeNull();
+      expect(ship.orientation, record.key).toEqual(player.orientation);
+    });
+  });
+
+  it("puts the ships on a ring square to the player's nose, centred ahead of it, evenly spaced", () => {
+    const player = flyingPlayer();
+    player.orientation = normalize(axisAngle(1, 2, 3, 1.1));
+    const world = createWorld(7);
+    spawnTestAnarchy(world, player, ALL_RECORDS, player.tick);
+    const nose = rotate(player.orientation, vec(0, 0, -1));
+    const centre = add(player.position, scale(nose, ANARCHY_RING_AHEAD_M));
+
+    const ships = [...world.store.live];
+    for (const ship of ships) {
+      const offset = sub(ship.position, centre);
+      expect(dot(offset, nose), ship.specKey).toBeCloseTo(0, 6);
+      expect(length(offset), ship.specKey).toBeCloseTo(
+        ANARCHY_RING_RADIUS_M,
+        6,
+      );
+    }
+    // Neighbours are the same chord apart: 2 R sin(pi / n).
+    const chord = 2 * ANARCHY_RING_RADIUS_M * Math.sin(Math.PI / ships.length);
+    for (let i = 0; i < ships.length; i += 1) {
+      const next = ships[(i + 1) % ships.length] as (typeof ships)[number];
+      const here = ships[i] as (typeof ships)[number];
+      expect(length(sub(next.position, here.position))).toBeCloseTo(chord, 6);
+    }
+    // The nose axis is free: the shooter and the player's lasers use it.
+    expect(chord).toBeGreaterThan(2 * 86.4);
+  });
+
+  it("is deterministic: two spawns into equal worlds are the same world", () => {
+    const player = flyingPlayer();
+    const a = createWorld(7);
+    const b = createWorld(7);
+    spawnTestAnarchy(a, player, ALL_RECORDS, player.tick);
+    spawnTestAnarchy(b, player, ALL_RECORDS, player.tick);
+    expect(snapshotWorld(a)).toEqual(snapshotWorld(b));
+    expect(hashWorld(player, a)).toBe(hashWorld(player, b));
+  });
+
+  it("leaves the cargo shooter's line free: the shooter and the anarchy coexist and the world snapshots", () => {
+    const player = flyingPlayer();
+    const world = createWorld(7);
+    expect(spawnTestAnarchy(world, player, ALL_RECORDS, player.tick)).toBe(
+      true,
+    );
+    expect(spawnTestShooter(world, player, VIPER, player.tick, 20)).toBe(true);
+    expect(liveEntityCount(world)).toBe(30);
+    expect(() => snapshotWorld(world)).not.toThrow();
+    // No ring ship is within 1,000 m of the nose axis, the shooter's line.
+    const nose = rotate(player.orientation, vec(0, 0, -1));
+    for (const ship of [...world.store.live].slice(0, 29)) {
+      const offset = sub(ship.position, player.position);
+      const along = dot(offset, nose);
+      const across = length(sub(offset, scale(nose, along)));
+      expect(across, ship.specKey).toBeGreaterThan(1_000);
+    }
   });
 });
 

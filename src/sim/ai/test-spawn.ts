@@ -19,6 +19,10 @@
  * the player with Phase 14's attack behaviours and fires through the NPC fire
  * gate. Like the others it is reachable only from the `?test=1` hook, which
  * taints the session first, and it is for manual checks and UAT only.
+ *
+ * `spawnTestAnarchy` (plan 21-16, QUAL-09 staged) is the fourth: one inert ship
+ * of every catalogue record on a ring ahead of the player, for the full-anarchy
+ * draw-call spike (`tests/e2e/anarchy.spec.ts`). The ships have no AI.
  */
 
 import type { FlightState } from "../flight/state.js";
@@ -40,11 +44,13 @@ import type { Quat, Vec3 } from "../math.js";
 import { statsFor } from "../npc/stats.js";
 import type { NpcFlightStats } from "../npc/stats.js";
 import { CARGO_KINDS } from "../world/entity.js";
+import type { SpawnInit } from "../world/entity.js";
 import { MAX_ENTITIES, PLAYER_ID } from "../world/ids.js";
 import type { ScanClass } from "../world/ids.js";
+import { MAX_UINT32 } from "../world/limits.js";
 import { isScanClass } from "../world/populate.js";
 import type { InertShipRecord } from "../world/populate.js";
-import { liveEntityCount, spawnEntity } from "../world/world.js";
+import { createWorld, liveEntityCount, spawnEntity } from "../world/world.js";
 import type { World } from "../world/world.js";
 import type { FlightScript } from "./pilots/flight-script.js";
 import { createFlightScriptAi } from "./pilots/flight-script.js";
@@ -361,4 +367,103 @@ export function spawnTestFlyers(
     spawned += 1;
   }
   return spawned === plans.length;
+}
+
+/**
+ * The radius of the anarchy ring, in metres, in the plane square to the player's
+ * nose. At 1,200 m the 29 catalogue hulls (largest radius about 86 m) sit about
+ * 260 m apart, so none touches another, and the ring stays well clear of the
+ * nose axis the cargo shooter and the player's lasers use.
+ */
+export const ANARCHY_RING_RADIUS_M = 1_200;
+
+/** How far along the player's nose the ring's centre lies, in metres. */
+export const ANARCHY_RING_AHEAD_M = 2_500;
+
+/** The player's right is local +X and its up is local +Y. */
+const LOCAL_RIGHT = vec(1, 0, 0);
+const LOCAL_UP = vec(0, 1, 0);
+
+/**
+ * Spawn one inert ship of every record on a ring ahead of the player (plan
+ * 21-16; QUAL-09 staged, D-05, RESEARCH 8.2): the full-anarchy draw-call spike
+ * fixture. A browser spec calls it through the `?test=1` hook, waits for every
+ * model to load and reads the draw calls and triangles of the scene.
+ *
+ * The ring's centre is `ANARCHY_RING_AHEAD_M` along the player's nose; its
+ * plane is square to the nose and its radius `ANARCHY_RING_RADIUS_M`. The ship
+ * of the i-th record of `records` sits at angle `2 pi i / records.length`,
+ * counted from the player's right towards its up, with the player's own
+ * orientation, at rest. The slot is the record's index in the list, so skipping
+ * a record the world would refuse never moves the others. Each ship carries its
+ * record's radius and energy.
+ *
+ * The ships are inert by design: no AI, so they make no fire decision and no
+ * attacking AI reaches the six aft-armed hulls (the 21-12 tripwire and the
+ * `fire-decision-source` guard stay green). The cargo shooter of the same spike
+ * is `spawnTestShooter`, which stays on the nose axis inside the ring.
+ *
+ * It is total and all or nothing: a record whose domain the world refuses (a
+ * scan class outside the closed vocabulary, a non-finite or non-positive radius,
+ * an illegal energy, a non-finite pose) is skipped, found by trial-spawning the
+ * very same init into a scratch world, so the rules are `spawnEntity`'s own. It
+ * returns false and leaves the world untouched when no record is valid, when the
+ * world lacks room for every valid one, or when the id counter could not number
+ * them all; otherwise it spawns one ship per valid record and returns true.
+ *
+ * Like the other seams it is reachable only from the `?test=1` hook, which
+ * taints the session before it calls this, and from tests; the populator never
+ * calls it.
+ */
+export function spawnTestAnarchy(
+  world: World,
+  player: Pick<FlightState, "position" | "orientation">,
+  records: readonly InertShipRecord[],
+  tick: number,
+): boolean {
+  const nose = rotate(player.orientation, LOCAL_FORWARD);
+  const right = rotate(player.orientation, LOCAL_RIGHT);
+  const up = rotate(player.orientation, LOCAL_UP);
+  const centre = add(player.position, scale(nose, ANARCHY_RING_AHEAD_M));
+  const free = MAX_ENTITIES - liveEntityCount(world);
+  const trial = createWorld(0);
+  const inits: SpawnInit[] = [];
+  for (const [index, record] of records.entries()) {
+    const scanClass = scanClassOf(record);
+    if (scanClass === undefined) continue;
+    const angle = (2 * Math.PI * index) / records.length;
+    const init: SpawnInit = {
+      kind: "ship",
+      specKey: record.key,
+      scanClass,
+      position: add(
+        centre,
+        add(
+          scale(right, ANARCHY_RING_RADIUS_M * mathCos(angle)),
+          scale(up, ANARCHY_RING_RADIUS_M * mathSin(angle)),
+        ),
+      ),
+      orientation: player.orientation,
+      radius: record.radius,
+      speed: 0,
+      maxEnergy: record.maxEnergy,
+      energyRechargeRate: record.energyRechargeRate,
+    };
+    if (!spawnEntity(trial, init, tick).ok) continue;
+    inits.push(init);
+    // More valid records than the world has room for: refuse before spawning.
+    if (inits.length > free) return false;
+  }
+  const lastId = world.store.nextId + inits.length - 1;
+  if (
+    inits.length === 0 ||
+    !Number.isSafeInteger(lastId) ||
+    lastId > MAX_UINT32
+  ) {
+    return false;
+  }
+  for (const init of inits) {
+    if (!spawnEntity(world, init, tick).ok) return false;
+  }
+  return true;
 }

@@ -385,6 +385,17 @@ export interface WegoliteSimTestHook {
    * only and exposes no entity id.
    */
   spawnTestAttacker(): boolean;
+  /**
+   * Put one inert ship (no AI) of every record of the loaded NPC catalogue on a
+   * ring ahead of the player (plan 21-16, QUAL-09 staged): the full-anarchy
+   * draw-call spike. It works only in flight with a live world and traffic
+   * content; otherwise it returns false and changes nothing. It is all or
+   * nothing: with no room in the world for every ship it spawns none and returns
+   * false. It marks the session tainted before it mutates the world, so no
+   * autosave can make the ships durable. It returns a boolean only and exposes
+   * no entity id.
+   */
+  spawnTestAnarchy(): boolean;
 }
 
 export interface WegoliteTestHook
@@ -666,6 +677,11 @@ export function createTestHook(
     },
     spawnTestAttacker: () => {
       if (!sim.spawnTestAttacker()) return false;
+      hook.tainted = true;
+      return true;
+    },
+    spawnTestAnarchy: () => {
+      if (!sim.spawnTestAnarchy()) return false;
       hook.tainted = true;
       return true;
     },
