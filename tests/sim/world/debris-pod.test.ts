@@ -633,7 +633,7 @@ describe("totality (T-21-36, the milestone rule)", () => {
             expect(pod.amount).toBeLessThanOrEqual(MAX_POD_AMOUNT);
             expect(
               owners.some((o) => {
-                const [low, high] = amountRange(o.unit as string | undefined);
+                const [low, high] = amountRange(o.unit);
                 return pod.amount >= low && pod.amount <= high;
               }),
             ).toBe(true);
