@@ -40,6 +40,17 @@
  * integer in `0..MAX_ENTITY_CARGO`, else 0 (a repair). A pristine or in-domain
  * value is never a repair, and `-0` becomes `0` without one.
  *
+ * The v5 fields (Phase 21, FOUND-20) follow the v4 fields in `cleanV5Fields`,
+ * again leaf by leaf: a value outside its bound in `./limits.ts` (or of the
+ * wrong type) becomes the field's pristine value, each a repair, and `-0`
+ * becomes `0` without one. Pristine is 0 for `bounty`, `groupId`, `cargoKind`,
+ * `podAmount`, `fuel` and the three per-facing temperatures, "" for `role` and
+ * `podCommodity`, -1 for `homeSystem` and `destinationSystem`, null for a bad
+ * weapon type (that facing only) and for an `injector` that is not an object,
+ * and false for `markedForFines`. A bad `injector.accumulator` becomes 1, the
+ * value Oolite starts it at (`ShipEntity.m:557`), so a repair never erases the
+ * equipment. A non-object `weaponTypes` becomes all null.
+ *
  * `sanitizeStaticHealth` repairs `World.staticHealth` (FOUND-18, D-08): a
  * non-object becomes a fresh pristine record, each value is held inside
  * `0..its maximum` (non-finite becomes the maximum, negative becomes 0, above
@@ -70,14 +81,23 @@ import { identity, normalize, quat, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import { ACCURACY_UNRESOLVED, createSteerComponent } from "../npc/state.js";
 import type { SavedCondition, SteerComponent } from "../npc/state.js";
+import { CARGO_KINDS } from "./entity.js";
 import type { BuoyStates, Entity } from "./entity.js";
-import { BEHAVIOUR_IDS, ENTITY_KINDS, SCAN_CLASSES } from "./ids.js";
+import {
+  BEHAVIOUR_IDS,
+  ENTITY_KINDS,
+  FIRST_DYNAMIC_ID,
+  SCAN_CLASSES,
+} from "./ids.js";
 import {
   BUOY_MAX_ENERGY,
   BUOY_SUBENTITY_MAX_ENERGY,
+  COMMODITY_KEY_PATTERN,
   MAX_ACCURACY,
   MAX_AI_PARAMS_KEYS,
+  MAX_BOUNTY,
   MAX_BUOY_OFFSET,
+  MAX_COMMODITY_KEY_LENGTH,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
@@ -85,18 +105,27 @@ import {
   MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
+  MAX_INJECTOR_ACCUMULATOR,
+  MAX_POD_AMOUNT,
+  MAX_ROLE_LENGTH,
+  MAX_SHIP_FUEL,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
+  MAX_SYSTEM_INDEX,
   MAX_UINT32,
   MAX_WEAPON_TEMPERATURE,
+  MAX_WEAPON_TYPE_LENGTH,
   MIN_ACCURACY,
   MIN_QUAT_NORM_SQ,
+  NO_SYSTEM_INDEX,
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
+  ROLE_PATTERN,
   STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
+  WEAPON_TYPE_PATTERN,
 } from "./limits.js";
 import { createBuoyStates, createStaticHealth } from "./world.js";
 import type { World } from "./world.js";
@@ -170,6 +199,51 @@ function cleanUint32(v: number): Cleaned<number> {
   return isUint32(v)
     ? { value: noNegativeZero(v), repaired: false }
     : { value: 0, repaired: true };
+}
+
+/** A safe integer in `0..max`, else 0 (a repair); `-0` becomes 0 (not a repair). */
+function cleanBoundedInteger(v: number, max: number): Cleaned<number> {
+  return Number.isSafeInteger(v) && v >= 0 && v <= max
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: 0, repaired: true };
+}
+
+/** A group leader id: 0 or a dynamic id (101 up to `MAX_UINT32`), else 0 (a repair). */
+function cleanGroupId(v: number): Cleaned<number> {
+  return v === 0 ||
+    (Number.isSafeInteger(v) && v >= FIRST_DYNAMIC_ID && v <= MAX_UINT32)
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: 0, repaired: true };
+}
+
+/** A system index: `NO_SYSTEM_INDEX` to `MAX_SYSTEM_INDEX`, else unset (a repair). */
+function cleanSystemIndex(v: number): Cleaned<number> {
+  return Number.isSafeInteger(v) &&
+    v >= NO_SYSTEM_INDEX &&
+    v <= MAX_SYSTEM_INDEX
+    ? { value: noNegativeZero(v), repaired: false }
+    : { value: NO_SYSTEM_INDEX, repaired: true };
+}
+
+/** A weapon type: null or an `EQ_WEAPON_*` key within the length cap, else null (a repair). */
+function cleanWeaponType(v: string | null): Cleaned<string | null> {
+  if (v === null) return { value: null, repaired: false };
+  return typeof v === "string" &&
+    v.length <= MAX_WEAPON_TYPE_LENGTH &&
+    WEAPON_TYPE_PATTERN.test(v)
+    ? { value: v, repaired: false }
+    : { value: null, repaired: true };
+}
+
+/** A key string of at most `max` characters in `pattern`'s class, else "" (a repair). */
+function cleanKeyString(
+  v: string,
+  max: number,
+  pattern: RegExp,
+): Cleaned<string> {
+  return typeof v === "string" && v.length <= max && pattern.test(v)
+    ? { value: v, repaired: false }
+    : { value: "", repaired: true };
 }
 
 /** A string of at most `MAX_SNAPSHOT_STRING_LENGTH` units, truncated otherwise. */
@@ -606,7 +680,14 @@ function cleanV4Fields(entity: Entity): boolean {
 
   const weapon: unknown = entity.weapon;
   if (!isObject(weapon)) {
-    entity.weapon = { temperature: 0, lastShotTick: 0, missedShots: 0 };
+    entity.weapon = {
+      temperature: 0,
+      lastShotTick: 0,
+      missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
+    };
     repaired = true;
   } else {
     const w = entity.weapon;
@@ -632,6 +713,108 @@ function cleanV4Fields(entity: Entity): boolean {
   } else {
     entity.cargo = noNegativeZero(cargo);
   }
+  return repaired;
+}
+
+/**
+ * Repair the v5 fields (FOUND-20) in place; true when a repair counted. Each
+ * leaf is repaired on its own, so one bad leaf never resets its neighbours: an
+ * out-of-bound or wrong-typed value becomes the field's pristine value, each a
+ * repair, and `-0` becomes 0 without one.
+ */
+function cleanV5Fields(entity: Entity): boolean {
+  let repaired = false;
+  const mark = (flag: boolean): void => {
+    if (flag) repaired = true;
+  };
+
+  const bounty = cleanBoundedInteger(entity.bounty, MAX_BOUNTY);
+  entity.bounty = bounty.value;
+  mark(bounty.repaired);
+  const role = cleanKeyString(entity.role, MAX_ROLE_LENGTH, ROLE_PATTERN);
+  entity.role = role.value;
+  mark(role.repaired);
+  const groupId = cleanGroupId(entity.groupId);
+  entity.groupId = groupId.value;
+  mark(groupId.repaired);
+  const cargoKind = cleanBoundedInteger(
+    entity.cargoKind,
+    CARGO_KINDS.length - 1,
+  );
+  entity.cargoKind = cargoKind.value;
+  mark(cargoKind.repaired);
+  const podCommodity = cleanKeyString(
+    entity.podCommodity,
+    MAX_COMMODITY_KEY_LENGTH,
+    COMMODITY_KEY_PATTERN,
+  );
+  entity.podCommodity = podCommodity.value;
+  mark(podCommodity.repaired);
+  const podAmount = cleanBoundedInteger(entity.podAmount, MAX_POD_AMOUNT);
+  entity.podAmount = podAmount.value;
+  mark(podAmount.repaired);
+  const fuel = cleanBoundedInteger(entity.fuel, MAX_SHIP_FUEL);
+  entity.fuel = fuel.value;
+  mark(fuel.repaired);
+  const homeSystem = cleanSystemIndex(entity.homeSystem);
+  entity.homeSystem = homeSystem.value;
+  mark(homeSystem.repaired);
+  const destinationSystem = cleanSystemIndex(entity.destinationSystem);
+  entity.destinationSystem = destinationSystem.value;
+  mark(destinationSystem.repaired);
+
+  // The weapon record is an object by now (`cleanV4Fields` replaced a bad one).
+  const w = entity.weapon;
+  const aft = cleanRange(w.aftTemperature, MAX_WEAPON_TEMPERATURE, 0);
+  w.aftTemperature = aft.value;
+  mark(aft.repaired);
+  const port = cleanRange(w.portTemperature, MAX_WEAPON_TEMPERATURE, 0);
+  w.portTemperature = port.value;
+  mark(port.repaired);
+  const starboard = cleanRange(
+    w.starboardTemperature,
+    MAX_WEAPON_TEMPERATURE,
+    0,
+  );
+  w.starboardTemperature = starboard.value;
+  mark(starboard.repaired);
+
+  // The injector: a non-object (not null) becomes null, a bad accumulator the
+  // value Oolite starts at (`ShipEntity.m:557`).
+  const injector: unknown = entity.injector;
+  if (injector !== null) {
+    if (!isObject(injector)) {
+      entity.injector = null;
+      repaired = true;
+    } else {
+      const state = entity.injector as NonNullable<Entity["injector"]>;
+      const accumulator = cleanRange(
+        state.accumulator,
+        MAX_INJECTOR_ACCUMULATOR,
+        MAX_INJECTOR_ACCUMULATOR,
+      );
+      state.accumulator = accumulator.value;
+      mark(accumulator.repaired);
+    }
+  }
+
+  // The per-facing weapon types: a non-object becomes all-null, a bad facing null.
+  const types: unknown = entity.weaponTypes;
+  if (!isObject(types)) {
+    entity.weaponTypes = { fore: null, aft: null, port: null, starboard: null };
+    repaired = true;
+  } else {
+    const t = entity.weaponTypes;
+    for (const facing of ["fore", "aft", "port", "starboard"] as const) {
+      const type = cleanWeaponType(t[facing]);
+      t[facing] = type.value;
+      mark(type.repaired);
+    }
+  }
+
+  const fined = cleanFlag(entity.markedForFines);
+  entity.markedForFines = fined.value;
+  mark(fined.repaired);
   return repaired;
 }
 
@@ -739,6 +922,7 @@ export function sanitizeEntity(entity: Entity): boolean {
 
   mark(cleanSteer(entity));
   mark(cleanV4Fields(entity));
+  mark(cleanV5Fields(entity));
 
   let base = entity.repairs;
   if (!isUint32(base)) {

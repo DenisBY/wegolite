@@ -21,6 +21,7 @@ import { AI_EVENT_NAMES, AI_KEYS } from "../ai/types.js";
 import type { Quat, Vec3 } from "../math.js";
 import { createRngState, forkSeed } from "../rng.js";
 import type { RngState } from "../rng.js";
+import { CARGO_KINDS } from "./entity.js";
 import type {
   BuoyState,
   BuoyStates,
@@ -46,19 +47,31 @@ import type { EntityId } from "./ids.js";
 import {
   BUOY_MAX_ENERGY,
   BUOY_SUBENTITY_MAX_ENERGY,
+  COMMODITY_KEY_PATTERN,
   MAX_AI_PARAMS_KEYS,
+  MAX_BOUNTY,
+  MAX_COMMODITY_KEY_LENGTH,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
   MAX_ENTITY_MAGNITUDE,
   MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
+  MAX_INJECTOR_ACCUMULATOR,
+  MAX_POD_AMOUNT,
+  MAX_ROLE_LENGTH,
+  MAX_SHIP_FUEL,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
+  MAX_SYSTEM_INDEX,
   MAX_UINT32,
+  MAX_WEAPON_TYPE_LENGTH,
+  NO_SYSTEM_INDEX,
   NPC_DEFAULT_ENERGY_RECHARGE_RATE,
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
+  ROLE_PATTERN,
+  WEAPON_TYPE_PATTERN,
   STATION_MAX_ENERGY,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
@@ -344,6 +357,21 @@ function isLegalString(s: string): boolean {
   return s.length <= MAX_SNAPSHOT_STRING_LENGTH;
 }
 
+/** A role: at most `MAX_ROLE_LENGTH` characters of `[a-z0-9-]` (FOUND-20). */
+function isLegalRole(s: string): boolean {
+  return s.length <= MAX_ROLE_LENGTH && ROLE_PATTERN.test(s);
+}
+
+/** A weapon type key: `EQ_WEAPON_*`, at most `MAX_WEAPON_TYPE_LENGTH` (FOUND-20). */
+function isLegalWeaponType(s: string): boolean {
+  return s.length <= MAX_WEAPON_TYPE_LENGTH && WEAPON_TYPE_PATTERN.test(s);
+}
+
+/** A commodity key: at most `MAX_COMMODITY_KEY_LENGTH` of `[a-z0-9_]` (FOUND-20). */
+function isLegalCommodityKey(s: string): boolean {
+  return s.length <= MAX_COMMODITY_KEY_LENGTH && COMMODITY_KEY_PATTERN.test(s);
+}
+
 const FORBIDDEN_PARAM_KEYS: readonly string[] = [
   "__proto__",
   "constructor",
@@ -396,6 +424,27 @@ function hasNumberFields(
   );
 }
 
+/** The number-typed v5 `SpawnInit` members (`bounty` first, FOUND-20). */
+const V5_NUMBER_INIT_KEYS = [
+  "bounty",
+  "groupId",
+  "cargoKind",
+  "podAmount",
+  "fuel",
+  "homeSystem",
+  "destinationSystem",
+] as const;
+
+/** The string-typed v5 `SpawnInit` members (FOUND-20). */
+const V5_STRING_INIT_KEYS = ["role", "podCommodity"] as const;
+
+/** The four weapon facings of `WeaponTypes`. */
+const WEAPON_FACINGS = ["fore", "aft", "port", "starboard"] as const;
+
+/** An integer in `min..max`. */
+const isIntegerIn = (value: number, min: number, max: number): boolean =>
+  Number.isSafeInteger(value) && value >= min && value <= max;
+
 /**
  * True when `init` or `tick` has the wrong shape or a wrong JS type, which the
  * type system cannot rule out for deserialised or script-like callers. Only
@@ -422,6 +471,34 @@ function isMalformedInit(init: unknown, tick: unknown): boolean {
   if (escortSlot !== undefined && typeof escortSlot !== "number") return true;
   const cargo = init["cargo"];
   if (cargo !== undefined && typeof cargo !== "number") return true;
+  for (const key of V5_NUMBER_INIT_KEYS) {
+    const value = init[key];
+    if (value !== undefined && typeof value !== "number") return true;
+  }
+  for (const key of V5_STRING_INIT_KEYS) {
+    const value = init[key];
+    if (value !== undefined && typeof value !== "string") return true;
+  }
+  const injector = init["injector"];
+  if (
+    injector !== undefined &&
+    injector !== null &&
+    !hasNumberFields(injector, ["accumulator"])
+  ) {
+    return true;
+  }
+  const weaponTypes = init["weaponTypes"];
+  if (weaponTypes !== undefined) {
+    if (!isRecord(weaponTypes)) return true;
+    for (const facing of WEAPON_FACINGS) {
+      const type = weaponTypes[facing];
+      if (type !== null && typeof type !== "string") return true;
+    }
+  }
+  const markedForFines = init["markedForFines"];
+  if (markedForFines !== undefined && typeof markedForFines !== "boolean") {
+    return true;
+  }
   const velocity = init["velocity"];
   if (velocity !== undefined && !hasNumberFields(velocity, ["x", "y", "z"])) {
     return true;
@@ -492,6 +569,67 @@ function domainRefusal(
     )
   ) {
     return "outOfDomain";
+  }
+  if (init.bounty !== undefined && !isIntegerIn(init.bounty, 0, MAX_BOUNTY)) {
+    return "outOfDomain";
+  }
+  if (init.role !== undefined && !isLegalRole(init.role)) return "outOfDomain";
+  if (
+    init.groupId !== undefined &&
+    init.groupId !== 0 &&
+    !isIntegerIn(init.groupId, FIRST_DYNAMIC_ID, MAX_UINT32)
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.cargoKind !== undefined &&
+    !isIntegerIn(init.cargoKind, 0, CARGO_KINDS.length - 1)
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.podCommodity !== undefined &&
+    !isLegalCommodityKey(init.podCommodity)
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.podAmount !== undefined &&
+    !isIntegerIn(init.podAmount, 0, MAX_POD_AMOUNT)
+  ) {
+    return "outOfDomain";
+  }
+  if (init.fuel !== undefined && !isIntegerIn(init.fuel, 0, MAX_SHIP_FUEL)) {
+    return "outOfDomain";
+  }
+  if (
+    init.homeSystem !== undefined &&
+    !isIntegerIn(init.homeSystem, -1, MAX_SYSTEM_INDEX)
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.destinationSystem !== undefined &&
+    !isIntegerIn(init.destinationSystem, -1, MAX_SYSTEM_INDEX)
+  ) {
+    return "outOfDomain";
+  }
+  if (
+    init.injector !== undefined &&
+    init.injector !== null &&
+    !(
+      Number.isFinite(init.injector.accumulator) &&
+      init.injector.accumulator >= 0 &&
+      init.injector.accumulator <= MAX_INJECTOR_ACCUMULATOR
+    )
+  ) {
+    return "outOfDomain";
+  }
+  if (init.weaponTypes !== undefined) {
+    for (const facing of WEAPON_FACINGS) {
+      const type = init.weaponTypes[facing];
+      if (type !== null && !isLegalWeaponType(type)) return "outOfDomain";
+    }
   }
   if (init.velocity !== undefined && !isLegalVelocity(init.velocity)) {
     return "outOfDomain";
@@ -624,8 +762,38 @@ export function spawnEntity(
         init.velocity === undefined
           ? { x: 0, y: 0, z: 0 }
           : { x: init.velocity.x, y: init.velocity.y, z: init.velocity.z },
-      weapon: { temperature: 0, lastShotTick: 0, missedShots: 0 },
+      weapon: {
+        temperature: 0,
+        lastShotTick: 0,
+        missedShots: 0,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      },
       cargo: init.cargo ?? 0,
+      bounty: init.bounty ?? 0,
+      role: init.role ?? "",
+      groupId: init.groupId ?? NO_ENTITY,
+      cargoKind: init.cargoKind ?? 0,
+      podCommodity: init.podCommodity ?? "",
+      podAmount: init.podAmount ?? 0,
+      fuel: init.fuel ?? 0,
+      homeSystem: init.homeSystem ?? NO_SYSTEM_INDEX,
+      destinationSystem: init.destinationSystem ?? NO_SYSTEM_INDEX,
+      injector:
+        init.injector === undefined || init.injector === null
+          ? null
+          : { accumulator: init.injector.accumulator },
+      weaponTypes:
+        init.weaponTypes === undefined
+          ? { fore: null, aft: null, port: null, starboard: null }
+          : {
+              fore: init.weaponTypes.fore,
+              aft: init.weaponTypes.aft,
+              port: init.weaponTypes.port,
+              starboard: init.weaponTypes.starboard,
+            },
+      markedForFines: init.markedForFines ?? false,
     };
   });
   return entity === undefined

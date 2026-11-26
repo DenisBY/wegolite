@@ -73,6 +73,7 @@ import {
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { V5_SCALARS } from "../../helpers/v5-fields.js";
 
 const { layout } = laveFixture();
 
@@ -182,8 +183,36 @@ function richWorld(): World {
   c.position = vec(-42.5, 0.25, 1e6);
   // The v4 fields (Phase 15, FOUND-18) away from their pristine values.
   a.velocity = vec(1.5, -2.25, 0);
-  a.weapon = { temperature: 12.5, lastShotTick: 6, missedShots: 2 };
+  a.weapon = {
+    temperature: 12.5,
+    lastShotTick: 6,
+    missedShots: 2,
+    aftTemperature: 0,
+    portTemperature: 0,
+    starboardTemperature: 0,
+  };
   a.cargo = 7;
+  // The v5 fields (Phase 21, FOUND-20) away from their pristine values.
+  a.bounty = 300;
+  a.role = "police-witchpoint-patrol";
+  a.groupId = b.id;
+  a.cargoKind = 4;
+  a.podCommodity = "gem_stones";
+  a.podAmount = 34;
+  a.fuel = 7;
+  a.homeSystem = 12;
+  a.destinationSystem = 255;
+  a.injector = { accumulator: 0.25 };
+  a.weapon.aftTemperature = 3.5;
+  a.weapon.portTemperature = 4.25;
+  a.weapon.starboardTemperature = 5.125;
+  a.weaponTypes = {
+    fore: null,
+    aft: "EQ_WEAPON_BEAM_LASER",
+    port: "EQ_WEAPON_NONE",
+    starboard: null,
+  };
+  a.markedForFines = true;
   const gone = spawnOk(world, shipInit(3, null), 10);
   killEntity(world, gone.id);
   commitWorld(world);
@@ -273,7 +302,9 @@ const REJECTIONS: readonly (readonly [string, Mutator, SnapshotErrorReason])[] =
     ["version 2", set("version", 2), "version"],
     // Version 3 lacks velocity, weapon, cargo and staticHealth (Phase 15, FOUND-18).
     ["version 3", set("version", 3), "version"],
-    ["version 5", set("version", 5), "version"],
+    // Version 4 lacks the v5 entity field set (Phase 21, FOUND-20): refused.
+    ["version 4", set("version", 4), "version"],
+    ["version 6", set("version", 6), "version"],
     ["worldSeed 1.5", set("worldSeed", 1.5), "world-seed"],
     ["worldSeed -1", set("worldSeed", -1), "world-seed"],
     ["worldSeed 2 ** 32", set("worldSeed", 2 ** 32), "world-seed"],
@@ -996,9 +1027,9 @@ describe("the steering record in the snapshot", () => {
   const aSteer = (world: World): Entity["steer"] =>
     (world.store.live[0] as Entity).steer;
 
-  it("writes version 4 and the record of every entity", () => {
+  it("writes version 5 and the record of every entity", () => {
     const snapshot = snapshotWorld(richWorld());
-    expect(snapshot.version).toBe(4);
+    expect(snapshot.version).toBe(5);
     const [a, b, c] = snapshot.entities;
     expect(a?.steer).toEqual({
       flightRoll: 0.75,
@@ -1163,6 +1194,9 @@ describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
       temperature: 12.5,
       lastShotTick: 6,
       missedShots: 2,
+      aftTemperature: 3.5,
+      portTemperature: 4.25,
+      starboardTemperature: 5.125,
     });
     expect(a?.cargo).toBe(7);
     expect(b?.velocity).toEqual({ x: 0, y: 0, z: 0 });
@@ -1170,6 +1204,9 @@ describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
       temperature: 0,
       lastShotTick: 0,
       missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
     });
     expect(b?.cargo).toBe(0);
     const text = JSON.stringify(snapshotWorld(world));
@@ -1215,6 +1252,189 @@ describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
       const bad = richWorld();
       poison(bad.store.live[0] as Entity);
       expect(() => snapshotWorld(bad)).toThrow(SnapshotError);
+    }
+  });
+});
+
+describe("the v5 entity fields in the snapshot (FOUND-20)", () => {
+  /** A v5 entity key set to `value` in the first entity of a JSON snapshot. */
+  const withKey = (key: string, value: unknown): Plain => {
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${E0}.${key}`, value);
+    return snapshot;
+  };
+
+  it("writes every v5 field for every entity, pristine values included", () => {
+    const [a, b] = snapshotWorld(richWorld()).entities;
+    expect(a).toMatchObject({
+      bounty: 300,
+      role: "police-witchpoint-patrol",
+      groupId: 102,
+      cargoKind: 4,
+      podCommodity: "gem_stones",
+      podAmount: 34,
+      fuel: 7,
+      homeSystem: 12,
+      destinationSystem: 255,
+      injector: { accumulator: 0.25 },
+      weaponTypes: {
+        fore: null,
+        aft: "EQ_WEAPON_BEAM_LASER",
+        port: "EQ_WEAPON_NONE",
+        starboard: null,
+      },
+      markedForFines: true,
+    });
+    expect(a?.weapon).toMatchObject({
+      aftTemperature: 3.5,
+      portTemperature: 4.25,
+      starboardTemperature: 5.125,
+    });
+    expect(b).toMatchObject({
+      bounty: 0,
+      role: "",
+      groupId: 0,
+      cargoKind: 0,
+      podCommodity: "",
+      podAmount: 0,
+      fuel: 0,
+      homeSystem: -1,
+      destinationSystem: -1,
+      injector: null,
+      weaponTypes: { fore: null, aft: null, port: null, starboard: null },
+      markedForFines: false,
+    });
+    expect(b?.weapon).toMatchObject({
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
+    });
+  });
+
+  it.each(V5_SCALARS.map((field) => [field.key, field] as const))(
+    "%s: round-trips the accepted values, refuses one step outside and the wrong type, refuses a missing key",
+    (key, field) => {
+      for (const good of field.accepted) {
+        const world = richWorld();
+        (world.store.live[0] as unknown as Plain)[key] = good;
+        const text = JSON.stringify(snapshotWorld(world));
+        const restored = restoreWorld(
+          parseWorldSnapshot(JSON.parse(text) as unknown),
+        );
+        expect((restored.store.live[0] as unknown as Plain)[key]).toBe(good);
+        expect(entityHashes(restored)).toEqual(entityHashes(world));
+        expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+      }
+      for (const bad of [...field.outOfBound, ...field.wrongType]) {
+        expect(reasonOf(withKey(key, bad)), `${key} = ${String(bad)}`).not.toBe(
+          "accepted",
+        );
+      }
+      const snapshot = jsonOf(richWorld());
+      delete (getAt(snapshot, E0) as Plain)[key];
+      expect(reasonOf(snapshot)).not.toBe("accepted");
+    },
+  );
+
+  it.each([
+    ["injector accumulator -0.000001", "injector", { accumulator: -0.000001 }],
+    ["injector accumulator 1.000001", "injector", { accumulator: 1.000001 }],
+    ["injector accumulator NaN", "injector", { accumulator: Number.NaN }],
+    ["injector accumulator null", "injector", { accumulator: null }],
+    ["injector an unknown key", "injector", { accumulator: 1, extra: 1 }],
+    ["injector a number", "injector", 1],
+    ["injector undefined", "injector", undefined],
+    ["weaponTypes null", "weaponTypes", null],
+    ["weaponTypes missing a facing", "weaponTypes", { fore: null }],
+    [
+      "weaponTypes an unknown facing",
+      "weaponTypes",
+      { fore: null, aft: null, port: null, starboard: null, up: null },
+    ],
+    [
+      "weaponTypes lower case key",
+      "weaponTypes",
+      { fore: "eq_weapon_beam", aft: null, port: null, starboard: null },
+    ],
+    [
+      "weaponTypes a 33-character key",
+      "weaponTypes",
+      {
+        fore: `EQ_WEAPON_${"A".repeat(23)}`,
+        aft: null,
+        port: null,
+        starboard: null,
+      },
+    ],
+    [
+      "weaponTypes a number",
+      "weaponTypes",
+      { fore: 5, aft: null, port: null, starboard: null },
+    ],
+    [
+      "weaponTypes a prototype name",
+      "weaponTypes",
+      { fore: "__proto__", aft: null, port: null, starboard: null },
+    ],
+    ["weapon.aftTemperature over the bound", "weapon.aftTemperature", 1001],
+    ["weapon.portTemperature -1", "weapon.portTemperature", -1],
+    ["weapon.starboardTemperature NaN", "weapon.starboardTemperature", NaN],
+  ] as const)("refuses %s", (_name, path, value) => {
+    const snapshot = jsonOf(richWorld());
+    if (path.startsWith("weapon.")) {
+      setAt(snapshot, `${WPN}.${path.slice("weapon.".length)}`, value);
+    } else {
+      setAt(snapshot, `${E0}.${path}`, value);
+    }
+    expect(reasonOf(snapshot)).not.toBe("accepted");
+  });
+
+  it("accepts the injector at 0 and 1, a 32-character weapon type and the none type", () => {
+    for (const accumulator of [0, 1, 0.5]) {
+      const snapshot = jsonOf(richWorld());
+      setAt(snapshot, `${E0}.injector`, { accumulator });
+      expect(reasonOf(snapshot)).toBe("accepted");
+    }
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${E0}.weaponTypes.fore`, `EQ_WEAPON_${"A".repeat(22)}`);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    setAt(snapshot, `${E0}.weaponTypes.fore`, "EQ_WEAPON_NONE");
+    expect(reasonOf(snapshot)).toBe("accepted");
+  });
+
+  it("round-trips the injector, the facings and the fine mark and keeps null distinct from none", () => {
+    const world = richWorld();
+    const text = JSON.stringify(snapshotWorld(world));
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(text) as unknown),
+    );
+    const copy = restored.store.live[0] as Entity;
+    expect(copy.injector).toEqual({ accumulator: 0.25 });
+    expect(copy.weaponTypes.port).toBe("EQ_WEAPON_NONE");
+    expect(copy.weaponTypes.fore).toBeNull();
+    expect(copy.markedForFines).toBe(true);
+    expect(copy.weapon.aftTemperature).toBe(3.5);
+    expect(entityHashes(restored)).toEqual(entityHashes(world));
+    expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+  });
+
+  it("refuses an unknown entity key", () => {
+    expect(reasonOf(withKey("bountyX", 1))).toBe("unknown-key");
+  });
+
+  it("refuses a non-finite v5 number when snapshotting", () => {
+    for (const key of ["bounty", "groupId", "cargoKind", "podAmount", "fuel"]) {
+      const world = richWorld();
+      (world.store.live[0] as unknown as Plain)[key] = Number.NaN;
+      expect(() => snapshotWorld(world)).toThrow(SnapshotError);
+    }
+  });
+
+  it("refuses a snapshot of version 4 or 6 for any entity content", () => {
+    for (const version of [4, 6]) {
+      const snapshot = jsonOf(richWorld());
+      snapshot.version = version;
+      expect(reasonOf(snapshot)).toBe("version");
     }
   });
 });
@@ -2034,6 +2254,24 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
   ],
   weapon: [
     {
+      name: "aftTemperature + 1",
+      apply: (e) => {
+        e.weapon.aftTemperature += 1;
+      },
+    },
+    {
+      name: "portTemperature + 1",
+      apply: (e) => {
+        e.weapon.portTemperature += 1;
+      },
+    },
+    {
+      name: "starboardTemperature + 1",
+      apply: (e) => {
+        e.weapon.starboardTemperature += 1;
+      },
+    },
+    {
       name: "temperature + 1",
       apply: (e) => {
         e.weapon.temperature += 1;
@@ -2057,6 +2295,181 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       name: "+ 1",
       apply: (e) => {
         e.cargo += 1;
+      },
+    },
+  ],
+  // The v5 fields (Phase 21, FOUND-20): every leaf changes the entity hash.
+  bounty: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.bounty += 1;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.bounty = 0;
+      },
+    },
+  ],
+  role: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.role = "trader";
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.role = "";
+      },
+    },
+  ],
+  groupId: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.groupId = e.groupId + 1;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.groupId = 0;
+      },
+    },
+  ],
+  cargoKind: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.cargoKind = e.cargoKind === 6 ? 5 : 6;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.cargoKind = 0;
+      },
+    },
+  ],
+  podCommodity: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.podCommodity = "food";
+      },
+    },
+    {
+      name: "removed (pristine commodity, amount stays)",
+      apply: (e) => {
+        e.podCommodity = "";
+      },
+    },
+  ],
+  podAmount: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.podAmount += 1;
+      },
+    },
+    {
+      name: "removed (pristine amount, commodity stays)",
+      apply: (e) => {
+        e.podAmount = 0;
+      },
+    },
+  ],
+  fuel: [
+    {
+      name: "+ 1",
+      apply: (e) => {
+        e.fuel += 1;
+      },
+    },
+    {
+      name: "removed (pristine)",
+      apply: (e) => {
+        e.fuel = 0;
+      },
+    },
+  ],
+  homeSystem: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.homeSystem += 1;
+      },
+    },
+    {
+      name: "removed (unset, destination stays)",
+      apply: (e) => {
+        e.homeSystem = -1;
+      },
+    },
+  ],
+  injector: [
+    {
+      name: "accumulator changed",
+      apply: (e) => {
+        if (e.injector !== null) e.injector.accumulator = 0.5;
+      },
+    },
+    {
+      name: "removed (null)",
+      apply: (e) => {
+        e.injector = null;
+      },
+    },
+  ],
+  weaponTypes: [
+    {
+      name: "fore overridden",
+      apply: (e) => {
+        e.weaponTypes.fore = "EQ_WEAPON_PULSE_LASER";
+      },
+    },
+    {
+      name: "aft changed",
+      apply: (e) => {
+        e.weaponTypes.aft = "EQ_WEAPON_MILITARY_LASER";
+      },
+    },
+    {
+      name: "port back to the record's type (null)",
+      apply: (e) => {
+        e.weaponTypes.port = null;
+      },
+    },
+    {
+      name: "starboard explicitly none",
+      apply: (e) => {
+        e.weaponTypes.starboard = "EQ_WEAPON_NONE";
+      },
+    },
+  ],
+  markedForFines: [
+    {
+      name: "cleared",
+      apply: (e) => {
+        e.markedForFines = !e.markedForFines;
+      },
+    },
+  ],
+  destinationSystem: [
+    {
+      name: "changed",
+      apply: (e) => {
+        e.destinationSystem -= 1;
+      },
+    },
+    {
+      name: "removed (unset, home stays)",
+      apply: (e) => {
+        e.destinationSystem = -1;
       },
     },
   ],

@@ -72,13 +72,30 @@ export function mix32(a: number, b: number): number {
  * to draw one cargo count and discards it, so it is never stored on an entity.
  * "damage" is a stateless purpose too (Phase 19, code 5): forked per
  * player-damage tick and never stored.
+ *
+ * The four purposes of milestone v2.4 (FOUND-20, plan 21-03) are registered
+ * now so later phases only add call sites, and are stateless as well (never
+ * stored on an entity, never in `ENTITY_RNG_PURPOSES`):
+ *  - "pod" (code 6): the contents of a pod at release, drawn once (plan 21-14);
+ *  - "scoop" (code 7): the spawn-time roll for a scoop fitting (Phase 22);
+ *  - "repop" (code 8): the repopulation draws (Phase 26);
+ *  - "inj" (code 9): the spawn-time roll for fuel injectors (Phase 22).
  */
-export type RngPurpose = "world" | "ai" | "combat" | "cargo" | "damage";
+export type RngPurpose =
+  | "world"
+  | "ai"
+  | "combat"
+  | "cargo"
+  | "damage"
+  | "pod"
+  | "scoop"
+  | "repop"
+  | "inj";
 
 /**
  * The per-entity purposes whose streams are stored; "world" is forked with
- * entity id 0. "cargo" and "damage" are not listed: each is forked per spawn or
- * per tick and never stored.
+ * entity id 0. "cargo", "damage", "pod", "scoop", "repop" and "inj" are not
+ * listed: each is forked per spawn, per tick or per event and never stored.
  */
 export const ENTITY_RNG_PURPOSES = ["ai", "combat"] as const;
 
@@ -88,7 +105,17 @@ export const ENTITY_RNG_PURPOSES = ["ai", "combat"] as const;
  * Part of the one-way contract: do not change an existing code.
  */
 export const RNG_PURPOSE_CODES: Readonly<Record<RngPurpose, number>> =
-  Object.freeze({ world: 1, ai: 2, combat: 3, cargo: 4, damage: 5 });
+  Object.freeze({
+    world: 1,
+    ai: 2,
+    combat: 3,
+    cargo: 4,
+    damage: 5,
+    pod: 6,
+    scoop: 7,
+    repop: 8,
+    inj: 9,
+  });
 
 const MAX_UINT32 = 0xffffffff;
 

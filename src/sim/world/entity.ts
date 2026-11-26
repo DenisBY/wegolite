@@ -32,27 +32,87 @@ export interface EntityStreams {
 }
 
 /**
- * The weapon record of one entity (FOUND-18, D-07, D-16). Phase 17 writes all
- * three leaves from world ticks, never from frame time.
+ * The weapon record of one entity (FOUND-18, D-07, D-16; FOUND-20). Phase 17
+ * writes the leaves from world ticks, never from frame time.
  *
  * `temperature` is Oolite's `forward_weapon_temp` (`ShipEntity.h:303-304`).
  * Oolite keeps one temperature per facing and cools each of them
- * (`ShipEntity.m:2213-2218`); this record holds only the forward one, the only
- * facing any compiled NPC can mount, because the converter's
- * `STEERING_ASSUMED_ABSENT_KEYS` refusal (plan 15-01) keeps aft, port and
- * starboard weapon types out of the catalogue. Lifting that refusal needs
- * per-facing temperatures and is a snapshot-format change.
+ * (`ShipEntity.m:2213-2218`, `:9930-9990`): `aftTemperature`, `portTemperature`
+ * and `starboardTemperature` are `aft_weapon_temp`, `port_weapon_temp` and
+ * `starboard_weapon_temp`, added to the format by FOUND-20. They are pristine
+ * (0) for every ship until a later phase mounts and fires a non-forward weapon:
+ * the converter's `STEERING_ASSUMED_ABSENT_KEYS` refusal still keeps aft, port
+ * and starboard weapon types out of the catalogue until plan 21-05 lifts it,
+ * and plan 21-12 wires the facings into the fire path.
  *
  * `lastShotTick` is the integer world tick of the last shot. 0 means "never
  * fired" (the first world tick is 1), and the fire gate must read 0 as ready
  * to fire (Oolite starts `shot_time` at a long-ago value), never as `tick - 0`
- * elapsed. `missedShots` is Oolite's `_missed_shots`.
+ * elapsed. It stays one value for all facings because Oolite's `shot_time` is
+ * one timer (`ShipEntity.m:10463`). `missedShots` is Oolite's `_missed_shots`,
+ * also one value.
  */
 export interface WeaponComponent {
   temperature: number;
   lastShotTick: number;
   missedShots: number;
+  aftTemperature: number;
+  portTemperature: number;
+  starboardTemperature: number;
 }
+
+/**
+ * The fuel-injector state (FOUND-20): Oolite's `fuel_accumulator`, a float in
+ * `0..MAX_INJECTOR_ACCUMULATOR`. It starts at 1.0 (`ShipEntity.m:557`) and burns
+ * `delta_t * afterburner_rate` while the afterburner runs, wrapping from below 0
+ * by adding 1.0 and spending one unit of `Entity.fuel` (`:5845-5852`).
+ */
+export interface InjectorState {
+  accumulator: number;
+}
+
+/**
+ * The per-facing weapon types (FOUND-20). Each facing is null (the ship takes
+ * the record's compiled type) or an `EQ_WEAPON_*` key that overrides it.
+ * `EQ_WEAPON_NONE` is distinct from null: it removes a weapon the record
+ * authored, as the populator's `_setWeapons` may
+ * (`oolite-populator.js:2217-2272`).
+ */
+export interface WeaponTypes {
+  fore: string | null;
+  aft: string | null;
+  port: string | null;
+  starboard: string | null;
+}
+
+/**
+ * The merchantman cargo kinds (FOUND-20): the index stored in `Entity.cargoKind`
+ * (0 = unset), mapped to Oolite's `OOCargoFlag` (`OOTypes.h:100-108`):
+ *
+ *  - 1 `plentiful` = `CARGO_FLAG_FULL_PLENTIFUL` 501 (`PLENTIFUL_GOODS`)
+ *  - 2 `scarce` = `CARGO_FLAG_FULL_SCARCE` 502 (`SCARCE_GOODS`)
+ *  - 3 `medical` = `CARGO_FLAG_FULL_MEDICAL` 503 (`MEDICAL_GOODS`)
+ *  - 4 `contraband` = `CARGO_FLAG_FULL_CONTRABAND` 504 (`ILLEGAL_GOODS`)
+ *  - 5 `pirate` = `CARGO_FLAG_PIRATE` 505 (`PIRATE_GOODS`)
+ *  - 6 `uniform` = `CARGO_FLAG_FULL_UNIFORM` 510
+ *
+ * `CARGO_FLAG_NONE` (400), `CARGO_FLAG_CANISTERS` (600) and
+ * `CARGO_FLAG_FULL_PASSENGERS` (700) have no index: Oolite releases no
+ * commodity pod for them and no in-scope `setCargoType` call uses them
+ * (`OOJSShip.m:2924-2930` accepts only the five `*_GOODS` names above), so
+ * "unset" covers them. Append-only: an index is never renumbered.
+ */
+export const CARGO_KINDS = Object.freeze([
+  "unset",
+  "plentiful",
+  "scarce",
+  "medical",
+  "contraband",
+  "pirate",
+  "uniform",
+] as const);
+
+export type CargoKindName = (typeof CARGO_KINDS)[number];
 
 /** A dynamic entity. `id` never changes; everything else is simulation state. */
 export interface Entity {
@@ -109,6 +169,85 @@ export interface Entity {
    * at spawn. Hashed as the optional `;cargo:` segment (zero omitted).
    */
   cargo: number;
+  /**
+   * The ship's bounty (FOUND-20, snapshot v5): an integer 0 to `MAX_BOUNTY`,
+   * Oolite's `bounty` (`ShipEntity.h:289`). Set at spawn by Phase 22's
+   * populator and read by the police scan in Phase 25. Hashed as the optional
+   * `;bty:` segment (zero omitted).
+   */
+  bounty: number;
+  /**
+   * The ship's resolved role (FOUND-20): 0 to `MAX_ROLE_LENGTH` characters of
+   * `[a-z0-9-]`, "" when unset. Oolite's per-ship role (`primaryRole`); set by
+   * Phase 22's populator and read by the AI and the comms tables. Hashed as the
+   * optional `;role:` segment ("" omitted).
+   */
+  role: string;
+  /**
+   * The founding leader's entity id of the ship's group, 0 for none (FOUND-20).
+   * Membership is derived by scanning the live ships for the id; plan 21-06's
+   * `World.groups` holds the leader record. A non-zero value is a dynamic id
+   * (101 and up). Hashed as the optional `;grp:` segment (0 omitted).
+   */
+  groupId: EntityId;
+  /**
+   * Oolite's `cargo_flag` for a merchantman (FOUND-20): an index into
+   * `CARGO_KINDS`, 0 = unset. Phase 22 sets it, plan 21-14's release reads it.
+   * Hashed as the optional `;ck:` segment (0 omitted).
+   */
+  cargoKind: number;
+  /**
+   * A pod's contents (FOUND-20): a commodity key (0 to
+   * `MAX_COMMODITY_KEY_LENGTH` characters of `[a-z0-9_]`, "" none) and an
+   * integer amount 0 to `MAX_POD_AMOUNT`. Set only on cargo entities, by plan
+   * 21-14's release. Hashed as one optional `;pod:` segment, printed whenever
+   * either part is not pristine, so pristine-omit never hides a difference.
+   */
+  podCommodity: string;
+  podAmount: number;
+  /**
+   * The ship's fuel (FOUND-20), an integer 0 to `MAX_SHIP_FUEL`: Oolite's
+   * `fuel` (`ShipEntity.m:555`), which serves both witchspace jumps and
+   * injectors; the populator sets `fuel = 7` on traders without injectors
+   * (`oolite-populator.js:1394`, `:1683`). Hashed as the optional `;fuel:`
+   * segment (0 omitted).
+   */
+  fuel: number;
+  /**
+   * The galaxy-local system indices the populator sets at spawn
+   * (`oolite-populator.js:1391-1400` and others), -1 unset, else an integer 0
+   * to `MAX_SYSTEM_INDEX` (FOUND-20). Set by Phase 22's populator while the
+   * ships are still inert, read by Phase 23's AI. Hashed as one optional
+   * `;sys:` segment, printed whenever either is not -1.
+   */
+  homeSystem: number;
+  destinationSystem: number;
+  /**
+   * The fuel-injector state (FOUND-20): null = no fuel injectors. Oolite's
+   * `fuel_accumulator` (see `InjectorState`); the equipment roll is a stateless
+   * `inj` fork at spawn (Phase 22) and NPC injector use is CBT-20 (Phase 23).
+   * Hashed as the optional `;inj:` segment (null omitted).
+   */
+  injector: InjectorState | null;
+  /**
+   * The per-facing weapon types (FOUND-20): all null = the record's compiled
+   * types. Hashed as one optional `;wty:` segment naming all four facings,
+   * printed whenever any facing is not null.
+   */
+  weaponTypes: WeaponTypes;
+  /**
+   * Oolite's per-ship `being_fined` bit (FOUND-20, `ShipEntity.h:248`, cleared
+   * at creation `ShipEntity.m:253`): set once by a police ship's
+   * `markTargetForFines` when the target's legal status is above 0
+   * (`ShipEntity.m:12434-12439`); read by the police scan, which skips a marked
+   * ship (`oolite-priorityai.js:2189-2194`), and by the docking fine
+   * (`PlayerEntity.m:6363-6368`); cleared for the player at witchspace exit
+   * (`:6980`). Written from Phase 25 (LAW-02, AI-05). Distinct from
+   * `World.station.marks`, the offenders the station itself saw (plan 21-06,
+   * owner decision D2). Hashed as the optional `;fine:` segment (false
+   * omitted).
+   */
+  markedForFines: boolean;
 }
 
 /** What a caller supplies to spawn an entity. */
@@ -142,6 +281,42 @@ export interface SpawnInit {
    * Phase 16 debris sets it (`./debris.ts`).
    */
   velocity?: Vec3;
+  /**
+   * The ship's bounty (FOUND-20), an integer 0 to `MAX_BOUNTY`. Defaults to 0;
+   * Phase 22's populator sets it.
+   */
+  bounty?: number;
+  /** The resolved role (FOUND-20): `[a-z0-9-]`, at most `MAX_ROLE_LENGTH`. Defaults to "". */
+  role?: string;
+  /** The group's founding leader id (FOUND-20): 0 or a dynamic id. Defaults to 0. */
+  groupId?: EntityId;
+  /** An index into `CARGO_KINDS` (FOUND-20). Defaults to 0 (unset). */
+  cargoKind?: number;
+  /**
+   * A pod's commodity key (FOUND-20): `[a-z0-9_]`, at most
+   * `MAX_COMMODITY_KEY_LENGTH`. Defaults to "".
+   */
+  podCommodity?: string;
+  /** A pod's amount (FOUND-20), an integer 0 to `MAX_POD_AMOUNT`. Defaults to 0. */
+  podAmount?: number;
+  /** The ship's fuel (FOUND-20), an integer 0 to `MAX_SHIP_FUEL`. Defaults to 0. */
+  fuel?: number;
+  /** The home system index (FOUND-20): -1 or 0 to `MAX_SYSTEM_INDEX`. Defaults to -1. */
+  homeSystem?: number;
+  /** The destination system index (FOUND-20): -1 or 0 to `MAX_SYSTEM_INDEX`. Defaults to -1. */
+  destinationSystem?: number;
+  /**
+   * The fuel-injector state (FOUND-20): null (the default) or an accumulator in
+   * `0..MAX_INJECTOR_ACCUMULATOR`. Phase 22's populator rolls the equipment.
+   */
+  injector?: InjectorState | null;
+  /**
+   * The per-facing weapon types (FOUND-20): all four members, each null or an
+   * `EQ_WEAPON_*` key of at most `MAX_WEAPON_TYPE_LENGTH`. Defaults to all null.
+   */
+  weaponTypes?: WeaponTypes;
+  /** Oolite's `being_fined` bit (FOUND-20). Defaults to false. */
+  markedForFines?: boolean;
 }
 
 /**

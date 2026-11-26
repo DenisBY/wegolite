@@ -183,3 +183,78 @@ export const BUOY_SUBENTITY_RECHARGE_RATE = 1;
  * changing it is a snapshot-format change.
  */
 export const MAX_BUOY_OFFSET = 1e6;
+
+// ---------------------------------------------------------------------------
+// The v5 entity field set (FOUND-20, pitfall C2): one snapshot bump, 4 to 5.
+// Every bound is a format bound that only keeps a corrupt value out of the hash;
+// changing one after Phase 21 is an owner amendment, never a quiet second bump.
+
+/**
+ * The largest `Entity.bounty`: an integer 0 to 65535. Oolite keeps a ship's
+ * bounty as an `OOCreditsQuantity` (`ShipEntity.h:289`) set from the record's
+ * `bounty` key or by the populator (`oolite-populator.js:1413-1445`,
+ * `:1541-1544`, `:1569`), whose in-scope values stay in the hundreds at most;
+ * the cap only keeps a corrupt value out of the hash. Changing it is a
+ * snapshot-format change.
+ */
+export const MAX_BOUNTY = 65535;
+
+/**
+ * The longest `Entity.role`, a resolved Oolite role such as `trader` or
+ * `police-witchpoint-patrol` (24 characters, the longest in-scope role).
+ * Roles are lower-case letters, digits and hyphens (`ROLE_PATTERN`).
+ */
+export const MAX_ROLE_LENGTH = 32;
+
+/** What a role string may hold: lower-case letters, digits and hyphens. */
+export const ROLE_PATTERN = /^[a-z0-9-]*$/;
+
+/**
+ * The longest commodity key in `Entity.podCommodity`: the generated commodity
+ * keys (`src/content/generated/commodities.json`) are lower-case letters,
+ * digits and underscores (`COMMODITY_KEY_PATTERN`), far shorter than this.
+ */
+export const MAX_COMMODITY_KEY_LENGTH = 64;
+
+/** What a commodity key may hold: lower-case letters, digits and underscores. */
+export const COMMODITY_KEY_PATTERN = /^[a-z0-9_]*$/;
+
+/**
+ * The most units in one pod (`Entity.podAmount`). Oolite's largest drawn
+ * amount is 34 (`Universe.m:3990-3994`); this keeps a corrupt value out of the
+ * hash.
+ */
+export const MAX_POD_AMOUNT = 255;
+
+/**
+ * The most fuel a ship may hold (`Entity.fuel`, tenths of a light year):
+ * Oolite reads it with `oo_unsignedShortForKey:@"fuel"` (`ShipEntity.m:555`),
+ * an unsigned 16-bit value.
+ */
+export const MAX_SHIP_FUEL = 65535;
+
+/**
+ * The largest galaxy-local system index (`Entity.homeSystem` and
+ * `Entity.destinationSystem`; -1 means unset). A galaxy holds 256 systems.
+ */
+export const MAX_SYSTEM_INDEX = 255;
+
+/** The "unset" value of `Entity.homeSystem` and `Entity.destinationSystem`. */
+export const NO_SYSTEM_INDEX = -1;
+
+/**
+ * The longest per-facing weapon type key in `Entity.weaponTypes`: an
+ * `EQ_WEAPON_*` equipment key (`WEAPON_TYPE_PATTERN`); the longest in the
+ * catalogue, `EQ_WEAPON_MILITARY_LASER`, is 24 characters.
+ */
+export const MAX_WEAPON_TYPE_LENGTH = 32;
+
+/** What a weapon type key may be: `EQ_WEAPON_` then upper-case letters, digits, underscores. */
+export const WEAPON_TYPE_PATTERN = /^EQ_WEAPON_[A-Z0-9_]+$/;
+
+/**
+ * The largest `Entity.injector.accumulator`. Oolite's `fuel_accumulator` starts
+ * at 1.0 (`ShipEntity.m:557`) and wraps from below 0 by adding 1.0 while the
+ * afterburner runs (`:5845-5852`), so it stays in 0 to 1.
+ */
+export const MAX_INJECTOR_ACCUMULATOR = 1;

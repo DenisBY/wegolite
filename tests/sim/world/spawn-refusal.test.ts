@@ -23,6 +23,7 @@ import {
   spawnEntity,
 } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
+import { V5_SCALARS } from "../../helpers/v5-fields.js";
 
 function init(overrides: Record<string, unknown> = {}): SpawnInit {
   return {
@@ -87,6 +88,8 @@ const malformedRows: readonly Row[] = [
   ["ownerId null", init({ ownerId: null })],
   ["cargo a string", init({ cargo: "3" })],
   ["cargo null", init({ cargo: null })],
+  ["bounty a string", init({ bounty: "50" })],
+  ["bounty null", init({ bounty: null })],
   ["velocity a number", init({ velocity: 5 })],
   ["velocity null", init({ velocity: null })],
   ["velocity an array", init({ velocity: [1, 2, 3] })],
@@ -149,6 +152,10 @@ const domainRows: readonly [string, unknown, unknown, "outOfDomain" | "ai"][] =
     ["cargo 1.5", init({ cargo: 1.5 }), 0, "outOfDomain"],
     ["cargo -1", init({ cargo: -1 }), 0, "outOfDomain"],
     ["cargo 201", init({ cargo: 201 }), 0, "outOfDomain"],
+    ["bounty 65536", init({ bounty: 65536 }), 0, "outOfDomain"],
+    ["bounty -1", init({ bounty: -1 }), 0, "outOfDomain"],
+    ["bounty 1.5", init({ bounty: 1.5 }), 0, "outOfDomain"],
+    ["bounty NaN", init({ bounty: Number.NaN }), 0, "outOfDomain"],
     ["cargo NaN", init({ cargo: Number.NaN }), 0, "outOfDomain"],
     [
       "cargo Infinity",
@@ -286,6 +293,18 @@ describe("spawnEntity refuses malformed input (FOUND-16)", () => {
     expect(full.ok && full.entity.cargo).toBe(200);
   });
 
+  it("a bounty of 0, 7 or 65535 spawns and is stored; an absent bounty is 0", () => {
+    const world = createWorld(1);
+    const none = spawnEntity(world, init(), 0);
+    const zero = spawnEntity(world, init({ bounty: 0 }), 0);
+    const seven = spawnEntity(world, init({ bounty: 7 }), 0);
+    const full = spawnEntity(world, init({ bounty: 65535 }), 0);
+    expect(none.ok && none.entity.bounty).toBe(0);
+    expect(zero.ok && zero.entity.bounty).toBe(0);
+    expect(seven.ok && seven.entity.bounty).toBe(7);
+    expect(full.ok && full.entity.bounty).toBe(65535);
+  });
+
   it("an absent velocity spawns zero; the bound itself spawns and is stored", () => {
     const world = createWorld(1);
     const none = spawnEntity(world, init(), 0);
@@ -303,5 +322,133 @@ describe("spawnEntity refuses malformed input (FOUND-16)", () => {
       reason: "storeFull",
     });
     expect(snapshot(world)).toEqual(before);
+  });
+});
+
+describe("the v5 SpawnInit members (FOUND-20)", () => {
+  it.each(V5_SCALARS.map((field) => [field.key, field] as const))(
+    "%s: wrong types are malformed, out-of-bound values outOfDomain, bounds spawn",
+    (key, field) => {
+      for (const bad of field.wrongType) {
+        const world = createWorld(1);
+        expect(
+          spawnEntity(world, init({ [key]: bad }), 0),
+          String(bad),
+        ).toEqual({ ok: false, reason: "malformed" });
+        expect(world.store.nextId).toBe(101);
+      }
+      for (const bad of field.outOfBound) {
+        const world = createWorld(1);
+        expect(
+          spawnEntity(world, init({ [key]: bad }), 0),
+          String(bad),
+        ).toEqual({ ok: false, reason: "outOfDomain" });
+        expect(world.store.nextId).toBe(101);
+      }
+      for (const good of field.accepted) {
+        const world = createWorld(1);
+        const result = spawnEntity(world, init({ [key]: good }), 0);
+        expect(
+          result.ok &&
+            (result.entity as unknown as Record<string, unknown>)[key],
+        ).toBe(good);
+      }
+      const world = createWorld(1);
+      const none = spawnEntity(world, init(), 0);
+      expect(
+        none.ok && (none.entity as unknown as Record<string, unknown>)[key],
+      ).toBe(field.pristine);
+    },
+  );
+
+  const ALL_NULL = { fore: null, aft: null, port: null, starboard: null };
+
+  it.each([
+    ["injector a number", { injector: 5 }, "malformed"],
+    [
+      "injector accumulator a string",
+      { injector: { accumulator: "1" } },
+      "malformed",
+    ],
+    ["injector accumulator missing", { injector: {} }, "malformed"],
+    ["weaponTypes a number", { weaponTypes: 5 }, "malformed"],
+    ["weaponTypes null", { weaponTypes: null }, "malformed"],
+    [
+      "weaponTypes a facing missing",
+      { weaponTypes: { fore: null } },
+      "malformed",
+    ],
+    [
+      "weaponTypes a facing a number",
+      { weaponTypes: { ...ALL_NULL, aft: 7 } },
+      "malformed",
+    ],
+    [
+      "injector accumulator 1.000001",
+      { injector: { accumulator: 1.000001 } },
+      "outOfDomain",
+    ],
+    [
+      "injector accumulator -0.000001",
+      { injector: { accumulator: -0.000001 } },
+      "outOfDomain",
+    ],
+    [
+      "injector accumulator NaN",
+      { injector: { accumulator: Number.NaN } },
+      "outOfDomain",
+    ],
+    [
+      "weaponTypes lower case",
+      { weaponTypes: { ...ALL_NULL, fore: "eq_weapon_beam" } },
+      "outOfDomain",
+    ],
+    [
+      "weaponTypes 33 characters",
+      { weaponTypes: { ...ALL_NULL, port: `EQ_WEAPON_${"A".repeat(23)}` } },
+      "outOfDomain",
+    ],
+    [
+      "weaponTypes a prototype name",
+      { weaponTypes: { ...ALL_NULL, aft: "__proto__" } },
+      "outOfDomain",
+    ],
+  ] as const)("%s is refused %s", (_name, overrides, reason) => {
+    const world = createWorld(1);
+    expect(spawnEntity(world, init(overrides), 0)).toEqual({
+      ok: false,
+      reason,
+    });
+    expect(world.store.nextId).toBe(101);
+  });
+
+  it("an injector, per-facing weapon types and a fine mark spawn and are stored by copy", () => {
+    const world = createWorld(1);
+    const injector = { accumulator: 0.5 };
+    const weaponTypes = { ...ALL_NULL, aft: "EQ_WEAPON_NONE" };
+    const result = spawnEntity(
+      world,
+      init({ injector, weaponTypes, markedForFines: true }),
+      0,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.entity.injector).toEqual({ accumulator: 0.5 });
+    expect(result.entity.injector).not.toBe(injector);
+    expect(result.entity.weaponTypes).toEqual(weaponTypes);
+    expect(result.entity.weaponTypes).not.toBe(weaponTypes);
+    expect(result.entity.markedForFines).toBe(true);
+    const plain = spawnEntity(world, init(), 0);
+    expect(plain.ok && plain.entity.injector).toBeNull();
+    expect(plain.ok && plain.entity.weaponTypes).toEqual(ALL_NULL);
+    expect(plain.ok && plain.entity.markedForFines).toBe(false);
+    expect(plain.ok && plain.entity.weapon).toEqual({
+      temperature: 0,
+      lastShotTick: 0,
+      missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
+    });
   });
 });

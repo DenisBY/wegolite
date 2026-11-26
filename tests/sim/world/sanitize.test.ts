@@ -22,6 +22,7 @@ import {
 } from "../../../src/sim/npc/state.js";
 import {
   MAX_AI_PARAMS_KEYS,
+  MAX_BOUNTY,
   MAX_ENERGY_RECHARGE_RATE,
   MAX_ENTITY_CARGO,
   MAX_ENTITY_ENERGY,
@@ -60,6 +61,7 @@ import {
 } from "../../../src/sim/world/world.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { V5_SCALARS } from "../../helpers/v5-fields.js";
 
 /** A clean entity with a test-pilot AI, from the real spawn path. */
 function fresh(extra: Partial<SpawnInit> = {}): Entity {
@@ -1051,6 +1053,9 @@ ROWS.push(
         temperature: 0,
         lastShotTick: 0,
         missedShots: 0,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
       }),
     delta: 1,
   },
@@ -1063,12 +1068,22 @@ ROWS.push(
   {
     name: "an in-domain non-pristine weapon record is clean",
     corrupt: (e) =>
-      (e.weapon = { temperature: 12.5, lastShotTick: 6, missedShots: 2 }),
+      (e.weapon = {
+        temperature: 12.5,
+        lastShotTick: 6,
+        missedShots: 2,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      }),
     expected: (e) =>
       expect(e.weapon).toEqual({
         temperature: 12.5,
         lastShotTick: 6,
         missedShots: 2,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
       }),
     delta: 0,
   },
@@ -1145,6 +1160,204 @@ for (const bad of [
     delta: 1,
   });
 }
+
+// The v5 fields (Phase 21, FOUND-20). Every bad value is repaired without
+// throwing and counts one repair; a pristine or an in-bound value counts none
+// and one bad leaf never resets its neighbour.
+for (const bad of [
+  Number.NaN,
+  Number.POSITIVE_INFINITY,
+  Number.NEGATIVE_INFINITY,
+  -1,
+  1.5,
+  MAX_BOUNTY + 1,
+  2 ** 32,
+]) {
+  ROWS.push({
+    name: `bounty ${bad} becomes 0`,
+    corrupt: (e) => (e.bounty = bad),
+    expected: (e) => expect(e.bounty).toBe(0),
+    delta: 1,
+  });
+}
+ROWS.push(
+  {
+    name: "bounty 70000 becomes a bounded value and leaves cargo alone",
+    corrupt: (e) => {
+      e.cargo = 9;
+      e.bounty = 70000;
+    },
+    expected: (e) => {
+      expect(e.bounty).toBeLessThanOrEqual(MAX_BOUNTY);
+      expect(e.cargo).toBe(9);
+    },
+    delta: 1,
+  },
+  {
+    name: "a bounty at 0 and at the bound is clean",
+    corrupt: (e) => (e.bounty = MAX_BOUNTY),
+    expected: (e) => expect(e.bounty).toBe(MAX_BOUNTY),
+    delta: 0,
+  },
+  {
+    name: "bounty -0 is normalised without a repair",
+    corrupt: (e) => (e.bounty = -0),
+    expected: (e) => expect(Object.is(e.bounty, 0)).toBe(true),
+    delta: 0,
+  },
+  {
+    name: "a bounty that is not a number becomes 0",
+    corrupt: (e) => (loose(e).bounty = "50"),
+    expected: (e) => expect(e.bounty).toBe(0),
+    delta: 1,
+  },
+);
+
+// The v5 scalar fields, table-driven from the shared boundary table: a value
+// one step outside its bound, or of the wrong type, becomes the pristine value
+// with one repair and leaves every neighbour alone; a value at a bound is clean.
+for (const field of V5_SCALARS) {
+  const key = field.key;
+  for (const bad of [...field.outOfBound, ...field.wrongType]) {
+    ROWS.push({
+      name: `${key} ${typeof bad === "string" ? JSON.stringify(bad) : String(bad)} becomes pristine and leaves the neighbours alone`,
+      corrupt: (e) => {
+        e.bounty = key === "bounty" ? e.bounty : 11;
+        e.fuel = key === "fuel" ? e.fuel : 12;
+        loose(e)[key] = bad;
+      },
+      expected: (e) => {
+        expect(loose(e)[key]).toBe(field.pristine);
+        if (key !== "bounty") expect(e.bounty).toBe(11);
+        if (key !== "fuel") expect(e.fuel).toBe(12);
+      },
+      delta: 1,
+    });
+  }
+  for (const good of field.accepted) {
+    ROWS.push({
+      name: `${key} ${typeof good === "string" ? JSON.stringify(good) : String(good)} is clean`,
+      corrupt: (e) => (loose(e)[key] = good),
+      expected: (e) => expect(loose(e)[key]).toBe(good),
+      delta: 0,
+    });
+  }
+}
+
+// The v5 object fields (FOUND-20): the injector, the per-facing temperatures
+// and the per-facing weapon types, repaired leaf by leaf.
+for (const facing of ["aft", "port", "starboard"] as const) {
+  const key = `${facing}Temperature` as const;
+  for (const bad of [
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    -1,
+    MAX_WEAPON_TEMPERATURE + 1,
+  ]) {
+    ROWS.push({
+      name: `weapon.${key} ${bad} becomes 0 and leaves its neighbours alone`,
+      corrupt: (e) => {
+        e.weapon.temperature = 4;
+        e.weapon[key] = bad;
+      },
+      expected: (e) => {
+        expect(e.weapon[key]).toBe(0);
+        expect(e.weapon.temperature).toBe(4);
+      },
+      delta: 1,
+    });
+  }
+  ROWS.push({
+    name: `weapon.${key} at the bound is clean`,
+    corrupt: (e) => (e.weapon[key] = MAX_WEAPON_TEMPERATURE),
+    expected: (e) => expect(e.weapon[key]).toBe(MAX_WEAPON_TEMPERATURE),
+    delta: 0,
+  });
+}
+
+for (const bad of [Number.NaN, -0.000001, 1.000001, 2, Infinity]) {
+  ROWS.push({
+    name: `injector.accumulator ${bad} becomes Oolite's initial 1`,
+    corrupt: (e) => (e.injector = { accumulator: bad }),
+    expected: (e) => expect(e.injector).toEqual({ accumulator: 1 }),
+    delta: 1,
+  });
+}
+ROWS.push(
+  {
+    name: "a null injector is clean",
+    corrupt: (e) => (e.injector = null),
+    expected: (e) => expect(e.injector).toBeNull(),
+    delta: 0,
+  },
+  {
+    name: "an injector accumulator at 0, 0.5 and 1 is clean",
+    corrupt: (e) => (e.injector = { accumulator: 0 }),
+    expected: (e) => expect(e.injector).toEqual({ accumulator: 0 }),
+    delta: 0,
+  },
+  {
+    name: "an injector that is not an object becomes null",
+    corrupt: (e) => (loose(e).injector = 5),
+    expected: (e) => expect(e.injector).toBeNull(),
+    delta: 1,
+  },
+  {
+    name: "an undefined injector becomes null",
+    corrupt: (e) => (loose(e).injector = undefined),
+    expected: (e) => expect(e.injector).toBeNull(),
+    delta: 1,
+  },
+  {
+    name: "weaponTypes that is not an object becomes all null",
+    corrupt: (e) => (loose(e).weaponTypes = null),
+    expected: (e) =>
+      expect(e.weaponTypes).toEqual({
+        fore: null,
+        aft: null,
+        port: null,
+        starboard: null,
+      }),
+    delta: 1,
+  },
+  {
+    name: "a lower-case weapon type becomes null and its neighbour stays",
+    corrupt: (e) => {
+      e.weaponTypes.aft = "EQ_WEAPON_BEAM_LASER";
+      e.weaponTypes.port = "eq_weapon_beam";
+    },
+    expected: (e) => {
+      expect(e.weaponTypes.port).toBeNull();
+      expect(e.weaponTypes.aft).toBe("EQ_WEAPON_BEAM_LASER");
+    },
+    delta: 1,
+  },
+  {
+    name: "a 33-character weapon type becomes null",
+    corrupt: (e) => (e.weaponTypes.fore = `EQ_WEAPON_${"A".repeat(23)}`),
+    expected: (e) => expect(e.weaponTypes.fore).toBeNull(),
+    delta: 1,
+  },
+  {
+    name: "a 32-character weapon type is clean",
+    corrupt: (e) => (e.weaponTypes.fore = `EQ_WEAPON_${"A".repeat(22)}`),
+    expected: (e) =>
+      expect(e.weaponTypes.fore).toBe(`EQ_WEAPON_${"A".repeat(22)}`),
+    delta: 0,
+  },
+  {
+    name: "a weapon type that is a number becomes null",
+    corrupt: (e) => (loose(e.weaponTypes).starboard = 5),
+    expected: (e) => expect(e.weaponTypes.starboard).toBeNull(),
+    delta: 1,
+  },
+  {
+    name: "EQ_WEAPON_NONE stays distinct from null and is clean",
+    corrupt: (e) => (e.weaponTypes.aft = "EQ_WEAPON_NONE"),
+    expected: (e) => expect(e.weaponTypes.aft).toBe("EQ_WEAPON_NONE"),
+    delta: 0,
+  },
+);
 
 describe("sanitizeEntity table", () => {
   for (const row of ROWS) {
@@ -1291,7 +1504,14 @@ describe("the steering record at spawn and in the hash (AI-01)", () => {
   it("the segments after steer: of a non-pristine entity are vel, wpn, cargo in that order", () => {
     const entity = fresh();
     entity.velocity = vec(1, 0, 0);
-    entity.weapon = { temperature: 0, lastShotTick: 3, missedShots: 0 };
+    entity.weapon = {
+      temperature: 0,
+      lastShotTick: 3,
+      missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
+    };
     entity.cargo = 2;
     const segments = serializeEntity(entity).split(";");
     const at = segments.findIndex((segment) => segment.startsWith("steer:"));
