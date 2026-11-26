@@ -1255,7 +1255,9 @@ export function assertConvertedBounds(
 function prepareMesh(mesh: ParsedMesh, shipDef: ShipDef): NormalMode {
   // Read → repair (legacy modes only) → negate Z → write. The repair never runs
   // again after the conversion; running it twice would double-flip a repaired
-  // face (RESEARCH §P5.2).
+  // face (RESEARCH §P5.2). `mesh` must be the caller's private copy: the repair
+  // swaps corners in place, and `buildNodeMesh` hands it a clone so a shared
+  // parsed mesh is never repaired at all (TOOLS-WR-02).
   const mode = selectNormalMode(mesh, { smooth: shipDef.smooth });
   repairWinding(mesh, mode);
   return mode;
@@ -1285,11 +1287,18 @@ function sourceBounds(mesh: ParsedMesh): MeshBounds {
   };
 }
 
+/**
+ * Convert one parsed mesh into a GLB mesh. The parsed mesh is read only: the
+ * winding repair runs on a private clone, so the same parsed mesh can feed
+ * several builds (`planHullMerges` and then `emitModels`, or the texture
+ * variants of one model) and each build repairs it exactly once (TOOLS-WR-02).
+ */
 function buildNodeMesh(
   meshName: string,
-  mesh: ParsedMesh,
+  source: ParsedMesh,
   entry: ShipEntry,
 ): GlbMesh {
+  const mesh = structuredClone(source);
   const mode = prepareMesh(mesh, entry.shipDef);
   const primitives = convertMesh(mesh, mode, "gltf");
   if (primitives.length === 0) {

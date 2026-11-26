@@ -758,8 +758,13 @@ describe("the vendored hulls", () => {
       const source = MODEL_SOURCE_FILES[file]?.[0] ?? "";
       const owner = EMITTED_ENTRIES[file]?.[0] ?? "";
       const entry = entries[owner];
-      const mesh = structuredClone(models[source]);
-      if (entry === undefined || mesh === undefined) throw new Error(file);
+      // A fresh parse of the vendored file, repaired exactly once here: the
+      // expectation never depends on what the merge plan did to its own copy
+      // (TOOLS-WR-02). The plan must leave its input untouched as well.
+      const path = `third_party/oolite/Models/${source}`;
+      const mesh = parseDat(readFileSync(join(REPO_ROOT, path), "utf8"), path);
+      if (entry === undefined) throw new Error(file);
+      expect(models[source], `${file} parsed mesh`).toEqual(mesh);
       const mode = selectNormalMode(mesh, { smooth: entry.shipDef.smooth });
       repairWinding(mesh, mode);
       const primitives = convertMesh(mesh, mode, "gltf");

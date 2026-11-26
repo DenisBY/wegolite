@@ -206,8 +206,10 @@ export async function generateContent({
   // twice would double the build cost for no benefit.
   const models = await readModels(inputRoot);
 
-  // The masses read the meshes here, before emitModels runs repairWinding, and
-  // never mutate them; one computation feeds every emitter that writes a mass.
+  // The masses read the meshes here and never mutate them; one computation
+  // feeds every emitter that writes a mass. No emitter mutates them either:
+  // planHullMerges and emitModels repair the winding on a private clone, once
+  // per build (TOOLS-WR-02).
   const masses = computeShipMasses(MASS_SHIP_KEYS, catalogue, models);
 
   // The NPC collision radii read the same parsed meshes, for the same reason.

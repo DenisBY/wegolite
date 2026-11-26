@@ -1398,6 +1398,86 @@ describe("NPC ship GLBs", () => {
   );
 });
 
+describe("the winding repair runs once per build (TOOLS-WR-02)", () => {
+  // A legacy NPC hull (no NORMALS block) with one face whose stored normal
+  // agrees with the computed one on two components and disagrees on the third.
+  // One repair swaps it; a second repair swaps it back, so a build that
+  // repaired a shared parsed mesh twice would emit the face reversed.
+  const SOURCE = "oolite_krait.dat";
+  const FILE = "krait.glb";
+
+  function fixture(): ParsedMesh {
+    const mesh = loadMesh(SOURCE);
+    const face = mesh.faces.find(
+      (candidate) =>
+        Math.abs(candidate.normal.x) > 0.05 &&
+        Math.abs(candidate.normal.y) > 0.05 &&
+        Math.abs(candidate.normal.z) > 0.05,
+    );
+    if (face === undefined) throw new Error(`${SOURCE}: no oblique face`);
+    face.normal = { ...face.normal, z: -face.normal.z };
+    return mesh;
+  }
+
+  it("repairs a shared legacy mesh once through planHullMerges and emitModels", () => {
+    expect(MODEL_SOURCE_FILES[FILE]).toEqual([SOURCE]);
+    const owner = soleElement(EMITTED_ENTRIES[FILE]);
+    const entry = shipEntry(owner);
+    const mode = selectNormalMode(fixture(), { smooth: entry.shipDef.smooth });
+    expect(mode).not.toBe("explicit");
+
+    // The fixture is sensitive: a second repair undoes the first.
+    const probe = fixture();
+    expect(repairWinding(probe, mode)).toBe(1);
+    expect(repairWinding(probe, mode)).toBe(1);
+
+    const models: Record<string, ParsedMesh> = {};
+    for (const files of Object.values(MODEL_SOURCE_FILES)) {
+      for (const file of files) models[file] ??= loadMesh(file);
+    }
+    models[SOURCE] = fixture();
+    const entries: Record<string, ShipEntry> = {};
+    for (const compiled of catalogue.entries) {
+      entries[compiled.key] = { key: compiled.key, shipDef: compiled.shipDef };
+    }
+    const merges = planHullMerges(
+      models,
+      entries,
+      () => {
+        throw new Error("a single-primitive hull reads no texture");
+      },
+      [FILE],
+    );
+    expect(merges.get(FILE)?.kind).toBe("single");
+    // The plan leaves the shared parsed mesh as it was read.
+    expect(models[SOURCE]).toEqual(fixture());
+
+    const emitted = emitModels(models, entries, merges).find((model) =>
+      model.path.endsWith(`/${FILE}`),
+    );
+    const once = buildShipGlb(
+      FILE.slice(0, -".glb".length),
+      SOURCE.slice(0, -".dat".length),
+      fixture(),
+      entry,
+    );
+    expect(emitted?.bytes).toEqual(once);
+    expect(models[SOURCE]).toEqual(fixture());
+
+    // A double repair would emit different bytes: build a mesh that has been
+    // repaired once already, so the build's own repair is the second one.
+    const repairedTwice = fixture();
+    repairWinding(repairedTwice, mode);
+    const doubled = buildShipGlb(
+      FILE.slice(0, -".glb".length),
+      SOURCE.slice(0, -".dat".length),
+      repairedTwice,
+      entry,
+    );
+    expect(Buffer.from(once).equals(Buffer.from(doubled))).toBe(false);
+  }, 120_000);
+});
+
 describe("debris GLBs", () => {
   it.each([...DEBRIS_GLBS])(
     "%s is pinned by rows, bytes and geometry",
