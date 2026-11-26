@@ -44,6 +44,7 @@ import {
   setFuel,
   setSkill,
   setWeapons,
+  systemIndexOf,
   weightedNearbyTradeSystem,
 } from "./kit.js";
 import {
@@ -81,7 +82,7 @@ export function buildFreighter(
   draws: PopulationDraws,
   options: FreighterOptions,
 ): readonly PlannedPopShip[] {
-  const systemIndex = facts.systemIndex;
+  const systemIndex = systemIndexOf(facts.systemIndex, 0);
   const government = numberOf(facts.government);
   const mother = createPlannedShip("trader", records, systemIndex, draws);
   if (mother === undefined) {

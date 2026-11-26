@@ -43,7 +43,13 @@
  */
 
 import { parseRoleToken } from "../populate.js";
-import { MAX_ACCURACY, MAX_BOUNTY, MIN_ACCURACY } from "../limits.js";
+import {
+  MAX_ACCURACY,
+  MAX_BOUNTY,
+  MAX_SHIP_FUEL,
+  MAX_SYSTEM_INDEX,
+  MIN_ACCURACY,
+} from "../limits.js";
 import type { PlannedPopShip, PopulationRecord, ShipDraft } from "./groups.js";
 import type { SystemFacts } from "./plan.js";
 import type { PopulationDraws } from "./streams.js";
@@ -89,6 +95,16 @@ export function listOf(value: unknown): readonly unknown[] {
 /** A finite number, else `fallback`. */
 function finiteOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+/** A galaxy-local system index (an integer `0..MAX_SYSTEM_INDEX`), else `fallback`. */
+export function systemIndexOf(value: unknown, fallback: number): number {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= MAX_SYSTEM_INDEX
+    ? value
+    : fallback;
 }
 
 /** `bounty` as the entity holds it: an integer `0..MAX_BOUNTY`. */
@@ -420,19 +436,20 @@ export function weightedNearbyTradeSystem(
     total += rate;
     weights.push(rate);
   }
+  const fallback = systemIndexOf(facts.systemIndex, 0);
   let pick = 0;
   total *= draws.next("system");
   for (let i = 0; i < locals.length; i += 1) {
     pick += weights[i] ?? 0;
     if (pick >= total) {
-      return numberOf(readField(locals[i], "systemIndex"));
+      return systemIndexOf(readField(locals[i], "systemIndex"), fallback);
     }
   }
   const first = locals[0];
   if (first !== undefined) {
-    return numberOf(readField(first, "systemIndex"));
+    return systemIndexOf(readField(first, "systemIndex"), fallback);
   }
-  return facts.systemIndex;
+  return fallback;
 }
 
 // --- A new ship -------------------------------------------------------------
@@ -473,9 +490,12 @@ export function createPlannedShip(
     cargoKind: "unset",
     weaponTypes: { fore: null, aft: null, port: null, starboard: null },
     accuracy,
-    fuel: Math.max(0, Math.trunc(finiteOr(record.fuel, 0))),
-    homeSystem: systemIndex,
-    destinationSystem: systemIndex,
+    fuel: Math.min(
+      MAX_SHIP_FUEL,
+      Math.max(0, Math.trunc(finiteOr(record.fuel, 0))),
+    ),
+    homeSystem: systemIndexOf(systemIndex, 0),
+    destinationSystem: systemIndexOf(systemIndex, 0),
     injector,
     escortSlot: null,
     groupRecord: false,
