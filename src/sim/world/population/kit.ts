@@ -504,6 +504,88 @@ export function createPlannedShip(
   };
 }
 
+/**
+ * `_roleExists` (`oolite-populator.js:2162-2170`): whether the catalogue has a
+ * record for the role (`Ship.keysForRole`). Dead with the shipped catalogue,
+ * which carries every role the builders ask for; ported as written.
+ */
+export function roleExists(
+  records: readonly PopulationRecord[],
+  role: string,
+): boolean {
+  return pickPopulationRecord(0, records, role) !== undefined;
+}
+
+/**
+ * `Neighbourhood.distanceTo` of untrusted facts as a total function: an
+ * unknown system, or facts without the function, give no distance.
+ */
+export function chartDistance(
+  facts: SystemFacts,
+): (systemIndex: number) => number | undefined {
+  const distanceTo = readField(facts.neighbourhood, "distanceTo");
+  return (systemIndex) => {
+    if (typeof distanceTo !== "function") {
+      return undefined;
+    }
+    const distance = (distanceTo as (index: number) => unknown).call(
+      facts.neighbourhood,
+      systemIndex,
+    );
+    return typeof distance === "number" ? distance : undefined;
+  };
+}
+
+/** The script's `ship.autoWeapons`: the compiled fuzzy boolean, tested `> 0`. */
+export function autoWeaponsOf(record: PopulationRecord): boolean {
+  return numberOf(record.autoWeapons) > 0;
+}
+
+/** `addGroup` accepts a count of 1 to 64 only (`OOJSSystem.m`, Pitfall 8). */
+export const MIN_GROUP_SIZE = 1;
+export const MAX_GROUP_SIZE = 64;
+
+/**
+ * The size an `addGroup` call is made with: an integer in `1..64`. Oolite throws
+ * for a count outside that range; every in-scope size is far below it, so the
+ * port clamps instead, which keeps each per-ship loop bounded for any fact
+ * (T-22-13). NaN counts 1.
+ */
+export function clampGroupSize(value: number): number {
+  if (Number.isNaN(value)) {
+    return MIN_GROUP_SIZE;
+  }
+  return Math.min(Math.max(Math.trunc(value), MIN_GROUP_SIZE), MAX_GROUP_SIZE);
+}
+
+/**
+ * `system.addGroup(role, size, pos, spread)` (`_addGroup`,
+ * `oolite-populator.js:2390-2415`) for a lane position: `size` ships of the
+ * role in one `ShipGroup` that has no leader, so each is a group-record holder
+ * (D-11) with no leader link. Undefined, with no further draw, when no record
+ * carries the role: the engine returns no group and the script's `if (!h)
+ * return` ends the callback.
+ */
+export function addGroupShips(
+  role: string,
+  size: number,
+  records: readonly PopulationRecord[],
+  systemIndex: number,
+  draws: PopulationDraws,
+): readonly ShipDraft[] | undefined {
+  const ships: ShipDraft[] = [];
+  const count = clampGroupSize(size);
+  for (let i = 0; i < count; i += 1) {
+    const ship = createPlannedShip(role, records, systemIndex, draws);
+    if (ship === undefined) {
+      break;
+    }
+    ship.groupRecord = true;
+    ships.push(ship);
+  }
+  return ships.length === 0 ? undefined : ships;
+}
+
 /** The finished ships of a group: indexes resolved, the draft links dropped. */
 export function finishShips(
   drafts: readonly ShipDraft[],
