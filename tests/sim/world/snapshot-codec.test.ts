@@ -183,7 +183,14 @@ function richWorld(): World {
   c.position = vec(-42.5, 0.25, 1e6);
   // The v4 fields (Phase 15, FOUND-18) away from their pristine values.
   a.velocity = vec(1.5, -2.25, 0);
-  a.weapon = { temperature: 12.5, lastShotTick: 6, missedShots: 2 };
+  a.weapon = {
+    temperature: 12.5,
+    lastShotTick: 6,
+    missedShots: 2,
+    aftTemperature: 0,
+    portTemperature: 0,
+    starboardTemperature: 0,
+  };
   a.cargo = 7;
   // The v5 fields (Phase 21, FOUND-20) away from their pristine values.
   a.bounty = 300;
@@ -195,6 +202,17 @@ function richWorld(): World {
   a.fuel = 7;
   a.homeSystem = 12;
   a.destinationSystem = 255;
+  a.injector = { accumulator: 0.25 };
+  a.weapon.aftTemperature = 3.5;
+  a.weapon.portTemperature = 4.25;
+  a.weapon.starboardTemperature = 5.125;
+  a.weaponTypes = {
+    fore: null,
+    aft: "EQ_WEAPON_BEAM_LASER",
+    port: "EQ_WEAPON_NONE",
+    starboard: null,
+  };
+  a.markedForFines = true;
   const gone = spawnOk(world, shipInit(3, null), 10);
   killEntity(world, gone.id);
   commitWorld(world);
@@ -1176,6 +1194,9 @@ describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
       temperature: 12.5,
       lastShotTick: 6,
       missedShots: 2,
+      aftTemperature: 3.5,
+      portTemperature: 4.25,
+      starboardTemperature: 5.125,
     });
     expect(a?.cargo).toBe(7);
     expect(b?.velocity).toEqual({ x: 0, y: 0, z: 0 });
@@ -1183,6 +1204,9 @@ describe("the v4 entity fields in the snapshot (FOUND-18)", () => {
       temperature: 0,
       lastShotTick: 0,
       missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
     });
     expect(b?.cargo).toBe(0);
     const text = JSON.stringify(snapshotWorld(world));
@@ -1252,6 +1276,19 @@ describe("the v5 entity fields in the snapshot (FOUND-20)", () => {
       fuel: 7,
       homeSystem: 12,
       destinationSystem: 255,
+      injector: { accumulator: 0.25 },
+      weaponTypes: {
+        fore: null,
+        aft: "EQ_WEAPON_BEAM_LASER",
+        port: "EQ_WEAPON_NONE",
+        starboard: null,
+      },
+      markedForFines: true,
+    });
+    expect(a?.weapon).toMatchObject({
+      aftTemperature: 3.5,
+      portTemperature: 4.25,
+      starboardTemperature: 5.125,
     });
     expect(b).toMatchObject({
       bounty: 0,
@@ -1263,6 +1300,14 @@ describe("the v5 entity fields in the snapshot (FOUND-20)", () => {
       fuel: 0,
       homeSystem: -1,
       destinationSystem: -1,
+      injector: null,
+      weaponTypes: { fore: null, aft: null, port: null, starboard: null },
+      markedForFines: false,
+    });
+    expect(b?.weapon).toMatchObject({
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
     });
   });
 
@@ -1290,6 +1335,88 @@ describe("the v5 entity fields in the snapshot (FOUND-20)", () => {
       expect(reasonOf(snapshot)).not.toBe("accepted");
     },
   );
+
+  it.each([
+    ["injector accumulator -0.000001", "injector", { accumulator: -0.000001 }],
+    ["injector accumulator 1.000001", "injector", { accumulator: 1.000001 }],
+    ["injector accumulator NaN", "injector", { accumulator: Number.NaN }],
+    ["injector accumulator null", "injector", { accumulator: null }],
+    ["injector an unknown key", "injector", { accumulator: 1, extra: 1 }],
+    ["injector a number", "injector", 1],
+    ["injector undefined", "injector", undefined],
+    ["weaponTypes null", "weaponTypes", null],
+    ["weaponTypes missing a facing", "weaponTypes", { fore: null }],
+    [
+      "weaponTypes an unknown facing",
+      "weaponTypes",
+      { fore: null, aft: null, port: null, starboard: null, up: null },
+    ],
+    [
+      "weaponTypes lower case key",
+      "weaponTypes",
+      { fore: "eq_weapon_beam", aft: null, port: null, starboard: null },
+    ],
+    [
+      "weaponTypes a 33-character key",
+      "weaponTypes",
+      {
+        fore: `EQ_WEAPON_${"A".repeat(23)}`,
+        aft: null,
+        port: null,
+        starboard: null,
+      },
+    ],
+    [
+      "weaponTypes a number",
+      "weaponTypes",
+      { fore: 5, aft: null, port: null, starboard: null },
+    ],
+    [
+      "weaponTypes a prototype name",
+      "weaponTypes",
+      { fore: "__proto__", aft: null, port: null, starboard: null },
+    ],
+    ["weapon.aftTemperature over the bound", "weapon.aftTemperature", 1001],
+    ["weapon.portTemperature -1", "weapon.portTemperature", -1],
+    ["weapon.starboardTemperature NaN", "weapon.starboardTemperature", NaN],
+  ] as const)("refuses %s", (_name, path, value) => {
+    const snapshot = jsonOf(richWorld());
+    if (path.startsWith("weapon.")) {
+      setAt(snapshot, `${WPN}.${path.slice("weapon.".length)}`, value);
+    } else {
+      setAt(snapshot, `${E0}.${path}`, value);
+    }
+    expect(reasonOf(snapshot)).not.toBe("accepted");
+  });
+
+  it("accepts the injector at 0 and 1, a 32-character weapon type and the none type", () => {
+    for (const accumulator of [0, 1, 0.5]) {
+      const snapshot = jsonOf(richWorld());
+      setAt(snapshot, `${E0}.injector`, { accumulator });
+      expect(reasonOf(snapshot)).toBe("accepted");
+    }
+    const snapshot = jsonOf(richWorld());
+    setAt(snapshot, `${E0}.weaponTypes.fore`, `EQ_WEAPON_${"A".repeat(22)}`);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    setAt(snapshot, `${E0}.weaponTypes.fore`, "EQ_WEAPON_NONE");
+    expect(reasonOf(snapshot)).toBe("accepted");
+  });
+
+  it("round-trips the injector, the facings and the fine mark and keeps null distinct from none", () => {
+    const world = richWorld();
+    const text = JSON.stringify(snapshotWorld(world));
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(text) as unknown),
+    );
+    const copy = restored.store.live[0] as Entity;
+    expect(copy.injector).toEqual({ accumulator: 0.25 });
+    expect(copy.weaponTypes.port).toBe("EQ_WEAPON_NONE");
+    expect(copy.weaponTypes.fore).toBeNull();
+    expect(copy.markedForFines).toBe(true);
+    expect(copy.weapon.aftTemperature).toBe(3.5);
+    expect(entityHashes(restored)).toEqual(entityHashes(world));
+    expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+  });
 
   it("refuses an unknown entity key", () => {
     expect(reasonOf(withKey("bountyX", 1))).toBe("unknown-key");
@@ -2127,6 +2254,24 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
   ],
   weapon: [
     {
+      name: "aftTemperature + 1",
+      apply: (e) => {
+        e.weapon.aftTemperature += 1;
+      },
+    },
+    {
+      name: "portTemperature + 1",
+      apply: (e) => {
+        e.weapon.portTemperature += 1;
+      },
+    },
+    {
+      name: "starboardTemperature + 1",
+      apply: (e) => {
+        e.weapon.starboardTemperature += 1;
+      },
+    },
+    {
       name: "temperature + 1",
       apply: (e) => {
         e.weapon.temperature += 1;
@@ -2263,6 +2408,54 @@ const ENTITY_FIELDS: Record<keyof Entity, readonly Mutation[]> = {
       name: "removed (unset, destination stays)",
       apply: (e) => {
         e.homeSystem = -1;
+      },
+    },
+  ],
+  injector: [
+    {
+      name: "accumulator changed",
+      apply: (e) => {
+        if (e.injector !== null) e.injector.accumulator = 0.5;
+      },
+    },
+    {
+      name: "removed (null)",
+      apply: (e) => {
+        e.injector = null;
+      },
+    },
+  ],
+  weaponTypes: [
+    {
+      name: "fore overridden",
+      apply: (e) => {
+        e.weaponTypes.fore = "EQ_WEAPON_PULSE_LASER";
+      },
+    },
+    {
+      name: "aft changed",
+      apply: (e) => {
+        e.weaponTypes.aft = "EQ_WEAPON_MILITARY_LASER";
+      },
+    },
+    {
+      name: "port back to the record's type (null)",
+      apply: (e) => {
+        e.weaponTypes.port = null;
+      },
+    },
+    {
+      name: "starboard explicitly none",
+      apply: (e) => {
+        e.weaponTypes.starboard = "EQ_WEAPON_NONE";
+      },
+    },
+  ],
+  markedForFines: [
+    {
+      name: "cleared",
+      apply: (e) => {
+        e.markedForFines = !e.markedForFines;
       },
     },
   ],

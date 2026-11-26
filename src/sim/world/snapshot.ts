@@ -63,6 +63,7 @@ import {
   MAX_ENTITY_VELOCITY,
   MAX_ESCORT_SLOT,
   MAX_FRUSTRATION,
+  MAX_INJECTOR_ACCUMULATOR,
   MAX_POD_AMOUNT,
   MAX_ROLE_LENGTH,
   MAX_SHIP_FUEL,
@@ -72,12 +73,14 @@ import {
   MAX_SYSTEM_INDEX,
   MAX_UINT32,
   MAX_WEAPON_TEMPERATURE,
+  MAX_WEAPON_TYPE_LENGTH,
   MIN_ACCURACY,
   NO_SYSTEM_INDEX,
   QUAT_UNIT_TOLERANCE,
   ROLE_PATTERN,
   STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
+  WEAPON_TYPE_PATTERN,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
 import {
@@ -178,6 +181,23 @@ export interface WeaponSnapshot {
   temperature: number;
   lastShotTick: number;
   missedShots: number;
+  /** The other three facings' temperatures (FOUND-20). */
+  aftTemperature: number;
+  portTemperature: number;
+  starboardTemperature: number;
+}
+
+/** The fuel-injector state (`InjectorState` in `./entity.ts`, FOUND-20). */
+export interface InjectorSnapshot {
+  accumulator: number;
+}
+
+/** The per-facing weapon types (`WeaponTypes` in `./entity.ts`, FOUND-20). */
+export interface WeaponTypesSnapshot {
+  fore: string | null;
+  aft: string | null;
+  port: string | null;
+  starboard: string | null;
 }
 
 /** One live entity: every `Entity` field except `dead` (never snapshotted). */
@@ -206,13 +226,16 @@ export interface EntitySnapshot {
   /** The v5 fields (FOUND-20); always present, pristine values included. */
   bounty: number;
   role: string;
-  groupId: EntityId | 0;
+  groupId: EntityId;
   cargoKind: number;
   podCommodity: string;
   podAmount: number;
   fuel: number;
   homeSystem: number;
   destinationSystem: number;
+  injector: InjectorSnapshot | null;
+  weaponTypes: WeaponTypesSnapshot;
+  markedForFines: boolean;
 }
 
 /** The energy of the damageable statics (`StaticHealth` in `./entity.ts`). */
@@ -392,6 +415,15 @@ function requireFiniteEntity(entity: Entity): void {
   requireFinite(entity.weapon.temperature, `${at}.weapon.temperature`);
   requireFinite(entity.weapon.lastShotTick, `${at}.weapon.lastShotTick`);
   requireFinite(entity.weapon.missedShots, `${at}.weapon.missedShots`);
+  requireFinite(entity.weapon.aftTemperature, `${at}.weapon.aftTemperature`);
+  requireFinite(entity.weapon.portTemperature, `${at}.weapon.portTemperature`);
+  requireFinite(
+    entity.weapon.starboardTemperature,
+    `${at}.weapon.starboardTemperature`,
+  );
+  if (entity.injector !== null) {
+    requireFinite(entity.injector.accumulator, `${at}.injector.accumulator`);
+  }
   requireFinite(entity.cargo, `${at}.cargo`);
   requireFinite(entity.bounty, `${at}.bounty`);
   requireFinite(entity.groupId, `${at}.groupId`);
@@ -527,6 +559,9 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
       temperature: noNegativeZero(entity.weapon.temperature),
       lastShotTick: noNegativeZero(entity.weapon.lastShotTick),
       missedShots: noNegativeZero(entity.weapon.missedShots),
+      aftTemperature: noNegativeZero(entity.weapon.aftTemperature),
+      portTemperature: noNegativeZero(entity.weapon.portTemperature),
+      starboardTemperature: noNegativeZero(entity.weapon.starboardTemperature),
     },
     cargo: noNegativeZero(entity.cargo),
     bounty: noNegativeZero(entity.bounty),
@@ -538,6 +573,17 @@ function snapshotEntity(entity: Entity): EntitySnapshot {
     fuel: noNegativeZero(entity.fuel),
     homeSystem: noNegativeZero(entity.homeSystem),
     destinationSystem: noNegativeZero(entity.destinationSystem),
+    injector:
+      entity.injector === null
+        ? null
+        : { accumulator: noNegativeZero(entity.injector.accumulator) },
+    weaponTypes: {
+      fore: entity.weaponTypes.fore,
+      aft: entity.weaponTypes.aft,
+      port: entity.weaponTypes.port,
+      starboard: entity.weaponTypes.starboard,
+    },
+    markedForFines: entity.markedForFines,
   };
 }
 
@@ -1098,6 +1144,9 @@ function parseWeapon(value: unknown, path: string): WeaponSnapshot {
     "temperature",
     "lastShotTick",
     "missedShots",
+    "aftTemperature",
+    "portTemperature",
+    "starboardTemperature",
   ]);
   return {
     temperature: limitedNumber(
@@ -1115,6 +1164,55 @@ function parseWeapon(value: unknown, path: string): WeaponSnapshot {
       `${path}.missedShots`,
       "counter",
     ),
+    aftTemperature: limitedNumber(
+      read(o, "aftTemperature"),
+      `${path}.aftTemperature`,
+      MAX_WEAPON_TEMPERATURE,
+    ),
+    portTemperature: limitedNumber(
+      read(o, "portTemperature"),
+      `${path}.portTemperature`,
+      MAX_WEAPON_TEMPERATURE,
+    ),
+    starboardTemperature: limitedNumber(
+      read(o, "starboardTemperature"),
+      `${path}.starboardTemperature`,
+      MAX_WEAPON_TEMPERATURE,
+    ),
+  };
+}
+
+/** The injector state: null or an accumulator in `0..MAX_INJECTOR_ACCUMULATOR`. */
+function parseInjector(value: unknown, path: string): InjectorSnapshot | null {
+  if (value === null) return null;
+  const o = asObject(value, path, ["accumulator"]);
+  return {
+    accumulator: limitedNumber(
+      read(o, "accumulator"),
+      `${path}.accumulator`,
+      MAX_INJECTOR_ACCUMULATOR,
+    ),
+  };
+}
+
+/** One facing's weapon type: null (the record's) or an `EQ_WEAPON_*` key. */
+function parseWeaponType(value: unknown, path: string): string | null {
+  if (value === null) return null;
+  return patternString(
+    value,
+    path,
+    MAX_WEAPON_TYPE_LENGTH,
+    WEAPON_TYPE_PATTERN,
+  );
+}
+
+function parseWeaponTypes(value: unknown, path: string): WeaponTypesSnapshot {
+  const o = asObject(value, path, ["fore", "aft", "port", "starboard"]);
+  return {
+    fore: parseWeaponType(read(o, "fore"), `${path}.fore`),
+    aft: parseWeaponType(read(o, "aft"), `${path}.aft`),
+    port: parseWeaponType(read(o, "port"), `${path}.port`),
+    starboard: parseWeaponType(read(o, "starboard"), `${path}.starboard`),
   };
 }
 
@@ -1225,7 +1323,7 @@ function integerIn(
 }
 
 /** The group's founding leader: 0 (none) or a dynamic entity id. */
-function parseGroupId(value: unknown, path: string): EntityId | 0 {
+function parseGroupId(value: unknown, path: string): EntityId {
   const n = finiteNumber(value, path);
   if (n === 0) return 0;
   if (!Number.isSafeInteger(n) || n < FIRST_DYNAMIC_ID || n > MAX_UINT32) {
@@ -1266,6 +1364,9 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     "fuel",
     "homeSystem",
     "destinationSystem",
+    "injector",
+    "weaponTypes",
+    "markedForFines",
   ]);
   const id = read(o, "id");
   if (
@@ -1364,6 +1465,15 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     NO_SYSTEM_INDEX,
     MAX_SYSTEM_INDEX,
   );
+  const injector = parseInjector(read(o, "injector"), `${path}.injector`);
+  const weaponTypes = parseWeaponTypes(
+    read(o, "weaponTypes"),
+    `${path}.weaponTypes`,
+  );
+  const markedForFines = flag(
+    read(o, "markedForFines"),
+    `${path}.markedForFines`,
+  );
   return {
     id,
     kind,
@@ -1395,6 +1505,9 @@ function parseEntity(value: unknown, path: string): EntitySnapshot {
     fuel,
     homeSystem,
     destinationSystem,
+    injector,
+    weaponTypes,
+    markedForFines,
   };
 }
 
@@ -1532,6 +1645,9 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
     fuel: e.fuel,
     homeSystem: e.homeSystem,
     destinationSystem: e.destinationSystem,
+    injector: e.injector,
+    weaponTypes: e.weaponTypes,
+    markedForFines: e.markedForFines,
   }));
   return {
     worldSeed: parsed.worldSeed,

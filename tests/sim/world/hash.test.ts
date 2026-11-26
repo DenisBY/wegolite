@@ -242,7 +242,14 @@ describe("pristine-omit of the v4 entity fields (FOUND-18, D-09)", () => {
     });
     expect(vel.changed).toBe(`${vel.pristine};vel:1.500000,0.000000,-2.000000`);
     const wpn = lines((e) => {
-      e.weapon = { temperature: 2.5, lastShotTick: 9, missedShots: 3 };
+      e.weapon = {
+        temperature: 2.5,
+        lastShotTick: 9,
+        missedShots: 3,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      };
     });
     expect(wpn.changed).toBe(`${wpn.pristine};wpn:2.500000,9,3`);
     const cargo = lines((e) => {
@@ -254,7 +261,14 @@ describe("pristine-omit of the v4 entity fields (FOUND-18, D-09)", () => {
   it("all three together append in the order vel, wpn, cargo", () => {
     const { pristine, changed } = lines((e) => {
       e.velocity = vec(0, 1, 0);
-      e.weapon = { temperature: 1, lastShotTick: 2, missedShots: 3 };
+      e.weapon = {
+        temperature: 1,
+        lastShotTick: 2,
+        missedShots: 3,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      };
       e.cargo = 5;
     });
     expect(changed).toBe(
@@ -266,10 +280,37 @@ describe("pristine-omit of the v4 entity fields (FOUND-18, D-09)", () => {
   it.each([
     [
       "temperature alone",
-      { temperature: 0.5, lastShotTick: 0, missedShots: 0 },
+      {
+        temperature: 0.5,
+        lastShotTick: 0,
+        missedShots: 0,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      },
     ],
-    ["lastShotTick alone", { temperature: 0, lastShotTick: 1, missedShots: 0 }],
-    ["missedShots alone", { temperature: 0, lastShotTick: 0, missedShots: 1 }],
+    [
+      "lastShotTick alone",
+      {
+        temperature: 0,
+        lastShotTick: 1,
+        missedShots: 0,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      },
+    ],
+    [
+      "missedShots alone",
+      {
+        temperature: 0,
+        lastShotTick: 0,
+        missedShots: 1,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      },
+    ],
   ])("a weapon record with %s still prints ;wpn:", (_name, weapon) => {
     const { pristine, changed } = lines((e) => {
       e.weapon = { ...weapon };

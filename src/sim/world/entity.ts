@@ -32,26 +32,57 @@ export interface EntityStreams {
 }
 
 /**
- * The weapon record of one entity (FOUND-18, D-07, D-16). Phase 17 writes all
- * three leaves from world ticks, never from frame time.
+ * The weapon record of one entity (FOUND-18, D-07, D-16; FOUND-20). Phase 17
+ * writes the leaves from world ticks, never from frame time.
  *
  * `temperature` is Oolite's `forward_weapon_temp` (`ShipEntity.h:303-304`).
  * Oolite keeps one temperature per facing and cools each of them
- * (`ShipEntity.m:2213-2218`); this record holds only the forward one, the only
- * facing any compiled NPC can mount, because the converter's
- * `STEERING_ASSUMED_ABSENT_KEYS` refusal (plan 15-01) keeps aft, port and
- * starboard weapon types out of the catalogue. Lifting that refusal needs
- * per-facing temperatures and is a snapshot-format change.
+ * (`ShipEntity.m:2213-2218`, `:9930-9990`): `aftTemperature`, `portTemperature`
+ * and `starboardTemperature` are `aft_weapon_temp`, `port_weapon_temp` and
+ * `starboard_weapon_temp`, added to the format by FOUND-20. They are pristine
+ * (0) for every ship until a later phase mounts and fires a non-forward weapon:
+ * the converter's `STEERING_ASSUMED_ABSENT_KEYS` refusal still keeps aft, port
+ * and starboard weapon types out of the catalogue until plan 21-05 lifts it,
+ * and plan 21-12 wires the facings into the fire path.
  *
  * `lastShotTick` is the integer world tick of the last shot. 0 means "never
  * fired" (the first world tick is 1), and the fire gate must read 0 as ready
  * to fire (Oolite starts `shot_time` at a long-ago value), never as `tick - 0`
- * elapsed. `missedShots` is Oolite's `_missed_shots`.
+ * elapsed. It stays one value for all facings because Oolite's `shot_time` is
+ * one timer (`ShipEntity.m:10463`). `missedShots` is Oolite's `_missed_shots`,
+ * also one value.
  */
 export interface WeaponComponent {
   temperature: number;
   lastShotTick: number;
   missedShots: number;
+  aftTemperature: number;
+  portTemperature: number;
+  starboardTemperature: number;
+}
+
+/**
+ * The fuel-injector state (FOUND-20): Oolite's `fuel_accumulator`, a float in
+ * `0..MAX_INJECTOR_ACCUMULATOR`. It starts at 1.0 (`ShipEntity.m:557`) and burns
+ * `delta_t * afterburner_rate` while the afterburner runs, wrapping from below 0
+ * by adding 1.0 and spending one unit of `Entity.fuel` (`:5845-5852`).
+ */
+export interface InjectorState {
+  accumulator: number;
+}
+
+/**
+ * The per-facing weapon types (FOUND-20). Each facing is null (the ship takes
+ * the record's compiled type) or an `EQ_WEAPON_*` key that overrides it.
+ * `EQ_WEAPON_NONE` is distinct from null: it removes a weapon the record
+ * authored, as the populator's `_setWeapons` may
+ * (`oolite-populator.js:2217-2272`).
+ */
+export interface WeaponTypes {
+  fore: string | null;
+  aft: string | null;
+  port: string | null;
+  starboard: string | null;
 }
 
 /**
@@ -158,7 +189,7 @@ export interface Entity {
    * `World.groups` holds the leader record. A non-zero value is a dynamic id
    * (101 and up). Hashed as the optional `;grp:` segment (0 omitted).
    */
-  groupId: EntityId | 0;
+  groupId: EntityId;
   /**
    * Oolite's `cargo_flag` for a merchantman (FOUND-20): an index into
    * `CARGO_KINDS`, 0 = unset. Phase 22 sets it, plan 21-14's release reads it.
@@ -191,6 +222,32 @@ export interface Entity {
    */
   homeSystem: number;
   destinationSystem: number;
+  /**
+   * The fuel-injector state (FOUND-20): null = no fuel injectors. Oolite's
+   * `fuel_accumulator` (see `InjectorState`); the equipment roll is a stateless
+   * `inj` fork at spawn (Phase 22) and NPC injector use is CBT-20 (Phase 23).
+   * Hashed as the optional `;inj:` segment (null omitted).
+   */
+  injector: InjectorState | null;
+  /**
+   * The per-facing weapon types (FOUND-20): all null = the record's compiled
+   * types. Hashed as one optional `;wty:` segment naming all four facings,
+   * printed whenever any facing is not null.
+   */
+  weaponTypes: WeaponTypes;
+  /**
+   * Oolite's per-ship `being_fined` bit (FOUND-20, `ShipEntity.h:248`, cleared
+   * at creation `ShipEntity.m:253`): set once by a police ship's
+   * `markTargetForFines` when the target's legal status is above 0
+   * (`ShipEntity.m:12434-12439`); read by the police scan, which skips a marked
+   * ship (`oolite-priorityai.js:2189-2194`), and by the docking fine
+   * (`PlayerEntity.m:6363-6368`); cleared for the player at witchspace exit
+   * (`:6980`). Written from Phase 25 (LAW-02, AI-05). Distinct from
+   * `World.station.marks`, the offenders the station itself saw (plan 21-06,
+   * owner decision D2). Hashed as the optional `;fine:` segment (false
+   * omitted).
+   */
+  markedForFines: boolean;
 }
 
 /** What a caller supplies to spawn an entity. */
@@ -248,6 +305,18 @@ export interface SpawnInit {
   homeSystem?: number;
   /** The destination system index (FOUND-20): -1 or 0 to `MAX_SYSTEM_INDEX`. Defaults to -1. */
   destinationSystem?: number;
+  /**
+   * The fuel-injector state (FOUND-20): null (the default) or an accumulator in
+   * `0..MAX_INJECTOR_ACCUMULATOR`. Phase 22's populator rolls the equipment.
+   */
+  injector?: InjectorState | null;
+  /**
+   * The per-facing weapon types (FOUND-20): all four members, each null or an
+   * `EQ_WEAPON_*` key of at most `MAX_WEAPON_TYPE_LENGTH`. Defaults to all null.
+   */
+  weaponTypes?: WeaponTypes;
+  /** Oolite's `being_fined` bit (FOUND-20). Defaults to false. */
+  markedForFines?: boolean;
 }
 
 /**

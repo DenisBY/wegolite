@@ -134,6 +134,10 @@ function serializeSteer(steer: SteerComponent): string {
   ].join(",");
 }
 
+/** A weapon type token: `z` for null (the record's type), else the quoted key. */
+const weaponTypeText = (type: string | null): string =>
+  type === null ? "z" : encodeHashString(type);
+
 /** One labelled line, `e<id>=` then every field in a fixed order. */
 export function serializeEntity(entity: Entity): string {
   const { position: p, orientation: q, nav, ai, velocity, weapon } = entity;
@@ -190,6 +194,9 @@ export function serializeEntity(entity: Entity): string {
     );
   }
   if (entity.fuel !== 0) segments.push(`fuel:${int(entity.fuel)}`);
+  if (entity.injector !== null) {
+    segments.push(`inj:${canon(entity.injector.accumulator)}`);
+  }
   if (
     entity.homeSystem !== NO_SYSTEM_INDEX ||
     entity.destinationSystem !== NO_SYSTEM_INDEX
@@ -198,6 +205,28 @@ export function serializeEntity(entity: Entity): string {
       `sys:${int(entity.homeSystem)},${int(entity.destinationSystem)}`,
     );
   }
+  const { aftTemperature, portTemperature, starboardTemperature } = weapon;
+  if (
+    aftTemperature !== 0 ||
+    portTemperature !== 0 ||
+    starboardTemperature !== 0
+  ) {
+    segments.push(
+      `wpf:${canon(aftTemperature)},${canon(portTemperature)},${canon(starboardTemperature)}`,
+    );
+  }
+  const types = entity.weaponTypes;
+  if (
+    types.fore !== null ||
+    types.aft !== null ||
+    types.port !== null ||
+    types.starboard !== null
+  ) {
+    segments.push(
+      `wty:${weaponTypeText(types.fore)},${weaponTypeText(types.aft)},${weaponTypeText(types.port)},${weaponTypeText(types.starboard)}`,
+    );
+  }
+  if (entity.markedForFines) segments.push("fine:1");
   return segments.join(";");
 }
 

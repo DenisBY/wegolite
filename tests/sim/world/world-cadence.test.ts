@@ -772,7 +772,14 @@ class KillScenario {
       });
       const viper = this.world.store.get(log.ids.viper);
       if (viper === undefined) throw new Error("the Viper is missing");
-      viper.weapon = { temperature: 12.5, lastShotTick: 7, missedShots: 2 };
+      viper.weapon = {
+        temperature: 12.5,
+        lastShotTick: 7,
+        missedShots: 2,
+        aftTemperature: 0,
+        portTemperature: 0,
+        starboardTemperature: 0,
+      };
     }
     const commands: Command[] =
       tick === 0

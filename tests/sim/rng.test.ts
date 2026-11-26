@@ -198,9 +198,46 @@ describe("worldSeedFor and forkSeed vectors (D-02, D-04)", () => {
       combat: 3,
       cargo: 4,
       damage: 5,
+      pod: 6,
+      scoop: 7,
+      repop: 8,
+      inj: 9,
     });
     expect(Object.isFrozen(RNG_PURPOSE_CODES)).toBe(true);
     expect([...ENTITY_RNG_PURPOSES]).toEqual(["ai", "combat"]);
+  });
+
+  it("registers the four v2.4 stateless purposes (FOUND-20) apart from each other and from the entity purposes", () => {
+    const purposes = [
+      "world",
+      "ai",
+      "combat",
+      "cargo",
+      "damage",
+      "pod",
+      "scoop",
+      "repop",
+      "inj",
+    ] as const;
+    // Codes are appended, never renumbered: the five old codes keep their value.
+    expect(RNG_PURPOSE_CODES.world).toBe(1);
+    expect(RNG_PURPOSE_CODES.damage).toBe(5);
+    expect(RNG_PURPOSE_CODES.pod).toBe(6);
+    expect(RNG_PURPOSE_CODES.scoop).toBe(7);
+    expect(RNG_PURPOSE_CODES.repop).toBe(8);
+    expect(RNG_PURPOSE_CODES.inj).toBe(9);
+    for (const purpose of ["pod", "scoop", "repop", "inj"] as const) {
+      expect([...ENTITY_RNG_PURPOSES]).not.toContain(purpose);
+    }
+    for (const seed of [0, 1, 0x1234abcd, 726532988, 0xffffffff]) {
+      for (const id of [0, 100, 101, 4242, 0xffffffff]) {
+        const forks = purposes.map((purpose) => forkSeed(seed, id, purpose));
+        expect(new Set(forks).size, `seed ${seed} id ${id}`).toBe(
+          purposes.length,
+        );
+        expect(forkSeed(seed, id, "pod")).toBe(mix32(mix32(seed, id), 6));
+      }
+    }
   });
 
   it("forks the stateless damage purpose (code 5) apart from every other stream (Phase 19)", () => {

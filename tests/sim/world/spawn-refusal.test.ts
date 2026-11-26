@@ -360,4 +360,95 @@ describe("the v5 SpawnInit members (FOUND-20)", () => {
       ).toBe(field.pristine);
     },
   );
+
+  const ALL_NULL = { fore: null, aft: null, port: null, starboard: null };
+
+  it.each([
+    ["injector a number", { injector: 5 }, "malformed"],
+    [
+      "injector accumulator a string",
+      { injector: { accumulator: "1" } },
+      "malformed",
+    ],
+    ["injector accumulator missing", { injector: {} }, "malformed"],
+    ["weaponTypes a number", { weaponTypes: 5 }, "malformed"],
+    ["weaponTypes null", { weaponTypes: null }, "malformed"],
+    [
+      "weaponTypes a facing missing",
+      { weaponTypes: { fore: null } },
+      "malformed",
+    ],
+    [
+      "weaponTypes a facing a number",
+      { weaponTypes: { ...ALL_NULL, aft: 7 } },
+      "malformed",
+    ],
+    [
+      "injector accumulator 1.000001",
+      { injector: { accumulator: 1.000001 } },
+      "outOfDomain",
+    ],
+    [
+      "injector accumulator -0.000001",
+      { injector: { accumulator: -0.000001 } },
+      "outOfDomain",
+    ],
+    [
+      "injector accumulator NaN",
+      { injector: { accumulator: Number.NaN } },
+      "outOfDomain",
+    ],
+    [
+      "weaponTypes lower case",
+      { weaponTypes: { ...ALL_NULL, fore: "eq_weapon_beam" } },
+      "outOfDomain",
+    ],
+    [
+      "weaponTypes 33 characters",
+      { weaponTypes: { ...ALL_NULL, port: `EQ_WEAPON_${"A".repeat(23)}` } },
+      "outOfDomain",
+    ],
+    [
+      "weaponTypes a prototype name",
+      { weaponTypes: { ...ALL_NULL, aft: "__proto__" } },
+      "outOfDomain",
+    ],
+  ] as const)("%s is refused %s", (_name, overrides, reason) => {
+    const world = createWorld(1);
+    expect(spawnEntity(world, init(overrides), 0)).toEqual({
+      ok: false,
+      reason,
+    });
+    expect(world.store.nextId).toBe(101);
+  });
+
+  it("an injector, per-facing weapon types and a fine mark spawn and are stored by copy", () => {
+    const world = createWorld(1);
+    const injector = { accumulator: 0.5 };
+    const weaponTypes = { ...ALL_NULL, aft: "EQ_WEAPON_NONE" };
+    const result = spawnEntity(
+      world,
+      init({ injector, weaponTypes, markedForFines: true }),
+      0,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.entity.injector).toEqual({ accumulator: 0.5 });
+    expect(result.entity.injector).not.toBe(injector);
+    expect(result.entity.weaponTypes).toEqual(weaponTypes);
+    expect(result.entity.weaponTypes).not.toBe(weaponTypes);
+    expect(result.entity.markedForFines).toBe(true);
+    const plain = spawnEntity(world, init(), 0);
+    expect(plain.ok && plain.entity.injector).toBeNull();
+    expect(plain.ok && plain.entity.weaponTypes).toEqual(ALL_NULL);
+    expect(plain.ok && plain.entity.markedForFines).toBe(false);
+    expect(plain.ok && plain.entity.weapon).toEqual({
+      temperature: 0,
+      lastShotTick: 0,
+      missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
+    });
+  });
 });

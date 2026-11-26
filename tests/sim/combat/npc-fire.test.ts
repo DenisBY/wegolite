@@ -504,6 +504,9 @@ describe("the gate takes one draw per request that passes the cheap checks", () 
       temperature: 0,
       lastShotTick: 0,
       missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
     });
   });
 });
@@ -583,6 +586,9 @@ describe("weapon cooling (ShipEntity.m:2214-2218, D-07)", () => {
       temperature: 0,
       lastShotTick: 0,
       missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
     });
   });
 
@@ -600,6 +606,9 @@ describe("weapon cooling (ShipEntity.m:2214-2218, D-07)", () => {
           temperature: 0,
           lastShotTick: 0,
           missedShots: 0,
+          aftTemperature: 0,
+          portTemperature: 0,
+          starboardTemperature: 0,
         });
       }
     }
@@ -659,6 +668,9 @@ describe("weapon cooling (ShipEntity.m:2214-2218, D-07)", () => {
       temperature: 0,
       lastShotTick: 0,
       missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
     });
     // The second commit removed it; its record is as it was.
     expect(deadShip.weapon.temperature).toBe(50);
@@ -1030,6 +1042,9 @@ describe("who may fire (the drain's refusals, T-17-11, T-17-26)", () => {
       temperature: 0,
       lastShotTick: 0,
       missedShots: 0,
+      aftTemperature: 0,
+      portTemperature: 0,
+      starboardTemperature: 0,
     });
   });
 

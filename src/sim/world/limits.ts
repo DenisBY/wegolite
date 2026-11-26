@@ -241,3 +241,20 @@ export const MAX_SYSTEM_INDEX = 255;
 
 /** The "unset" value of `Entity.homeSystem` and `Entity.destinationSystem`. */
 export const NO_SYSTEM_INDEX = -1;
+
+/**
+ * The longest per-facing weapon type key in `Entity.weaponTypes`: an
+ * `EQ_WEAPON_*` equipment key (`WEAPON_TYPE_PATTERN`); the longest in the
+ * catalogue, `EQ_WEAPON_MILITARY_LASER`, is 24 characters.
+ */
+export const MAX_WEAPON_TYPE_LENGTH = 32;
+
+/** What a weapon type key may be: `EQ_WEAPON_` then upper-case letters, digits, underscores. */
+export const WEAPON_TYPE_PATTERN = /^EQ_WEAPON_[A-Z0-9_]+$/;
+
+/**
+ * The largest `Entity.injector.accumulator`. Oolite's `fuel_accumulator` starts
+ * at 1.0 (`ShipEntity.m:557`) and wraps from below 0 by adding 1.0 while the
+ * afterburner runs (`:5845-5852`), so it stays in 0 to 1.
+ */
+export const MAX_INJECTOR_ACCUMULATOR = 1;

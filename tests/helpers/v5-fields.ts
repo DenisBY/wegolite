@@ -29,7 +29,7 @@ export interface V5Scalar {
 const NUMBER_WRONG_TYPE: readonly unknown[] = ["3", null, true, {}];
 const STRING_WRONG_TYPE: readonly unknown[] = [3, null, true, ["a"]];
 
-/** The scalar fields in the fixed segment order (`bty, role, grp, ck, pod, fuel, sys`). */
+/** The scalar fields in the fixed segment order (`bty, role, grp, ck, pod, fuel, sys`, then `fine` after the object fields). */
 export const V5_SCALARS: readonly V5Scalar[] = [
   {
     key: "bounty",
@@ -101,5 +101,12 @@ export const V5_SCALARS: readonly V5Scalar[] = [
     accepted: [-1, 0, 7, 255],
     outOfBound: [-2, 256, 1.5, Number.NaN],
     wrongType: NUMBER_WRONG_TYPE,
+  },
+  {
+    key: "markedForFines",
+    pristine: false,
+    accepted: [false, true],
+    outOfBound: [],
+    wrongType: [1, 0, "true", null],
   },
 ];

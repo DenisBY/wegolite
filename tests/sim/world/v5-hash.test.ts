@@ -206,6 +206,62 @@ const FIELD_CASES: readonly FieldCase[] = [
     },
     segment: "sys:-1,0",
   },
+  {
+    name: "injector with a full accumulator",
+    label: "inj",
+    apply: (e) => {
+      e.injector = { accumulator: 1 };
+    },
+    segment: "inj:1.000000",
+  },
+  {
+    name: "injector with an empty accumulator still prints",
+    label: "inj",
+    apply: (e) => {
+      e.injector = { accumulator: 0 };
+    },
+    segment: "inj:0.000000",
+  },
+  {
+    name: "aftTemperature 12.5",
+    label: "wpf",
+    apply: (e) => {
+      e.weapon.aftTemperature = 12.5;
+    },
+    segment: "wpf:12.500000,0.000000,0.000000",
+  },
+  {
+    name: "starboardTemperature 3",
+    label: "wpf",
+    apply: (e) => {
+      e.weapon.starboardTemperature = 3;
+    },
+    segment: "wpf:0.000000,0.000000,3.000000",
+  },
+  {
+    name: "weaponTypes.aft a beam laser",
+    label: "wty",
+    apply: (e) => {
+      e.weaponTypes.aft = "EQ_WEAPON_BEAM_LASER";
+    },
+    segment: 'wty:z,"EQ_WEAPON_BEAM_LASER",z,z',
+  },
+  {
+    name: "weaponTypes.aft explicitly none is not null",
+    label: "wty",
+    apply: (e) => {
+      e.weaponTypes.aft = "EQ_WEAPON_NONE";
+    },
+    segment: 'wty:z,"EQ_WEAPON_NONE",z,z',
+  },
+  {
+    name: "markedForFines",
+    label: "fine",
+    apply: (e) => {
+      e.markedForFines = true;
+    },
+    segment: "fine:1",
+  },
 ];
 
 describe("a v5 world that sets no new field hashes as v4 did (FOUND-20)", () => {
@@ -267,20 +323,25 @@ describe("each v5 field alone prints exactly its segment (strip-and-rehash)", ()
 
 describe("two or more fields print in the fixed order, whatever the assignment order", () => {
   it("prints the labels in V5_ORDER after cargo:", () => {
-    const labels = FIELD_CASES.map((c) => c.label);
-    const present = V5_ORDER.filter((label) => labels.includes(label));
+    // One case per label (the cases of one label overwrite each other).
+    const cases = V5_ORDER.flatMap((label) => {
+      const first = FIELD_CASES.find((c) => c.label === label);
+      return first === undefined ? [] : [first];
+    });
+    const present = cases.map((c) => c.label);
     // Assign in reverse table order, then in table order: the text is equal.
     const reversed = twoShipWorld();
     const forward = twoShipWorld();
     const a = reversed.store.live[1] as Entity;
     const b = forward.store.live[1] as Entity;
-    for (const c of [...FIELD_CASES].reverse()) c.apply(a);
-    for (const c of FIELD_CASES) c.apply(b);
+    for (const c of [...cases].reverse()) c.apply(a);
+    for (const c of cases) c.apply(b);
     expect(serializeEntity(a)).toBe(serializeEntity(b));
     const printed = segmentsOf(serializeEntity(a))
       .map((segment) => segment.slice(0, segment.indexOf(":")))
       .filter((label) => (V5_ORDER as readonly string[]).includes(label));
-    expect(printed).toEqual(present);
+    expect(present).toHaveLength(V5_ORDER.length);
+    expect(printed).toEqual([...V5_ORDER]);
     // The first printed v5 segment follows the last v4 one.
     const parts = segmentsOf(serializeEntity(a));
     const first = parts.findIndex((segment) => segment.startsWith("bty:"));
@@ -292,9 +353,54 @@ describe("two or more fields print in the fixed order, whatever the assignment o
     const world = twoShipWorld();
     const target = world.store.live[1] as Entity;
     for (const c of FIELD_CASES) c.apply(target);
+    // Every label printed at once, then every label stripped.
     let line = serializeEntity(target);
     for (const label of V5_ORDER) line = strip(line, label);
     expect(line).toBe(serializeEntity(pristine.store.live[1] as Entity));
+  });
+});
+
+describe("the weapon segments (FOUND-20)", () => {
+  it("leaves the existing wpn: segment alone for a forward-only ship", () => {
+    const world = twoShipWorld();
+    const target = world.store.live[1] as Entity;
+    target.weapon.temperature = 2.5;
+    target.weapon.lastShotTick = 9;
+    const parts = segmentsOf(serializeEntity(target));
+    expect(parts.at(-1)).toBe("wpn:2.500000,9,0");
+    expect(parts.some((segment) => segment.startsWith("wpf:"))).toBe(false);
+  });
+
+  it("prints a per-facing temperature in wpf: and never in wpn:", () => {
+    const world = twoShipWorld();
+    const target = world.store.live[1] as Entity;
+    target.weapon.portTemperature = 7;
+    const parts = segmentsOf(serializeEntity(target));
+    expect(parts.some((segment) => segment.startsWith("wpn:"))).toBe(false);
+    expect(parts.at(-1)).toBe("wpf:0.000000,7.000000,0.000000");
+  });
+
+  it("orders wpn: before the v5 segments and wpf: before wty:", () => {
+    const world = twoShipWorld();
+    const target = world.store.live[1] as Entity;
+    target.weaponTypes.fore = "EQ_WEAPON_PULSE_LASER";
+    target.weapon.aftTemperature = 1;
+    target.weapon.temperature = 1;
+    target.markedForFines = true;
+    const labels = segmentsOf(serializeEntity(target)).map((segment) =>
+      segment.slice(0, segment.indexOf(":")),
+    );
+    expect(labels.slice(-4)).toEqual(["wpn", "wpf", "wty", "fine"]);
+  });
+
+  it("keeps null and EQ_WEAPON_NONE apart in the hash", () => {
+    const a = twoShipWorld();
+    const b = twoShipWorld();
+    (a.store.live[1] as Entity).weaponTypes.aft = null;
+    (b.store.live[1] as Entity).weaponTypes.aft = "EQ_WEAPON_NONE";
+    expect(hashWorld(initFlightState(layout), a)).not.toBe(
+      hashWorld(initFlightState(layout), b),
+    );
   });
 });
 
@@ -335,6 +441,10 @@ describe("CARGO_KINDS (FOUND-20)", () => {
 describe("a fast-check property over random v5 entities", () => {
   const roleArb = fc.stringMatching(/^[a-z0-9-]{0,32}$/);
   const keyArb = fc.stringMatching(/^[a-z0-9_]{0,64}$/);
+  const weaponTypeArb = fc.oneof(
+    fc.constant(null),
+    fc.stringMatching(/^EQ_WEAPON_[A-Z0-9_]{1,22}$/),
+  );
   const entityArb = fc.record({
     bounty: fc.integer({ min: 0, max: 65535 }),
     role: roleArb,
@@ -348,6 +458,17 @@ describe("a fast-check property over random v5 entities", () => {
     fuel: fc.integer({ min: 0, max: 65535 }),
     homeSystem: fc.integer({ min: -1, max: 255 }),
     destinationSystem: fc.integer({ min: -1, max: 255 }),
+    injector: fc.oneof(
+      fc.constant(null),
+      fc.record({ accumulator: fc.double({ min: 0, max: 1, noNaN: true }) }),
+    ),
+    weaponTypes: fc.record({
+      fore: weaponTypeArb,
+      aft: weaponTypeArb,
+      port: weaponTypeArb,
+      starboard: weaponTypeArb,
+    }),
+    markedForFines: fc.boolean(),
   });
 
   it("round-trips through snapshot and parse, and sanitize repairs nothing", () => {
@@ -396,12 +517,31 @@ describe("a fast-check property over random v5 entities", () => {
           fuel: junkNumber,
           homeSystem: junkNumber,
           destinationSystem: junkNumber,
+          injector: fc.oneof(
+            fc.constant(null),
+            fc.record({ accumulator: junkNumber }),
+            fc.constant(5),
+          ),
+          weaponTypes: fc.oneof(
+            fc.record({
+              fore: fc.oneof(fc.constant(null), junkText),
+              aft: fc.oneof(fc.constant(null), junkText),
+              port: fc.oneof(fc.constant(null), junkText),
+              starboard: fc.oneof(fc.constant(null), junkText),
+            }),
+            fc.constant(null),
+          ),
+          markedForFines: fc.oneof(fc.boolean(), fc.constant(1)),
         }),
         (junk) => {
           const world = createWorld(7);
           const result = spawnEntity(world, shipInit(0), 0);
           if (!result.ok) throw new Error("spawn refused");
           Object.assign(result.entity, junk);
+          const w = result.entity.weapon;
+          w.aftTemperature = junk.destinationSystem;
+          w.portTemperature = junk.fuel;
+          w.starboardTemperature = junk.podAmount;
           sanitizeEntity(result.entity);
           expect(sanitizeEntity(result.entity)).toBe(false);
           // The repaired entity hashes (canon never throws) and snapshots.
