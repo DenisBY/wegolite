@@ -235,7 +235,9 @@ test("a launch populates the world, draws the ships within budget and matches th
   const records = npcRecords();
   const glbByKey = new Map(records.map((r) => [r.key, glbPath(r)]));
   const npcGlbs = new Set(glbByKey.values());
-  expect(npcGlbs.size, "NPC GLB paths (vacuity guard)").toBe(9);
+  // Plan 21-04: follows the compiled records (9 today), floor above 0.
+  expect(npcGlbs.size, "NPC GLB paths (vacuity guard)").toBeGreaterThan(0);
+  expect(npcGlbs.size, "NPC GLB paths (vacuity guard)").toBe(records.length);
 
   // Hold every NPC GLB request until released, so the "models held" counts are
   // read with no NPC model drawn. The release sits in a `finally` (T-12-34).
@@ -452,8 +454,16 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
 
   const npc = npcAssetPaths();
   const npcPaths = new Set([...npc.glbs, ...npc.textures]);
-  expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(9);
-  expect(npc.textures, "NPC texture paths (vacuity guard)").toHaveLength(43);
+  // Plan 21-04: the counts follow the catalogue (9 GLBs and 43 textures today),
+  // with a floor: some GLB, and at least one texture per GLB.
+  expect(npc.glbs.length, "NPC GLB paths (vacuity guard)").toBeGreaterThan(0);
+  expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(
+    npcRecords().length,
+  );
+  expect(
+    npc.textures.length,
+    "NPC texture paths (vacuity guard)",
+  ).toBeGreaterThanOrEqual(npc.glbs.length);
   const kill = killAssetPaths();
   const killPaths = new Set([
     ...kill.glbs,

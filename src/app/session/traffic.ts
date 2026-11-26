@@ -287,17 +287,35 @@ export interface StaticHullRecord {
  * (Oolite model axes, as authored). A static key that repeats a ship key is a
  * broken build and throws, so the boot fails visibly instead of silently
  * replacing a ship's hull.
+ *
+ * A hull entry may carry `aliases` (DATA-18): further ship keys whose records
+ * share its model. Each alias is registered with the same `HullData` object as
+ * the entry key, so a lookup by any of the keys reaches one octree. A key or
+ * alias that repeats one already in the table throws, naming the key, exactly
+ * as a static key does; the table keeps the entry keys and aliases in entry
+ * order, each entry key followed by its aliases.
  */
 export function hullTable(
   catalogue: ShipHullCatalogue,
   statics?: readonly StaticHullRecord[],
 ): HullTable {
-  const table = new Map<string, HullData>(
-    catalogue.map((hull) => [
-      hull.key,
-      { collisionRadius: hull.collisionRadius, octree: hull.octree },
-    ]),
-  );
+  const table = new Map<string, HullData>();
+  for (const hull of catalogue) {
+    const data: HullData = {
+      collisionRadius: hull.collisionRadius,
+      octree: hull.octree,
+    };
+    for (const key of [hull.key, ...(hull.aliases ?? [])]) {
+      if (table.has(key)) {
+        throw new Error(
+          `Wegolite: the hull key "${key}" repeats a key already in the hull table.`,
+        );
+      }
+      // An alias gets the entry's own HullData object (identity, not a copy):
+      // records that share a model share one octree (DATA-18).
+      table.set(key, data);
+    }
+  }
   for (const hull of statics ?? []) {
     if (table.has(hull.key)) {
       throw new Error(

@@ -13,6 +13,13 @@
  * ten hulls a shot can meet: the player's Cobra Mk III (so a scripted pilot can
  * hit the player, RESEARCH Pitfall 11) and the nine NPC hulls.
  *
+ * One octree per model (DATA-18, RESEARCH A8): records that share a model share
+ * one entry. The entry's `key` is the group's existing key (the player's Cobra
+ * key for the Cobra Mk III group, otherwise the first key of the group in
+ * code-unit order) and the other keys of the group ride in its optional
+ * `aliases` list, so the hull chunk never carries one octree twice. A group of
+ * one key has no `aliases` key, which keeps today's ten entries byte-identical.
+ *
  * The file is separate from `ships-npc.json` on purpose (D-01): it is loaded
  * lazily by `src/content/ships-hulls.ts`, so it never joins the first-load
  * set whose size is gated. The octree is carried as nested arrays of the
@@ -54,17 +61,32 @@ function fail(key: string, file: string, detail: string): never {
   throw contentError("SCHEMA", file, key, { excerpt: detail });
 }
 
+/** Code-unit order, the order the generated files sort their keys in. */
+function byCodeUnit(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 /**
- * Compile the hull records, one per {@link HULL_SHIP_KEYS} entry, in that order.
- *
- * @throws {ContentError} when a key or its mesh is missing, the mesh has no
- * triangle (`DAT_MESH`), or the record fails `ShipHullCatalogueSchema`.
+ * The keys of `keys` grouped by their resolved model, each group as the entry
+ * key plus the sorted aliases, in the order of the entry keys within `keys`
+ * (player first, then each group at the position of its entry key).
  */
-export function compileShipHulls(
+function groupByModel(
   catalogue: ShipCatalogue,
-  models: Readonly<Record<string, ParsedMesh>>,
-): ShipHull[] {
-  const records = HULL_SHIP_KEYS.map((key) => {
+  keys: readonly string[],
+): { key: string; aliases: string[]; model: string }[] {
+  const groups = new Map<string, string[]>();
+  const listed = new Set<string>();
+  for (const key of keys) {
+    // A key listed twice would become an alias of itself or of another entry.
+    if (listed.has(key)) {
+      return fail(
+        key,
+        SHIP_HULLS_PATH,
+        `the hull key "${key}" is listed twice, so it would repeat as an alias`,
+      );
+    }
+    listed.add(key);
     const entry = catalogue.entries.find((candidate) => candidate.key === key);
     if (entry === undefined) {
       return fail(
@@ -76,22 +98,62 @@ export function compileShipHulls(
     if (entry.model === null) {
       return fail(key, SHIPDATA_FILE, "the entry has no model, so no hull");
     }
-    const file = `${MODELS_DIR}/${entry.model}`;
-    const mesh = models[entry.model];
-    if (mesh === undefined) {
-      return fail(
+    const group = groups.get(entry.model);
+    if (group === undefined) groups.set(entry.model, [key]);
+    else group.push(key);
+  }
+  return [...groups]
+    .map(([model, members]) => {
+      const sorted = [...members].sort(byCodeUnit);
+      const key = sorted.includes(PLAYER_HULL_KEY)
+        ? PLAYER_HULL_KEY
+        : (sorted[0] as string);
+      return {
         key,
-        file,
-        `the model set has no parsed mesh for "${entry.model}"`,
-      );
-    }
-    const octree = buildOctree(mesh, file);
-    return {
-      key,
-      collisionRadius: hullRadius(key, file, mesh),
-      octree: { radius: octree.radius, depth: octree.depth, root: octree.root },
-    };
-  });
+        aliases: sorted.filter((member) => member !== key),
+        model,
+      };
+    })
+    .sort((left, right) => keys.indexOf(left.key) - keys.indexOf(right.key));
+}
+
+/**
+ * Compile the hull records, one per distinct model among `keys` (default
+ * {@link HULL_SHIP_KEYS}), ordered by the position of each entry key in `keys`.
+ * A key that shares its model with the entry key is that entry's alias.
+ *
+ * @throws {ContentError} when a key or its mesh is missing, the mesh has no
+ * triangle (`DAT_MESH`), or the record fails `ShipHullCatalogueSchema`.
+ */
+export function compileShipHulls(
+  catalogue: ShipCatalogue,
+  models: Readonly<Record<string, ParsedMesh>>,
+  keys: readonly string[] = HULL_SHIP_KEYS,
+): ShipHull[] {
+  const records = groupByModel(catalogue, keys).map(
+    ({ key, aliases, model }) => {
+      const file = `${MODELS_DIR}/${model}`;
+      const mesh = models[model];
+      if (mesh === undefined) {
+        return fail(
+          key,
+          file,
+          `the model set has no parsed mesh for "${model}"`,
+        );
+      }
+      const octree = buildOctree(mesh, file);
+      return {
+        key,
+        ...(aliases.length === 0 ? {} : { aliases }),
+        collisionRadius: hullRadius(key, file, mesh),
+        octree: {
+          radius: octree.radius,
+          depth: octree.depth,
+          root: octree.root,
+        },
+      };
+    },
+  );
 
   const parsed = ShipHullCatalogueSchema.safeParse(records);
   if (!parsed.success) {
@@ -105,6 +167,13 @@ export function compileShipHulls(
   return parsed.data;
 }
 
+/** The `"aliases"` member of an entry in canonical layout, or nothing. */
+function aliasLines(aliases: readonly string[] | undefined): string {
+  if (aliases === undefined || aliases.length === 0) return "";
+  const items = aliases.map((alias) => `      ${JSON.stringify(alias)}`);
+  return `    "aliases": [\n${items.join(",\n")}\n    ],\n`;
+}
+
 /**
  * One octree root as a single compact line. A node is `0`, `-1` or an array of
  * eight nodes, so `JSON.stringify` is already canonical for it (integers only,
@@ -115,9 +184,11 @@ function compactRoot(root: ShipHull["octree"]["root"]): string {
 }
 
 /**
- * Serialise the hull records in {@link HULL_SHIP_KEYS} order, in the canonical
+ * Serialise the hull records in {@link compileShipHulls} order, in the canonical
  * layout (keys in code-unit order, two-space indent, `\n` endings, one final
- * newline) with one exception: each octree `root` is one compact line.
+ * newline) with one exception: each octree `root` is one compact line. An entry
+ * with aliases writes an `"aliases"` array first (code-unit key order), one
+ * element per line; an entry without aliases writes no such key.
  *
  * The shared `canonicalJson` writes one array element per line, which puts the
  * ten hulls (about 37,000 nodes) at roughly 750 KB; the compact root brings them
@@ -128,12 +199,14 @@ function compactRoot(root: ShipHull["octree"]["root"]): string {
 export function emitShipHulls(
   catalogue: ShipCatalogue,
   models: Readonly<Record<string, ParsedMesh>>,
+  keys: readonly string[] = HULL_SHIP_KEYS,
 ): EmittedShips {
-  const records = compileShipHulls(catalogue, models);
+  const records = compileShipHulls(catalogue, models, keys);
   const body = records
     .map(
       (hull) =>
         `  {\n` +
+        aliasLines(hull.aliases) +
         `    "collisionRadius": ${canonicalNumber(hull.collisionRadius)},\n` +
         `    "key": ${JSON.stringify(hull.key)},\n` +
         `    "octree": {\n` +
