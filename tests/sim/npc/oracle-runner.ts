@@ -52,6 +52,7 @@ import { quat, rotate, sub, vec } from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import type { Entity } from "../../../src/sim/world/entity.js";
+import { NO_ENTITY } from "../../../src/sim/world/ids.js";
 import type {
   BehaviourId,
   BodyKind,
@@ -250,6 +251,15 @@ function shipView(body: RunnerBody): ShipView {
     destination: body.position,
     desiredRange: 0,
     desiredSpeed: body.speed,
+    bounty: 0,
+    role: "",
+    groupId: NO_ENTITY,
+    energy: 0,
+    maxEnergy: 0,
+    cargo: 0,
+    accuracy: 0,
+    escortSlot: 0,
+    ownerId: NO_ENTITY,
   };
 }
 
@@ -273,6 +283,15 @@ function entityShip(entity: Entity): ShipView {
     destination: entity.nav.destination,
     desiredRange: entity.nav.desiredRange,
     desiredSpeed: entity.nav.desiredSpeed,
+    bounty: entity.bounty,
+    role: entity.role,
+    groupId: entity.groupId,
+    energy: entity.energy,
+    maxEnergy: entity.maxEnergy,
+    cargo: entity.cargo,
+    accuracy: entity.steer.accuracy,
+    escortSlot: entity.steer.escortSlot,
+    ownerId: entity.ownerId,
   };
 }
 
@@ -339,6 +358,8 @@ export function createSyntheticView(
     mainStation: () => kindId("station"),
     mainPlanet: () => kindId("planet"),
     sun: () => kindId("sun"),
+    playerStanding: () => ({ legalStatus: 0, kills: 0 }),
+    groupLeader: () => NO_ENTITY,
   };
 }
 

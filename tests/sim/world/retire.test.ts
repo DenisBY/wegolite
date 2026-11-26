@@ -72,7 +72,7 @@ describe("retireShip", () => {
     const bystander = spawn(world);
     target(world, holder, departing);
     target(world, bystander, holder);
-    const nextId = world.nextId;
+    const nextId = world.store.nextId;
 
     expect(retireShip(world, departing, "docked")).toBe(true);
 
@@ -80,7 +80,7 @@ describe("retireShip", () => {
     expect(world.store.get(departing)).toBeUndefined();
     // The commit reports the removal (the caller emits entityRemoved).
     expect(commitWorld(world)).toEqual([departing]);
-    expect(world.nextId).toBe(nextId);
+    expect(world.store.nextId).toBe(nextId);
     const kinds = [...world.store.live].map((entity) => entity.kind);
     expect(kinds).toEqual(["ship", "ship"]);
     expect(world.store.get(holder)).toBeDefined();
@@ -187,7 +187,7 @@ describe("retireShip", () => {
           for (const entity of world.store.live) {
             before.set(entity.id, JSON.stringify(entity));
           }
-          const nextId = world.nextId;
+          const nextId = world.store.nextId;
           const retired = new Set<number>();
 
           for (const id of ids) {
@@ -198,7 +198,7 @@ describe("retireShip", () => {
             }
           }
 
-          expect(world.nextId).toBe(nextId);
+          expect(world.store.nextId).toBe(nextId);
           for (const event of world.aiQueue) {
             expect(event.name).toBe("shipTargetLost");
           }

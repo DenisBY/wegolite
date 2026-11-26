@@ -318,14 +318,18 @@ describe("the hit-reaction stage", () => {
     expect(apply(world, []).reactions).toEqual([]);
     expect(apply(undefined, [record(victim, 1, 5)]).reactions).toEqual([]);
     expect(
-      apply(world, [
-        record(victim, 1, Number.NaN),
-        record(victim, 1, 0),
-        record(victim, 1, -3),
-        record(9999, 1, 5),
-        record(wreck, 1, 5),
-        record(PLAYER_ID, 1, 5),
-      ], { combat: false }).reactions,
+      apply(
+        world,
+        [
+          record(victim, 1, Number.NaN),
+          record(victim, 1, 0),
+          record(victim, 1, -3),
+          record(9999, 1, 5),
+          record(wreck, 1, 5),
+          record(PLAYER_ID, 1, 5),
+        ],
+        { combat: false },
+      ).reactions,
     ).toEqual([]);
   });
 
@@ -650,7 +654,9 @@ describe("the reaction sink is total on malformed ledgers", () => {
           );
 
           // The lethal flag is set at most once per victim.
-          const flagged = reactions.filter((r) => r.lethal).map((r) => r.victim);
+          const flagged = reactions
+            .filter((r) => r.lethal)
+            .map((r) => r.victim);
           expect(new Set(flagged).size).toBe(flagged.length);
         },
       ),

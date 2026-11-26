@@ -25,15 +25,28 @@
  * the ids of its own world only.
  */
 
+import type { PlayerStanding } from "../combat/state.js";
 import type { FlightState } from "../flight/state.js";
 import { axisAngle, mul } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import type { Entity } from "./entity.js";
-import { MAIN_STATION_ID, PLANET_ID, PLAYER_ID, SUN_ID } from "./ids.js";
+import {
+  MAIN_STATION_ID,
+  NO_ENTITY,
+  PLANET_ID,
+  PLAYER_ID,
+  SUN_ID,
+} from "./ids.js";
 import type { EntityId } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
 import { buoyPosition, isBuoyDestroyed } from "./statics.js";
-import type { BodyView, ScanFilter, ShipView, WorldView } from "./view.js";
+import type {
+  BodyView,
+  ScanFilter,
+  ShipView,
+  StandingView,
+  WorldView,
+} from "./view.js";
 import { staticEntity } from "./world.js";
 import type { World } from "./world.js";
 
@@ -78,12 +91,17 @@ interface ScanHit {
  * `playerRadius` is the player's hull collision radius in metres, reported as
  * `body(PLAYER_ID).radius`. The world step passes it from its facts; a caller
  * that omits it gets 0.
+ *
+ * `standing` is the player's `PlayerCombatState.standing`, read on each
+ * `playerStanding()` call and copied (Phase 21); a caller that omits it gets the
+ * pristine standing. No call site passes it yet (Phase 25 does).
  */
 export function createWorldView(
   world: World,
   player: FlightState,
   layout: SystemLayout,
   playerRadius = 0,
+  standing?: PlayerStanding,
 ): WorldView {
   /**
    * The body for `id` with live references inside it. Private: every public
@@ -158,6 +176,15 @@ export function createWorldView(
       destination: copyVec(entity.nav.destination),
       desiredRange: entity.nav.desiredRange,
       desiredSpeed: entity.nav.desiredSpeed,
+      bounty: entity.bounty,
+      role: entity.role,
+      groupId: entity.groupId,
+      energy: entity.energy,
+      maxEnergy: entity.maxEnergy,
+      cargo: entity.cargo,
+      accuracy: entity.steer.accuracy,
+      escortSlot: entity.steer.escortSlot,
+      ownerId: entity.ownerId,
     };
   }
 
@@ -221,6 +248,19 @@ export function createWorldView(
     },
     sun(): EntityId {
       return SUN_ID;
+    },
+    playerStanding(): StandingView {
+      return {
+        legalStatus: standing?.legalStatus ?? 0,
+        kills: standing?.kills ?? 0,
+      };
+    },
+    groupLeader(groupId: EntityId): EntityId {
+      // A linear scan: a world holds at most `MAX_WORLD_GROUPS` records.
+      for (const group of world.groups) {
+        if (group.id === groupId) return group.leader;
+      }
+      return NO_ENTITY;
     },
   };
 }
