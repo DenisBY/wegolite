@@ -42,6 +42,7 @@ import { planCounts } from "./plan.js";
 import type { CountDraws, SystemFacts } from "./plan.js";
 import type { PopulationDraws } from "./streams.js";
 import { buildLightHunter } from "./police.js";
+import { buildIndependentPirate, buildPiratePack } from "./pirates.js";
 import {
   buildCourierLong,
   buildCourierShort,
@@ -171,7 +172,7 @@ export interface BuildOptions {
    * counts non-zero, which is every planned position (placement happens after
    * planning, plan 22-10).
    */
-  readonly posZ?: number;
+  readonly posZ?: number | undefined;
 }
 
 /**
@@ -203,6 +204,29 @@ export function buildGroup(
       break;
     case "lightHunter":
       ships = buildLightHunter(facts, records, draws);
+      break;
+    case "independentPirate":
+      ships = buildIndependentPirate(facts, records, draws, {
+        posZ: options.posZ,
+      });
+      break;
+    case "lightPirateLocal":
+      ships = buildPiratePack(facts, records, draws, "light", false);
+      break;
+    case "lightPirateRemote":
+      ships = buildPiratePack(facts, records, draws, "light", true);
+      break;
+    case "mediumPirateLocal":
+      ships = buildPiratePack(facts, records, draws, "medium", false);
+      break;
+    case "mediumPirateRemote":
+      ships = buildPiratePack(facts, records, draws, "medium", true);
+      break;
+    case "heavyPirateLocal":
+      ships = buildPiratePack(facts, records, draws, "heavy", false);
+      break;
+    case "heavyPirateRemote":
+      ships = buildPiratePack(facts, records, draws, "heavy", true);
       break;
     default:
       break;
