@@ -25,6 +25,7 @@ import type {
   CountDraws,
   SystemFacts,
 } from "../../src/sim/world/population/plan.js";
+import type { PopulationDraws } from "../../src/sim/world/population/streams.js";
 import { decodePopulationFixture } from "../oracles/population/codec.js";
 import {
   EdgeDrawsSchema,
@@ -206,18 +207,12 @@ export function countDrawsFromFixture(fixture: PopulationFixture): CountDraws {
   };
 }
 
-/** The draw interface the replay hands the port (matches `PopulationDraws`). */
-export interface RecordedDraws {
-  next(tag: string): number;
-  nextU32(tag: string): number;
-}
-
 /**
  * The recorded draws of one group, per tag, in the order taken. `next(tag)`
  * is the recorded `u / 2^32` and `nextU32(tag)` the recorded integer. A tag
  * with no recording, or one already used up, throws and names the tag.
  */
-export function recordedDraws(group: PopulationGroup): RecordedDraws {
+export function recordedDraws(group: PopulationGroup): PopulationDraws {
   const cursor = new Map<string, number>();
   const take = (tag: string): number => {
     const recorded = Object.hasOwn(group.draws, tag)
