@@ -41,14 +41,24 @@ import {
   BUOY_MAX_ENERGY,
   BUOY_SUBENTITY_MAX_ENERGY,
   MAX_BUOY_OFFSET,
+  MAX_STATION_LAUNCHED,
+  MAX_STATION_MARKS,
+  MAX_WORLD_GROUPS,
+  STATION_ALERT_GREEN,
   STATION_MAX_ENERGY,
 } from "../../../src/sim/world/limits.js";
 import {
   sanitizeBuoyStates,
   sanitizeEntity,
+  sanitizeGroups,
+  sanitizePopulator,
   sanitizeStaticHealth,
+  sanitizeStation,
 } from "../../../src/sim/world/sanitize.js";
-import { serializeEntity } from "../../../src/sim/world/serialize.js";
+import {
+  hashWorld,
+  serializeEntity,
+} from "../../../src/sim/world/serialize.js";
 import {
   parseWorldSnapshot,
   snapshotWorld,
@@ -2027,6 +2037,331 @@ describe("sanitizeBuoyStates (PD-01, PD-02, T-18-39, T-18-51)", () => {
         },
       ),
       { numRuns: 300 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The v5 world records (FOUND-20, plan 21-06): station, groups, populator.
+// Each sanitizer is total on any input, repairs in place, returns the repaired
+// field count and is idempotent. Expected values come from the bounds in
+// `limits.ts` and the plan, never from running the code under test.
+
+describe("sanitizeStation (FOUND-20, plan 21-06)", () => {
+  const worldWith = (station: unknown): ReturnType<typeof createWorld> => {
+    const world = createWorld(5);
+    loose(world).station = station;
+    return world;
+  };
+
+  it("leaves a valid record alone and counts nothing", () => {
+    const world = worldWith({ alert: 3, launched: 255, marks: [100, 205] });
+    const marks = world.station.marks;
+    expect(sanitizeStation(world)).toBe(0);
+    expect(world.station).toEqual({
+      alert: 3,
+      launched: 255,
+      marks: [100, 205],
+    });
+    expect(world.station.marks).toBe(marks);
+  });
+
+  it("accepts the alert bounds 0 and 3 and repairs 4, -1 and a fraction to green", () => {
+    for (const ok of [0, 1, 2, 3]) {
+      const world = worldWith({ alert: ok, launched: 0, marks: [] });
+      expect(sanitizeStation(world)).toBe(0);
+      expect(world.station.alert).toBe(ok);
+    }
+    for (const bad of [4, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, "2"]) {
+      const world = worldWith({ alert: bad, launched: 0, marks: [] });
+      expect(sanitizeStation(world)).toBe(1);
+      expect(world.station.alert).toBe(STATION_ALERT_GREEN);
+    }
+  });
+
+  it("repairs a non-integer, negative or over-range launched to 0", () => {
+    for (const bad of [0.5, -1, 256, Number.NaN, null, "3"]) {
+      const world = worldWith({ alert: 1, launched: bad, marks: [] });
+      expect(sanitizeStation(world)).toBe(1);
+      expect(world.station.launched).toBe(0);
+    }
+    const world = worldWith({ alert: 1, launched: 255, marks: [] });
+    expect(sanitizeStation(world)).toBe(0);
+    expect(world.station.launched).toBe(MAX_STATION_LAUNCHED);
+  });
+
+  it("drops invalid marks and keeps the valid neighbours", () => {
+    const world = worldWith({
+      alert: 1,
+      launched: 0,
+      marks: [101, 1.5, "x", -4, Number.NaN, 99, 205, null],
+    });
+    expect(sanitizeStation(world)).toBe(1);
+    expect(world.station.marks).toEqual([101, 205]);
+  });
+
+  it("collapses a repeated mark to one and sorts an unsorted list", () => {
+    const world = worldWith({
+      alert: 1,
+      launched: 0,
+      marks: [205, 101, 205, 100, 101],
+    });
+    expect(sanitizeStation(world)).toBe(1);
+    expect(world.station.marks).toEqual([100, 101, 205]);
+  });
+
+  it("keeps the lowest 32 marks of an oversized list", () => {
+    const world = worldWith({
+      alert: 1,
+      launched: 0,
+      marks: Array.from({ length: 40 }, (_, i) => 100 + i),
+    });
+    expect(sanitizeStation(world)).toBe(1);
+    expect(world.station.marks).toHaveLength(MAX_STATION_MARKS);
+    expect(world.station.marks[0]).toBe(100);
+    expect(world.station.marks.at(-1)).toBe(131);
+    // 32 marks are accepted as they stand.
+    expect(sanitizeStation(world)).toBe(0);
+  });
+
+  it("repairs a marks value that is not an array to empty", () => {
+    for (const bad of [null, undefined, 5, "101", {}]) {
+      const world = worldWith({ alert: 1, launched: 0, marks: bad });
+      expect(sanitizeStation(world)).toBe(1);
+      expect(world.station.marks).toEqual([]);
+    }
+  });
+
+  it("replaces a record that is not an object with the pristine one", () => {
+    for (const bad of [null, undefined, 5, "x"]) {
+      const world = worldWith(bad);
+      expect(sanitizeStation(world)).toBe(1);
+      expect(world.station).toEqual({ alert: 1, launched: 0, marks: [] });
+    }
+  });
+
+  it("counts one repair per repaired field", () => {
+    const world = worldWith({ alert: 9, launched: -2, marks: [7] });
+    expect(sanitizeStation(world)).toBe(3);
+    expect(world.station).toEqual({ alert: 1, launched: 0, marks: [] });
+    expect(sanitizeStation(world)).toBe(0);
+  });
+
+  it("turns -0 into 0 without a repair", () => {
+    const world = worldWith({ alert: -0, launched: -0, marks: [] });
+    expect(sanitizeStation(world)).toBe(0);
+    expect(Object.is(world.station.alert, 0)).toBe(true);
+    expect(Object.is(world.station.launched, 0)).toBe(true);
+  });
+});
+
+describe("sanitizeGroups (FOUND-20, plan 21-06)", () => {
+  const worldWith = (groups: unknown): ReturnType<typeof createWorld> => {
+    const world = createWorld(5);
+    loose(world).groups = groups;
+    return world;
+  };
+
+  it("leaves a valid list alone and counts nothing", () => {
+    const world = worldWith([
+      { id: 101, leader: 101 },
+      { id: 105, leader: 103 },
+    ]);
+    const list = world.groups;
+    expect(sanitizeGroups(world)).toBe(0);
+    expect(world.groups).toBe(list);
+  });
+
+  it("accepts a group whose leader is its own id (the founding leader)", () => {
+    const world = worldWith([{ id: 150, leader: 150 }]);
+    expect(sanitizeGroups(world)).toBe(0);
+    expect(world.groups).toEqual([{ id: 150, leader: 150 }]);
+  });
+
+  it("sorts ascending and keeps the first of two groups with one id", () => {
+    const world = worldWith([
+      { id: 105, leader: 105 },
+      { id: 101, leader: 101 },
+      { id: 105, leader: 999 },
+    ]);
+    expect(sanitizeGroups(world)).toBe(1);
+    expect(world.groups).toEqual([
+      { id: 101, leader: 101 },
+      { id: 105, leader: 105 },
+    ]);
+  });
+
+  it("drops a group with a non-id or non-dynamic id or leader, keeping its neighbours", () => {
+    const world = worldWith([
+      { id: 101, leader: 101 },
+      { id: 102, leader: 100 },
+      { id: 100, leader: 101 },
+      { id: 103, leader: 1.5 },
+      { id: "104", leader: 104 },
+      { id: 105, leader: Number.NaN },
+      null,
+      7,
+      { id: 106 },
+      { id: 107, leader: 107 },
+    ]);
+    expect(sanitizeGroups(world)).toBe(1);
+    expect(world.groups).toEqual([
+      { id: 101, leader: 101 },
+      { id: 107, leader: 107 },
+    ]);
+  });
+
+  it("removes an extra key from a record", () => {
+    const world = worldWith([{ id: 101, leader: 101, extra: 1 }]);
+    expect(sanitizeGroups(world)).toBe(1);
+    expect(world.groups).toEqual([{ id: 101, leader: 101 }]);
+    expect(Object.keys(world.groups[0] as object)).toEqual(["id", "leader"]);
+  });
+
+  it("accepts 128 groups and keeps the lowest 128 of 129", () => {
+    const make = (count: number): { id: number; leader: number }[] =>
+      Array.from({ length: count }, (_, i) => ({ id: 101 + i, leader: 101 }));
+    const full = worldWith(make(MAX_WORLD_GROUPS));
+    expect(sanitizeGroups(full)).toBe(0);
+    const over = worldWith(make(MAX_WORLD_GROUPS + 1));
+    expect(sanitizeGroups(over)).toBe(1);
+    expect(over.groups).toHaveLength(MAX_WORLD_GROUPS);
+    expect(over.groups.at(-1)?.id).toBe(101 + MAX_WORLD_GROUPS - 1);
+  });
+
+  it("replaces a value that is not an array with an empty list", () => {
+    for (const bad of [null, undefined, 5, "x", {}]) {
+      const world = worldWith(bad);
+      expect(sanitizeGroups(world)).toBe(1);
+      expect(world.groups).toEqual([]);
+    }
+  });
+});
+
+describe("sanitizePopulator (FOUND-20, plan 21-06)", () => {
+  const worldWith = (populator: unknown): ReturnType<typeof createWorld> => {
+    const world = createWorld(5);
+    loose(world).populator = populator;
+    return world;
+  };
+
+  it("leaves a valid clock alone, including the uint32 bounds", () => {
+    const world = worldWith({ nextTick: MAX_UINT32, rolls: 0 });
+    expect(sanitizePopulator(world)).toBe(0);
+    expect(world.populator).toEqual({ nextTick: MAX_UINT32, rolls: 0 });
+  });
+
+  it("repairs each leaf on its own and counts it", () => {
+    for (const bad of [-1, 1.5, Number.NaN, MAX_UINT32 + 1, "3", null]) {
+      const world = worldWith({ nextTick: bad, rolls: 7 });
+      expect(sanitizePopulator(world)).toBe(1);
+      expect(world.populator).toEqual({ nextTick: 0, rolls: 7 });
+    }
+    const both = worldWith({ nextTick: -1, rolls: 1.5 });
+    expect(sanitizePopulator(both)).toBe(2);
+    expect(both.populator).toEqual({ nextTick: 0, rolls: 0 });
+  });
+
+  it("replaces a record that is not an object", () => {
+    for (const bad of [null, undefined, 5, "x"]) {
+      const world = worldWith(bad);
+      expect(sanitizePopulator(world)).toBe(1);
+      expect(world.populator).toEqual({ nextTick: 0, rolls: 0 });
+    }
+  });
+});
+
+describe("the world records are total on malformed input (FOUND-20, milestone rule)", () => {
+  const leaf = fc.oneof(
+    fc.integer(),
+    fc.double(),
+    fc.constantFrom(
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      -0,
+      0,
+      3,
+      4,
+      99,
+      100,
+      101,
+      255,
+      256,
+      MAX_UINT32,
+      MAX_UINT32 + 1,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    fc.constantFrom(null, undefined, "5", true, {}, []),
+  );
+  const idLeaf = fc.oneof(
+    fc.integer({ min: 95, max: 140 }),
+    fc.integer({ min: 0, max: MAX_UINT32 }),
+    leaf,
+  );
+  /** A list of malformed ids: unsorted, repeated, oversized, junk elements. */
+  const idList = fc.oneof(
+    fc.array(idLeaf, { maxLength: 80 }),
+    fc.array(fc.integer({ min: 100, max: 140 }), { maxLength: 80 }),
+    fc.constantFrom(null, undefined, 3, "x", {}),
+  );
+  const groupRecord = fc.oneof(
+    fc.record({ id: idLeaf, leader: idLeaf }),
+    fc.record({ id: fc.integer({ min: 101, max: 140 }), leader: idLeaf }),
+    fc.record({ id: idLeaf, leader: idLeaf, extra: leaf }),
+    fc.constantFrom(null, undefined, 3, "x"),
+  );
+  const groupList = fc.oneof(
+    fc.array(groupRecord, { maxLength: 150 }),
+    fc.constantFrom(null, undefined, 3, "x", {}),
+  );
+  const stationArb = fc.oneof(
+    fc.record({ alert: leaf, launched: leaf, marks: idList }),
+    fc.constantFrom(null, undefined, 3, "x", []),
+  );
+  const populatorArb = fc.oneof(
+    fc.record({ nextTick: leaf, rolls: leaf }),
+    fc.constantFrom(null, undefined, 3, "x", []),
+  );
+
+  it("never throws, leaves a value the parser accepts, is idempotent and hashes, for any input", () => {
+    const player = initFlightState(laveFixture().layout);
+    fc.assert(
+      fc.property(
+        stationArb,
+        groupList,
+        populatorArb,
+        (station, groups, pop) => {
+          const world = createWorld(5);
+          loose(world).station = station;
+          loose(world).groups = groups;
+          loose(world).populator = pop;
+          expect(() => sanitizeStation(world)).not.toThrow();
+          expect(() => sanitizeGroups(world)).not.toThrow();
+          expect(() => sanitizePopulator(world)).not.toThrow();
+          // The snapshot writer and the strict parser take what is left.
+          const text = JSON.stringify(snapshotWorld(world));
+          expect(() =>
+            parseWorldSnapshot(JSON.parse(text) as unknown),
+          ).not.toThrow();
+          // A second pass repairs nothing and changes no bit.
+          expect(sanitizeStation(world)).toBe(0);
+          expect(sanitizeGroups(world)).toBe(0);
+          expect(sanitizePopulator(world)).toBe(0);
+          expect(JSON.stringify(snapshotWorld(world))).toBe(text);
+          // The hash, which repairs on its own, never throws and agrees.
+          const hash = hashWorld(player, world);
+          expect(hashWorld(player, world)).toBe(hash);
+          // A hash of the unrepaired value equals the hash of the repaired one.
+          const raw = createWorld(5);
+          loose(raw).station = station;
+          loose(raw).groups = groups;
+          loose(raw).populator = pop;
+          expect(() => hashWorld(player, raw)).not.toThrow();
+          expect(hashWorld(player, raw)).toBe(hash);
+        },
+      ),
+      { numRuns: 400 },
     );
   });
 });

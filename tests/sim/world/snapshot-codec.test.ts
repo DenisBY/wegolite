@@ -2996,3 +2996,343 @@ describe("sanitizer and parser agree across every entity leaf", () => {
     expect(withAi).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The v5 world records (FOUND-20, plan 21-06): station, groups, populator.
+
+/** A world with every v5 world record set. */
+function recordWorld(): World {
+  const world = richWorld();
+  world.station = { alert: 3, launched: 4, marks: [100, 101, 205] };
+  world.groups = [
+    { id: 101, leader: 101 },
+    { id: 102, leader: 101 },
+  ];
+  world.populator = { nextTick: 2400, rolls: 3 };
+  return world;
+}
+
+/** `count` ascending ids from `first`. */
+const idRun = (first: number, count: number): number[] =>
+  Array.from({ length: count }, (_, i) => first + i);
+
+/** A name, the path text the message must name, a mutation and the reason. */
+const RECORD_REJECTIONS: readonly (readonly [
+  string,
+  string,
+  Mutator,
+  SnapshotErrorReason,
+])[] = [
+  ["station.alert 4", "station.alert", set("station.alert", 4), "range"],
+  ["station.alert -1", "station.alert", set("station.alert", -1), "range"],
+  ["station.alert 1.5", "station.alert", set("station.alert", 1.5), "range"],
+  ["station.alert '1'", "station.alert", set("station.alert", "1"), "type"],
+  [
+    "station.alert NaN",
+    "station.alert",
+    set("station.alert", Number.NaN),
+    "non-finite",
+  ],
+  [
+    "station.launched 256",
+    "station.launched",
+    set("station.launched", 256),
+    "range",
+  ],
+  [
+    "station.launched -1",
+    "station.launched",
+    set("station.launched", -1),
+    "range",
+  ],
+  [
+    "station.launched 0.5",
+    "station.launched",
+    set("station.launched", 0.5),
+    "range",
+  ],
+  [
+    "station.marks with 33 ids",
+    "station.marks",
+    set("station.marks", idRun(100, 33)),
+    "range",
+  ],
+  [
+    "station.marks with a repeat",
+    "station.marks[1]",
+    set("station.marks", [101, 101]),
+    "entity-order",
+  ],
+  [
+    "station.marks descending",
+    "station.marks[1]",
+    set("station.marks", [205, 101]),
+    "entity-order",
+  ],
+  [
+    "station.marks below the player id",
+    "station.marks[0]",
+    set("station.marks", [99]),
+    "entity-id",
+  ],
+  [
+    "station.marks above uint32",
+    "station.marks[0]",
+    set("station.marks", [2 ** 32]),
+    "entity-id",
+  ],
+  [
+    "station.marks with a fraction",
+    "station.marks[0]",
+    set("station.marks", [101.5]),
+    "entity-id",
+  ],
+  [
+    "station.marks with a string element",
+    "station.marks[0]",
+    set("station.marks", ["101"]),
+    "type",
+  ],
+  [
+    "station.marks not an array",
+    "station.marks",
+    set("station.marks", 5),
+    "type",
+  ],
+  [
+    "station with an extra key",
+    "station",
+    set("station.extra", 1),
+    "unknown-key",
+  ],
+  ["station null", "station", set("station", null), "not-object"],
+  [
+    "station.marks missing",
+    "station.marks",
+    (s) => void delete (getAt(s, "station") as Plain).marks,
+    "type",
+  ],
+  [
+    "129 groups",
+    "groups",
+    set(
+      "groups",
+      idRun(101, 129).map((id) => ({ id, leader: id })),
+    ),
+    "range",
+  ],
+  [
+    "groups with a repeated id",
+    "groups[1].id",
+    set("groups", [
+      { id: 101, leader: 101 },
+      { id: 101, leader: 102 },
+    ]),
+    "entity-order",
+  ],
+  [
+    "groups with descending ids",
+    "groups[1].id",
+    set("groups", [
+      { id: 105, leader: 105 },
+      { id: 101, leader: 101 },
+    ]),
+    "entity-order",
+  ],
+  [
+    "a group id below the dynamic range",
+    "groups[0].id",
+    set("groups", [{ id: 100, leader: 101 }]),
+    "range",
+  ],
+  [
+    "a group leader below the dynamic range",
+    "groups[0].leader",
+    set("groups", [{ id: 101, leader: 100 }]),
+    "range",
+  ],
+  [
+    "a fractional group leader",
+    "groups[0].leader",
+    set("groups", [{ id: 101, leader: 101.5 }]),
+    "range",
+  ],
+  [
+    "a string group leader",
+    "groups[0].leader",
+    set("groups", [{ id: 101, leader: "101" }]),
+    "type",
+  ],
+  ["groups not an array", "groups", set("groups", {}), "type"],
+  [
+    "a group with an extra key",
+    "groups[0]",
+    set("groups", [{ id: 101, leader: 101, extra: 1 }]),
+    "unknown-key",
+  ],
+  ["a null group record", "groups[0]", set("groups", [null]), "not-object"],
+  [
+    "populator.nextTick -1",
+    "populator.nextTick",
+    set("populator.nextTick", -1),
+    "counter",
+  ],
+  [
+    "populator.nextTick 2^32",
+    "populator.nextTick",
+    set("populator.nextTick", 2 ** 32),
+    "counter",
+  ],
+  [
+    "populator.rolls 1.5",
+    "populator.rolls",
+    set("populator.rolls", 1.5),
+    "counter",
+  ],
+  [
+    "populator with an extra key",
+    "populator",
+    set("populator.extra", 1),
+    "unknown-key",
+  ],
+  ["populator null", "populator", set("populator", null), "not-object"],
+];
+
+describe("the v5 world records at the snapshot boundary (FOUND-20, plan 21-06)", () => {
+  it("accepts the record world", () => {
+    expect(reasonOf(jsonOf(recordWorld()))).toBe("accepted");
+  });
+
+  it.each(
+    RECORD_REJECTIONS.map(
+      ([name, at, mutate, reason]) => [name, at, reason, mutate] as const,
+    ),
+  )("rejects %s, naming %s as %s", (_name, at, reason, mutate) => {
+    const snapshot = jsonOf(recordWorld());
+    mutate(snapshot);
+    expect(reasonOf(snapshot)).toBe(reason);
+    expect(() => parseWorldSnapshot(snapshot)).toThrow(`snapshot.${at}`);
+    expect(() => restoreWorld(snapshot as unknown as WorldSnapshot)).toThrow(
+      SnapshotError,
+    );
+  });
+
+  it("rejects an own __proto__ key in a record", () => {
+    const snapshot = jsonOf(recordWorld());
+    withOwnKey(getAt(snapshot, "station"), "__proto__");
+    expect(reasonOf(snapshot)).toBe("forbidden-key");
+    const second = jsonOf(recordWorld());
+    withOwnKey(getAt(second, "populator"), "__proto__");
+    expect(reasonOf(second)).toBe("forbidden-key");
+  });
+
+  it("accepts the bounds themselves", () => {
+    const snapshot = jsonOf(recordWorld());
+    setAt(snapshot, "station.alert", 0);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    setAt(snapshot, "station.alert", 3);
+    setAt(snapshot, "station.launched", 255);
+    setAt(snapshot, "station.marks", idRun(100, 32));
+    setAt(
+      snapshot,
+      "groups",
+      idRun(101, 128).map((id) => ({ id, leader: id })),
+    );
+    setAt(snapshot, "populator.nextTick", MAX_UINT32);
+    setAt(snapshot, "populator.rolls", MAX_UINT32);
+    expect(reasonOf(snapshot)).toBe("accepted");
+    setAt(snapshot, "station.marks", [MAX_UINT32]);
+    setAt(snapshot, "groups", [{ id: MAX_UINT32, leader: 101 }]);
+    expect(reasonOf(snapshot)).toBe("accepted");
+  });
+
+  it("accepts a group whose leader equals its id (the founding leader)", () => {
+    const snapshot = jsonOf(recordWorld());
+    setAt(snapshot, "groups", [{ id: 150, leader: 150 }]);
+    expect(reasonOf(snapshot)).toBe("accepted");
+  });
+});
+
+describe("the v5 world records in the snapshot (FOUND-20, plan 21-06)", () => {
+  it("writes no key for pristine records", () => {
+    const snapshot = snapshotWorld(richWorld());
+    for (const key of ["station", "groups", "populator"]) {
+      expect(Object.hasOwn(snapshot, key)).toBe(false);
+    }
+    const text = JSON.stringify(snapshot);
+    // `staticHealth.station` is a different, older leaf: look for the top key.
+    expect(text).not.toContain('"station":{"alert"');
+    expect(text).not.toContain('"groups"');
+    expect(text).not.toContain('"populator"');
+  });
+
+  it("writes only the key of the record that is not pristine", () => {
+    const world = richWorld();
+    world.station.alert = 2;
+    expect(Object.keys(snapshotWorld(world)).sort()).toEqual(
+      [
+        "format",
+        "version",
+        "worldSeed",
+        "nextId",
+        "rng",
+        "aiDropped",
+        "staticHealth",
+        "station",
+        "entities",
+      ].sort(),
+    );
+    const grouped = richWorld();
+    grouped.groups = [{ id: 101, leader: 101 }];
+    expect(Object.hasOwn(snapshotWorld(grouped), "groups")).toBe(true);
+    expect(Object.hasOwn(snapshotWorld(grouped), "station")).toBe(false);
+    const timed = richWorld();
+    timed.populator.rolls = 1;
+    expect(Object.hasOwn(snapshotWorld(timed), "populator")).toBe(true);
+  });
+
+  it("round-trips every record to an equal hash, an equal text and no shared reference", () => {
+    const player = initFlightState(layout);
+    const world = recordWorld();
+    const text = JSON.stringify(snapshotWorld(world));
+    const restored = restoreWorld(
+      parseWorldSnapshot(JSON.parse(text) as unknown),
+    );
+    expect(restored.station).toEqual(world.station);
+    expect(restored.groups).toEqual(world.groups);
+    expect(restored.populator).toEqual(world.populator);
+    expect(restored.station).not.toBe(world.station);
+    expect(restored.station.marks).not.toBe(world.station.marks);
+    expect(restored.groups).not.toBe(world.groups);
+    expect(restored.groups[0]).not.toBe(world.groups[0]);
+    expect(restored.populator).not.toBe(world.populator);
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+    expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+  });
+
+  it("restores pristine records from a snapshot without the keys", () => {
+    const player = initFlightState(layout);
+    const snapshot = jsonOf(recordWorld());
+    delete snapshot.station;
+    delete snapshot.groups;
+    delete snapshot.populator;
+    const restored = restoreWorld(snapshot as unknown as WorldSnapshot);
+    expect(restored.station).toEqual({ alert: 1, launched: 0, marks: [] });
+    expect(restored.groups).toEqual([]);
+    expect(restored.populator).toEqual({ nextTick: 0, rolls: 0 });
+    expect(hashWorld(player, restored)).toBe(hashWorld(player, richWorld()));
+  });
+
+  it("refuses to snapshot a non-finite record leaf and writes -0 as 0", () => {
+    const world = richWorld();
+    world.station.launched = Number.NaN;
+    expect(() => snapshotWorld(world)).toThrow(SnapshotError);
+    const second = richWorld();
+    second.populator.nextTick = Number.POSITIVE_INFINITY;
+    expect(() => snapshotWorld(second)).toThrow(SnapshotError);
+    const third = richWorld();
+    third.station.alert = 2;
+    third.station.launched = -0;
+    expect(Object.is(snapshotWorld(third).station?.launched, 0)).toBe(true);
+  });
+});

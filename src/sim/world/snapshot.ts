@@ -44,6 +44,7 @@ import {
   ENTITY_KINDS,
   FIRST_DYNAMIC_ID,
   MAX_ENTITIES,
+  PLAYER_ID,
   SCAN_CLASSES,
 } from "./ids.js";
 import type { BehaviourId, EntityId, EntityKind, ScanClass } from "./ids.js";
@@ -69,15 +70,19 @@ import {
   MAX_SHIP_FUEL,
   MAX_SNAPSHOT_PARAM_LENGTH,
   MAX_SNAPSHOT_STRING_LENGTH,
+  MAX_STATION_LAUNCHED,
+  MAX_STATION_MARKS,
   MAX_STEER_RATE,
   MAX_SYSTEM_INDEX,
   MAX_UINT32,
   MAX_WEAPON_TEMPERATURE,
   MAX_WEAPON_TYPE_LENGTH,
+  MAX_WORLD_GROUPS,
   MIN_ACCURACY,
   NO_SYSTEM_INDEX,
   QUAT_UNIT_TOLERANCE,
   ROLE_PATTERN,
+  STATION_ALERT_RED,
   STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
   WEAPON_TYPE_PATTERN,
@@ -86,9 +91,19 @@ import { createEntityStore } from "./store.js";
 import {
   STATIC_ENTITIES,
   createBuoyStates,
+  createPopulatorClock,
+  createStationRecord,
   isPristineBuoyStates,
+  isPristineGroups,
+  isPristinePopulator,
+  isPristineStation,
 } from "./world.js";
-import type { World } from "./world.js";
+import type {
+  GroupRecord,
+  PopulatorClock,
+  StationRecord,
+  World,
+} from "./world.js";
 
 /** The `format` tag of every world snapshot. */
 export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
@@ -108,8 +123,9 @@ export const WORLD_SNAPSHOT_FORMAT = "wegolite-world";
  * snapshot stays valid and restores pristine buoys.
  * Version 5 (Phase 21, FOUND-20, pitfall C2) adds the per-entity v2.4 field set
  * (`bounty`, and the fields of the later tasks of plan 21-03) in one bump; a
- * version-4 snapshot is refused. The v2.4 world-level records of plan 21-06 and
- * the priority-AI vocabulary of plan 21-07 land inside version 5 as optional
+ * version-4 snapshot is refused. The v2.4 world-level records of plan 21-06
+ * (the optional world keys `station`, `groups` and `populator`) and the
+ * priority-AI vocabulary of plan 21-07 land inside version 5 as optional
  * keys omitted when pristine, never as a second bump. A field still missing
  * after Phase 21 is an owner amendment (Key Decisions, "World snapshot version
  * 5").
@@ -259,6 +275,26 @@ export interface BuoyStatesSnapshot {
   navBuoy: BuoyStateSnapshot;
 }
 
+/** The main station's responder record (`StationRecord` in `./world.ts`). */
+export interface StationSnapshot {
+  alert: number;
+  launched: number;
+  /** Strictly ascending, at most `MAX_STATION_MARKS`. */
+  marks: number[];
+}
+
+/** One group (`GroupRecord` in `./world.ts`). */
+export interface GroupSnapshot {
+  id: number;
+  leader: number;
+}
+
+/** The repopulation clock (`PopulatorClock` in `./world.ts`). */
+export interface PopulatorSnapshot {
+  nextTick: number;
+  rolls: number;
+}
+
 export interface WorldSnapshot {
   format: typeof WORLD_SNAPSHOT_FORMAT;
   version: typeof WORLD_SNAPSHOT_VERSION;
@@ -276,6 +312,14 @@ export interface WorldSnapshot {
    * pristine buoys.
    */
   buoys?: BuoyStatesSnapshot;
+  /**
+   * The v5 world records (FOUND-20, plan 21-06), each present only when not
+   * pristine; an absent key restores the pristine record.
+   */
+  station?: StationSnapshot;
+  /** Strictly ascending by group id, at most `MAX_WORLD_GROUPS`. */
+  groups?: GroupSnapshot[];
+  populator?: PopulatorSnapshot;
   /** Strictly ascending by id. */
   entities: EntitySnapshot[];
 }
@@ -644,6 +688,17 @@ export function snapshotWorld(world: World): WorldSnapshot {
   requireFinite(world.staticHealth.navBuoy, "staticHealth.navBuoy");
   requireFiniteBuoy(world.buoys.witchpoint, "buoys.witchpoint");
   requireFiniteBuoy(world.buoys.navBuoy, "buoys.navBuoy");
+  requireFinite(world.station.alert, "station.alert");
+  requireFinite(world.station.launched, "station.launched");
+  world.station.marks.forEach((mark, i) =>
+    requireFinite(mark, `station.marks[${String(i)}]`),
+  );
+  world.groups.forEach((group, i) => {
+    requireFinite(group.id, `groups[${String(i)}].id`);
+    requireFinite(group.leader, `groups[${String(i)}].leader`);
+  });
+  requireFinite(world.populator.nextTick, "populator.nextTick");
+  requireFinite(world.populator.rolls, "populator.rolls");
   for (const entity of world.store.live) requireFiniteEntity(entity);
   return {
     format: WORLD_SNAPSHOT_FORMAT,
@@ -664,6 +719,32 @@ export function snapshotWorld(world: World): WorldSnapshot {
           buoys: {
             witchpoint: snapshotBuoy(world.buoys.witchpoint),
             navBuoy: snapshotBuoy(world.buoys.navBuoy),
+          },
+        }),
+    // Pristine-omit (FOUND-20, plan 21-06): a pristine record adds no key.
+    ...(isPristineStation(world.station)
+      ? {}
+      : {
+          station: {
+            alert: noNegativeZero(world.station.alert),
+            launched: noNegativeZero(world.station.launched),
+            marks: world.station.marks.map(noNegativeZero),
+          },
+        }),
+    ...(isPristineGroups(world.groups)
+      ? {}
+      : {
+          groups: world.groups.map((group) => ({
+            id: noNegativeZero(group.id),
+            leader: noNegativeZero(group.leader),
+          })),
+        }),
+    ...(isPristinePopulator(world.populator)
+      ? {}
+      : {
+          populator: {
+            nextTick: noNegativeZero(world.populator.nextTick),
+            rolls: noNegativeZero(world.populator.rolls),
           },
         }),
     entities: world.store.live.map(snapshotEntity),
@@ -1290,6 +1371,95 @@ function parseBuoys(value: unknown, path: string): BuoyStatesSnapshot {
   };
 }
 
+/** Fail at the first problem with a world-level id list. */
+function parseIdList(
+  value: unknown,
+  path: string,
+  min: number,
+  maxLength: number,
+): number[] {
+  if (!Array.isArray(value)) return fail("type", path, "expected an array");
+  const source = value as readonly unknown[];
+  if (source.length > maxLength) {
+    fail("range", path, `more than ${String(maxLength)} ids`);
+  }
+  const out: number[] = [];
+  let previous = min - 1;
+  for (let i = 0; i < source.length; i += 1) {
+    const at = `${path}[${String(i)}]`;
+    const n = finiteNumber(source[i], at);
+    if (!Number.isSafeInteger(n) || n < min || n > MAX_UINT32) {
+      fail("entity-id", at, "not an entity id in range");
+    }
+    if (n <= previous) fail("entity-order", at, "not strictly ascending");
+    previous = n;
+    out.push(noNegativeZero(n));
+  }
+  return out;
+}
+
+/** `World.station` (FOUND-20, plan 21-06): alert 0 to 3, launched, ascending marks. */
+function parseStation(value: unknown, path: string): StationSnapshot {
+  const o = asObject(value, path, ["alert", "launched", "marks"]);
+  return {
+    alert: integerIn(read(o, "alert"), `${path}.alert`, 0, STATION_ALERT_RED),
+    launched: integerIn(
+      read(o, "launched"),
+      `${path}.launched`,
+      0,
+      MAX_STATION_LAUNCHED,
+    ),
+    marks: parseIdList(
+      read(o, "marks"),
+      `${path}.marks`,
+      PLAYER_ID,
+      MAX_STATION_MARKS,
+    ),
+  };
+}
+
+/** `World.groups`: ascending unique group ids, each with a dynamic leader id. */
+function parseGroups(value: unknown, path: string): GroupSnapshot[] {
+  if (!Array.isArray(value)) return fail("type", path, "expected an array");
+  const source = value as readonly unknown[];
+  if (source.length > MAX_WORLD_GROUPS) {
+    fail("range", path, `more than ${String(MAX_WORLD_GROUPS)} groups`);
+  }
+  const out: GroupSnapshot[] = [];
+  let previous = FIRST_DYNAMIC_ID - 1;
+  for (let i = 0; i < source.length; i += 1) {
+    const at = `${path}[${String(i)}]`;
+    const o = asObject(source[i], at, ["id", "leader"]);
+    const id = integerIn(
+      read(o, "id"),
+      `${at}.id`,
+      FIRST_DYNAMIC_ID,
+      MAX_UINT32,
+    );
+    if (id <= previous) {
+      fail("entity-order", `${at}.id`, "not strictly ascending");
+    }
+    previous = id;
+    const leader = integerIn(
+      read(o, "leader"),
+      `${at}.leader`,
+      FIRST_DYNAMIC_ID,
+      MAX_UINT32,
+    );
+    out.push({ id, leader });
+  }
+  return out;
+}
+
+/** `World.populator`: two uint32 clock leaves. */
+function parsePopulator(value: unknown, path: string): PopulatorSnapshot {
+  const o = asObject(value, path, ["nextTick", "rolls"]);
+  return {
+    nextTick: uint32(read(o, "nextTick"), `${path}.nextTick`, "counter"),
+    rolls: uint32(read(o, "rolls"), `${path}.rolls`, "counter"),
+  };
+}
+
 /** A string of at most `max` characters, all in `pattern`'s class (FOUND-20). */
 function patternString(
   value: unknown,
@@ -1526,6 +1696,9 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     "aiDropped",
     "staticHealth",
     "buoys",
+    "station",
+    "groups",
+    "populator",
     "entities",
   ]);
   if (read(root, "format") !== WORLD_SNAPSHOT_FORMAT) {
@@ -1564,6 +1737,22 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     buoysValue === undefined
       ? undefined
       : parseBuoys(buoysValue, "snapshot.buoys");
+  // Optional (FOUND-20, plan 21-06): an absent key means the pristine record.
+  const stationValue = read(root, "station");
+  const station =
+    stationValue === undefined
+      ? undefined
+      : parseStation(stationValue, "snapshot.station");
+  const groupsValue = read(root, "groups");
+  const groups =
+    groupsValue === undefined
+      ? undefined
+      : parseGroups(groupsValue, "snapshot.groups");
+  const populatorValue = read(root, "populator");
+  const populator =
+    populatorValue === undefined
+      ? undefined
+      : parsePopulator(populatorValue, "snapshot.populator");
   const source = read(root, "entities");
   if (!Array.isArray(source)) {
     return fail("entities", "snapshot.entities", "expected an array");
@@ -1598,6 +1787,9 @@ export function parseWorldSnapshot(input: unknown): WorldSnapshot {
     aiDropped,
     staticHealth,
     ...(buoys === undefined ? {} : { buoys }),
+    ...(station === undefined ? {} : { station }),
+    ...(groups === undefined ? {} : { groups }),
+    ...(populator === undefined ? {} : { populator }),
     entities,
   };
 }
@@ -1662,7 +1854,32 @@ export function restoreWorld(snapshot: WorldSnapshot): World {
       parsed.buoys === undefined
         ? createBuoyStates()
         : restoreBuoys(parsed.buoys),
+    station:
+      parsed.station === undefined
+        ? createStationRecord()
+        : restoreStation(parsed.station),
+    groups: parsed.groups === undefined ? [] : restoreGroups(parsed.groups),
+    populator:
+      parsed.populator === undefined
+        ? createPopulatorClock()
+        : restorePopulator(parsed.populator),
   };
+}
+
+function restoreStation(station: StationSnapshot): StationRecord {
+  return {
+    alert: station.alert,
+    launched: station.launched,
+    marks: station.marks,
+  };
+}
+
+function restoreGroups(groups: readonly GroupSnapshot[]): GroupRecord[] {
+  return groups.map((group) => ({ id: group.id, leader: group.leader }));
+}
+
+function restorePopulator(populator: PopulatorSnapshot): PopulatorClock {
+  return { nextTick: populator.nextTick, rolls: populator.rolls };
 }
 
 function restoreBuoy(buoy: BuoyStateSnapshot): BuoyState {

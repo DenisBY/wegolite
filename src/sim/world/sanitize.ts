@@ -87,8 +87,10 @@ import {
   BEHAVIOUR_IDS,
   ENTITY_KINDS,
   FIRST_DYNAMIC_ID,
+  PLAYER_ID,
   SCAN_CLASSES,
 } from "./ids.js";
+import type { EntityId } from "./ids.js";
 import {
   BUOY_MAX_ENERGY,
   BUOY_SUBENTITY_MAX_ENERGY,
@@ -113,9 +115,12 @@ import {
   MAX_SNAPSHOT_STRING_LENGTH,
   MAX_STEER_RATE,
   MAX_SYSTEM_INDEX,
+  MAX_STATION_LAUNCHED,
+  MAX_STATION_MARKS,
   MAX_UINT32,
   MAX_WEAPON_TEMPERATURE,
   MAX_WEAPON_TYPE_LENGTH,
+  MAX_WORLD_GROUPS,
   MIN_ACCURACY,
   MIN_QUAT_NORM_SQ,
   NO_SYSTEM_INDEX,
@@ -123,12 +128,19 @@ import {
   NPC_DEFAULT_MAX_ENERGY,
   QUAT_UNIT_TOLERANCE,
   ROLE_PATTERN,
+  STATION_ALERT_GREEN,
+  STATION_ALERT_RED,
   STATION_MAX_ENERGY,
   TRACKING_SAMPLES,
   WEAPON_TYPE_PATTERN,
 } from "./limits.js";
-import { createBuoyStates, createStaticHealth } from "./world.js";
-import type { World } from "./world.js";
+import {
+  createBuoyStates,
+  createPopulatorClock,
+  createStaticHealth,
+  createStationRecord,
+} from "./world.js";
+import type { GroupRecord, World } from "./world.js";
 
 const FORBIDDEN_PARAM_KEYS: readonly string[] = [
   "__proto__",
@@ -1077,4 +1089,152 @@ export function sanitizeBuoyStates(world: World): boolean {
   const witchpoint = sanitizeBuoy(world.buoys, "witchpoint");
   const navBuoy = sanitizeBuoy(world.buoys, "navBuoy");
   return witchpoint || navBuoy;
+}
+
+// ---------------------------------------------------------------------------
+// The v5 world-level records (FOUND-20, plan 21-06): the station, the groups and
+// the populator clock. Each sanitizer is total on any input shape, repairs in
+// place and returns the number of repaired fields (0 for a valid record, and a
+// second call right after a repair returns 0). `-0` becomes 0 without a repair.
+// A repaired value is the record's pristine value, as the v5 entity fields do.
+
+/** An integer in `min..MAX_UINT32`, the shape of a station mark or a group id. */
+const isIdAtLeast = (v: unknown, min: number): v is EntityId =>
+  typeof v === "number" &&
+  Number.isSafeInteger(v) &&
+  v >= min &&
+  v <= MAX_UINT32;
+
+/**
+ * An id list held ascending, unique and at most `max` long, every id in
+ * `min..MAX_UINT32`. Not an array: empty. An invalid id is dropped, a repeated
+ * id is collapsed to one and the list is sorted, each keeping the valid
+ * neighbours; the lowest `max` ids stay. `value` is null for a list that is
+ * already clean, so the array identity survives.
+ */
+function cleanIdList(
+  value: unknown,
+  min: number,
+  max: number,
+): Cleaned<EntityId[] | null> {
+  if (!Array.isArray(value)) return { value: [], repaired: true };
+  const source = value as readonly unknown[];
+  const kept: EntityId[] = [];
+  for (const item of source) {
+    if (isIdAtLeast(item, min)) kept.push(item);
+  }
+  kept.sort((a, b) => a - b);
+  const clean = kept
+    .filter((id, i) => i === 0 || id !== kept[i - 1])
+    .slice(0, max);
+  const same =
+    clean.length === source.length &&
+    clean.every((id, i) => Object.is(id, source[i]));
+  return same
+    ? { value: null, repaired: false }
+    : { value: clean, repaired: true };
+}
+
+/**
+ * Repair `world.station` in place; returns the repaired field count (at most
+ * 3: `alert`, `launched`, `marks`). A record that is not an object is replaced
+ * by the pristine one (1). `alert` outside the integers 0 to 3 becomes green;
+ * `launched` outside the integers 0 to `MAX_STATION_LAUNCHED` becomes 0;
+ * `marks` is repaired by `cleanIdList` (ids from `PLAYER_ID` up: the player and
+ * the dynamic ships are the offenders a station can mark). Never throws.
+ */
+export function sanitizeStation(world: World): number {
+  const current: unknown = world.station;
+  if (!isObject(current)) {
+    world.station = createStationRecord();
+    return 1;
+  }
+  const station = world.station;
+  let count = 0;
+
+  const alert: unknown = station.alert;
+  if (
+    typeof alert === "number" &&
+    Number.isSafeInteger(alert) &&
+    alert >= 0 &&
+    alert <= STATION_ALERT_RED
+  ) {
+    station.alert = noNegativeZero(alert);
+  } else {
+    station.alert = STATION_ALERT_GREEN;
+    count += 1;
+  }
+
+  const launched = cleanBoundedInteger(station.launched, MAX_STATION_LAUNCHED);
+  station.launched = launched.value;
+  if (launched.repaired) count += 1;
+
+  const marks = cleanIdList(station.marks, PLAYER_ID, MAX_STATION_MARKS);
+  if (marks.value !== null) station.marks = marks.value;
+  if (marks.repaired) count += 1;
+  return count;
+}
+
+/**
+ * Repair `world.groups` in place; returns 1 when the list changed, else 0. A
+ * list that is not an array becomes empty. A record that is not an object, or
+ * whose `id` or `leader` is not a dynamic entity id (101 up to `MAX_UINT32`;
+ * a leader equal to its id is the founding leader and valid), is dropped; a
+ * second record with an id already seen is dropped (the first is kept); the
+ * rest is sorted ascending by id and cut to `MAX_WORLD_GROUPS` (the lowest ids
+ * stay). Extra keys on a record are removed. Never throws.
+ */
+export function sanitizeGroups(world: World): number {
+  const current: unknown = world.groups;
+  if (!Array.isArray(current)) {
+    world.groups = [];
+    return 1;
+  }
+  const source = current as readonly unknown[];
+  const seen = new Set<number>();
+  const kept: GroupRecord[] = [];
+  for (const item of source) {
+    if (!isObject(item)) continue;
+    const { id, leader } = item;
+    if (!isIdAtLeast(id, FIRST_DYNAMIC_ID)) continue;
+    if (!isIdAtLeast(leader, FIRST_DYNAMIC_ID)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    kept.push({ id, leader });
+  }
+  kept.sort((a, b) => a.id - b.id);
+  kept.length = Math.min(kept.length, MAX_WORLD_GROUPS);
+  const same =
+    kept.length === source.length &&
+    kept.every((group, i) => {
+      const record = source[i] as Record<string, unknown>;
+      return (
+        Object.keys(record).length === 2 &&
+        Object.is(record.id, group.id) &&
+        Object.is(record.leader, group.leader)
+      );
+    });
+  if (same) return 0;
+  world.groups = kept;
+  return 1;
+}
+
+/**
+ * Repair `world.populator` in place; returns the repaired field count (at most
+ * 2: `nextTick`, `rolls`). A record that is not an object is replaced by the
+ * pristine one (1); each clock leaf that is not a uint32 becomes 0. Never
+ * throws.
+ */
+export function sanitizePopulator(world: World): number {
+  const current: unknown = world.populator;
+  if (!isObject(current)) {
+    world.populator = createPopulatorClock();
+    return 1;
+  }
+  const populator = world.populator;
+  const nextTick = cleanUint32(populator.nextTick);
+  populator.nextTick = nextTick.value;
+  const rolls = cleanUint32(populator.rolls);
+  populator.rolls = rolls.value;
+  return (nextTick.repaired ? 1 : 0) + (rolls.repaired ? 1 : 0);
 }

@@ -72,6 +72,7 @@ import {
   QUAT_UNIT_TOLERANCE,
   ROLE_PATTERN,
   WEAPON_TYPE_PATTERN,
+  STATION_ALERT_GREEN,
   STATION_MAX_ENERGY,
 } from "./limits.js";
 import { createEntityStore } from "./store.js";
@@ -163,6 +164,85 @@ export interface World {
    * never carry world state). Hashed and snapshotted only when not pristine.
    */
   buoys: BuoyStates;
+  /**
+   * The main station's minimal responder state (FOUND-20, owner decision D2):
+   * its alert level, a launch counter and the offenders it has marked. At rest
+   * until Phase 25 (the station responder and the law); the Coriolis itself
+   * stays a static, not an entity. Hashed (`station:`) and snapshotted
+   * (`station`) only when not pristine.
+   */
+  station: StationRecord;
+  /**
+   * Oolite's `ShipGroup` as data (FOUND-20): one `{ id, leader }` record per
+   * group, ascending by id. The group id is the founding leader's entity id, so
+   * no counter state exists; membership is derived by scanning `Entity.groupId`.
+   * At rest until Phase 22 writes it. Hashed (`groups:`) and snapshotted
+   * (`groups`) only when not empty.
+   */
+  groups: GroupRecord[];
+  /**
+   * The repopulation clock and the stateless-fork counter (FOUND-20; the
+   * populator of Phase 26). At rest until then. Hashed (`repop:`) and
+   * snapshotted (`populator`) only when not pristine.
+   */
+  populator: PopulatorClock;
+}
+
+/**
+ * The main station's responder state (FOUND-20, owner decision D2).
+ *
+ * `alert` is Oolite's `ALERT_CONDITION_*` (`ShipEntity.h:169-172`): 0 docked, 1
+ * green, 2 yellow, 3 red; pristine 1. `launched` counts the ships the station
+ * launched, 0 to `MAX_STATION_LAUNCHED`. `marks` are the entity ids the station
+ * marks as offenders, strictly ascending and unique, at most
+ * `MAX_STATION_MARKS`. The per-ship `markedForFines` flag is a different
+ * thing (a ship the police fine on its own), kept on the entity.
+ */
+export interface StationRecord {
+  alert: number;
+  launched: number;
+  marks: EntityId[];
+}
+
+/** One group: its id is the founding leader's entity id (a leader equal to its id is valid). */
+export interface GroupRecord {
+  id: EntityId;
+  leader: EntityId;
+}
+
+/** The populator's clock: the next repopulation tick and the rolls made so far, each a uint32. */
+export interface PopulatorClock {
+  nextTick: number;
+  rolls: number;
+}
+
+/** The pristine station: green alert, nothing launched, no marks. */
+export function createStationRecord(): StationRecord {
+  return { alert: STATION_ALERT_GREEN, launched: 0, marks: [] };
+}
+
+/** True when the station is at its created state, so the hash prints no `station:` line. */
+export function isPristineStation(station: StationRecord): boolean {
+  return (
+    station.alert === STATION_ALERT_GREEN &&
+    station.launched === 0 &&
+    station.marks.length === 0
+  );
+}
+
+/** The pristine populator clock: tick 0, no rolls. */
+export function createPopulatorClock(): PopulatorClock {
+  return { nextTick: 0, rolls: 0 };
+}
+
+/** True when the clock is at its created state, so the hash prints no `repop:` line. */
+export function isPristinePopulator(populator: PopulatorClock): boolean {
+  return populator.nextTick === 0 && populator.rolls === 0;
+}
+
+/** True when no group exists, so the hash prints no `groups:` line. */
+export function isPristineGroups(groups: readonly GroupRecord[]): boolean {
+  return groups.length === 0;
 }
 
 /** The pristine static health: every damageable static at its maximum. */
@@ -249,6 +329,9 @@ export function createWorld(worldSeed: number): World {
     aiDropped: 0,
     staticHealth: createStaticHealth(),
     buoys: createBuoyStates(),
+    station: createStationRecord(),
+    groups: [],
+    populator: createPopulatorClock(),
   };
 }
 

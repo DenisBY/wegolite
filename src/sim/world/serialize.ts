@@ -40,13 +40,27 @@ import type { SteerComponent } from "../npc/state.js";
 import type { BuoyState, BuoyStates, Entity, StaticHealth } from "./entity.js";
 import type { EntityId } from "./ids.js";
 import { NO_SYSTEM_INDEX } from "./limits.js";
-import { sanitizeBuoyStates, sanitizeStaticHealth } from "./sanitize.js";
+import {
+  sanitizeBuoyStates,
+  sanitizeGroups,
+  sanitizePopulator,
+  sanitizeStaticHealth,
+  sanitizeStation,
+} from "./sanitize.js";
 import {
   isNeverSpawned,
   isPristineBuoyStates,
+  isPristineGroups,
+  isPristinePopulator,
   isPristineStaticHealth,
+  isPristineStation,
 } from "./world.js";
-import type { World } from "./world.js";
+import type {
+  GroupRecord,
+  PopulatorClock,
+  StationRecord,
+  World,
+} from "./world.js";
 
 /**
  * JSON string text with every code unit above 0x7e written as a backslash, the
@@ -263,6 +277,36 @@ export function serializeBuoyStates(buoys: BuoyStates): string {
 }
 
 /**
+ * The groups line (FOUND-20, plan 21-06): the label `groups:` then every group
+ * as `id,leader`, ascending by id, joined by `;`. `hashWorld` prints it only
+ * while the list is not empty, after the `buoys:` line.
+ */
+export function serializeGroups(groups: readonly GroupRecord[]): string {
+  return `groups:${groups.map((g) => `${int(g.id)},${int(g.leader)}`).join(";")}`;
+}
+
+/**
+ * The populator line (FOUND-20, plan 21-06): `repop:` then the next
+ * repopulation tick and the roll counter, comma-joined. `hashWorld` prints it
+ * only while the clock is not pristine, after the `groups:` line.
+ */
+export function serializePopulator(populator: PopulatorClock): string {
+  return `repop:${int(populator.nextTick)},${int(populator.rolls)}`;
+}
+
+/**
+ * The station line (FOUND-20, plan 21-06, owner decision D2): `station:` then
+ * the alert level, the launch counter and the marked offender ids joined by
+ * `/` (an empty list leaves the text ending at the comma, so `station:3,0,` is
+ * the alert-only line and no list can forge another field). `hashWorld` prints
+ * it only while the record is not pristine, after the `repop:` line and before
+ * the combat line.
+ */
+export function serializeStation(station: StationRecord): string {
+  return `station:${int(station.alert)},${int(station.launched)},${station.marks.map(int).join("/")}`;
+}
+
+/**
  * The world's contribution to the hash text: "" while the world has never
  * spawned anything, otherwise `worldSeed=`, `nextId=`, `rng=` and `aiDropped=`
  * lines followed by one entity line per live non-dead entity in ascending id
@@ -311,11 +355,15 @@ export function entityHashes(world: World): [EntityId, string][] {
  * holds for a never-spawned world too (its section is empty, the line still
  * prints). The buoys line (PD-01, PD-02) follows the static-health line and
  * precedes the combat line under the same rule, printed only when
- * `world.buoys` is not pristine. A hash call can mutate the world:
+ * `world.buoys` is not pristine. The v5 world records (FOUND-20, plan 21-06)
+ * follow the buoys line as `groups:`, `repop:` and `station:`, each under the
+ * same rule. A hash call can mutate the world:
  * `sanitizeStaticHealth` repairs `world.staticHealth` and `sanitizeBuoyStates`
  * repairs `world.buoys` in place before printing (so a poisoned buoy can
  * neither reach `canon`, which throws on a non-finite number, nor read as
- * pristine), as the existing `sanitizeCombat(combat)` call already repairs the
+ * pristine), and `sanitizeGroups`, `sanitizePopulator` and `sanitizeStation`
+ * do the same for the v5 records (a malformed or unsorted list is repaired
+ * first, so equal content always prints the same text), as the existing `sanitizeCombat(combat)` call already repairs the
  * combat state. That reaches callers that read like pure reads: the `?test=1`
  * probe's `worldHash` (`src/app/session/probe-publisher.ts:171-179`) and the
  * acceptance detectors (`tests/acceptance/detectors.ts`). The mutation is harmless there because it
@@ -332,11 +380,25 @@ export function hashWorld(
     // Repair first so a poisoned value cannot reach `canon` or read as pristine.
     sanitizeStaticHealth(world);
     sanitizeBuoyStates(world);
+    sanitizeGroups(world);
+    sanitizePopulator(world);
+    sanitizeStation(world);
     if (!isPristineStaticHealth(world.staticHealth)) {
       text += `\n${serializeStaticHealth(world.staticHealth)}`;
     }
     if (!isPristineBuoyStates(world.buoys)) {
       text += `\n${serializeBuoyStates(world.buoys)}`;
+    }
+    // The v5 world records (FOUND-20), each only when not pristine, in the
+    // fixed order groups, repop, station, before the combat line.
+    if (!isPristineGroups(world.groups)) {
+      text += `\n${serializeGroups(world.groups)}`;
+    }
+    if (!isPristinePopulator(world.populator)) {
+      text += `\n${serializePopulator(world.populator)}`;
+    }
+    if (!isPristineStation(world.station)) {
+      text += `\n${serializeStation(world.station)}`;
     }
   }
   if (combat !== undefined) {
