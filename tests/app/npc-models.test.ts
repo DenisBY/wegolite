@@ -17,6 +17,7 @@ import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  NPC_PREFETCH_CONCURRENCY,
   createNpcModelLoader,
   trafficModelGlb,
 } from "../../src/app/npc-models.js";
@@ -25,6 +26,7 @@ import type { TrafficContent } from "../../src/app/session/traffic.js";
 const GLBS: Readonly<Record<string, string>> = {
   viper: "models/viper.glb",
   adder: "models/adder.glb",
+  mamba: "models/mamba.glb",
 };
 
 function glbFor(key: string): string | undefined {
@@ -183,6 +185,134 @@ describe("createNpcModelLoader: once open", () => {
     table = GLBS;
     loader.request(["viper"]);
     expect(loadNpcModel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createNpcModelLoader: background prefetch (plan 21-11, D-07)", () => {
+  it("runs at most NPC_PREFETCH_CONCURRENCY loads at once, in order, without open()", async () => {
+    expect(NPC_PREFETCH_CONCURRENCY).toBe(2);
+    const { loader, loadNpcModel, pending } = harness();
+    loader.prefetch(["viper", "adder", "mamba"]);
+    expect(loadNpcModel.mock.calls.map((call) => call[0])).toEqual([
+      "models/viper.glb",
+      "models/adder.glb",
+    ]);
+
+    pending[0]?.resolve(model());
+    await settle();
+    expect(loadNpcModel).toHaveBeenCalledTimes(3);
+    expect(loadNpcModel).toHaveBeenLastCalledWith("models/mamba.glb");
+
+    pending[1]?.resolve(model());
+    pending[2]?.resolve(model());
+    await settle();
+    expect([...loader.loaded().keys()].sort()).toEqual([
+      "adder",
+      "mamba",
+      "viper",
+    ]);
+  });
+
+  it("is not fetched a second time by request, and does not refetch a key request started", async () => {
+    const { loader, loadNpcModel, pending } = harness();
+    loader.open();
+    loader.request(["adder"]);
+    loader.prefetch(["viper", "adder"]);
+    // adder was already loading: only viper starts.
+    expect(loadNpcModel.mock.calls.map((call) => call[0])).toEqual([
+      "models/adder.glb",
+      "models/viper.glb",
+    ]);
+    loader.request(["viper", "adder"]);
+    expect(loadNpcModel).toHaveBeenCalledTimes(2);
+    pending[1]?.resolve(model());
+    await settle();
+    loader.request(["viper"]);
+    loader.prefetch(["viper"]);
+    expect(loadNpcModel).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips a queued key that request started before its turn", async () => {
+    const { loader, loadNpcModel, pending } = harness();
+    loader.prefetch(["viper", "adder", "mamba"]);
+    loader.open();
+    loader.request(["mamba"]);
+    expect(loadNpcModel).toHaveBeenCalledTimes(3);
+    pending[0]?.resolve(model());
+    pending[1]?.resolve(model());
+    await settle();
+    expect(loadNpcModel).toHaveBeenCalledTimes(3);
+  });
+
+  it("records a failed prefetch like a failed request and keeps draining the queue", async () => {
+    const { loader, loadNpcModel, pending } = harness();
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    loader.prefetch(["viper", "adder", "mamba"]);
+    pending[0]?.reject(new Error("network down"));
+    await settle();
+    expect(loadNpcModel).toHaveBeenCalledTimes(3);
+    expect(loader.loaded().has("viper")).toBe(false);
+    // The failed key is never retried, by request or by a second prefetch.
+    loader.open();
+    loader.request(["viper"]);
+    loader.prefetch(["viper"]);
+    expect(loadNpcModel).toHaveBeenCalledTimes(3);
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
+  it("keeps draining when a load throws synchronously", () => {
+    const calls: string[] = [];
+    const loader = createNpcModelLoader(
+      {
+        loadNpcModel: (glb) => {
+          calls.push(glb);
+          if (glb === "models/viper.glb") throw new Error("bad path");
+          return new Promise<GLTF>(() => undefined);
+        },
+      },
+      glbFor,
+    );
+    loader.prefetch(["viper", "adder", "mamba"]);
+    expect(calls).toEqual([
+      "models/viper.glb",
+      "models/adder.glb",
+      "models/mamba.glb",
+    ]);
+  });
+
+  it("skips a key with no glb", () => {
+    const { loader, loadNpcModel } = harness();
+    loader.prefetch(["unknown", "viper"]);
+    expect(loadNpcModel.mock.calls.map((call) => call[0])).toEqual([
+      "models/viper.glb",
+    ]);
+  });
+
+  it("fetches a key once however often it is prefetched", () => {
+    const { loader, loadNpcModel } = harness();
+    loader.prefetch(["viper", "viper"]);
+    loader.prefetch(["viper"]);
+    expect(loadNpcModel).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a no-op for an empty list", () => {
+    const { loader, loadNpcModel } = harness();
+    loader.prefetch([]);
+    expect(loadNpcModel).not.toHaveBeenCalled();
+  });
+
+  it("starts nothing after dispose() and drops late resolutions and the queue", async () => {
+    const { loader, loadNpcModel, pending } = harness();
+    loader.prefetch(["viper", "adder", "mamba"]);
+    loader.dispose();
+    pending[0]?.resolve(model());
+    pending[1]?.resolve(model());
+    await settle();
+    expect(loader.loaded().size).toBe(0);
+    expect(loadNpcModel).toHaveBeenCalledTimes(2);
+    loader.prefetch(["mamba"]);
+    expect(loadNpcModel).toHaveBeenCalledTimes(2);
   });
 });
 

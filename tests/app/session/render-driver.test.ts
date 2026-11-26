@@ -787,6 +787,97 @@ describe("renderFrame NPC models (WORLD-15, DATA-13)", () => {
   });
 });
 
+describe("renderFrame NPC model prefetch (plan 21-11, D-07)", () => {
+  const CATALOGUE = [{ key: "viper" }, { key: "adder" }, { key: "mamba" }];
+
+  /** A session whose loader records the order of prefetch, open and request. */
+  function prefetching(withTraffic: boolean) {
+    const log: string[] = [];
+    const prefetched: string[][] = [];
+    const real = idleLoader();
+    const loader: NpcModelLoader = {
+      ...real,
+      open: () => {
+        log.push("open");
+        real.open();
+      },
+      prefetch: (keys) => {
+        const list = [...keys];
+        prefetched.push(list);
+        log.push("prefetch");
+        real.prefetch(list);
+      },
+    };
+    const h = harness({
+      npcModels: loader,
+      onRender: () => log.push("render"),
+    });
+    h.ctx.core.layout = layout;
+    h.ctx.core.config = config;
+    h.ctx.core.scene = flyableScene(h.nebula);
+    h.ctx.runtime.hud = { draw: () => undefined } as unknown as Hud;
+    if (withTraffic) {
+      h.ctx.core.npcTraffic = {
+        catalogue: CATALOGUE,
+      } as unknown as TrafficContent;
+    }
+    const lifecycle = createWorldLifecycle({
+      traffic: true,
+      populate: (world) => {
+        populateInertWorld(world, layout, laveInertRecords());
+      },
+    });
+    lifecycle.begin(marketSeedForSystem(system.id));
+    h.ctx.core.worldLifecycle = lifecycle;
+    return { h, log, prefetched };
+  }
+
+  function setMode(h: Harness, mode: FlightState["mode"]): void {
+    if (h.ctx.core.state === undefined) throw new Error("no state");
+    h.ctx.core.state = { ...h.ctx.core.state, mode };
+  }
+
+  it("prefetches every catalogue key once, on the first docked frame, before the latch opens", () => {
+    const { h, log, prefetched } = prefetching(true);
+    setMode(h, "docked");
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    expect(prefetched).toEqual([["viper", "adder", "mamba"]]);
+
+    setMode(h, "inFlight");
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    // Still once; the in-flight latch opens on the first in-flight frame as before.
+    expect(prefetched).toHaveLength(1);
+    expect(log.indexOf("prefetch")).toBeLessThan(log.indexOf("open"));
+    expect(log.filter((entry) => entry === "open")).toHaveLength(2);
+  });
+
+  it("never prefetches with no traffic content", () => {
+    const { h, prefetched } = prefetching(false);
+    setMode(h, "docked");
+    h.driver.renderFrame(0);
+    h.driver.renderFrame(0);
+    expect(prefetched).toEqual([]);
+  });
+
+  it("never prefetches from a frame in flight or launching", () => {
+    const { h, prefetched } = prefetching(true);
+    setMode(h, "launching");
+    h.driver.renderFrame(0);
+    setMode(h, "inFlight");
+    h.driver.renderFrame(0);
+    expect(prefetched).toEqual([]);
+  });
+
+  it("prefetches from a docked frame the redraw gate skipped", () => {
+    const { h, prefetched } = prefetching(true);
+    setMode(h, "docked");
+    h.driver.renderFrame(0, false);
+    expect(prefetched).toHaveLength(1);
+  });
+});
+
 describe("renderFrame ident frame (INPUT-01, D-03)", () => {
   /**
    * A flying session whose camera sits `behind` metres behind the first ship

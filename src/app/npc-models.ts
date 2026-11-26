@@ -29,6 +29,18 @@
  * time) and `loadNpcModel` re-checks the path pattern (T-12-24); a key with no
  * path is ignored and not remembered, so it loads once the catalogue is there.
  * Nothing here holds an entity id: the loader is keyed by ship key.
+ *
+ * **Background prefetch (plan 21-11, D-07).** With the 29-record roster most
+ * hulls are new, so loading each on first appearance would pop ships in late.
+ * `prefetch` is a second entry beside the latch: it downloads a list of keys in
+ * the background, `NPC_PREFETCH_CONCURRENCY` at a time, independent of
+ * `open()`, so the render driver can start it while the session is docked and
+ * the models are ready before launch. It rides the same `states` map and
+ * `fetchKey`, so a key already loading or loaded is never fetched twice and a
+ * failure is recorded exactly as `request` records it. Nobody awaits it and the
+ * simulation never reads it; a ship whose model has not arrived is drawn once
+ * it loads. The first-load ceiling is asserted on the transfer excluding this
+ * background set (DATA-18), and with traffic off the driver never calls it.
  */
 
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
@@ -40,6 +52,12 @@ export interface NpcModelLoader {
   open(): void;
   /** Fetch each key not yet requested; a no-op until `open()`. */
   request(keys: Iterable<string>): void;
+  /**
+   * D-07: queue each key not yet loading, loaded or failed for a background
+   * download, at most `NPC_PREFETCH_CONCURRENCY` in flight, whether or not the
+   * latch is open. Never awaited; a no-op after `dispose()`.
+   */
+  prefetch(keys: Iterable<string>): void;
   /** The loaded models by ship key; the same map object for the loader's life. */
   loaded(): ReadonlyMap<string, GLTF>;
   /** Drop late resolutions and stop fetching. Idempotent. */
@@ -64,6 +82,13 @@ export function trafficModelGlb(
   );
 }
 
+/**
+ * D-07: how many prefetch downloads run at once. Two keeps the background
+ * download from competing with the docked screen for the connection; a measured
+ * choice can change it.
+ */
+export const NPC_PREFETCH_CONCURRENCY = 2;
+
 type KeyState = "loading" | "loaded" | "failed";
 
 export function createNpcModelLoader(
@@ -74,12 +99,33 @@ export function createNpcModelLoader(
   const models = new Map<string, GLTF>();
   let opened = false;
   let disposed = false;
+  /** D-07: the prefetch FIFO and the number of its loads in flight. */
+  const queue: string[] = [];
+  let prefetching = 0;
 
-  function fetchKey(key: string, glb: string): void {
+  /** Start the next queued keys while a prefetch slot is free. */
+  function pump(): void {
+    while (!disposed && prefetching < NPC_PREFETCH_CONCURRENCY) {
+      const key = queue.shift();
+      if (key === undefined) return;
+      // `request` may have started it since it was queued.
+      if (states.has(key)) continue;
+      const glb = glbFor(key);
+      if (glb === undefined) continue;
+      prefetching += 1;
+      fetchKey(key, glb, () => {
+        prefetching -= 1;
+        pump();
+      });
+    }
+  }
+
+  function fetchKey(key: string, glb: string, done?: () => void): void {
     states.set(key, "loading");
     const settle = (error: unknown): void => {
       void error;
       if (!disposed) states.set(key, "failed");
+      done?.();
     };
     let promise: Promise<GLTF>;
     try {
@@ -93,6 +139,7 @@ export function createNpcModelLoader(
       if (disposed) return;
       models.set(key, gltf);
       states.set(key, "loaded");
+      done?.();
     }, settle);
   }
 
@@ -110,11 +157,19 @@ export function createNpcModelLoader(
         fetchKey(key, glb);
       }
     },
+    prefetch(keys): void {
+      if (disposed) return;
+      for (const key of keys) {
+        if (!states.has(key) && !queue.includes(key)) queue.push(key);
+      }
+      pump();
+    },
     loaded(): ReadonlyMap<string, GLTF> {
       return models;
     },
     dispose(): void {
       disposed = true;
+      queue.length = 0;
       states.clear();
       models.clear();
     },

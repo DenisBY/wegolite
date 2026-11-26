@@ -122,7 +122,9 @@ export interface RenderDriverDeps {
   /**
    * The per-session NPC model loader. The driver feeds it the frame's contact
    * keys every frame and opens it, once, after drawing the first in-flight
-   * frame (DATA-13); it is the only place that does.
+   * frame (DATA-13); it is the only place that does. It also starts the
+   * one-shot background prefetch while docked with traffic content (plan 21-11,
+   * D-07).
    */
   readonly npcModels: NpcModelLoader;
   /**
@@ -195,6 +197,8 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
   let lastFilter: string | undefined;
   /** Whether the previous frame was drawn in the dead mode (the dust jump). */
   let deadFrameSeen = false;
+  /** Whether the one-shot background model prefetch has run (plan 21-11, D-07). */
+  let prefetchStarted = false;
   /**
    * What the drawn image depends on besides the simulation: the flight state
    * object (replaced by a Load), the scene (replaced by a jump, a quality
@@ -250,6 +254,19 @@ export function createRenderDriver(ctx: SessionState, deps: RenderDriverDeps) {
     // is actually rendered. `start()`, every frame and `swapSystem()` all pass
     // through here, so a rebuilt scene can never leave the field stale.
     probe.aspect = currentScene.camera.aspect;
+
+    // Plan 21-11, D-07: the first docked frame with traffic content starts the
+    // background download of every catalogue hull, once, so the models are
+    // ready before launch. It is a second entry beside the in-flight latch below
+    // (which is unchanged) and the simulation never reads it; with traffic off
+    // there is no catalogue and nothing is requested.
+    if (!prefetchStarted && currentState.mode === "docked") {
+      const catalogue = ctx.core.npcTraffic?.catalogue;
+      if (catalogue !== undefined && catalogue.length > 0) {
+        prefetchStarted = true;
+        npcModels.prefetch(catalogue.map((ship) => ship.key));
+      }
+    }
 
     // The launch view and the cockpit supply a world pose; while docked the
     // first-person pose is derived from the interpolated ship pose.
