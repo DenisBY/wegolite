@@ -38,10 +38,15 @@ import { format } from "prettier";
 import type { ShipDef, System } from "../../src/content/types.js";
 import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import {
+  NeighbourhoodTableSchema,
   POPULATION_ENTRY_NAMES,
+  POPULATION_GALAXIES,
   POPULATION_OOLITE_PIN,
   POPULATION_SCRIPT_FILE,
+  POPULATION_SCRIPT_SHA256,
+  POPULATION_SYSTEMS_PER_GALAXY,
   PopulationFixtureSchema,
+  type NeighbourhoodTable,
   type PopulationDrawTag,
   type PopulationEntry,
   type PopulationEntryName,
@@ -64,6 +69,7 @@ import {
   type PopulatorSystemRow,
   type PopulatorVec,
 } from "./populator-host.js";
+import { POPULATION_SEEDS, POPULATION_SYSTEMS } from "./population-systems.js";
 
 /** The one script path, relative to the Oolite tree. */
 export const POPULATOR_FILE = POPULATION_SCRIPT_FILE;
@@ -362,33 +368,28 @@ function sortedCodeUnits(values: Iterable<string>): string[] {
   return [...values].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
-/**
- * Record the population Oolite's own script produces for one system and seed.
- *
- * @throws {PopulatorPinError} when `oolite-populator.js` under `oolitesrc` is
- * not the pinned file.
- */
-export function recordPopulation(
-  oolitesrc: string,
-  systemId: string,
-  seed: number,
-): PopulationFixture {
-  const script = readFileSync(join(oolitesrc, POPULATOR_FILE));
-  const digest = createHash("sha256").update(script).digest("hex");
-  if (digest !== POPULATOR_SCRIPT_SHA256) {
-    throw new PopulatorPinError(POPULATOR_SCRIPT_SHA256, digest);
-  }
+/** The galaxy files, read once. */
+const galaxyCache = new Map<number, readonly GalaxySystem[]>();
 
-  const { galaxy, index } = parseSystemId(systemId);
-  const galaxySystems = readJson<GalaxySystem[]>(
-    `src/content/generated/systems/g${String(galaxy)}.json`,
-  );
-  if (galaxySystems.length !== 256) {
-    throw new Error(
-      `galaxy ${String(galaxy)} has ${String(galaxySystems.length)} systems`,
+function galaxySystemsOf(galaxy: number): readonly GalaxySystem[] {
+  let systems = galaxyCache.get(galaxy);
+  if (systems === undefined) {
+    systems = readJson<GalaxySystem[]>(
+      `src/content/generated/systems/g${String(galaxy)}.json`,
     );
+    if (systems.length !== 256) {
+      throw new Error(
+        `galaxy ${String(galaxy)} has ${String(systems.length)} systems`,
+      );
+    }
+    galaxyCache.set(galaxy, systems);
   }
-  const rows: PopulatorSystemRow[] = galaxySystems.map((system, at) => {
+  return systems;
+}
+
+/** The system rows of one galaxy as the stub host reads them. */
+function systemRowsOf(galaxy: number): PopulatorSystemRow[] {
+  return galaxySystemsOf(galaxy).map((system, at) => {
     if (system.systemIndex !== at) {
       throw new Error(
         `galaxy ${String(galaxy)} is not in system order at ${String(at)}`,
@@ -404,6 +405,42 @@ export function recordPopulation(
       techLevel: system.techLevelRaw,
     };
   });
+}
+
+/** The pinned script, loaded in its own context for one (system, seed). */
+interface PopulatorBoot {
+  readonly galaxy: number;
+  readonly index: number;
+  readonly rows: readonly PopulatorSystemRow[];
+  readonly host: PopulatorHost;
+  readonly ai: AiContext;
+  readonly harnessCall: { definition: unknown; position: unknown };
+  readonly planet: PopulatorVec;
+  readonly sun: PopulatorVec;
+  readonly script: Buffer;
+}
+
+/**
+ * Check the pin, build the stub host for one system and load the script into
+ * a fresh context (no entry point has run yet).
+ *
+ * @throws {PopulatorPinError} when `oolite-populator.js` under `oolitesrc` is
+ * not the pinned file.
+ */
+function loadPopulator(
+  oolitesrc: string,
+  systemId: string,
+  seed: number,
+): PopulatorBoot {
+  const script = readFileSync(join(oolitesrc, POPULATOR_FILE));
+  const digest = createHash("sha256").update(script).digest("hex");
+  if (digest !== POPULATOR_SCRIPT_SHA256) {
+    throw new PopulatorPinError(POPULATOR_SCRIPT_SHA256, digest);
+  }
+
+  const { galaxy, index } = parseSystemId(systemId);
+  const galaxySystems = galaxySystemsOf(galaxy);
+  const rows = systemRowsOf(galaxy);
   const system = galaxySystems[index];
   if (system === undefined) {
     throw new Error(`no system ${systemId}`);
@@ -444,6 +481,26 @@ export function recordPopulation(
   for (const [name, tag] of TAGGED_HELPERS) {
     Reflect.set(ai.global, name, host.wrapHelper(tag, ai.global[name]));
   }
+  return { galaxy, index, rows, host, ai, harnessCall, planet, sun, script };
+}
+
+/** `_systemIsBottleneck` over a set of locals and their seconds, in the vm. */
+const BOTTLENECK_EXPRESSION =
+  "this._systemIsBottleneck(this.$populatorLocals, this.$populatorLocals.map(function (local) { return local.systemsInRange(); }))";
+
+/**
+ * Record the population Oolite's own script produces for one system and seed.
+ *
+ * @throws {PopulatorPinError} when `oolite-populator.js` under `oolitesrc` is
+ * not the pinned file.
+ */
+export function recordPopulation(
+  oolitesrc: string,
+  systemId: string,
+  seed: number,
+): PopulationFixture {
+  const { galaxy, index, rows, host, ai, harnessCall, planet, sun } =
+    loadPopulator(oolitesrc, systemId, seed);
 
   callInContext(ai, "this.startUp()");
   const startUp = {
@@ -455,10 +512,7 @@ export function recordPopulation(
   };
 
   callInContext(ai, "this.systemWillPopulate()");
-  const bottleneck = callInContext(
-    ai,
-    "this._systemIsBottleneck(this.$populatorLocals, this.$populatorLocals.map(function (local) { return local.systemsInRange(); }))",
-  );
+  const bottleneck = callInContext(ai, BOTTLENECK_EXPRESSION);
   if (typeof bottleneck !== "boolean") {
     throw new Error("_systemIsBottleneck did not return a boolean");
   }
@@ -668,6 +722,99 @@ export async function writeFixture(
   return path;
 }
 
+/** The exact bytes of a widened file (table, edge draws, ship facts). */
+export async function widenedText(value: unknown): Promise<string> {
+  return format(stableJson(value), { parser: "json" });
+}
+
+/** `_systemIsBottleneck` over the stub's own locals and their seconds. */
+const TABLE_BOTTLENECK_EXPRESSION =
+  "this._systemIsBottleneck(system.info.systemsInRange(), system.info.systemsInRange().map(function (local) { return local.systemsInRange(); }))";
+
+/**
+ * The neighbourhood of every one of the 2,048 systems: the ids within 7 LY and
+ * within 3.5 LY (system-id order) and the count within 25 LY, all from the
+ * stub's own transliteration of `legacy_random.h:154-160` (no import of
+ * `src/sim/hyperspace/jump.ts`), and the bottleneck value from the script's
+ * own `_systemIsBottleneck(locals, seconds)` run in the vm after the pinned
+ * hash check.
+ */
+export function recordNeighbourhoodTable(
+  oolitesrc: string,
+): NeighbourhoodTable {
+  const galaxies: NeighbourhoodTable["galaxies"] = [];
+  for (let galaxy = 0; galaxy < POPULATION_GALAXIES; galaxy += 1) {
+    const locals: number[][] = [];
+    const verylocals: number[][] = [];
+    const within25: number[] = [];
+    const bottleneck: number[] = [];
+    for (let index = 0; index < POPULATION_SYSTEMS_PER_GALAXY; index += 1) {
+      const { host, ai } = loadPopulator(
+        oolitesrc,
+        `g${String(galaxy)}-s${String(index)}`,
+        1,
+      );
+      const near = host.neighbourhood();
+      const value = callInContext(ai, TABLE_BOTTLENECK_EXPRESSION);
+      if (typeof value !== "boolean") {
+        throw new Error("_systemIsBottleneck did not return a boolean");
+      }
+      locals.push(near.locals.map((neighbour) => neighbour.id));
+      verylocals.push(near.verylocals.map((neighbour) => neighbour.id));
+      within25.push(near.within25.length);
+      if (value) {
+        bottleneck.push(index);
+      }
+    }
+    galaxies.push({ galaxy, locals, verylocals, within25, bottleneck });
+  }
+  return NeighbourhoodTableSchema.parse({
+    header: widenedHeader(),
+    ranges: { local: 7, veryLocal: 3.5, far: 25 },
+    galaxies,
+  });
+}
+
+function widenedHeader(): {
+  oolitePin: typeof POPULATION_OOLITE_PIN;
+  scriptFile: typeof POPULATION_SCRIPT_FILE;
+  scriptSha256: typeof POPULATION_SCRIPT_SHA256;
+} {
+  return {
+    oolitePin: POPULATION_OOLITE_PIN,
+    scriptFile: POPULATION_SCRIPT_FILE,
+    scriptSha256: POPULATION_SCRIPT_SHA256,
+  };
+}
+
+/** The file names of the widened files next to the fixtures. */
+export const NEIGHBOURHOOD_FILE = "neighbourhood-all.json";
+
+/**
+ * Record everything the widened oracle holds into `outDir`: every
+ * `POPULATION_SYSTEMS` x `POPULATION_SEEDS` fixture and the table. Returns the
+ * written paths.
+ */
+export async function writeAll(
+  oolitesrc: string,
+  outDir: string,
+): Promise<string[]> {
+  mkdirSync(outDir, { recursive: true });
+  const written: string[] = [];
+  for (const { id } of POPULATION_SYSTEMS) {
+    for (const seed of POPULATION_SEEDS) {
+      written.push(await writeFixture(oolitesrc, outDir, id, seed));
+    }
+  }
+  const tablePath = join(outDir, NEIGHBOURHOOD_FILE);
+  writeFileSync(
+    tablePath,
+    await widenedText(recordNeighbourhoodTable(oolitesrc)),
+  );
+  written.push(tablePath);
+  return written;
+}
+
 function argument(args: readonly string[], flag: string): string | undefined {
   const at = args.indexOf(flag);
   return at >= 0 ? args[at + 1] : undefined;
@@ -681,6 +828,12 @@ async function main(args: readonly string[]): Promise<void> {
   const out = argument(args, "--out");
   if (out === undefined) {
     throw new Error("--out <dir> is required");
+  }
+  if (args.includes("--all")) {
+    for (const path of await writeAll(oolitesrc, resolve(out))) {
+      process.stdout.write(`${path}\n`);
+    }
+    return;
   }
   const systemId = argument(args, "--system") ?? "g0-s7";
   const seed = Number(argument(args, "--seed") ?? "1");
