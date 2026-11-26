@@ -83,12 +83,12 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 59 allowlisted names, in both directions", () => {
+  it("resolves exactly the 63 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(59);
+    expect(references.size).toBe(63);
   });
 
   it("adds the legacy wreck texture and the alloy plate's maps (DATA-16)", () => {
@@ -354,6 +354,7 @@ function emissiveUri(json: GlbJson, material: GlbMaterialJson): string | null {
 const EMISSIVE_FILES = [
   "oolite_adder_diffuse_emissive.png",
   "oolite_alloy_diffuse_emissive.png",
+  "oolite_asp_diffuse_emissive.png",
   "oolite_buoy_subents_emissive.png",
   "oolite_cobra3_diffuse_emissive.png",
   "oolite_cobramk1_diffuse_emissive.png",

@@ -561,6 +561,7 @@ describe("NPC laser_color (quick 261119-i9g, ShipEntity.m:421-427, 6469-6474)", 
 describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
   const EXPECTED: Record<string, readonly [string, number, number, string]> = {
     adder: ["Adder", 85, 2, "EQ_WEAPON_PULSE_LASER"],
+    asp: ["Asp Mark II", 350, 4, "EQ_WEAPON_BEAM_LASER"],
     cobramk1: ["Cobra Mark I", 150, 2.5, "EQ_WEAPON_PULSE_LASER"],
     gecko: ["Gecko", 250, 4, "EQ_WEAPON_BEAM_LASER"],
     krait: ["Krait", 250, 2.5, "EQ_WEAPON_BEAM_LASER"],
@@ -708,6 +709,7 @@ describe("NPC flight fields (AI-01, minimum of DATA-15)", () => {
   // numbers; the record holds their float32.
   const EXPECTED: Record<string, readonly [number, number, number, number]> = {
     adder: [240, 2.8, 2, 30],
+    asp: [400, 2, 1, 50],
     cobramk1: [260, 2, 1.2, 25],
     gecko: [300, 3, 1.5, 45],
     krait: [300, 2.75, 1.5, 35],
@@ -801,6 +803,7 @@ describe("NPC cargo fields (DATA-14, D-06)", () => {
   // key is Oolite's default 0 (oo_unsignedIntForKey, ShipEntity.m:566, :378).
   const EXPECTED: Record<string, readonly [number, number]> = {
     adder: [2, 5],
+    asp: [0, 0],
     cobramk1: [10, 10],
     gecko: [3, 3],
     krait: [2, 2],
@@ -864,6 +867,11 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
   // positions as authored in shipdata.plist; the record holds their float32.
   const POSITIONS: Record<string, readonly [string, string, string]> = {
     adder: ["0.0 0.0 -22.5", "-15.0 0.0 -14.5", "15.0 0.0 -14.5"],
+    asp: [
+      "0.0 1.5 -39.5811",
+      "-27.73195 7.75933 2.57624",
+      "-27.73195 7.75933 2.57624",
+    ],
     cobramk1: ["0.0 0.0 -27.5", "-35.0 -1.0 0.5", "35.0 -1.0 0.5"],
     gecko: [
       "0.0 5.54957 -12.1558",
@@ -879,6 +887,7 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
   };
   const MASKS: Record<string, number> = {
     adder: 1,
+    asp: 3,
     cobramk1: 3,
     gecko: 1,
     krait: 1,
@@ -937,6 +946,7 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
   it("keeps the nine forward weapons unchanged by the facing mask", () => {
     const FORWARD: Record<string, string> = {
       adder: "EQ_WEAPON_PULSE_LASER",
+      asp: "EQ_WEAPON_BEAM_LASER",
       cobramk1: "EQ_WEAPON_PULSE_LASER",
       gecko: "EQ_WEAPON_BEAM_LASER",
       krait: "EQ_WEAPON_BEAM_LASER",

@@ -68,6 +68,7 @@ export const NPC_SHIPS_PATH = "src/content/generated/ships-npc.json";
  */
 export const NPC_SHIP_KEYS: readonly string[] = [
   "adder",
+  "asp",
   "cobramk1",
   "gecko",
   "krait",

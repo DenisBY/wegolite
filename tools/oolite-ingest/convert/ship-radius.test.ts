@@ -164,9 +164,9 @@ describe("hullRadius", () => {
 describe("computeShipRadii", () => {
   const radii = computeShipRadii(NPC_SHIP_KEYS, catalogue, meshes);
 
-  it("returns nine positive finite radii in key order", () => {
+  it("returns one positive finite radius per NPC key, in key order", () => {
     expect([...radii.keys()]).toEqual([...NPC_SHIP_KEYS]);
-    expect(radii.size).toBe(9);
+    expect(radii.size).toBe(NPC_SHIP_KEYS.length);
     for (const radius of radii.values()) {
       expect(Number.isFinite(radius)).toBe(true);
       expect(radius).toBeGreaterThan(0);

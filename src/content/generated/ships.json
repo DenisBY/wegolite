@@ -1147,7 +1147,7 @@
       "kind": "absent"
     },
     "model": "oolite_asp.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader-courier",
       "hunter-medium(0.75)",
@@ -1334,7 +1334,7 @@
       "kind": "absent"
     },
     "model": "oolite_asp.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "asp-cloaked"
     ],
@@ -1498,7 +1498,7 @@
       "kind": "absent"
     },
     "model": "oolite_asp.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],
@@ -11712,7 +11712,7 @@
       "kind": "absent"
     },
     "model": "oolite_asp.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "trader-courier",
       "hunter-medium(0.75)",
@@ -11899,7 +11899,7 @@
       "kind": "absent"
     },
     "model": "oolite_asp.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "asp-cloaked"
     ],
@@ -12063,7 +12063,7 @@
       "kind": "absent"
     },
     "model": "oolite_asp.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "player"
     ],

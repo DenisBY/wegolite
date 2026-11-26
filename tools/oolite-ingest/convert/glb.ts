@@ -79,6 +79,7 @@ export const SHIPDATA_SOURCE_FILE = "third_party/oolite/Config/shipdata.plist";
 export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["adder"],
   "alloy.glb": ["alloy"],
+  "asp.glb": ["asp"],
   "barrel.glb": ["barrel"],
   "buoy.glb": ["buoy", "oolite_buoy_subentity"],
   "cobra3.glb": ["cobra3-player"],
@@ -107,6 +108,7 @@ export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
 export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["oolite_adder.dat"],
   "alloy.glb": ["oolite_alloy.dat"],
+  "asp.glb": ["oolite_asp.dat"],
   "barrel.glb": ["oolite_barrel.dat"],
   "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
   "cobra3.glb": ["oolite_cobra3.dat"],
@@ -138,6 +140,7 @@ export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
  */
 export const NPC_SHIP_GLBS: readonly string[] = [
   "adder.glb",
+  "asp.glb",
   "cobramk1.glb",
   "gecko.glb",
   "krait.glb",

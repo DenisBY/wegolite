@@ -2,6 +2,7 @@
   "version": 1,
   "keys": [
     "adder",
+    "asp",
     "cobramk1",
     "gecko",
     "krait",
@@ -550,6 +551,67 @@
       "escortRoles": null,
       "missiles": 2,
       "maxMissiles": 2
+    },
+    {
+      "aftWeapon": "EQ_WEAPON_NONE",
+      "aftWeaponPosition": [0, 1.5, -39.58110046386719],
+      "aiType": "oolite-pirateAI.js",
+      "autoAi": 1,
+      "autoWeapons": 1,
+      "boundingBox": {
+        "max": [32.36029815673828, 11.756500244140625, 42.145599365234375],
+        "min": [-32.36029815673828, -11.756500244140625, -41.53710174560547]
+      },
+      "bounty": 0,
+      "countsAsKill": true,
+      "energyRechargeRate": 4,
+      "escortRoles": null,
+      "escorts": 0,
+      "explosionType": null,
+      "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+      "forwardWeaponPosition": [0, -2.2644400596618652, 42.145599365234375],
+      "fragmentChance": 0.8999999761581421,
+      "fuel": 70,
+      "glb": "models/asp.glb",
+      "hasFuelInjection": 0.5,
+      "hasScoop": 0.9900000095367432,
+      "key": "asp",
+      "laserColor": null,
+      "likelyCargo": 0,
+      "mass": 75881.5625,
+      "maxCargo": 0,
+      "maxEnergy": 350,
+      "maxFlightPitch": 1,
+      "maxFlightRoll": 2,
+      "maxFlightSpeed": 400,
+      "maxMissiles": 1,
+      "missiles": 1,
+      "model": "oolite_asp.dat",
+      "name": "Asp Mark II",
+      "portWeapon": "EQ_WEAPON_NONE",
+      "portWeaponPosition": [
+        -27.731950759887695, 7.759329795837402, 2.576240062713623
+      ],
+      "radius": 44.94221878051758,
+      "roles": [
+        "trader-courier",
+        "hunter-medium(0.75)",
+        "hunter-heavy(0.75)",
+        "pirate-medium-fighter(0.5)",
+        "pirate-heavy-fighter(0.5)",
+        "pirate-interceptor",
+        "pirate-aegis-raider",
+        "escort-heavy",
+        "assassin-heavy",
+        "asp-pirate"
+      ],
+      "scanClass": "CLASS_NEUTRAL",
+      "scoopPosition": [0, -6.21999979019165, 17.479999542236328],
+      "starboardWeapon": "EQ_WEAPON_NONE",
+      "starboardWeaponPosition": [
+        -27.731950759887695, 7.759329795837402, 2.576240062713623
+      ],
+      "thrust": 50
     }
   ],
   "sources": [
@@ -604,6 +666,7 @@
     "float32 note: the float32 values (the three new positions and fragmentChance) are computed with Math.fround, the same rounding the converter applies, so this golden is an independent oracle for the authored strings, the line numbers and the mask semantics but not for the rounding",
     "boundingBox (D16-23): the float32 minimum and maximum per axis of each hull's VERTEX block in third_party/oolite/Models/oolite_<key>.dat (Oolite's model axes, no subentity: none of the nine has a solid one), read by an independent scratch Node script that parses the NVERTS count and the VERTEX lines directly and rounds each component with Math.fround, not by the converter; Oolite's drawable box is the same vertex extremes (OOMesh.m:1786-1805, OOEntityWithDrawable.m:55), the box releaseCargoPodsDebris samples (OOVector.m:107-113). Adder: min [-14.0093, -5.19068, -22.2328], max [14.0093, 9.70464, 28.9523] over 1102 vertices; Krait: min [-47.2038, -11.1088, -41.3069], max [47.2038, 10.6843, 41.5081] over 1023 vertices; the other seven come from the same run",
     "laserColor (quick 261119-i9g): viper: third_party/oolite/Config/shipdata.plist line 3848 (laser_color = \"magentaColor\") of oolite_template_viper, resolved through the like_ship child viper at lines 4537-4540; magentaColor is OOColor's [1, 0, 1] RGB (OOColor.m:284-287), and brightColorWithDescription returns a colour of brightness 0.5 or more unchanged (OOColor.m:202-209, 397-401), so the stock value is [1, 0, 1]; the other eight templates (adder, sidewinder, shuttle, gecko, cobramk1, krait, mamba, moray) author no laser_color (the key appears only on oolite_template_tharglet, oolite_template_thargoid, oolite_template_viper-interceptor, ballturret and their children), so laserColor is null and the weapon_info colour applies (ShipEntity.m:421-427, 6469-6474)",
-    "DATA-17 (plan 21-05): bounty, auto_ai, auto_weapons, has_scoop, has_fuel_injection, fuel, scoop_position, counts_as_kill, escorts, escort_roles, missiles and max_missiles, transcribed from the nine oolite_template_* parents in shipdata.plist (the like_ship children add nothing): adder auto_ai 51, auto_weapons 52, fuel 120, has_scoop yes 122, max_missiles 148, missiles 150, scoop_position 154; cobramk1 auto_ai 1447, auto_weapons 1448, fuel 1520, has_scoop 0.95 1521, max_missiles 1547, missiles 1549, scoop_position 1553; gecko auto_ai 2280, auto_weapons 2281, has_scoop yes 2288, missiles 1 2324 (no max_missiles, so it defaults to missiles, ShipEntity.m:325), scoop_position 2328; krait auto_ai 2514, auto_weapons 2515, fuel 2524, has_fuel_injection 0.65 2526, has_scoop 0.95 2527, missiles 0 2555, scoop_position 2559; mamba auto_ai 2588, auto_weapons 2589, has_scoop 0.95 2600, missiles 0 2635, scoop_position 2639; moray auto_ai 2726, auto_weapons 2727, fuel 2795, has_scoop yes 2796, max_missiles 2836, missiles 2838, scoop_position 2842; shuttle authors none of the twelve keys (missiles 0 at 3537), so every field takes Oolite's default (auto_ai defaults to yes, ShipEntity.m:6915); sidewinder auto_ai 3563, auto_weapons 3564, missiles 0 3593; viper authors missiles 1 (line 3882) only. No template authors bounty, counts_as_kill, escorts or escort_roles, so those take the defaults 0, true, 0 and null (ShipEntity.m:559, 1529, 680, 1543). A fuzzy boolean `yes` is the probability 1, `no` 0, and a number its float32 (0.95 -> 0.949999988079071, 0.65 -> 0.6499999761581421). The viper authors has_escape_pod (line 3845) and the adder and others author has_ecm; neither is compiled (FIDELITY E-195; ECM is deferred with missiles, todo 2026-11-25-missiles-and-ecm)."
+    "DATA-17 (plan 21-05): bounty, auto_ai, auto_weapons, has_scoop, has_fuel_injection, fuel, scoop_position, counts_as_kill, escorts, escort_roles, missiles and max_missiles, transcribed from the nine oolite_template_* parents in shipdata.plist (the like_ship children add nothing): adder auto_ai 51, auto_weapons 52, fuel 120, has_scoop yes 122, max_missiles 148, missiles 150, scoop_position 154; cobramk1 auto_ai 1447, auto_weapons 1448, fuel 1520, has_scoop 0.95 1521, max_missiles 1547, missiles 1549, scoop_position 1553; gecko auto_ai 2280, auto_weapons 2281, has_scoop yes 2288, missiles 1 2324 (no max_missiles, so it defaults to missiles, ShipEntity.m:325), scoop_position 2328; krait auto_ai 2514, auto_weapons 2515, fuel 2524, has_fuel_injection 0.65 2526, has_scoop 0.95 2527, missiles 0 2555, scoop_position 2559; mamba auto_ai 2588, auto_weapons 2589, has_scoop 0.95 2600, missiles 0 2635, scoop_position 2639; moray auto_ai 2726, auto_weapons 2727, fuel 2795, has_scoop yes 2796, max_missiles 2836, missiles 2838, scoop_position 2842; shuttle authors none of the twelve keys (missiles 0 at 3537), so every field takes Oolite's default (auto_ai defaults to yes, ShipEntity.m:6915); sidewinder auto_ai 3563, auto_weapons 3564, missiles 0 3593; viper authors missiles 1 (line 3882) only. No template authors bounty, counts_as_kill, escorts or escort_roles, so those take the defaults 0, true, 0 and null (ShipEntity.m:559, 1529, 680, 1543). A fuzzy boolean `yes` is the probability 1, `no` 0, and a number its float32 (0.95 -> 0.949999988079071, 0.65 -> 0.6499999761581421). The viper authors has_escape_pod (line 3845) and the adder and others author has_ecm; neither is compiled (FIDELITY E-195; ECM is deferred with missiles, todo 2026-11-25-missiles-and-ecm).",
+    "DATA-17 (plan 21-08, tracer): asp, the first record beyond the nine, from oolite_template_asp (shipdata.plist lines 388-514), child asp at lines 4285-4287 through like_ship: ai_type oolite-pirateAI.js (390), auto_ai yes (391) and auto_weapons yes (392) as probability 1, fuel 70 (461), has_fuel_injection 0.5 (463), has_scoop 0.99 (464; the float32 0.9900000095367432), max_missiles 1 (497), missiles 1 (499), scoop_position \"0.0 -6.22 17.48\" (503), weapon_facings 3 (509: forward and aft open, no aft_weapon_type authored, so aft compiles to EQ_WEAPON_NONE); no bounty, counts_as_kill, escorts or escort_roles is authored, so those take 0, true, 0 and null; the hull is oolite_asp.dat with its own models/asp.glb"
   ]
 }

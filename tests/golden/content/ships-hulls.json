@@ -18,6 +18,14 @@
       "collisionRadius": 29.030517578125
     },
     {
+      "key": "asp",
+      "depth": 5,
+      "nodes": 4121,
+      "solidLeaves": 1533,
+      "rootHalfWidth": 42.645599365234375,
+      "collisionRadius": 44.94221878051758
+    },
+    {
       "key": "cobramk1",
       "depth": 5,
       "nodes": 4937,

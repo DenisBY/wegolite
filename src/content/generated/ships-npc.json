@@ -86,6 +86,91 @@
     "aftWeapon": "EQ_WEAPON_NONE",
     "aftWeaponPosition": [
       0,
+      1.5,
+      -39.58110046386719
+    ],
+    "aiType": "oolite-pirateAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
+    "boundingBox": {
+      "max": [
+        32.36029815673828,
+        11.756500244140625,
+        42.145599365234375
+      ],
+      "min": [
+        -32.36029815673828,
+        -11.756500244140625,
+        -41.53710174560547
+      ]
+    },
+    "bounty": 0,
+    "countsAsKill": true,
+    "energyRechargeRate": 4,
+    "escortRoles": null,
+    "escorts": 0,
+    "explosionType": null,
+    "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
+    "forwardWeaponPosition": [
+      0,
+      -2.2644400596618652,
+      42.145599365234375
+    ],
+    "fragmentChance": 0.8999999761581421,
+    "fuel": 70,
+    "glb": "models/asp.glb",
+    "hasFuelInjection": 0.5,
+    "hasScoop": 0.9900000095367432,
+    "key": "asp",
+    "laserColor": null,
+    "likelyCargo": 0,
+    "mass": 75881.5625,
+    "maxCargo": 0,
+    "maxEnergy": 350,
+    "maxFlightPitch": 1,
+    "maxFlightRoll": 2,
+    "maxFlightSpeed": 400,
+    "maxMissiles": 1,
+    "missiles": 1,
+    "model": "oolite_asp.dat",
+    "name": "Asp Mark II",
+    "portWeapon": "EQ_WEAPON_NONE",
+    "portWeaponPosition": [
+      -27.731950759887695,
+      7.759329795837402,
+      2.576240062713623
+    ],
+    "radius": 44.94221878051758,
+    "roles": [
+      "trader-courier",
+      "hunter-medium(0.75)",
+      "hunter-heavy(0.75)",
+      "pirate-medium-fighter(0.5)",
+      "pirate-heavy-fighter(0.5)",
+      "pirate-interceptor",
+      "pirate-aegis-raider",
+      "escort-heavy",
+      "assassin-heavy",
+      "asp-pirate"
+    ],
+    "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      -6.21999979019165,
+      17.479999542236328
+    ],
+    "starboardWeapon": "EQ_WEAPON_NONE",
+    "starboardWeaponPosition": [
+      -27.731950759887695,
+      7.759329795837402,
+      2.576240062713623
+    ],
+    "thrust": 50
+  },
+  {
+    "aftWeapon": "EQ_WEAPON_NONE",
+    "aftWeaponPosition": [
+      0,
       0,
       -27.5
     ],

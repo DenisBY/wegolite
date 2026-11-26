@@ -174,6 +174,9 @@ describe("shipdata catalogue", () => {
       "adder",
       "adder-player",
       "alloy",
+      "asp",
+      "asp-cloaked",
+      "asp-player",
       "barrel",
       "buoy",
       "buoy-witchpoint",
@@ -225,7 +228,7 @@ describe("shipdata catalogue", () => {
     ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
     expect([...VENDORED_MODEL_FILES]).toEqual(expected);
-    expect(VENDORED_MODEL_FILES).toHaveLength(23);
+    expect(VENDORED_MODEL_FILES).toHaveLength(24);
   });
 
   it("keeps every remaining resolved key in extras", () => {
