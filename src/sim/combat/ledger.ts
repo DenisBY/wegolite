@@ -143,6 +143,43 @@ export interface LethalHit {
   readonly killer: EntityId;
 }
 
+/**
+ * What one applied laser record did, for the phases that turn a hit into an AI
+ * event or an offence (Phase 21, pitfall C6; Phase 23 reads `aggressor` for the
+ * victim's reaction, Phase 25 for the offence the law records).
+ *
+ * One per applied laser record, in ledger order, pushed after the record is
+ * applied, whatever the target kind (ship, pod, buoy, buoy subentity, station,
+ * the player) and the lethal record included. Oolite records the aggressor, the
+ * found target and the offence broadcast for every laser hit before its energy
+ * check and skips only the retaliation for a doomed target
+ * (`ShipEntity.m:11418-11590`, `broadcastHitByLaserFrom:` `:12280-12310`), so
+ * the lethal hit is flagged here, never dropped. A `"scrape"` record produces
+ * none: `takeScrapeDamage` is not an offence (`ShipEntity.m:11640-11667`).
+ *
+ * It reads the applied record, not the `shipHit` event, and is output only:
+ * nothing in the ledger reads it back.
+ */
+export interface HitReaction {
+  readonly victim: EntityId;
+  /** The record's `source`, as queued (not normalised: it may be gone by now). */
+  readonly aggressor: EntityId;
+  readonly kind: "laser";
+  /**
+   * True on the first record of the call that took this victim's energy (or
+   * health) to 0 or below; for the player, the record whose damage empties the
+   * bank of a player in flight, the condition that sets `outcome.playerDeath`.
+   * At most once per victim per call.
+   */
+  readonly lethal: boolean;
+  /**
+   * The victim's energy after the record: the ship's, the player's bank, a
+   * buoy's or its subentity's remaining health; the station's health, which
+   * the ledger never lowers.
+   */
+  readonly energyRemaining: number;
+}
+
 /** Local forward (-Z) in ship space, the player's nose. */
 const LOCAL_FORWARD = vec(0, 0, -1);
 
@@ -183,6 +220,9 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  *
  * Every record applies before lethality is decided; see the module comment.
  * Nothing is marked dead here, and energy is never read again after the write.
+ *
+ * `reactions`, when passed, receives one `HitReaction` per applied laser record
+ * in ledger order (see `HitReaction`); it changes no event, order or state.
  */
 export function applyLedger(
   world: World | undefined,
@@ -193,8 +233,27 @@ export function applyLedger(
   events: SimEvent[],
   internalDamage?: InternalDamageFacts,
   outcome?: { playerDeath?: PlayerDeathCause },
+  reactions?: HitReaction[],
 ): LethalHit[] {
   const lethal = new Map<EntityId, EntityId>();
+  // Victims already flagged lethal in a reaction: the flag is once per victim.
+  const flagged = new Set<EntityId>();
+  const react = (
+    record: HitRecord,
+    lethalNow: boolean,
+    energyRemaining: number,
+  ): void => {
+    if (reactions === undefined || record.kind !== "laser") return;
+    const first = lethalNow && !flagged.has(record.target);
+    if (first) flagged.add(record.target);
+    reactions.push({
+      victim: record.target,
+      aggressor: record.source,
+      kind: "laser",
+      lethal: first,
+      energyRemaining,
+    });
+  };
   // One work copy and one stream for the whole call, created at the first
   // player record that rolls (Pitfall 6).
   let damageWork: InternalDamageWork | undefined;
@@ -227,15 +286,15 @@ export function applyLedger(
         amount: record.amount,
         shield: result.shieldAbsorbed,
       });
-      if (
-        outcome !== undefined &&
+      const lethalToPlayer =
         player.mode === "inFlight" &&
         result.applied > 0 &&
         Number.isFinite(energyBefore) &&
-        energyBefore - result.applied <= 0
-      ) {
+        energyBefore - result.applied <= 0;
+      if (outcome !== undefined && lethalToPlayer) {
         outcome.playerDeath = playerDeathCause(world, record);
       }
+      react(record, lethalToPlayer, combat.energy);
       if (
         internalDamage !== undefined &&
         world !== undefined &&
@@ -274,6 +333,7 @@ export function applyLedger(
         amount: record.amount,
         shield: false,
       });
+      react(record, false, after);
       continue;
     }
     const row = staticTargetById(record.target);
@@ -292,6 +352,7 @@ export function applyLedger(
               amount: record.amount,
               shield: false,
             });
+            react(record, false, 0);
           }
           continue;
         }
@@ -304,6 +365,7 @@ export function applyLedger(
           amount: record.amount,
           shield: false,
         });
+        react(record, after <= 0, Math.max(0, after));
         if (after <= 0) {
           lethal.set(record.target, creditedKiller(world, record));
         }
@@ -317,6 +379,7 @@ export function applyLedger(
         amount: record.amount,
         shield: false,
       });
+      react(record, false, world.staticHealth[row.healthKey]);
       continue;
     }
     const entity = world.store.get(record.target);
@@ -333,6 +396,8 @@ export function applyLedger(
       amount: record.amount,
       shield: false,
     });
+    // The floored value written above, never a re-read of the energy.
+    react(record, after <= 0, Math.max(0, after));
     if (after <= 0 && !lethal.has(record.target)) {
       lethal.set(record.target, creditedKiller(world, record));
     }

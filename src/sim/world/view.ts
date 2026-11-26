@@ -46,6 +46,40 @@ export interface ShipView extends BodyView {
   readonly destination: Vec3;
   readonly desiredRange: number;
   readonly desiredSpeed: number;
+  /**
+   * The read side of the roster state (Phase 21, FOUND-20); every member is
+   * read from the entity at call time and written only by its owner.
+   *
+   * `bounty`: `Entity.bounty`, Oolite's `bounty`; the police scan reads it
+   * (Phase 25).
+   */
+  readonly bounty: number;
+  /** `Entity.role`: the resolved role, "" when unset; the AI and comms read it (Phases 22, 23). */
+  readonly role: string;
+  /** `Entity.groupId`: the group's founding leader id, 0 for none; `groupLeader` resolves it (Phase 23). */
+  readonly groupId: EntityId;
+  /** `Entity.energy`: the ship's current energy (the hit-reaction stage reports it too). */
+  readonly energy: number;
+  /** `Entity.maxEnergy`: the ship's energy ceiling; the AI's flee thresholds read it (Phase 23). */
+  readonly maxEnergy: number;
+  /** `Entity.cargo`: the cargo capsule count; the pirate's pick of prey reads it (Phase 23). */
+  readonly cargo: number;
+  /** `Entity.steer.accuracy`: the resolved laser accuracy (-5 to 5), or the unresolved sentinel. */
+  readonly accuracy: number;
+  /** `Entity.steer.escortSlot`: the formation slot, an integer from 0. */
+  readonly escortSlot: number;
+  /** `Entity.ownerId`: the owning ship (an escort's leader, a pod's source), `NO_ENTITY` for none. */
+  readonly ownerId: EntityId;
+}
+
+/**
+ * The player's legal standing as the view reports it: a copy, so a caller
+ * cannot write the combat state through it. Structurally the `PlayerStanding`
+ * of `../combat/state.ts`, declared here so this module stays types-only.
+ */
+export interface StandingView {
+  readonly legalStatus: number;
+  readonly kills: number;
 }
 
 /** Optional narrowing for `scan`. */
@@ -73,4 +107,16 @@ export interface WorldView {
   mainStation(): EntityId;
   mainPlanet(): EntityId;
   sun(): EntityId;
+  /**
+   * The player's legal standing (`PlayerCombatState.standing`) as given to
+   * `createWorldView`, a fresh copy on every call; pristine
+   * (`{ legalStatus: 0, kills: 0 }`) when the view was made without one. The
+   * police scan and the offence rules read it (Phase 25).
+   */
+  playerStanding(): StandingView;
+  /**
+   * The leader of the `World.groups` record with this id, `NO_ENTITY` for an
+   * unknown or malformed id (Phase 23's group AI events).
+   */
+  groupLeader(groupId: EntityId): EntityId;
 }

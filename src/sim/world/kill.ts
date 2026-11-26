@@ -11,10 +11,14 @@
  * `commitWorld`, which the caller runs (the second commit of
  * `resolveShots`, `../combat/step.ts`).
  *
- * A ship leaves the world through this function and nowhere else in
- * non-test code. The bare `killEntity` of `./world.ts` is a test-only primitive,
- * and the one other removal is the sanitiser's repair of an entity whose kind is
- * unknown (`sanitizeEntity`), which is never a ship.
+ * A ship leaves the world through this function when it dies and through
+ * `retireShip` (`./retire.ts`) when it departs (docks, jumps, lands, expires),
+ * and nowhere else in non-test code (pitfall C11): a departure never explodes,
+ * drops cargo or credits a kill, and a death never vanishes without them.
+ * `tests/guards/departure-path.test.ts` keeps the two call sets apart. The bare
+ * `killEntity` of `./world.ts` is a test-only primitive, and the one other
+ * removal is the sanitiser's repair of an entity whose kind is unknown
+ * (`sanitizeEntity`), which is never a ship.
  *
  * The killer is normalised here, at the call (D-04: a dead or missing killer is
  * tolerated, recorded as `NO_ENTITY`): `PLAYER_ID` stays `PLAYER_ID`; any other

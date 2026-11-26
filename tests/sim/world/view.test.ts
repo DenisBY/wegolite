@@ -7,13 +7,16 @@
  * from running the implementation.
  */
 
+import fc from "fast-check";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import type { Vec3 } from "../../../src/sim/math.js";
+import { ACCURACY_UNRESOLVED } from "../../../src/sim/npc/state.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import type { SpawnInit } from "../../../src/sim/world/entity.js";
 import {
@@ -27,7 +30,7 @@ import {
 } from "../../../src/sim/world/ids.js";
 import type { EntityId } from "../../../src/sim/world/ids.js";
 import type { SystemLayout } from "../../../src/sim/world/layout.js";
-import type { WorldView } from "../../../src/sim/world/view.js";
+import type { ShipView, WorldView } from "../../../src/sim/world/view.js";
 import { createWorldView } from "../../../src/sim/world/view-impl.js";
 import {
   commitWorld,
@@ -51,6 +54,33 @@ const VIEW_MEMBERS: Record<keyof WorldView, true> = {
   mainStation: true,
   mainPlanet: true,
   sun: true,
+  playerStanding: true,
+  groupLeader: true,
+};
+
+/** The exhaustive member set of ShipView (Phase 21 added the roster reads). */
+const SHIP_MEMBERS: Record<keyof ShipView, true> = {
+  id: true,
+  kind: true,
+  scanClass: true,
+  position: true,
+  orientation: true,
+  speed: true,
+  radius: true,
+  behaviour: true,
+  targetId: true,
+  destination: true,
+  desiredRange: true,
+  desiredSpeed: true,
+  bounty: true,
+  role: true,
+  groupId: true,
+  energy: true,
+  maxEnergy: true,
+  cargo: true,
+  accuracy: true,
+  escortSlot: true,
+  ownerId: true,
 };
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -159,6 +189,15 @@ describe("the view's member set", () => {
     const view = createWorldView(createWorld(1), inFlight(), layout);
     expect(Object.keys(view).sort()).toEqual(Object.keys(VIEW_MEMBERS).sort());
   });
+
+  it("gives a ship view exactly the pinned SHIP_MEMBERS", () => {
+    const world = createWorld(1);
+    const a = spawnOk(world);
+    const view = createWorldView(world, inFlight(), layout);
+    expect(Object.keys(view.ship(a.id) ?? {}).sort()).toEqual(
+      Object.keys(SHIP_MEMBERS).sort(),
+    );
+  });
 });
 
 describe("isValid, body and ship across id classes", () => {
@@ -203,6 +242,7 @@ describe("isValid, body and ship across id classes", () => {
       scanClass: "CLASS_CARGO",
       position: vec(10, 20, 30),
       speed: 3,
+      maxEnergy: 85,
     });
     const view = createWorldView(world, inFlight(), layout);
 
@@ -219,6 +259,15 @@ describe("isValid, body and ship across id classes", () => {
       destination: vec(10, 20, 30),
       desiredRange: 0,
       desiredSpeed: 3,
+      bounty: 0,
+      role: "",
+      groupId: NO_ENTITY,
+      energy: 85,
+      maxEnergy: 85,
+      cargo: 0,
+      accuracy: ACCURACY_UNRESOLVED,
+      escortSlot: 0,
+      ownerId: NO_ENTITY,
     });
     for (const id of [1, 2, 3, 4, 5, PLAYER_ID]) {
       expect(view.ship(id)).toBeUndefined();
@@ -754,6 +803,115 @@ describe("the buoys in the view (Phase 18, PD-06)", () => {
     expect(view.isValid(WITCHPOINT_BUOY_ID)).toBe(false);
     expect(view.body(STATION_NAV_BUOY_ID)?.position).toEqual(
       layout.navBuoy.position,
+    );
+  });
+});
+
+describe("the roster reads of the widened view (Phase 21, FOUND-20)", () => {
+  it("reports bounty, role, group, energy, cargo, accuracy, escort slot and owner from the entity", () => {
+    const world = createWorld(1);
+    const leader = spawnOk(world, { role: "trader" });
+    const pirate = spawnOk(world, {
+      bounty: 30,
+      role: "pirate",
+      cargo: 5,
+      maxEnergy: 120,
+      escortSlot: 3,
+      ownerId: leader.id,
+    });
+    pirate.groupId = pirate.id;
+    pirate.steer.accuracy = 4;
+    pirate.energy = 90;
+    const view = createWorldView(world, inFlight(), layout);
+
+    const seen = view.ship(pirate.id);
+    expect(seen).toMatchObject({
+      bounty: 30,
+      role: "pirate",
+      groupId: pirate.id,
+      cargo: 5,
+      energy: 90,
+      maxEnergy: 120,
+      accuracy: 4,
+      escortSlot: 3,
+      ownerId: leader.id,
+    });
+    expect(view.ship(leader.id)?.role).toBe("trader");
+  });
+
+  it("returns the standing given to createWorldView, as a copy", () => {
+    const world = createWorld(1);
+    const combat = createPlayerCombatState();
+    combat.standing.legalStatus = 12;
+    combat.standing.kills = 40;
+    const view = createWorldView(world, inFlight(), layout, 0, combat.standing);
+
+    const first = mutable(view.playerStanding());
+    expect(first).toEqual({ legalStatus: 12, kills: 40 });
+    first.legalStatus = 99;
+    first.kills = 0;
+    expect(combat.standing).toEqual({ legalStatus: 12, kills: 40 });
+    expect(view.playerStanding()).toEqual({ legalStatus: 12, kills: 40 });
+    expect(view.playerStanding()).not.toBe(view.playerStanding());
+    // The view reads the live standing on each call.
+    combat.standing.kills = 41;
+    expect(view.playerStanding().kills).toBe(41);
+  });
+
+  it("reports the pristine standing when none is passed", () => {
+    const view = createWorldView(createWorld(1), inFlight(), layout);
+    expect(view.playerStanding()).toEqual({ legalStatus: 0, kills: 0 });
+  });
+
+  it("resolves a group id to its leader, else NO_ENTITY", () => {
+    const world = createWorld(1);
+    world.groups.push({ id: 101, leader: 101 }, { id: 105, leader: 107 });
+    const view = createWorldView(world, inFlight(), layout);
+
+    expect(view.groupLeader(101)).toBe(101);
+    expect(view.groupLeader(105)).toBe(107);
+    expect(view.groupLeader(106)).toBe(NO_ENTITY);
+    expect(view.groupLeader(NO_ENTITY)).toBe(NO_ENTITY);
+    expect(view.groupLeader(1.5)).toBe(NO_ENTITY);
+    expect(view.groupLeader(Number.NaN)).toBe(NO_ENTITY);
+  });
+
+  it("answers NO_ENTITY for every id when the world has no group", () => {
+    const view = createWorldView(createWorld(1), inFlight(), layout);
+    expect(view.groupLeader(101)).toBe(NO_ENTITY);
+    expect(view.groupLeader(0)).toBe(NO_ENTITY);
+  });
+
+  it("groupLeader is total over arbitrary arguments and group lists", () => {
+    fc.assert(
+      fc.property(
+        fc.uniqueArray(fc.integer({ min: 101, max: 400 }), { maxLength: 12 }),
+        fc.array(fc.integer({ min: 0, max: 400 }), { maxLength: 12 }),
+        fc.anything(),
+        (groupIds, leaders, arbitrary) => {
+          const world = createWorld(1);
+          groupIds.forEach((id, index) => {
+            world.groups.push({ id, leader: leaders[index] ?? NO_ENTITY });
+          });
+          const view = createWorldView(world, inFlight(), layout);
+          const probes: unknown[] = [
+            arbitrary,
+            Number.NaN,
+            Number.POSITIVE_INFINITY,
+            Number.NEGATIVE_INFINITY,
+            -1,
+            0.5,
+            2 ** 53,
+            ...groupIds,
+          ];
+          for (const probe of probes) {
+            const result = view.groupLeader(probe as EntityId);
+            const match = world.groups.find((group) => group.id === probe);
+            expect(result).toBe(match === undefined ? NO_ENTITY : match.leader);
+          }
+        },
+      ),
+      { numRuns: 200 },
     );
   });
 });

@@ -99,7 +99,7 @@ import { stepIdent, updateIdentTarget } from "./ident.js";
 import type { HitPart, HitTarget, HullTable, LaserRay } from "./hit.js";
 import type { InternalDamageFacts } from "./internal-damage.js";
 import { applyLedger } from "./ledger.js";
-import type { HitRecord } from "./ledger.js";
+import type { HitReaction, HitRecord } from "./ledger.js";
 import {
   DEFAULT_LASER_MOUNTS,
   NO_LASER,
@@ -763,6 +763,11 @@ function applyPlayerPush(player: FlightState, push: BlastPush): void {
  *
  * `layout` and `registry` feed the immediate drain only; `stepSim` passes its
  * layout and `AI_REGISTRY`, a test may inject a registry.
+ *
+ * `reactions`, when passed, receives the ledger's `HitReaction`s (one per
+ * applied laser record, in ledger order, the lethal one included; Phase 21,
+ * pitfall C6). No production caller passes one yet; it changes no event, order
+ * or state.
  */
 export function resolveShots(
   world: World | undefined,
@@ -774,6 +779,7 @@ export function resolveShots(
   dt: number,
   layout: SystemLayout,
   registry: AiRegistry = AI_REGISTRY,
+  reactions?: HitReaction[],
 ): SimEvent[] {
   // A dead player freezes every entry point (D-01): nothing fires, recharges,
   // collides or dies, so a second call on a dead state changes no hash.
@@ -817,6 +823,7 @@ export function resolveShots(
     events,
     options?.combat?.internalDamage,
     outcome,
+    reactions,
   );
   if (world !== undefined && worldStepped) {
     const playerPush: BlastPush = { x: 0, y: 0, z: 0 };

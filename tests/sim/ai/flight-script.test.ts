@@ -110,6 +110,15 @@ function view(options: {
     destination: vec(0, 0, 0),
     desiredRange: 0,
     desiredSpeed: 0,
+    bounty: 0,
+    role: "",
+    groupId: NO_ENTITY,
+    energy: 0,
+    maxEnergy: 0,
+    cargo: 0,
+    accuracy: 0,
+    escortSlot: 0,
+    ownerId: NO_ENTITY,
   };
   bodies.set(SELF, ship);
   return {
@@ -122,6 +131,8 @@ function view(options: {
     mainStation: () => MAIN_STATION_ID,
     mainPlanet: () => 1,
     sun: () => 2,
+    playerStanding: () => ({ legalStatus: 0, kills: 0 }),
+    groupLeader: () => NO_ENTITY,
   };
 }
 

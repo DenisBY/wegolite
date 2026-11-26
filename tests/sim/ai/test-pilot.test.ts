@@ -26,7 +26,7 @@ import { createShipControl } from "../../../src/sim/world/control-impl.js";
 import type { ShipControl } from "../../../src/sim/world/control.js";
 import type { Entity, SpawnInit } from "../../../src/sim/world/entity.js";
 import type { EntityId } from "../../../src/sim/world/ids.js";
-import { BODY_KINDS } from "../../../src/sim/world/ids.js";
+import { BODY_KINDS, NO_ENTITY } from "../../../src/sim/world/ids.js";
 import type {
   BodyView,
   ScanFilter,
@@ -246,6 +246,15 @@ function fakeView(spec: FakeSpec): WorldView {
         destination: Object.freeze(vec(0, 0, 0)),
         desiredRange: 0,
         desiredSpeed: 0,
+        bounty: 0,
+        role: "",
+        groupId: NO_ENTITY,
+        energy: 0,
+        maxEnergy: 0,
+        cargo: 0,
+        accuracy: 0,
+        escortSlot: 0,
+        ownerId: NO_ENTITY,
       });
     },
     scan: (self, range, filter) => {
@@ -255,6 +264,8 @@ function fakeView(spec: FakeSpec): WorldView {
     mainStation: () => 3,
     mainPlanet: () => 1,
     sun: () => 2,
+    playerStanding: () => ({ legalStatus: 0, kills: 0 }),
+    groupLeader: () => NO_ENTITY,
   };
 }
 
