@@ -13,7 +13,9 @@
  * snapshot-prefixed alias, say) can drift from the one that spawn enforces.
  *
  * Changing any value changes what a world snapshot may hold, so it is a
- * snapshot-format change (a `WORLD_SNAPSHOT_VERSION` bump in plan 08-13).
+ * snapshot-format change (a `WORLD_SNAPSHOT_VERSION` bump in plan 08-13). The
+ * one recorded exception is D-11 (Phase 22): `MAX_WORLD_GROUPS` is a bound that
+ * only widens and is not part of the hash, so it moved inside version 5.
  */
 
 /**
@@ -295,12 +297,19 @@ export const MAX_STATION_LAUNCHED = 255;
 export const MAX_STATION_MARKS = 32;
 
 /**
- * The most groups `World.groups` holds. Oolite's `ShipGroup` is a set of ships
- * with a leader; the world holds at most `MAX_ENTITIES` (256) ships, and a
- * group needs at least its leader, so 128 groups is a format bound well above
- * any populator wave.
+ * The most groups `World.groups` holds: 256, equal to `MAX_ENTITIES`
+ * (`ids.ts`). Oolite's `ShipGroup` is a set of ships with a leader, and a group
+ * record always has at least one live ship, because `pruneEmptyGroups`
+ * (`world.ts`, run by `commitWorld`) removes the record once its group has no
+ * live member. The count of records can therefore never exceed the live dynamic
+ * entities, whose cap is `MAX_ENTITIES`, so this bound equals the cap and never
+ * triggers, for Phase 22's populator and for the later phases that create
+ * groups (23 launches, 25 police, 26 repopulation). It is a literal because
+ * this file takes no imports; `tests/sim/world/groups-prune.test.ts` pins the
+ * equality. D-11 (owner, 2026-11-26) raised it from 128 as an amendment inside
+ * snapshot version 5.
  */
-export const MAX_WORLD_GROUPS = 128;
+export const MAX_WORLD_GROUPS = 256;
 
 /**
  * The largest `PlayerCombatState.standing.kills`: Oolite keeps the kill tally
