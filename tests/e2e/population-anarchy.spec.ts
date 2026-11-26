@@ -82,6 +82,18 @@ const SETTLE_FRAMES = 3;
 const STABLE_READS = 3;
 /** The loop frames between two settle reads. */
 const STABLE_READ_FRAMES = 10;
+/** Cargo capsules the shooter carries, as the combat spec's debris twin (D16-09). */
+const SHOOTER_CARGO = 20;
+/**
+ * The chunk of manual ticks the kill step advances between scanner reads. The
+ * explosion lives 1.5 s of flight time (180 ticks), so the read at the kill's
+ * chunk end plus `AFTER_KILL_TICKS` is at most 90 ticks into it.
+ */
+const KILL_CHUNK_TICKS = 30;
+/** A correctness bound for the kill step (the kill lands near 700 ticks). */
+const KILL_BOUND_TICKS = 2_400;
+/** Ticks after the kill at which the scene is read (the combat spec's 60). */
+const AFTER_KILL_TICKS = 60;
 
 test.setTimeout(480_000);
 
@@ -217,6 +229,16 @@ async function settledCounters(
   }
   expect(agreeing, "the draw counters settled").toBe(STABLE_READS);
   return last;
+}
+
+/** The ship contacts on the scanner, read from the probe. */
+async function shipContacts(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      (window.__wegolite?.hud.contacts ?? []).filter(
+        (contact) => contact === "ship",
+      ).length,
+  );
 }
 
 /** What Node says the populated world holds: the realised hull keys and triangles. */
@@ -359,6 +381,71 @@ for (const spec of systemsToRun()) {
       "the realised ships' triangles are drawn on top of the scene",
     ).toBeGreaterThanOrEqual(node.triangles);
 
+    // 4. The fight: the cargo shooter 1,500 m ahead, the fire key held, until
+    //    the scanner loses it (one contact fewer: the populated ships stay).
+    await page.keyboard.down("KeyA");
+    expect(
+      await page.evaluate(
+        (cargo) => window.__wegolite?.test?.spawnTestShooter(cargo),
+        SHOOTER_CARGO,
+      ),
+      "the hook spawned the cargo shooter",
+    ).toBe(true);
+    expect(
+      await page.evaluate(() => window.__wegolite?.test?.tainted),
+      "the hook taints the session so nothing is saved",
+    ).toBe(true);
+    await waitForFrames(page, SETTLE_FRAMES);
+    const contactsWithShooter = await shipContacts(page);
+    const entitiesWithShooter = await page.evaluate(
+      () => window.__wegolite?.sim?.entities ?? -1,
+    );
+    expect(entitiesWithShooter, "the shooter joined the population").toBe(
+      spec.ships + 1,
+    );
+    let contacts = contactsWithShooter;
+    let ticks = 0;
+    while (contacts >= contactsWithShooter && ticks < KILL_BOUND_TICKS) {
+      await advance(page, KILL_CHUNK_TICKS);
+      ticks += KILL_CHUNK_TICKS;
+      contacts = await shipContacts(page);
+    }
+    await page.keyboard.up("KeyA");
+    expect(
+      contacts,
+      `the scanner lost the destroyed shooter within ${String(KILL_BOUND_TICKS)} ticks`,
+    ).toBeLessThan(contactsWithShooter);
+
+    // 5. The kill's debris and explosion are live: step to the combat spec's
+    //    kill + 60 ticks, let the particle assets arrive, and read again.
+    await page.evaluate(
+      (n) => window.__wegolite?.test?.advanceTicks(n),
+      AFTER_KILL_TICKS,
+    );
+    await waitForFrames(page, SETTLE_FRAMES);
+    const debrisEntities =
+      (await page.evaluate(() => window.__wegolite?.sim?.entities ?? -1)) -
+      (entitiesWithShooter - 1);
+    expect(
+      debrisEntities,
+      "the kill left debris entities (pods, plate, wrecks) beside the anarchy",
+    ).toBeGreaterThan(0);
+    const particleTextures = [
+      "/textures/oolite-particle-cloud2.png",
+      "/textures/oolite-particle-flash.png",
+    ];
+    await expect
+      .poll(() => particleTextures.filter((path) => !finished.has(path)), {
+        timeout: SLOW,
+      })
+      .toEqual([]);
+    await waitForFrames(page, SETTLE_FRAMES);
+    const afterKill = await settledCounters(page);
+    expect(
+      afterKill.calls,
+      "the debris and the explosion add draw calls to the anarchy",
+    ).toBeGreaterThan(before.calls);
+
     const report = {
       system: spec.id,
       name: spec.name,
@@ -368,6 +455,9 @@ for (const spec of systemsToRun()) {
       npcTriangles: node.triangles,
       beforeCalls: before.calls,
       beforeTriangles: before.triangles,
+      afterKillCalls: afterKill.calls,
+      afterKillTriangles: afterKill.triangles,
+      debrisEntities,
     };
     test.info().annotations.push(
       {
@@ -376,7 +466,11 @@ for (const spec of systemsToRun()) {
       },
       {
         type: "population-anarchy-before-kill",
-        description: `${before.calls} calls, ${before.triangles} triangles`,
+        description: `${String(before.calls)} calls, ${String(before.triangles)} triangles`,
+      },
+      {
+        type: "population-anarchy-after-kill",
+        description: `${String(afterKill.calls)} calls, ${String(afterKill.triangles)} triangles (kill + ${String(AFTER_KILL_TICKS)} ticks)`,
       },
     );
     await test.info().attach("population-anarchy-counts", {
@@ -388,14 +482,19 @@ for (const spec of systemsToRun()) {
     // The 21-18 deferral tripwire (Phase 21 D-05): a call count above the
     // budget brings todo 2026-11-26-npc-variant-family-instancing back before
     // any raise; a triangle count above it has no authorisation at all.
-    expect(
-      withinBudget(before.calls, DRAW_CALL_BUDGET),
-      `calls ${String(before.calls)} within the ${String(DRAW_CALL_BUDGET)}-call budget`,
-    ).toBe(true);
-    expect(
-      withinBudget(before.triangles, TRIANGLE_BUDGET),
-      `triangles ${String(before.triangles)} within the ${String(TRIANGLE_BUDGET)} triangle budget`,
-    ).toBe(true);
+    for (const [when, counters] of [
+      ["before the kill", before],
+      ["after the kill", afterKill],
+    ] as const) {
+      expect(
+        withinBudget(counters.calls, DRAW_CALL_BUDGET),
+        `${when}: calls ${String(counters.calls)} within the ${String(DRAW_CALL_BUDGET)}-call budget`,
+      ).toBe(true);
+      expect(
+        withinBudget(counters.triangles, TRIANGLE_BUDGET),
+        `${when}: triangles ${String(counters.triangles)} within the ${String(TRIANGLE_BUDGET)} triangle budget`,
+      ).toBe(true);
+    }
 
     expect(errors).toEqual([]);
   });
