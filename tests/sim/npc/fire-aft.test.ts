@@ -569,6 +569,52 @@ describe("per-entity weapon type overrides", () => {
     expect(ship.weapon.aftTemperature).toBe(0);
   });
 
+  it("EQ_WEAPON_NONE on the fore facing draws and refuses exactly as an authored EQ_WEAPON_NONE nose does (SIM-WR-01)", () => {
+    // The shuttle authors an unarmed nose; the adder authors a pulse laser
+    // that the override strips. Oolite holds one forward_weapon_type either
+    // way, and fireMainWeapon: draws randf() before isWeaponNone stops the
+    // shot (ShipEntity.m:10009-10021, :9949, :9958).
+    expect(WEAPONS.get("shuttle")?.fore?.laser).toBe("EQ_WEAPON_NONE");
+    expect(WEAPONS.get("adder")?.fore?.laser).toBe("EQ_WEAPON_PULSE_LASER");
+    const seed = createRngState(0x5eed).s;
+    const authoredPlayer = flyingPlayer();
+    const authoredWorld = createWorld(5);
+    const authored = armed(authoredWorld, "shuttle", 3000, true);
+    authored.rng.combat = seed;
+    const overridePlayer = flyingPlayer();
+    const overrideWorld = createWorld(5);
+    const override = armed(overrideWorld, "adder", 3000, true, {
+      weaponTypes: {
+        fore: "EQ_WEAPON_NONE",
+        aft: null,
+        port: null,
+        starboard: null,
+      },
+    });
+    override.rng.combat = seed;
+    const authoredControl = createShipControl(authoredWorld, authored.id, 0);
+    const overrideControl = createShipControl(overrideWorld, override.id, 0);
+    const streams = new Set<number>([seed]);
+    for (let i = 0; i < 50; i += 1) {
+      authoredPlayer.tick += 1;
+      overridePlayer.tick += 1;
+      authoredControl.fire(authored.id, "fore");
+      overrideControl.fire(override.id, "fore");
+      const authoredEvents = resolve(authoredWorld, authoredPlayer);
+      const overrideEvents = resolve(overrideWorld, overridePlayer);
+      expect(ofKind(authoredEvents, "laserFired")).toEqual([]);
+      expect(ofKind(overrideEvents, "laserFired")).toEqual([]);
+      expect(override.rng.combat, `tick ${String(i)}`).toBe(
+        authored.rng.combat,
+      );
+      streams.add(override.rng.combat);
+    }
+    // One gate draw per tick on both paths, never a skipped one.
+    expect(streams.size).toBe(51);
+    expect(override.weapon.temperature).toBe(0);
+    expect(override.weapon.lastShotTick).toBe(0);
+  });
+
   it("a beam laser on the adder's aft facing fires from the model origin (the record authors no aft mount), heating the aft temperature", () => {
     const player = flyingPlayer();
     const world = createWorld(5);

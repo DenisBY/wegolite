@@ -370,12 +370,29 @@ const ORIGIN = vec(0, 0, 0);
 
 /**
  * The weapon a ship fires on `facing`: the record's compiled weapon for that
- * facing, replaced by `entity.weaponTypes[facing]` when that is not null
- * (`EQ_WEAPON_NONE` removes the weapon; a laser key swaps the type and keeps the
- * record's mount position, or the model origin when the record authors no
- * weapon on that facing, since the catalogue omits an unarmed facing's
- * position; an unknown key fires nothing). Undefined means no weapon, with no
- * gate draw (Oolite refuses a facing it has no weapon for before `fireWeapon:`).
+ * facing, replaced by `entity.weaponTypes[facing]` when that is not null.
+ *
+ * - A laser key swaps the type and keeps the record's mount position, or the
+ *   model origin when the record authors no weapon on that facing (the
+ *   catalogue omits an unarmed facing's position).
+ * - `EQ_WEAPON_NONE` resolves exactly as a record that authors
+ *   `EQ_WEAPON_NONE` on that facing (`npcWeaponsOf` in `traffic.ts`). On the
+ *   fore it is an `EQ_WEAPON_NONE` weapon at the record's mount, so the gate
+ *   takes its one `randf()` draw and then refuses, as an authored unarmed nose
+ *   does. Oolite has one `forward_weapon_type`, whether authored or set by
+ *   `_setWeapons`, and `fireMainWeapon:` (`ShipEntity.m:10009-10021`), like
+ *   `fireAftWeapon:`, `firePortWeapon:` and `fireStarboardWeapon:`
+ *   (`:10048-10073`), calls `fireWeapon:direction:range:` unconditionally:
+ *   with `EQ_WEAPON_NONE` that passes heat, energy and the timer, draws at
+ *   `:9949` and fires nothing at `:9958`. On the aft, port and starboard the
+ *   result is undefined, as the catalogue omits an unarmed facing there, so
+ *   both kinds of unarmed facing advance `rng.combat` identically. (Oolite
+ *   would draw there too; no AI requests those facings before CBT-19 in
+ *   Phase 23, guarded by `tests/guards/aft-weapon-tripwire.test.ts`, which
+ *   settles that draw for both kinds together.)
+ * - Any other key is corrupt, has no Oolite equivalent, and fires nothing.
+ *
+ * Undefined means no weapon on that facing, with no gate draw.
  */
 function resolveNpcWeapon(
   shooter: Entity,
@@ -385,7 +402,12 @@ function resolveNpcWeapon(
   const authored = set[facing];
   const override = shooter.weaponTypes[facing];
   if (override === null) return authored;
-  if (override === NO_LASER || !isMountKey(override)) return undefined;
+  if (override === NO_LASER) {
+    return facing === "fore"
+      ? { laser: NO_LASER, offset: authored?.offset ?? ORIGIN }
+      : undefined;
+  }
+  if (!isMountKey(override)) return undefined;
   return { laser: override, offset: authored?.offset ?? ORIGIN };
 }
 
