@@ -24,9 +24,25 @@ import {
 import { canon } from "../hash.js";
 import { NO_ENTITY } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
+import { MAX_BOUNTY, MAX_KILL_TALLY } from "../world/limits.js";
 
 /** One value per weapon facing. */
 export type PerFacing = Record<Facing, number>;
+
+/**
+ * The player's standing with the law (FOUND-20, plan 21-06): Oolite's player
+ * bounty, the legal-status score (`PlayerEntity` `legalStatus`; 0 is clean, a
+ * fugitive is above 50), and the kill tally (`ship_kills`). Hashed through the
+ * combat line so the law is visible to every cadence and golden (pitfall C2);
+ * save v6 persists them in Phase 24. At rest until Phase 25 writes them: no
+ * production path sets either field, and a dock or a launch leaves both alone.
+ */
+export interface PlayerStanding {
+  /** The legal status, an integer `0..MAX_BOUNTY`. */
+  legalStatus: number;
+  /** The kill tally, an integer `0..MAX_KILL_TALLY`. */
+  kills: number;
+}
 
 export interface PlayerCombatState {
   /** The current cockpit view, which is also the weapon facing. */
@@ -47,6 +63,8 @@ export interface PlayerCombatState {
   identEngaged: boolean;
   /** The locked ident target, `NO_ENTITY` when none. */
   identTarget: EntityId;
+  /** The legal status and kill tally (FOUND-20); never reset by dock or launch. */
+  standing: PlayerStanding;
 }
 
 function perFacing(value: number): PerFacing {
@@ -69,6 +87,7 @@ export function createPlayerCombatState(): PlayerCombatState {
     shotTicks: perFacing(SHOT_TIMER_SATURATION_TICKS),
     identEngaged: false,
     identTarget: NO_ENTITY,
+    standing: { legalStatus: 0, kills: 0 },
   };
 }
 
@@ -87,7 +106,9 @@ export function isPristineCombat(state: PlayerCombatState): boolean {
     state.energy !== COBRA_MAX_ENERGY ||
     state.cabinTemp !== SHIP_MIN_CABIN_TEMP ||
     state.identEngaged ||
-    state.identTarget !== NO_ENTITY
+    state.identTarget !== NO_ENTITY ||
+    state.standing.legalStatus !== 0 ||
+    state.standing.kills !== 0
   ) {
     return false;
   }
@@ -109,7 +130,8 @@ export function isPristineCombat(state: PlayerCombatState): boolean {
  * `:6439-6448`, and bookkeeping does not run while docked, so the two routes
  * agree). The ident lock is cleared: its target id is meaningless outside the
  * world that issued it. Shot timers are not reset; Oolite advances them only in
- * bookkeeping (`:2487-2491`).
+ * bookkeeping (`:2487-2491`). The standing (legal status and kill tally) is not
+ * touched: a dock does not clear a bounty or a tally.
  */
 export function dockReset(state: PlayerCombatState): void {
   state.fwdShield = BASELINE_SHIELD_LEVEL;
@@ -124,7 +146,8 @@ export function dockReset(state: PlayerCombatState): void {
 
 /**
  * Launching (`PlayerEntity.m:6439-6448`): the weapon facing returns to fore, the
- * four laser temperatures go to 0 and both shields refill.
+ * four laser temperatures go to 0 and both shields refill. The standing is not
+ * touched.
  */
 export function launchReset(state: PlayerCombatState): void {
   state.view = "fore";
@@ -152,7 +175,9 @@ function repaired(
  * values and finite out-of-range ones clamp; a non-finite laser temperature is
  * 0; an unknown view is fore; a timer that is not an integer within
  * `0..SHOT_TIMER_SATURATION_TICKS` is saturated; a target that is not a uint32
- * is cleared; a non-boolean ident flag is off.
+ * is cleared; a non-boolean ident flag is off; a standing that is not an object
+ * is pristine, and a legal status or kill tally that is not an integer within
+ * its bound (`MAX_BOUNTY`, `MAX_KILL_TALLY`) is 0, each leaf on its own.
  *
  * @returns the number of repaired fields; 0 for a valid state. Idempotent.
  */
@@ -231,18 +256,50 @@ export function sanitizeCombat(state: PlayerCombatState): number {
     state.identTarget = NO_ENTITY;
     count += 1;
   }
+
+  const standing: unknown = state.standing;
+  if (typeof standing !== "object" || standing === null) {
+    state.standing = { legalStatus: 0, kills: 0 };
+    count += 1;
+  } else {
+    const held = state.standing;
+    count += repairStandingLeaf(held, "legalStatus", MAX_BOUNTY);
+    count += repairStandingLeaf(held, "kills", MAX_KILL_TALLY);
+  }
   return count;
+}
+
+/** One standing leaf held to an integer `0..max`, else 0; `-0` becomes 0 (no repair). */
+function repairStandingLeaf(
+  standing: PlayerStanding,
+  key: keyof PlayerStanding,
+  max: number,
+): number {
+  const value: unknown = standing[key];
+  if (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= max
+  ) {
+    standing[key] = value === 0 ? 0 : value;
+    return 0;
+  }
+  standing[key] = 0;
+  return 1;
 }
 
 /**
  * Canonical text: one `combat=` line, fixed field order, every number through
  * `canon`, never `JSON.stringify`. Throws on a non-finite number, so call
- * `sanitizeCombat` first.
+ * `sanitizeCombat` first. The standing (FOUND-20, plan 21-06) is the optional
+ * last part, `|std:<legalStatus>,<kills>`, printed only while it is not
+ * pristine, so a state that never set it prints the text it printed before.
  */
 export function serializeCombat(state: PlayerCombatState): string {
   const temps = FACINGS.map((facing) => canon(state.laserTemp[facing]));
   const shots = FACINGS.map((facing) => canon(state.shotTicks[facing], 0));
-  return [
+  const parts = [
     `combat=view:${state.view}`,
     `shield:${canon(state.fwdShield)},${canon(state.aftShield)}`,
     `energy:${canon(state.energy)}`,
@@ -250,5 +307,10 @@ export function serializeCombat(state: PlayerCombatState): string {
     `temp:${temps.join(",")}`,
     `shot:${shots.join(",")}`,
     `ident:${String(state.identEngaged)}:${canon(state.identTarget, 0)}`,
-  ].join("|");
+  ];
+  const { legalStatus, kills } = state.standing;
+  if (legalStatus !== 0 || kills !== 0) {
+    parts.push(`std:${canon(legalStatus, 0)},${canon(kills, 0)}`);
+  }
+  return parts.join("|");
 }

@@ -10,6 +10,7 @@
  * bookkeeping (`:2487-2491`).
  */
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { SHOT_TIMER_SATURATION_TICKS } from "../../../src/sim/combat/constants.js";
@@ -23,6 +24,7 @@ import {
   serializeCombat,
 } from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
+import { MAX_BOUNTY, MAX_KILL_TALLY } from "../../../src/sim/world/limits.js";
 
 const FACING_LIST: readonly Facing[] = ["fore", "aft", "port", "starboard"];
 
@@ -38,6 +40,7 @@ function dirtyState(): PlayerCombatState {
     shotTicks: { fore: 1, aft: 2, port: 3, starboard: 4 },
     identEngaged: true,
     identTarget: 77,
+    standing: { legalStatus: 0, kills: 0 },
   };
 }
 
@@ -54,6 +57,8 @@ function singleFieldEdits(): readonly (readonly [
     ["cabinTemp", (s) => void (s.cabinTemp = 61)],
     ["identEngaged", (s) => void (s.identEngaged = true)],
     ["identTarget", (s) => void (s.identTarget = 9)],
+    ["standing.legalStatus", (s) => void (s.standing.legalStatus = 64)],
+    ["standing.kills", (s) => void (s.standing.kills = 3)],
   ];
   for (const facing of FACING_LIST) {
     edits.push([`laserTemp.${facing}`, (s) => void (s.laserTemp[facing] = 1)]);
@@ -79,6 +84,7 @@ describe("createPlayerCombatState and isPristineCombat", () => {
       },
       identEngaged: false,
       identTarget: 0,
+      standing: { legalStatus: 0, kills: 0 },
     });
   });
 
@@ -86,6 +92,7 @@ describe("createPlayerCombatState and isPristineCombat", () => {
     const first = createPlayerCombatState();
     const second = createPlayerCombatState();
     expect(first).not.toBe(second);
+    expect(first.standing).not.toBe(second.standing);
     expect(first.laserTemp).not.toBe(second.laserTemp);
     expect(first.shotTicks).not.toBe(second.shotTicks);
   });
@@ -128,6 +135,25 @@ describe("dockReset (DOCK-10)", () => {
     state.shotTicks = createPlayerCombatState().shotTicks;
     dockReset(state);
     expect(isPristineCombat(state)).toBe(true);
+  });
+});
+
+describe("the standing survives a dock and a launch (FOUND-20)", () => {
+  it("leaves legalStatus and kills equal through dockReset and launchReset", () => {
+    const state = dirtyState();
+    state.standing = { legalStatus: 64, kills: 12 };
+    dockReset(state);
+    expect(state.standing).toEqual({ legalStatus: 64, kills: 12 });
+    state.view = "aft";
+    launchReset(state);
+    expect(state.standing).toEqual({ legalStatus: 64, kills: 12 });
+  });
+
+  it("a state whose only difference is the standing is not pristine after dockReset", () => {
+    const state = createPlayerCombatState();
+    state.standing.legalStatus = 64;
+    dockReset(state);
+    expect(isPristineCombat(state)).toBe(false);
   });
 });
 
@@ -282,6 +308,102 @@ describe("sanitizeCombat", () => {
   });
 });
 
+describe("sanitizeCombat on the standing (FOUND-20)", () => {
+  it("keeps the bounds and reports 0 repairs", () => {
+    const state = createPlayerCombatState();
+    state.standing = { legalStatus: MAX_BOUNTY, kills: MAX_KILL_TALLY };
+    expect(sanitizeCombat(state)).toBe(0);
+    expect(state.standing).toEqual({
+      legalStatus: MAX_BOUNTY,
+      kills: MAX_KILL_TALLY,
+    });
+  });
+
+  it("repairs a negative, a non-integer and an over-range leaf to 0 and counts each", () => {
+    const state = createPlayerCombatState();
+    state.standing = { legalStatus: -1, kills: 2.5 };
+    expect(sanitizeCombat(state)).toBe(2);
+    expect(state.standing).toEqual({ legalStatus: 0, kills: 0 });
+    state.standing = { legalStatus: MAX_BOUNTY + 1, kills: MAX_KILL_TALLY + 1 };
+    expect(sanitizeCombat(state)).toBe(2);
+    expect(state.standing).toEqual({ legalStatus: 0, kills: 0 });
+  });
+
+  it("repairs one leaf without touching its neighbour", () => {
+    const state = createPlayerCombatState();
+    state.standing = { legalStatus: Number.NaN, kills: 9 };
+    expect(sanitizeCombat(state)).toBe(1);
+    expect(state.standing).toEqual({ legalStatus: 0, kills: 9 });
+  });
+
+  it("replaces a standing that is not an object and counts one repair", () => {
+    for (const bad of [undefined, null, 5, "x"]) {
+      const state = createPlayerCombatState();
+      (state as { standing: unknown }).standing = bad;
+      expect(sanitizeCombat(state)).toBe(1);
+      expect(state.standing).toEqual({ legalStatus: 0, kills: 0 });
+    }
+  });
+
+  it("turns -0 into 0 without a repair", () => {
+    const state = createPlayerCombatState();
+    state.standing = { legalStatus: -0, kills: -0 };
+    expect(sanitizeCombat(state)).toBe(0);
+    expect(Object.is(state.standing.legalStatus, 0)).toBe(true);
+    expect(Object.is(state.standing.kills, 0)).toBe(true);
+  });
+
+  /** Any value a corrupted leaf could hold. */
+  const malformedLeaf = fc.oneof(
+    fc.integer(),
+    fc.double({ noNaN: false }),
+    fc.constantFrom(
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      -0,
+      MAX_BOUNTY,
+      MAX_BOUNTY + 1,
+      MAX_KILL_TALLY,
+      MAX_KILL_TALLY + 1,
+      Number.MAX_SAFE_INTEGER,
+    ),
+    fc.string(),
+    fc.boolean(),
+    fc.constant(null),
+    fc.constant(undefined),
+    fc.array(fc.integer()),
+    fc.record({ a: fc.integer() }),
+  );
+  const malformedStanding = fc.oneof(
+    fc.record({ legalStatus: malformedLeaf, kills: malformedLeaf }),
+    malformedLeaf,
+  );
+
+  it("property: arbitrary malformed standing never throws, is repaired, valid and idempotent", () => {
+    fc.assert(
+      fc.property(malformedStanding, (standing) => {
+        const state = createPlayerCombatState();
+        (state as { standing: unknown }).standing = standing;
+        expect(() => sanitizeCombat(state)).not.toThrow();
+        const { legalStatus, kills } = state.standing;
+        expect(Number.isSafeInteger(legalStatus)).toBe(true);
+        expect(legalStatus).toBeGreaterThanOrEqual(0);
+        expect(legalStatus).toBeLessThanOrEqual(MAX_BOUNTY);
+        expect(Number.isSafeInteger(kills)).toBe(true);
+        expect(kills).toBeGreaterThanOrEqual(0);
+        expect(kills).toBeLessThanOrEqual(MAX_KILL_TALLY);
+        expect(() => isPristineCombat(state)).not.toThrow();
+        expect(() => serializeCombat(state)).not.toThrow();
+        const text = serializeCombat(state);
+        expect(sanitizeCombat(state)).toBe(0);
+        expect(serializeCombat(state)).toBe(text);
+      }),
+      { numRuns: 300 },
+    );
+  });
+});
+
 describe("serializeCombat", () => {
   it("is one combat= line in a fixed field order", () => {
     const text = serializeCombat(createPlayerCombatState());
@@ -299,6 +421,22 @@ describe("serializeCombat", () => {
       "combat=view:starboard|shield:40.000000,50.000000|energy:100.000000|cabin:150.000000|" +
         "temp:11.000000,22.000000,33.000000,44.000000|shot:1,2,3,4|ident:true:77",
     );
+  });
+
+  it("prints the standing as a |std: suffix only while it is not pristine", () => {
+    const pristineText = serializeCombat(createPlayerCombatState());
+    expect(pristineText).not.toContain("std:");
+    const state = createPlayerCombatState();
+    state.standing.legalStatus = 64;
+    const text = serializeCombat(state);
+    expect(text).toBe(`${pristineText}|std:64,0`);
+    state.standing.kills = 7;
+    expect(serializeCombat(state)).toBe(`${pristineText}|std:64,7`);
+    state.standing = { legalStatus: 0, kills: 7 };
+    expect(serializeCombat(state)).toBe(`${pristineText}|std:0,7`);
+    // Strip-and-rehash: deleting the suffix reproduces the pristine text.
+    state.standing = { legalStatus: 0, kills: 0 };
+    expect(serializeCombat(state)).toBe(pristineText);
   });
 
   it("is deterministic for equal states", () => {

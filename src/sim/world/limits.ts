@@ -258,3 +258,47 @@ export const WEAPON_TYPE_PATTERN = /^EQ_WEAPON_[A-Z0-9_]+$/;
  * afterburner runs (`:5845-5852`), so it stays in 0 to 1.
  */
 export const MAX_INJECTOR_ACCUMULATOR = 1;
+
+// ---------------------------------------------------------------------------
+// The v5 world-level records and the player's standing (FOUND-20, plan 21-06).
+// They land inside snapshot version 5 as optional keys omitted when pristine,
+// never as a second bump; every bound only keeps a corrupt value out of the hash.
+
+/**
+ * Oolite's `ALERT_CONDITION_*` values (`ShipEntity.h:169-172`; "numerical values
+ * are available to scripts and shaders"): docked 0, green 1, yellow 2, red 3.
+ * `World.station.alert` holds one of them; a fresh station is green.
+ */
+export const STATION_ALERT_DOCKED = 0;
+/** The pristine `World.station.alert` (`ALERT_CONDITION_GREEN`). */
+export const STATION_ALERT_GREEN = 1;
+export const STATION_ALERT_YELLOW = 2;
+export const STATION_ALERT_RED = 3;
+
+/**
+ * The most ships the main station records as launched (`World.station.launched`,
+ * an integer 0 to 255; Oolite's `STATION_MAX_POLICE` is 8, `StationEntity.h:41`,
+ * the police cap, and launches are counted per station visit). A format bound.
+ */
+export const MAX_STATION_LAUNCHED = 255;
+
+/**
+ * The most offender marks (`World.station.marks`, entity ids) the station holds.
+ * Oolite's `STATION_MAX_POLICE` is 8 (`StationEntity.h:41`, the police cap); the
+ * marks bound is a format bound for offenders seen nearby, four times that.
+ */
+export const MAX_STATION_MARKS = 32;
+
+/**
+ * The most groups `World.groups` holds. Oolite's `ShipGroup` is a set of ships
+ * with a leader; the world holds at most `MAX_ENTITIES` (256) ships, and a
+ * group needs at least its leader, so 128 groups is a format bound well above
+ * any populator wave.
+ */
+export const MAX_WORLD_GROUPS = 128;
+
+/**
+ * The largest `PlayerCombatState.standing.kills`: Oolite keeps the kill tally
+ * as an unsigned 32-bit count (`PlayerEntity` `ship_kills`).
+ */
+export const MAX_KILL_TALLY = MAX_UINT32;
