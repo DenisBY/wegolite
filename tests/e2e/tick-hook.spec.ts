@@ -160,9 +160,10 @@ test("traffic is off under ?test=1 and on only for a spec that opts in", async (
   const flying = await sample(page);
   expect(flying.traffic).toBe(true);
   expect(flying.worldLive).toBe(true);
-  // The opt-in populates the first populator's 12 inert ships (plan 12-07;
-  // sanctioned by WORLD-16).
-  expect(flying.entities).toBe(12);
+  // The opt-in populates the Lave through the system populator: the census's
+  // epoch-1 count of 28 ships (plan 22-14, owner-sanctioned under Phase 21 D-04,
+  // from the 12 inert ships of plan 12-07; WORLD-16 sanctions the opt-in).
+  expect(flying.entities).toBe(28);
 });
 
 test("the clock and traffic flags are inert without ?test=1", async ({
