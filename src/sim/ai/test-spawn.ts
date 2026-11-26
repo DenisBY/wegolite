@@ -58,6 +58,16 @@ export const TEST_SHOOTER_HOLD_RANGE = 2_000;
 /** The player's nose: local -Z. */
 const LOCAL_FORWARD = vec(0, 0, -1);
 
+/**
+ * The record key of the hook's shooter and attacker: the stock Viper (a police
+ * fighter). The `?test=1` hooks `spawnTestShooter` and `spawnTestAttacker` are
+ * called with this record; the aft-weapon tripwire
+ * (`tests/guards/aft-weapon-tripwire.test.ts`) reads it, so a hook that spawned
+ * an aft-armed hull would fail the guard until Phase 23 ports the aft attack
+ * branches.
+ */
+export const TEST_SHOOTER_KEY = "viper";
+
 /** A half turn about the up axis: a ship's nose and tail swap. */
 const HALF_TURN_ABOUT_UP = quat(0, 0, 1, 0);
 

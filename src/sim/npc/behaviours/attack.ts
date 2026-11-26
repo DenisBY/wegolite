@@ -22,11 +22,18 @@
  *  - 4056-4071, 4073-4074: no weapon on a sub-entity and no turret laser (the
  *    compiled records author neither), so `forward_weapon_real_type` is the
  *    ship's own forward weapon and the TWELVE-for-turrets branch never runs;
- *  - aft, port and starboard weapons are none for every compiled record, so the
- *    `aft/port/starboard_weapon_ready` terms are false: RUNNING_DEFENSE
- *    (4131-4133, 4174-4176) and ATTACK_BROADSIDE (4134-4136, 4171-4173) are never
- *    selected, and the last `else` (4177-4180) is unreachable because the
- *    forward weapon is ready whenever the first `if` does not take the branch;
+ *  - the `aft/port/starboard_weapon_ready` terms are treated as false:
+ *    RUNNING_DEFENSE (4131-4133, 4174-4176) and ATTACK_BROADSIDE (4134-4136,
+ *    4171-4173) are never selected, and the last `else` (4177-4180) is
+ *    unreachable because the forward weapon is ready whenever the first `if`
+ *    does not take the branch. The converter now compiles aft weapons (plan
+ *    21-05 lifted the refusal, plan 21-08 compiled the six hulls anaconda,
+ *    anaconda-pirate, boa, boa-pirate, boa-mk2 and boa-mk2-pirate) and plan
+ *    21-12 gave the fire gate its aft branch, but no AI-driven aft shot exists
+ *    before Phase 23 (CBT-19), so the cut stays correct only while no attacking
+ *    AI is handed an aft-armed record: `AFT_ATTACK_BRANCHES_PORTED` below and
+ *    `tests/guards/aft-weapon-tripwire.test.ts` pin that, and are removed
+ *    together when Phase 23 ports RUNNING_DEFENSE and ATTACK_BROADSIDE;
  *  - the temperature is the live `entity.weapon.temperature` as it stands at
  *    steering time (after the previous tick's cooling, before this tick's shot),
  *    so the heating branch (4122) is reachable for a ship that fires.
@@ -73,6 +80,17 @@ import { setEvasiveJink } from "../track.js";
 import type { NpcFlightStats } from "../stats.js";
 
 const LOCAL_FORWARD: Vec3 = vec(0, 0, -1);
+
+/**
+ * Tripwire marker (plan 21-12; the deferred-work rule): false while the attack
+ * dispatcher treats the aft, port and starboard weapon-ready terms as false, so
+ * RUNNING_DEFENSE (4131-4133, 4174-4176) and ATTACK_BROADSIDE (4134-4136,
+ * 4171-4173) are never selected. `tests/guards/aft-weapon-tripwire.test.ts`
+ * fails while this is false and an attacking AI can reach an aft-armed record
+ * (or the compiled aft-armed set changes). Phase 23 (CBT-19) ports the two
+ * branches, then removes this constant and that guard together.
+ */
+export const AFT_ATTACK_BRANCHES_PORTED = false;
 
 /**
  * `weaponRange` of the ship: the forward weapon's range from the Phase 13 laser
