@@ -20,10 +20,14 @@
  * first in-flight frame. The loader therefore starts closed: `request` does
  * nothing and remembers nothing until `open()`, a one-way latch that only the
  * render driver calls, right after it has drawn a frame whose state is
- * `inFlight`. A cold start thus requests no NPC model and, because textures are
- * fetched only by the GLB loads, no NPC texture either, before that frame.
- * Once open the latch never closes, so a later dock, launch, Load or jump in the
- * same page requests at once.
+ * `inFlight`. The latch governs only `request`: no first-appearance request
+ * fetches an NPC model (or, because textures are fetched only by the GLB
+ * loads, an NPC texture) before that frame. It no longer means a cold start
+ * fetches nothing before launch: since D-07 (plan 21-11, below) `prefetch`
+ * downloads the catalogue hulls from the first docked frame with traffic on,
+ * outside the first-load ceiling by exclusion. Once open the latch never
+ * closes, so a later dock, launch, Load or jump in the same page requests at
+ * once.
  *
  * The GLB path comes only from the validated catalogue (`glbFor`, read at call
  * time) and `loadNpcModel` re-checks the path pattern (T-12-24); a key with no

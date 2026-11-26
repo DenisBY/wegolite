@@ -48,7 +48,10 @@ import { MAX_UINT32 } from "./limits.js";
 import {
   sanitizeBuoyStates,
   sanitizeEntity,
+  sanitizeGroups,
+  sanitizePopulator,
   sanitizeStaticHealth,
+  sanitizeStation,
 } from "./sanitize.js";
 import { createWorldView } from "./view-impl.js";
 import type { WorldView } from "./view.js";
@@ -284,8 +287,12 @@ function steerEntity(
 
 /**
  * Repair the world-level hashed state: the stream state, the drop count, the
- * static health and the buoy states (a repair of the last two is counted
- * nowhere, FOUND-18, PD-01, PD-02).
+ * static health, the buoy states (a repair of the last two is counted
+ * nowhere, FOUND-18, PD-01, PD-02) and the v5 world records `station`,
+ * `groups` and `populator` (FOUND-20, plan 21-06; review SIM-WR-02), in the
+ * order `hashWorld` repairs them. A repaired record leaf becomes its pristine
+ * value, not a clamp (21-06's recorded design). On a valid world every call
+ * repairs nothing and keeps each array's identity, so no hash moves.
  */
 function repairWorldFields(world: World): void {
   const s = world.rng.s;
@@ -297,6 +304,9 @@ function repairWorldFields(world: World): void {
   }
   sanitizeStaticHealth(world);
   sanitizeBuoyStates(world);
+  sanitizeGroups(world);
+  sanitizePopulator(world);
+  sanitizeStation(world);
 }
 
 /**

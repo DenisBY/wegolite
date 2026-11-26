@@ -17,6 +17,8 @@ import { describe, expect, it } from "vitest";
 
 import { findNpcShip, loadNpcCatalogue } from "../../src/content/ships-npc.js";
 import {
+  MAX_ESCORT_ROLE_ENTRIES,
+  MAX_ESCORT_ROLE_LENGTH,
   MAX_FLIGHT_MAGNITUDE_BOUND,
   MAX_FLIGHT_RATE_BOUND,
   MAX_RECORD_BOUNTY,
@@ -610,6 +612,40 @@ describe("NpcShipSchema role fields (DATA-17, plan 21-05)", () => {
         withField("escortRoles", [{ min: 0, max: 2, role: "a", extra: 1 }]),
       ),
     ).toBe(false);
+  });
+
+  it("bounds escortRoles at MAX_ESCORTS entries and each role's length and shape (review APP-WR-02)", () => {
+    expect(MAX_ESCORT_ROLE_ENTRIES).toBe(16);
+    const entries = (count: number): unknown[] =>
+      Array.from({ length: count }, () => ({ min: 0, max: 2, role: "escort" }));
+    expect(
+      accepts(withField("escortRoles", entries(MAX_ESCORT_ROLE_ENTRIES))),
+    ).toBe(true);
+    expect(
+      accepts(withField("escortRoles", entries(MAX_ESCORT_ROLE_ENTRIES + 1))),
+    ).toBe(false);
+    const role = (name: string): boolean =>
+      accepts(withField("escortRoles", [{ min: 0, max: 2, role: name }]));
+    for (const ok of [
+      "",
+      "escort",
+      "escort-heavy",
+      "pirate-light-fighter",
+      "Escort_2+",
+      "a".repeat(MAX_ESCORT_ROLE_LENGTH),
+    ]) {
+      expect(role(ok), JSON.stringify(ok)).toBe(true);
+    }
+    for (const bad of [
+      "a".repeat(MAX_ESCORT_ROLE_LENGTH + 1),
+      "-escort",
+      "escort role",
+      "escort++",
+      "escort(0.5)",
+      "[viper]",
+    ]) {
+      expect(role(bad), JSON.stringify(bad)).toBe(false);
+    }
   });
 
   it("refuses a record that leaves a new field out or carries an unknown one", () => {

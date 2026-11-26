@@ -299,7 +299,9 @@ export function createProbePublisher(
    * traffic content; anything else returns false and changes nothing, taint
    * included. The session is tainted before the world is touched, so no
    * autosave can make a spawned ship durable. The sim spawner is all or nothing:
-   * with no room for every ship it returns false and spawns none.
+   * with no room for every ship it returns false and spawns none. If the sim
+   * spawner refuses (no room, no valid record), nothing is spawned, but the
+   * session stays tainted.
    */
   function spawnAnarchy(): boolean {
     const liveState = ctx.core.state;

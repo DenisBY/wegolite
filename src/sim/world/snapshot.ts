@@ -87,6 +87,11 @@ import {
   TRACKING_SAMPLES,
   WEAPON_TYPE_PATTERN,
 } from "./limits.js";
+import {
+  sanitizeGroups,
+  sanitizePopulator,
+  sanitizeStation,
+} from "./sanitize.js";
 import { createEntityStore } from "./store.js";
 import {
   STATIC_ENTITIES,
@@ -652,7 +657,9 @@ function snapshotBuoy(buoy: BuoyState): BuoyStateSnapshot {
 
 /**
  * The plain JSON-safe snapshot of `world`: deep copies only, so mutating the
- * result never reaches the live world. Throws a `SnapshotError` with reason
+ * result never reaches the live world. The v5 world records are repaired in
+ * place first (`sanitizeGroups`, `sanitizePopulator`, `sanitizeStation`), so
+ * the snapshot always satisfies the parser's record invariants. Throws a `SnapshotError` with reason
  * "uncommitted" for a killed but uncommitted entity, "queue-not-empty" for an
  * undrained AI event or fire request and "non-finite" for a NaN or infinite number anywhere in
  * the world or its entities; nothing is returned in those cases, so no JSON
@@ -700,6 +707,15 @@ export function snapshotWorld(world: World): WorldSnapshot {
   requireFinite(world.populator.nextTick, "populator.nextTick");
   requireFinite(world.populator.rolls, "populator.rolls");
   for (const entity of world.store.live) requireFiniteEntity(entity);
+  // Repair the v5 world records in place before copying them, as `hashWorld`
+  // and the step's `repairWorldFields` do (review SIM-WR-02): an unsorted,
+  // repeated or out-of-bound station mark, group or launch count would
+  // otherwise be written into a snapshot `parseWorldSnapshot` refuses. A
+  // repaired leaf becomes its pristine value (plan 21-06); a valid record is
+  // left as it is, so the snapshot of a valid world does not change.
+  sanitizeGroups(world);
+  sanitizePopulator(world);
+  sanitizeStation(world);
   return {
     format: WORLD_SNAPSHOT_FORMAT,
     version: WORLD_SNAPSHOT_VERSION,

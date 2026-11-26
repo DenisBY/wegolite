@@ -6,10 +6,12 @@
  * join `repairWorldFields` when the first production path writes them (plan
  * 21-06 deviation 2; todo `2026-11-26-world-records-join-repair`).
  *
- * Today only `hashWorld` repairs the three records (`src/sim/world/serialize.ts`),
- * and no simulation code writes them outside their sanitizers. Phase 22, 25 or
- * 26 will write them during a step. From then on a corrupted record must be
- * repaired before the step, as the older world fields are. The scan is
+ * Since review SIM-WR-02 (todo completed 2026-11-26), `repairWorldFields`,
+ * `hashWorld` and `snapshotWorld` all repair the three records, although no
+ * simulation code writes them outside their sanitizers yet. Phase 22, 25 or 26
+ * will write them during a step, and a corrupted record must keep being
+ * repaired before the step, as the older world fields are. The guard keeps the
+ * wiring from being dropped before that first writer arrives. The scan is
  * comment-stripped `src/sim/**`. Any write outside the allow-list (an
  * assignment to a record or one of its fields, or a mutation of `groups` or
  * `marks`) fails unless `repairWorldFields` in `src/sim/world/step.ts` calls

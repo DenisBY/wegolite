@@ -352,11 +352,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     launchSequence,
   });
 
-  // WORLD-15: the NPC models, loaded per ship key and only once the render
-  // driver opens the loader after the first in-flight frame (DATA-13, owner
-  // decision 2026-11-14, option A). The GLB path is read from the loaded
-  // catalogue at call time, so a request before the catalogue arrives is
-  // ignored, and nothing here opens the loader.
+  // WORLD-15: the NPC models, loaded per ship key. A first-appearance
+  // request loads only once the render driver opens the loader after the first
+  // in-flight frame (DATA-13, owner decision 2026-11-14, option A); since D-07
+  // (plan 21-11) the render driver also prefetches every catalogue hull in the
+  // background from the first docked frame with traffic on, so a cold start
+  // downloads them before launch, outside the first-load ceiling by exclusion.
+  // The GLB path is read from the loaded catalogue at call time, so a request
+  // before the catalogue arrives is ignored, and nothing here opens the loader.
   // The debris models (WORLD-17, plan 16-08) ride the same loader and latch:
   // a key that is not a ship resolves from ctx.core.npcTraffic.debrisModels.
   const npcModels = createNpcModelLoader(assets, (key) =>

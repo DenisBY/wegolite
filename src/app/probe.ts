@@ -392,8 +392,9 @@ export interface WegoliteSimTestHook {
    * content; otherwise it returns false and changes nothing. It is all or
    * nothing: with no room in the world for every ship it spawns none and returns
    * false. It marks the session tainted before it mutates the world, so no
-   * autosave can make the ships durable. It returns a boolean only and exposes
-   * no entity id.
+   * autosave can make the ships durable. If the sim spawner refuses (no room,
+   * no valid record), nothing is spawned, but the session stays tainted. It
+   * returns a boolean only and exposes no entity id.
    */
   spawnTestAnarchy(): boolean;
 }
