@@ -34,6 +34,7 @@
 
 import { MAX_ENTITIES } from "../ids.js";
 import type { Neighbourhood } from "../neighbourhood.js";
+import { listOf, numberOf, readField } from "./reads.js";
 import { POPULATOR_ENTRIES, entriesInEngineOrder } from "./table.js";
 
 /**
@@ -114,21 +115,6 @@ export function systemFactsFrom(
 
 // --- Total reads of untrusted facts ----------------------------------------
 
-function read(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)[key]
-    : undefined;
-}
-
-/** A number field; anything else reads as NaN, which no rate survives. */
-function num(value: unknown): number {
-  return typeof value === "number" ? value : Number.NaN;
-}
-
-function list(value: unknown): readonly unknown[] {
-  return Array.isArray(value) ? (value as readonly unknown[]) : [];
-}
-
 function finiteOrZero(value: number): number {
   return Number.isFinite(value) ? value : 0;
 }
@@ -196,19 +182,19 @@ const INTERCEPTORS_WITCHPOINT = ordinalOf("oolite-interceptors-witchpoint");
  * upstream quirks that are kept.
  */
 export function entryRates(facts: SystemFacts): EntryRates {
-  const government = num(read(facts, "government"));
-  const economy = num(read(facts, "economy"));
-  const techlevel = num(read(facts, "techlevel"));
-  const hood = read(facts, "neighbourhood");
-  const locals = list(read(hood, "locals"));
-  const seconds = list(read(hood, "seconds"));
-  const verylocals = list(read(hood, "verylocals"));
-  const veryseconds = list(read(hood, "veryseconds"));
-  const bottleneck = read(hood, "bottleneck") === true;
-  const lanes = read(facts, "laneLengths");
-  const l1length = num(read(lanes, "l1"));
-  const l2length = num(read(lanes, "l2"));
-  const l3length = num(read(lanes, "l3"));
+  const government = numberOf(readField(facts, "government"));
+  const economy = numberOf(readField(facts, "economy"));
+  const techlevel = numberOf(readField(facts, "techlevel"));
+  const hood = readField(facts, "neighbourhood");
+  const locals = listOf(readField(hood, "locals"));
+  const seconds = listOf(readField(hood, "seconds"));
+  const verylocals = listOf(readField(hood, "verylocals"));
+  const veryseconds = listOf(readField(hood, "veryseconds"));
+  const bottleneck = readField(hood, "bottleneck") === true;
+  const lanes = readField(facts, "laneLengths");
+  const l1length = numberOf(readField(lanes, "l1"));
+  const l2length = numberOf(readField(lanes, "l2"));
+  const l3length = numberOf(readField(lanes, "l3"));
 
   // Trader hourly rates first, as most other rates depend on them (:258-329).
   let freighters = 0;
@@ -216,9 +202,9 @@ export function entryRates(facts: SystemFacts): EntryRates {
   let smugglers = 0;
   for (let i = 0; i < locals.length; i += 1) {
     const local = locals[i];
-    const localGovernment = num(read(local, "government"));
-    const localEconomy = num(read(local, "economy"));
-    const localTechlevel = num(read(local, "techLevelRaw"));
+    const localGovernment = numberOf(readField(local, "government"));
+    const localEconomy = numberOf(readField(local, "economy"));
+    const localTechlevel = numberOf(readField(local, "techLevelRaw"));
     // traffic is higher between systems on opposite side of economy
     const ecomatch = -(economy - 3.5) * (localEconomy - 3.5);
     let trdanger = 0;
@@ -235,7 +221,7 @@ export function entryRates(facts: SystemFacts): EntryRates {
     freighters +=
       ecomatch > 0 ? 60 / (30 + trdanger) : 60 / (120 + trdanger * 2);
 
-    const secondLength = list(seconds[i]).length;
+    const secondLength = listOf(seconds[i]).length;
     // couriers are non-mirrored
     const courierRate = 20 / (10 + (14 - localTechlevel) * 5) / secondLength;
     if (bottleneck) {
@@ -291,14 +277,14 @@ export function entryRates(facts: SystemFacts): EntryRates {
     // we might also get packs coming from other nearby systems
     for (let i = 0; i < verylocals.length; i += 1) {
       const local = verylocals[i];
-      const second = list(veryseconds[i]);
-      const localGovernment = num(read(local, "government"));
+      const second = listOf(veryseconds[i]);
+      const localGovernment = numberOf(readField(local, "government"));
       // pirate raids only against more ordered systems
       if (localGovernment < government) {
         let factor = 0;
         // split raids evenly between all systems in range of remote system
         for (let j = 0; j < second.length; j += 1) {
-          if (localGovernment < num(read(second[j], "government"))) {
+          if (localGovernment < numberOf(readField(second[j], "government"))) {
             factor += 1;
           }
         }

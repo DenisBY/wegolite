@@ -52,6 +52,7 @@ import {
 } from "../limits.js";
 import type { PlannedPopShip, PopulationRecord, ShipDraft } from "./groups.js";
 import type { SystemFacts } from "./plan.js";
+import { listOf, numberOf, readField } from "./reads.js";
 import type { PopulationDraws } from "./streams.js";
 
 /** `$weaponLevelBias` (`oolite-populator.js:59`). */
@@ -75,22 +76,9 @@ const MAX_SKILL_STEPS = 64;
 
 // --- Total reads of untrusted facts ----------------------------------------
 
-/** A member of an untrusted value, or undefined. */
-export function readField(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)[key]
-    : undefined;
-}
-
-/** A number field; anything else reads as NaN. */
-export function numberOf(value: unknown): number {
-  return typeof value === "number" ? value : Number.NaN;
-}
-
-/** A list field; anything else reads as an empty list. */
-export function listOf(value: unknown): readonly unknown[] {
-  return Array.isArray(value) ? (value as readonly unknown[]) : [];
-}
+// The helpers live in reads.ts, shared with the planner (plan.ts); kit.ts keeps
+// exporting them for the builders and tests that import them from here.
+export { listOf, numberOf, readField };
 
 /** A finite number, else `fallback`. */
 function finiteOr(value: unknown, fallback: number): number {
@@ -520,7 +508,7 @@ export function roleExists(
  * `Neighbourhood.distanceTo` of untrusted facts as a total function: an
  * unknown system, or facts without the function, give no distance.
  */
-export function chartDistance(
+export function homeDistanceOf(
   facts: SystemFacts,
 ): (systemIndex: number) => number | undefined {
   const distanceTo = readField(facts.neighbourhood, "distanceTo");

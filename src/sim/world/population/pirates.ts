@@ -34,7 +34,7 @@ import {
   addGroupShips,
   autoWeaponsOf,
   boundedBounty,
-  chartDistance,
+  homeDistanceOf,
   clampGroupSize,
   createPlannedShip,
   finishShips,
@@ -388,7 +388,7 @@ export function buildPiratePack(
     () => draws.next("skill"),
   ); // likely to be good pilot
   // Not returning: `_setMissiles(lead, thug - 0.5)` is a cut, then `_setFuel`.
-  lead.fuel = setFuel(lead.homeSystem, systemIndex, chartDistance(facts));
+  lead.fuel = setFuel(lead.homeSystem, systemIndex, homeDistanceOf(facts));
   // ensure freighter escorts have a bounty
   addOffenderEscortBounty(escorts, draws);
   lead.cargoKind = "pirate";

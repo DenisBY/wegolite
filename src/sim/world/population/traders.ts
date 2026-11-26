@@ -39,7 +39,7 @@ import type { PlannedPopShip, PopulationRecord, ShipDraft } from "./groups.js";
 import {
   MEDICAL_PATTERN,
   boundedBounty,
-  chartDistance,
+  homeDistanceOf,
   createPlannedShip,
   finishShips,
   listOf,
@@ -106,7 +106,11 @@ export function buildFreighter(
   let goods: CargoKindName;
   if (options.arriving) {
     mother.homeSystem = weightedNearbyTradeSystem(facts, draws);
-    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.fuel = setFuel(
+      mother.homeSystem,
+      systemIndex,
+      homeDistanceOf(facts),
+    );
     mother.destinationSystem = systemIndex;
     goods = FREIGHTER_GOODS.scarce;
     // `Math.random() * 8 > government` guards `_setMissiles(ship, -1)`, a cut:
@@ -261,7 +265,11 @@ export function buildCourierShort(
   const systemIndex = systemIndexOf(facts.systemIndex, 0);
   if (options.arriving) {
     mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
-    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.fuel = setFuel(
+      mother.homeSystem,
+      systemIndex,
+      homeDistanceOf(facts),
+    );
     mother.destinationSystem = systemIndex;
     mother.cargoKind = "scarce";
   } else {
@@ -291,7 +299,11 @@ export function buildCourierLong(
   const systemIndex = systemIndexOf(facts.systemIndex, 0);
   if (options.arriving) {
     mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
-    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.fuel = setFuel(
+      mother.homeSystem,
+      systemIndex,
+      homeDistanceOf(facts),
+    );
     mother.destinationSystem = nearbySystem(facts, LONG_RANGE_LY, draws);
     mother.cargoKind = "scarce";
   } else {
@@ -329,7 +341,11 @@ export function buildSmuggler(
   mother.bounty = boundedBounty(rolled > capacity * 2 ? capacity * 2 : rolled);
   if (options.arriving) {
     mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
-    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.fuel = setFuel(
+      mother.homeSystem,
+      systemIndex,
+      homeDistanceOf(facts),
+    );
     mother.destinationSystem = systemIndex;
   } else {
     mother.destinationSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
