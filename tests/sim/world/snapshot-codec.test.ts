@@ -45,6 +45,7 @@ import {
   MAX_BUOY_OFFSET,
 } from "../../../src/sim/world/limits.js";
 import { sanitizeEntity } from "../../../src/sim/world/sanitize.js";
+import { stepWorld } from "../../../src/sim/world/step.js";
 import {
   entityHashes,
   hashWorld,
@@ -3308,6 +3309,56 @@ describe("the v5 world records in the snapshot (FOUND-20, plan 21-06)", () => {
     expect(restored.populator).not.toBe(world.populator);
     expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
     expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+  });
+
+  describe("a corrupted record world snapshots into text the parser reads back (review SIM-WR-02)", () => {
+    /** Groups out of order, marks out of order, a launch count past 255. */
+    function corrupted(): World {
+      const world = createWorld(5);
+      world.groups.push({ id: 105, leader: 105 }, { id: 102, leader: 102 });
+      world.station.marks.push(140, 120);
+      world.station.launched = 300;
+      return world;
+    }
+
+    /** The repaired records: sorted, and an out-of-bound leaf at its pristine value. */
+    function expectRepaired(world: World): void {
+      expect(world.groups).toEqual([
+        { id: 102, leader: 102 },
+        { id: 105, leader: 105 },
+      ]);
+      expect(world.station.marks).toEqual([120, 140]);
+      // 21-06's recorded design: pristine 0, not a clamp to 255.
+      expect(world.station.launched).toBe(0);
+    }
+
+    function roundTrip(world: World): World {
+      const text = JSON.stringify(snapshotWorld(world));
+      const restored = restoreWorld(
+        parseWorldSnapshot(JSON.parse(text) as unknown),
+      );
+      expect(JSON.stringify(snapshotWorld(restored))).toBe(text);
+      return restored;
+    }
+
+    it("round-trips after a step, which repairs the records before it runs", () => {
+      const player = initFlightState(layout);
+      const world = corrupted();
+      stepWorld(world, player, layout, 1 / 60);
+      expectRepaired(world);
+      const restored = roundTrip(world);
+      expectRepaired(restored);
+      expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+    });
+
+    it("round-trips before any step or hash call", () => {
+      const player = initFlightState(layout);
+      const world = corrupted();
+      const restored = roundTrip(world);
+      expectRepaired(world);
+      expectRepaired(restored);
+      expect(hashWorld(player, restored)).toBe(hashWorld(player, world));
+    });
   });
 
   it("restores pristine records from a snapshot without the keys", () => {
