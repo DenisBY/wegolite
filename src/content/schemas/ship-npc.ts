@@ -47,6 +47,9 @@ import { NPC_GLB_PATH_PATTERN } from "../npc-glb-path.js";
 export const MAX_FLIGHT_RATE_BOUND = 1e3;
 export const MAX_FLIGHT_MAGNITUDE_BOUND = 1e12;
 
+/** The largest record `bounty`, equal to the sim's `MAX_BOUNTY` (pinned by a test). */
+export const MAX_RECORD_BOUNTY = 65535;
+
 export { NPC_GLB_PATH_PATTERN };
 
 const WEAPON_KEY = z.enum([
@@ -168,8 +171,12 @@ export const NpcShipSchema = z.strictObject({
   // defaults or authored values. Every fuzzy boolean is a float32 probability in
   // 0..1 (rolled per ship at spawn, never at compile time).
   //
-  // `bounty` (default 0, ShipEntity.m:559): an unsigned 32-bit integer.
-  bounty: z.number().int().min(0).max(4294967295),
+  // `bounty` (default 0, ShipEntity.m:559). Oolite holds an unsigned int; the
+  // record is bounded by the entity field's own limit (`MAX_BOUNTY`, 65535, in
+  // `src/sim/world/limits.ts`; content never imports the sim, so the bound is
+  // restated here and a test pins it equal), so a compiled record can never be
+  // refused at spawn. The stock catalogue's largest bounty is 250.
+  bounty: z.number().int().min(0).max(MAX_RECORD_BOUNTY),
   // `auto_ai` (default yes, ShipEntity.m:6915) and `auto_weapons` (default no,
   // ShipEntity.m:6925).
   autoAi: z.number().min(0).max(1),
@@ -200,11 +207,13 @@ export const NpcShipSchema = z.strictObject({
     .nullable(),
   // `missiles` and `max_missiles` (ShipEntity.m:313-328), DATA ONLY: no spawn
   // path reads them in v2.4, every NPC launches with none (FIDELITY E-194,
-  // `tests/guards/npc-missiles-tripwire.test.ts`). `has_escape_pod` is not
-  // compiled and no NPC ejects (FIDELITY E-195); `heat_insulation` is not
-  // compiled and NPCs carry no cabin temperature (FIDELITY E-196).
+  // `tests/guards/npc-missiles-tripwire.test.ts`, CBT-19 in Phase 23).
   missiles: z.number().int().min(0).max(32),
   maxMissiles: z.number().int().min(0).max(32),
+  // `has_escape_pod` is not compiled and no NPC ejects in v2.4 (FIDELITY E-195;
+  // CBT-09 and AI-10 are Future Requirements).
+  // `heat_insulation` is not compiled and NPCs carry no cabin temperature in
+  // v2.4 (FIDELITY E-196; the hazards stay deferred, PROJECT.md "Deferred").
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);

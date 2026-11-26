@@ -45,6 +45,7 @@
 import { canonicalJson } from "../canonical/json.js";
 import { contentError } from "../content-error.js";
 import {
+  MAX_RECORD_BOUNTY,
   NpcShipSchema,
   type NpcShip,
 } from "../../../src/content/schemas/ship-npc.js";
@@ -191,8 +192,12 @@ export const DEFAULT_LASER_COLOR: readonly [number, number, number] | null =
 /** Oolite's `bounty` default (`oo_unsignedIntForKey`, ShipEntity.m:559). */
 export const DEFAULT_BOUNTY = 0;
 
-/** The largest bounty an unsigned 32-bit Oolite `unsigned int` can hold. */
-export const MAX_BOUNTY = 4294967295;
+/**
+ * The largest compiled bounty: the entity field's limit (`MAX_BOUNTY` in
+ * `src/sim/world/limits.ts`, 65535), narrower than Oolite's unsigned int so a
+ * compiled record can never be refused at spawn.
+ */
+export const MAX_BOUNTY = MAX_RECORD_BOUNTY;
 
 /**
  * Oolite's `auto_ai` default: a fuzzy boolean defaulting to yes

@@ -19,9 +19,11 @@ import { findNpcShip, loadNpcCatalogue } from "../../src/content/ships-npc.js";
 import {
   MAX_FLIGHT_MAGNITUDE_BOUND,
   MAX_FLIGHT_RATE_BOUND,
+  MAX_RECORD_BOUNTY,
   NpcShipCatalogueSchema,
 } from "../../src/content/schemas/ship-npc.js";
 import {
+  MAX_BOUNTY,
   MAX_ENTITY_MAGNITUDE,
   MAX_STEER_RATE,
 } from "../../src/sim/world/limits.js";
@@ -554,7 +556,9 @@ describe("NpcShipSchema role fields (DATA-17, plan 21-05)", () => {
   });
 
   it("bounds bounty, fuel, escorts and the missile counts", () => {
-    expect(accepts(withField("bounty", 4294967295))).toBe(true);
+    expect(accepts(withField("bounty", 65535))).toBe(true);
+    expect(accepts(withField("bounty", 65536))).toBe(false);
+    expect(MAX_RECORD_BOUNTY).toBe(MAX_BOUNTY);
     expect(accepts(withField("bounty", -1))).toBe(false);
     expect(accepts(withField("bounty", 1.5))).toBe(false);
     expect(accepts(withField("fuel", 65535))).toBe(true);
@@ -591,10 +595,8 @@ describe("NpcShipSchema role fields (DATA-17, plan 21-05)", () => {
   });
 
   it("refuses a record that leaves a new field out or carries an unknown one", () => {
-    const { countsAsKill: _omitted, ...without } = firstRecord() as Record<
-      string,
-      unknown
-    >;
+    const without = { ...firstRecord() };
+    delete without["countsAsKill"];
     expect(accepts([without])).toBe(false);
     expect(accepts(withField("hasEscapePod", 1))).toBe(false);
     expect(accepts(withField("heatInsulation", 1))).toBe(false);

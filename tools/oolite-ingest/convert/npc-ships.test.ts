@@ -1405,6 +1405,12 @@ describe("NPC role fields (DATA-17, plan 21-05)", () => {
       expect(error.excerpt).toContain("bounty");
     }
     expect(compiled(edited("bounty", 250), "viper").bounty).toBe(250);
+    expect(compiled(edited("bounty", 65535), "viper").bounty).toBe(65535);
+    expect(
+      capture(() =>
+        compileNpcShips(edited("bounty", 65536), masses, radii, meshes),
+      ).excerpt,
+    ).toContain("bounty");
   });
 
   it("bounds fuel to an unsigned short and reads scoop_position and counts_as_kill", () => {
