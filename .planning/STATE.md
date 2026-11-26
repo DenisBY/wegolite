@@ -5,11 +5,11 @@ milestone_name: Pirates and Police
 current_phase: 22
 current_phase_name: Initial Population
 status: planning
-stopped_at: Phase 21 complete, ready to plan Phase 22
-last_updated: "2026-11-26T09:29:18.251Z"
+stopped_at: Phase 22 context gathered
+last_updated: "2026-11-26T10:10:09.173Z"
 last_activity: 2026-11-26
 last_activity_desc: Phase 21 complete, transitioned to Phase 22
-state_head: 2bffbfd64225c18b1cc88af500d86a10a82a5031
+state_head: 2456cf7b14e0f55db8e22211d496b0985a9f890f
 progress:
   total_phases: 6
   completed_phases: 1
@@ -818,9 +818,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-25T20:44:36.234Z
-Stopped at: Phase 21 complete, ready to plan Phase 22
-Resume file: .planning/phases/21-roster-state-shape-and-seams/21-CONTEXT.md
+Last session: 2026-11-26T10:10:09.027Z
+Stopped at: Phase 22 context gathered
+Resume file: .planning/phases/22-initial-population/22-CONTEXT.md
 
 ## Operator Next Steps
 
