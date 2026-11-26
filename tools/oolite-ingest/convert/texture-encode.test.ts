@@ -108,7 +108,14 @@ const EMITTED_VENDORED = VENDORED_TEXTURES.filter((name) =>
 );
 
 /** The per-hull atlas images the generator builds for the committed GLBs. */
-async function builtAtlases(): Promise<readonly AtlasImage[]> {
+let atlasesOnce: Promise<readonly AtlasImage[]> | undefined;
+
+function builtAtlases(): Promise<readonly AtlasImage[]> {
+  atlasesOnce ??= buildAtlases();
+  return atlasesOnce;
+}
+
+async function buildAtlases(): Promise<readonly AtlasImage[]> {
   const { models, entries } = await loadHullInputs();
   return atlasImagesOf(
     planHullMerges(
@@ -512,7 +519,7 @@ describe("encodeTextures", () => {
         expect(written.equals(reference), file.path).toBe(true);
       }
     });
-  });
+  }, 300_000);
 
   it("encodes everything, with each profile's arguments, without a re-use tree", async () => {
     await withTemp(async (outRoot) => {
@@ -551,7 +558,7 @@ describe("encodeTextures", () => {
         new Set(["fake 0"]),
       );
     });
-  });
+  }, 300_000);
 
   it("encodes again only the file whose source hash, arguments or output changed", async () => {
     const atlases = await builtAtlases();
@@ -594,7 +601,7 @@ describe("encodeTextures", () => {
         expect(encoded).toEqual([first.path, second.path, third.path].sort());
       });
     });
-  });
+  }, 300_000);
 
   it("fails TEXTURE_ENCODE when the output is not the source's size", async () => {
     await withTemp(async (outRoot) => {

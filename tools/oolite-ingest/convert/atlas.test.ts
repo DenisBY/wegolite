@@ -26,13 +26,15 @@ import {
   refusalText,
 } from "./atlas.js";
 import type { AtlasImage, MergeOutcome, RgbaImage } from "./atlas.js";
-import { parseDat } from "./dat.js";
+import { parseDat, repairWinding, selectNormalMode } from "./dat.js";
 import type { ParsedMesh } from "./dat.js";
 import {
   MERGED_NPC_GLBS,
   MODEL_SOURCE_FILES,
   EMITTED_ENTRIES,
+  convertMesh,
   hullTextureNames,
+  materialFor,
   planHullMerges,
 } from "./glb.js";
 import type { GlbMaterial, GlbPrimitive, ShipEntry } from "./glb.js";
@@ -695,17 +697,34 @@ describe("the vendored hulls", () => {
     );
   }, 120_000);
 
-  it("derives each NPC hull's expectation from the converter's own conditions", async () => {
-    const { models, entries } = load();
-    const outcomes = planHullMerges(
-      models,
-      entries,
-      await loadTextureImages(
+  /** The generator's merge plan over every NPC hull, run once. */
+  let planned:
+    | Promise<{
+        outcomes: Map<string, MergeOutcome>;
+        models: Record<string, ParsedMesh>;
+        entries: Record<string, ShipEntry>;
+        textures: (name: string) => RgbaImage;
+      }>
+    | undefined;
+  function planAll() {
+    planned ??= (async () => {
+      const { models, entries } = load();
+      const textures = await loadTextureImages(
         REPO_ROOT,
         hullTextureNames(models, entries, MERGED_NPC_GLBS),
-      ),
-      MERGED_NPC_GLBS,
-    );
+      );
+      return {
+        outcomes: planHullMerges(models, entries, textures, MERGED_NPC_GLBS),
+        models,
+        entries,
+        textures,
+      };
+    })();
+    return planned;
+  }
+
+  it("derives each NPC hull's expectation from the converter's own conditions", async () => {
+    const { models, outcomes } = await planAll();
     expect([...outcomes.keys()].sort()).toEqual([...MERGED_NPC_GLBS].sort());
     for (const [file, outcome] of outcomes) {
       const primitives =
@@ -723,7 +742,173 @@ describe("the vendored hulls", () => {
         expect(outcome.layout.side, file).toBeLessThanOrEqual(
           MAX_HULL_ATLAS_SIDE,
         );
+        expect(outcome.primitive.positions.length / 3, file).toBe(
+          (models[MODEL_SOURCE_FILES[file]?.[0] ?? ""]?.faces.length ?? 0) * 3,
+        );
       }
     }
+  }, 300_000);
+
+  it.each([...MERGED_NPC_GLBS])(
+    "%s: every corner of every source primitive reads the same texel through the atlas",
+    async (file) => {
+      const { outcomes, models, entries, textures } = await planAll();
+      const outcome = outcomes.get(file);
+      if (outcome?.kind !== "merged") return;
+      const source = MODEL_SOURCE_FILES[file]?.[0] ?? "";
+      const owner = EMITTED_ENTRIES[file]?.[0] ?? "";
+      const entry = entries[owner];
+      const mesh = structuredClone(models[source]);
+      if (entry === undefined || mesh === undefined) throw new Error(file);
+      const mode = selectNormalMode(mesh, { smooth: entry.shipDef.smooth });
+      repairWinding(mesh, mode);
+      const primitives = convertMesh(mesh, mode, "gltf");
+      const image = (slot: string): AtlasImage | undefined =>
+        outcome.images.find((candidate) => candidate.slot === slot);
+      const side = outcome.layout.side;
+      const nearest = (value: number, size: number): number =>
+        Math.min(Math.max(Math.floor(value * size), 0), size - 1);
+      let checked = 0;
+      let cursor = 0;
+      for (const primitive of primitives) {
+        const authored = materialFor(
+          primitive.materialName,
+          entry.shipDef,
+          entry.key,
+        );
+        const extras = authored.extrasOolite;
+        const count = primitive.positions.length / 3;
+        for (let corner = 0; corner < count; corner++) {
+          const u = primitive.uvs[corner * 2] ?? 0;
+          const v = primitive.uvs[corner * 2 + 1] ?? 0;
+          const x = Math.floor(
+            (outcome.primitive.uvs[(cursor + corner) * 2] ?? 0) * side,
+          );
+          const y = Math.floor(
+            (outcome.primitive.uvs[(cursor + corner) * 2 + 1] ?? 0) * side,
+          );
+          const read = (slot: string, channels: number): number[] => {
+            const raster = image(slot);
+            if (raster === undefined) return [];
+            const at = (y * side + x) * channels;
+            return Array.from(raster.data.subarray(at, at + channels));
+          };
+          const texel = (name: string | null, fill: number[]): number[] => {
+            if (name === null) return fill;
+            const map = textures(name);
+            const at =
+              (nearest(v, map.height) * map.width + nearest(u, map.width)) * 4;
+            return Array.from(map.data.subarray(at, at + 4));
+          };
+          const diffuse = texel(
+            authored.baseColorTexture,
+            [255, 255, 255, 255],
+          );
+          expect(read("diffuse", 4), `${file} diffuse`).toEqual([
+            ...diffuse.slice(0, 3),
+            255,
+          ]);
+          if (image("normal") !== undefined) {
+            const normal = texel(authored.normalTexture, [128, 128, 255, 255]);
+            expect(read("normal", 4), `${file} normal`).toEqual([
+              ...normal.slice(0, 3),
+              255,
+            ]);
+          }
+          if (image("specular") !== undefined) {
+            expect(read("specular", 4), `${file} specular`).toEqual(
+              texel(authored.specularTexture, [255, 255, 255, 255]),
+            );
+          }
+          if (image("emissive") !== undefined) {
+            const emission =
+              extras !== null && "emission_map" in extras
+                ? extras.emission_map
+                : null;
+            const mask = texel(
+              authored.emissiveTexture === null ? null : emission,
+              [0, 0, 0, 0],
+            );
+            expect(read("emissive", 1), `${file} emissive`).toEqual([
+              mask[3] ?? 0,
+            ]);
+          }
+          if (image("roughness") !== undefined) {
+            expect(read("roughness", 4), `${file} roughness`).toEqual([
+              0,
+              Math.round(authored.roughnessFactor * 255),
+              0,
+              255,
+            ]);
+          }
+          checked += 1;
+        }
+        cursor += count;
+      }
+      expect(checked, file).toBe(outcome.primitive.positions.length / 3);
+    },
+    300_000,
+  );
+
+  it("gives the variant records of one model the same layout and merged geometry", async () => {
+    const { outcomes } = await planAll();
+    const families = new Map<string, string[]>();
+    for (const file of MERGED_NPC_GLBS) {
+      const source = MODEL_SOURCE_FILES[file]?.[0] ?? "";
+      families.set(source, [...(families.get(source) ?? []), file]);
+    }
+    let compared = 0;
+    for (const files of families.values()) {
+      const merged = files.flatMap((file) => {
+        const outcome = outcomes.get(file);
+        return outcome?.kind === "merged" ? [outcome] : [];
+      });
+      const [first, ...rest] = merged;
+      if (first === undefined) continue;
+      for (const other of rest) {
+        expect(other.layout).toEqual(first.layout);
+        expect(other.primitive.positions).toEqual(first.primitive.positions);
+        expect(other.primitive.normals).toEqual(first.primitive.normals);
+        expect(other.primitive.uvs).toEqual(first.primitive.uvs);
+        expect(other.primitive.indices).toEqual(first.primitive.indices);
+        compared += 1;
+      }
+    }
+    // The nine variant families of plan 21-08 give at least nine pairs.
+    expect(compared).toBeGreaterThanOrEqual(9);
+  }, 300_000);
+
+  it("shares every atlas file two records share a map in, and only those", async () => {
+    const { outcomes } = await planAll();
+    const names = (file: string): Record<string, string> => {
+      const outcome = outcomes.get(file);
+      if (outcome?.kind !== "merged") throw new Error(`${file} is not merged`);
+      return Object.fromEntries(
+        outcome.images.map((image) => [image.slot, image.name]),
+      );
+    };
+    // Equal maps and values: the same files.
+    for (const [a, b] of [
+      ["anaconda.glb", "anaconda-pirate.glb"],
+      ["boa.glb", "boa-pirate.glb"],
+      ["boa-mk2.glb", "boa-mk2-pirate.glb"],
+    ] as const) {
+      expect(names(a), `${a} ${b}`).toEqual(names(b));
+    }
+    // The Cobra Mk III variants differ in the hull's diffuse map only.
+    const trader = names("cobra3-trader.glb");
+    const alternate = names("cobra3-alternate.glb");
+    const pirate = names("cobra3-pirate.glb");
+    for (const slot of ["normal", "specular", "roughness"]) {
+      expect(alternate[slot], slot).toBe(trader[slot]);
+      expect(pirate[slot], slot).toBe(trader[slot]);
+    }
+    expect(
+      new Set([trader.diffuse, alternate.diffuse, pirate.diffuse]).size,
+    ).toBe(3);
+    // The three variants recolour the hull but keep its alpha mask, so the
+    // emissive atlas is the one file: content addressing shares it.
+    expect(alternate.emissive).toBe(trader.emissive);
+    expect(pirate.emissive).toBe(trader.emissive);
   }, 300_000);
 });

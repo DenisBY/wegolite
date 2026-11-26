@@ -1392,6 +1392,9 @@ describe("NPC ship GLBs", () => {
     async (file) => {
       await assertSingleMeshGlb(file, (_model, owner) => npcGlbFile(owner));
     },
+    // The first case plans the merge of every NPC hull (the vendored maps are
+    // decoded and the atlases built); the others reuse it.
+    300_000,
   );
 });
 

@@ -1479,10 +1479,7 @@ function requireEntry(
  * (D-05 fix (1), plan 21-17). Every NPC hull is a candidate; the player's Cobra
  * Mk III, the station, the buoy and the debris models are never merged.
  */
-export const MERGED_NPC_GLBS: readonly string[] = [
-  "anaconda-pirate.glb",
-  "anaconda.glb",
-];
+export const MERGED_NPC_GLBS: readonly string[] = NPC_SHIP_GLBS;
 
 /** `oolite_boa-mk2.dat` is the model `boa-mk2`: the name the atlas files carry. */
 function modelName(source: string): string {

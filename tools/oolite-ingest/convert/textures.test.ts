@@ -44,7 +44,6 @@ import {
   NPC_SHIP_GLBS,
   convertMesh,
   emissiveFile,
-  encodedTextureFile,
 } from "./glb.js";
 import type { Face, MeshMaterial, ParsedMesh } from "./dat.js";
 import type { ShipCatalogue } from "../../../src/content/schemas/ship.js";
@@ -170,7 +169,23 @@ describe("texture reference closure", () => {
         (references.get(variant) ?? []).map((reference) => reference.shipKey),
         variant,
       ).toEqual([shipKey, shipKey]);
-      expect(served).toContain(encodedTextureFile(variant));
+      // Plan 21-17: the variant's hull is merged, so its map is served inside
+      // the per-hull diffuse atlas, whose encodings row lists it as an input.
+      const atlasRows = (
+        JSON.parse(
+          readFileSync(
+            join(REPO_ROOT, "src/content/generated/texture-encodings.json"),
+            "utf8",
+          ),
+        ) as { files: { path: string; inputs?: string[] }[] }
+      ).files.filter(
+        (row) =>
+          row.path.includes("_diffuse_atlas_") &&
+          row.inputs?.includes(`third_party/oolite/Textures/${variant}`) ===
+            true,
+      );
+      expect(atlasRows, variant).toHaveLength(1);
+      expect(served).toContain(atlasRows[0]?.path.split("/").pop());
       expect(served).not.toContain(variant);
     }
   });
