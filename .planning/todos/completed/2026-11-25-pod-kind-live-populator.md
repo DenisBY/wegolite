@@ -9,6 +9,7 @@ files:
   - src/sim/world/populate.ts
   - tests/guards/pod-kind-fallback.test.ts
   - .planning/phases/21-roster-state-shape-and-seams/21-14-PLAN.md
+resolved: 2026-11-26
 ---
 
 ## Problem
@@ -61,3 +62,37 @@ populator ported in Phase 22 must reproduce this per spawn context:
 When the populator lands, compare each spawn site against the lines above and
 update the FIDELITY rows that describe the fallback (E-197 and the E-78 rewrite)
 so they say that it applies only to the inert path.
+
+## Resolution (2026-11-26, Phase 22 plans 22-07 to 22-11)
+
+Closed by the runtime check `tests/sim/world/population/cargo-kind.test.ts`
+(plan 22-11). It populates worlds through `populateSystemWorld` (the production
+spawn path of plan 22-10) for Lave over 20 seeds, the largest anarchy of the
+fixtures, Oresrati, and every fixture system at epochs 1 to 3, and asserts for
+every placed ship that `cargo` above 0 never goes with `cargoKind` 0 and that
+the kind is the one its builder sets: an arriving freighter and courier
+`scarce`, a medical hull's freighter `medical`, an opportunist freighter and
+every independent or pack-leader pirate `pirate`, a smuggler `contraband`, and
+every other ship (hunters, police, the station patrol, interceptors, every
+engine escort and pack assistant) no cargo. A medical-only catalogue pins the
+`medical` case, which the committed catalogue reaches only through one hull.
+Mutation check: storing kind 0 for the smuggler fails four of the five cases.
+
+The builders set the kinds in plans 22-07 (freighter), 22-08 (couriers and the
+smuggler) and 22-09 (pirates); plan 22-10's `spawn.ts` names `cargo` and
+`cargoKind` together in the one `SpawnInit`. The guard
+`tests/guards/pod-kind-fallback.test.ts` keeps its allow-list
+(`INERT_PATH_FILES`, the frozen `populate.ts` only) and only its todo path
+moved to this file. The role-family fallback in `resolvePodCargoKind` now serves
+the inert path alone; FIDELITY E-197 and E-78 say so.
+
+### Correction: couriers do not get `ILLEGAL_GOODS`
+
+The list above says "couriers get `ILLEGAL_GOODS`". That line was a
+transcription error (repeated in 22-CONTEXT's Folded Todos). In
+`oolite-populator.js` (the same lines at the pin `7437f22`), `_addCourierShort`
+(`:1482-1502`) and `_addCourierLong` (`:1505-1525`) set `PLENTIFUL_GOODS` from a
+station and `SCARCE_GOODS` arriving (`setCargoType` at `:1492`, `:1499`,
+`:1514`, `:1522`), and only `_addSmuggler` sets `ILLEGAL_GOODS` (`:1557`). The
+port follows the script, so this is no divergence and takes no FIDELITY row. The
+original todo text above is left as it was written.
