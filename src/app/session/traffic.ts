@@ -452,6 +452,29 @@ export function createInertPopulate(
 }
 
 /**
+ * The records of `list` that can be neighbours of a system in `galaxy`: a
+ * record that names a different galaxy is dropped, so a list of one galaxy
+ * never feeds the neighbourhood of an arrival in another (IN-03 of the Phase 22
+ * review). The session holds one fixed galaxy list (galaxy 0 today, the galactic
+ * drive is not in v2.4) and `buildNeighbourhood` reads the arrival's index
+ * against it; without this the populator would silently take the neighbours of
+ * the same index in the wrong galaxy. A record with no numeric `galaxy` (a
+ * malformed one) is kept: `buildNeighbourhood` drops it by its own rules.
+ * Dropping every record gives empty neighbour lists, which the planner already
+ * handles, so the call stays total.
+ */
+function sameGalaxyOnly(
+  list: readonly unknown[],
+  galaxy: number,
+): readonly unknown[] {
+  return list.filter((record) => {
+    if (typeof record !== "object" || record === null) return true;
+    const own = (record as { readonly galaxy?: unknown }).galaxy;
+    return typeof own !== "number" || own === galaxy;
+  });
+}
+
+/**
  * The lifecycle's `Populate` for the system populator (Phase 22, WORLD-08):
  * the initial population of the system the ship arrives in. Structurally the
  * same type as `Populate` in world-lifecycle.ts, which this module does not
@@ -469,7 +492,9 @@ export function createInertPopulate(
  * `buildNeighbourhood` drops a malformed galaxy record (an absent or empty list
  * gives empty neighbour lists) while `populateSystemWorld` is total. The
  * `system` is the arrival system's record (`ctx.core.system` in the session);
- * the `galaxy` is its galaxy's system list.
+ * the `galaxy` is its galaxy's system list. A record of another galaxy than the
+ * arrival's is ignored (`sameGalaxyOnly`), so a mismatched list yields no
+ * neighbours instead of the wrong ones.
  */
 export function createSystemPopulate(
   content: () => TrafficContent | undefined,
@@ -490,7 +515,7 @@ export function createSystemPopulate(
       return;
     }
     const neighbourhood = buildNeighbourhood(
-      galaxy() ?? [],
+      sameGalaxyOnly(galaxy() ?? [], arrival.galaxy),
       arrival.systemIndex,
     );
     populateSystemWorld(

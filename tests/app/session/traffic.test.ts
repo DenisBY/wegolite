@@ -517,6 +517,32 @@ describe("createSystemPopulate (plan 22-13, WORLD-08)", () => {
     }
   });
 
+  // Tripwire (IN-03 of the Phase 22 review): the session holds one fixed
+  // galaxy list (galaxy 0; the galactic drive is not in v2.4). The day a system
+  // of another galaxy becomes the arrival, the neighbours of the same index in
+  // the wrong galaxy must not be taken silently. This fails if the guard goes.
+  it("takes no neighbours from a list of another galaxy than the arrival's (IN-03 tripwire)", () => {
+    // The population as the ships' spec keys in id order: the neighbourhood
+    // drives every count, so a different neighbourhood changes this list.
+    const hashOf = (
+      arrival: typeof lave.system,
+      list: readonly unknown[],
+    ): string => {
+      const world = createWorld(WORLD_SEED);
+      populate(world, true, { system: arrival, galaxy: list });
+      return world.store.live.map((ship) => ship.specKey).join(",");
+    };
+    const abroad = { ...lave.system, galaxy: 1 };
+    const own = hashOf(lave.system, galaxy);
+    const wrongList = hashOf(abroad, galaxy);
+    // A galaxy-0 list names no neighbour of a galaxy-1 arrival: same as no list.
+    expect(wrongList).toBe(hashOf(abroad, []));
+    // ... and not the galaxy-0 neighbourhood of the same index.
+    expect(wrongList).not.toBe(own);
+    // The matching list is still used: galaxy 1's own records are not dropped.
+    expect(hashOf(abroad, galaxySystems(1))).not.toBe(wrongList);
+  });
+
   it("reads all four getters at call time", () => {
     const held: { content: TrafficContent | undefined } = {
       content: undefined,
