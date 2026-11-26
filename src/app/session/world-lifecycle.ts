@@ -42,20 +42,27 @@
  *
  * (ii) `begin` runs `populate` inside the arrival's synchronous install block,
  * whose invariant is that everything that can throw runs before any live
- * reference moves. `populateNothing` cannot throw, and neither can the inert
- * populator of Phase 12: `populateInertWorld` is total (a `spawnEntity` refusal
- * is skipped, every loop is capped, records are pre-validated and a record with
- * an unknown scan class is dropped before any draw), and its closure never
- * awaits. A later populator that can throw must be split into a fallible
- * prepare step that runs before the install block and a commit that cannot
- * fail.
+ * reference moves. `populateNothing` cannot throw, and neither can the two
+ * populators a session or the Node replay installs: the system populator of
+ * Phase 22 (`createSystemPopulate`, which `start-session.ts` uses for every
+ * arrival) and the inert populator of Phase 12 (`createInertPopulate`, kept for
+ * the frozen epoch 1-20 pin). `populateSystemWorld` is total (a malformed
+ * neighbourhood record is dropped, the whole population is trial-spawned in a
+ * scratch world before it is committed), and so is `populateInertWorld` (a
+ * `spawnEntity` refusal is skipped, every loop is capped, records are
+ * pre-validated and a record with an unknown scan class is dropped before any
+ * draw). Neither closure awaits. A later populator that can throw must be split
+ * into a fallible prepare step that runs before the install block and a commit
+ * that cannot fail.
  *
  * (iii) D-01, decided in Phase 12. The epoch and each fresh world's starting
  * counter (next id 101 before populate) are the same with traffic on and off.
  * Populate does not burn ids with traffic off: the post-populate counter, and
- * so the leg anchor, is 113 with traffic on (the 12 inert ships take ids 101 to
- * 112) and 101 with traffic off, and a world with no NPC keeps hashing as the
- * v1 flight hash.
+ * so the leg anchor, is `101` plus the number of ships populate placed with
+ * traffic on, and 101 with traffic off, and a world with no NPC keeps hashing
+ * as the v1 flight hash. With the inert populator that count is the fixed 12
+ * (ids 101 to 112, anchor 113). With the system populator (Phase 22) it varies
+ * by system and epoch (28 ships for Lave at epoch 1, so anchor 129).
  *
  * The module must stay importable by the Playwright Node runner (plan 08-16):
  * pure, no DOM, no Three, and nothing beyond `src/sim`. A Vitest guard in

@@ -70,8 +70,9 @@ export interface EscortRoleDefinition {
  * no missile member. `autoAi`, `autoWeapons` and `hasFuelInjection` are the
  * compiled fuzzy booleans (probabilities); a builder tests `autoAi` and
  * `autoWeapons` as the script's booleans do (`> 0`) and rolls
- * `hasFuelInjection` against one `injector` draw. `fuel` is tenths of a light
- * year (the record's `fuel` times 10) and `bounty` the record's authored bounty.
+ * `hasFuelInjection` against one `injector` draw. `fuel` is the catalogue's
+ * own value, already in tenths of a light year (70 for 7 LY, not scaled again)
+ * and `bounty` the record's authored bounty.
  */
 export interface PopulationRecord {
   readonly key: string;
