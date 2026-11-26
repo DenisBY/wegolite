@@ -194,8 +194,9 @@ export interface World {
    * Oolite's `ShipGroup` as data (FOUND-20): one `{ id, leader }` record per
    * group, ascending by id. The group id is the founding leader's entity id, so
    * no counter state exists; membership is derived by scanning `Entity.groupId`.
-   * At rest until Phase 22 writes it. Hashed (`groups:`) and snapshotted
-   * (`groups`) only when not empty.
+   * Written from Phase 22 on; a record is pruned when its group empties
+   * (`pruneEmptyGroups`, D-11). Hashed (`groups:`) and snapshotted (`groups`)
+   * only when not empty.
    */
   groups: GroupRecord[];
   /**
@@ -969,7 +970,37 @@ export function killEntity(world: World, id: EntityId): boolean {
   return world.store.kill(id);
 }
 
-/** Remove dead entities; returns their ids ascending. */
+/**
+ * Remove the records of groups that have no live member (D-11). A record is
+ * kept while at least one live, non-dead entity carries its id as `groupId`.
+ * Returns the number of records removed.
+ *
+ * One pass builds the set of live group ids. `world.groups` is replaced by a
+ * filtered array only when something is removed, so an empty or unchanged list
+ * keeps its identity, no `groups:` hash line appears or moves, and the order
+ * stays strictly ascending. A group whose leader died while a follower lives
+ * keeps its record with the leader id as written (leader succession belongs to
+ * Phase 23's escort work).
+ */
+export function pruneEmptyGroups(world: World): number {
+  if (world.groups.length === 0) return 0;
+  const carried = new Set<EntityId>();
+  for (const entity of world.store.live) {
+    if (!entity.dead && entity.groupId !== 0) carried.add(entity.groupId);
+  }
+  const kept = world.groups.filter((record) => carried.has(record.id));
+  const removed = world.groups.length - kept.length;
+  if (removed > 0) world.groups = kept;
+  return removed;
+}
+
+/**
+ * Remove dead entities; returns their ids ascending. Then prunes the group
+ * records whose group has no live member (D-11), which `World.groups` needs to
+ * keep `MAX_WORLD_GROUPS` unreachable.
+ */
 export function commitWorld(world: World): EntityId[] {
-  return world.store.commit();
+  const removed = world.store.commit();
+  pruneEmptyGroups(world);
+  return removed;
 }
