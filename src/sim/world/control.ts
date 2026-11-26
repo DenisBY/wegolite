@@ -18,7 +18,6 @@
  * issued it.
  */
 
-import type { Facing } from "../combat/mounts.js";
 import type { Vec3 } from "../math.js";
 import type { BehaviourId, EntityId } from "./ids.js";
 
@@ -41,6 +40,12 @@ export interface ShipControl {
    * facing in the same tick, are ignored; a fore and an aft call in one tick
    * queue two requests. An AI asking for aft, port or starboard fire is
    * Phase 23 (CBT-19): nothing in Phase 21 does.
+   *
+   * The facing is spelled as its literal union, the same four names as
+   * `Facing` in `../combat/mounts.ts`: this seam imports only types from
+   * `./ids.js` and `../math.js` (`tests/guards/ai-zone.test.ts`), and the
+   * implementation types the parameter as `Facing`, so the compiler pins the two
+   * together.
    */
-  fire(id: EntityId, facing?: Facing): void;
+  fire(id: EntityId, facing?: "fore" | "aft" | "port" | "starboard"): void;
 }
