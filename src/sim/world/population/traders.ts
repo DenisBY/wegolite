@@ -3,7 +3,8 @@
 
 /**
  * The trade builders of the initial populator (Phase 22, WORLD-08): the
- * freighter, in this plan; couriers and smugglers follow in plan 22-08.
+ * freighter (plan 22-07), the short and long couriers and the smuggler (plan
+ * 22-08), each the port of one callback of `oolite-populator.js`.
  *
  * `buildFreighter` is `_addFreighter` (`Resources/Scripts/oolite-populator.js:
  * 1383-1452`) with the engine work `system.addShips("trader", 1, ...)` does
@@ -40,7 +41,10 @@ import {
   boundedBounty,
   createPlannedShip,
   finishShips,
+  listOf,
   numberOf,
+  pickPopulationRecord,
+  readField,
   setFuel,
   setSkill,
   setWeapons,
@@ -101,11 +105,7 @@ export function buildFreighter(
   let goods: CargoKindName;
   if (options.arriving) {
     mother.homeSystem = weightedNearbyTradeSystem(facts, draws);
-    mother.fuel = setFuel(
-      mother.homeSystem,
-      systemIndex,
-      facts.neighbourhood.distanceTo,
-    );
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
     mother.destinationSystem = systemIndex;
     goods = FREIGHTER_GOODS.scarce;
     // `Math.random() * 8 > government` guards `_setMissiles(ship, -1)`, a cut:
@@ -146,4 +146,234 @@ export function buildFreighter(
 
   setEscortWeapons(escorts, draws);
   return finishShips(ships);
+}
+
+// --- Couriers (plan 22-08) ---------------------------------------------------
+
+/**
+ * `Neighbourhood.distanceTo` of untrusted facts as a total function: an
+ * unknown system, or facts without the function, give no distance.
+ */
+function chartDistance(
+  facts: SystemFacts,
+): (systemIndex: number) => number | undefined {
+  const distanceTo = readField(facts.neighbourhood, "distanceTo");
+  return (systemIndex) => {
+    if (typeof distanceTo !== "function") {
+      return undefined;
+    }
+    const distance = (distanceTo as (index: number) => unknown).call(
+      facts.neighbourhood,
+      systemIndex,
+    );
+    return typeof distance === "number" ? distance : undefined;
+  };
+}
+
+/** The `_nearbySystem` ranges of the courier and smuggler callbacks, in LY. */
+const NEAR_RANGE_LY = 7;
+const LONG_RANGE_LY = 25;
+
+/**
+ * `_roleExists` (`oolite-populator.js:2162-2170`): whether the catalogue has a
+ * record for the role (`Ship.keysForRole`). Dead with the shipped catalogue,
+ * which carries `trader-courier` and `trader-smuggler`; ported as written.
+ */
+function roleExists(
+  records: readonly PopulationRecord[],
+  role: string,
+): boolean {
+  return pickPopulationRecord(0, records, role) !== undefined;
+}
+
+/**
+ * `_nearbySystem(range)` (`oolite-populator.js:2477-2487`): a system chosen
+ * uniformly from the other systems within `range` light years, one draw on the
+ * `system` stream; this system, with no draw, when there is none.
+ */
+function nearbySystem(
+  facts: SystemFacts,
+  range: number,
+  draws: PopulationDraws,
+): number {
+  const here = systemIndexOf(facts.systemIndex, 0);
+  const inRange = readField(facts.neighbourhood, "inRange");
+  const candidates =
+    typeof inRange === "function"
+      ? listOf(
+          (inRange as (rangeLy: number) => unknown).call(
+            facts.neighbourhood,
+            range,
+          ),
+        )
+      : [];
+  if (candidates.length === 0) {
+    return here;
+  }
+  const at = Math.floor(draws.next("system") * candidates.length);
+  return systemIndexOf(candidates[at], here);
+}
+
+/** A trade ship and the escorts the engine gave it. */
+interface TradeShip {
+  readonly mother: ShipDraft;
+  readonly escorts: readonly ShipDraft[];
+}
+
+/**
+ * `_addShips(role, 1, pos, 0)` for a trade role that falls back to `trader`
+ * when the catalogue has none (`:1457-1465`, `:1530-1538`). The fallback role
+ * is exactly `trader`, so the engine's trader escort removal applies to it
+ * (`Universe.m:2657-2665`) and to no other trade role.
+ */
+function addTradeShip(
+  role: string,
+  facts: SystemFacts,
+  records: readonly PopulationRecord[],
+  draws: PopulationDraws,
+): TradeShip | undefined {
+  const asked = roleExists(records, role) ? role : "trader";
+  const systemIndex = systemIndexOf(facts.systemIndex, 0);
+  const mother = createPlannedShip(asked, records, systemIndex, draws);
+  if (mother === undefined) {
+    return undefined;
+  }
+  const escorts = setUpEscorts(
+    mother,
+    records,
+    numberOf(facts.government),
+    draws,
+    asked,
+    systemIndex,
+  );
+  return { mother, escorts };
+}
+
+/**
+ * `_addCourier` (`oolite-populator.js:1455-1479`): a `trader-courier` (else a
+ * `trader`) with bounty 0. The script's `t.escortGroup` test reads a property of
+ * the returned array, never of a ship, so its loop (bounty and heat insulation
+ * on the escorts) never runs and the escorts keep the bounty the engine gave
+ * them; `heatInsulation = 6` is a cut (`POPULATOR_CUTS`). Then
+ * `_setEscortWeapons`. With no record for either role the script's
+ * `t[0].bounty = 0` throws and nothing is planned.
+ */
+function addCourier(
+  facts: SystemFacts,
+  records: readonly PopulationRecord[],
+  draws: PopulationDraws,
+): TradeShip | undefined {
+  const added = addTradeShip("trader-courier", facts, records, draws);
+  if (added === undefined) {
+    return undefined;
+  }
+  added.mother.bounty = 0;
+  setEscortWeapons(added.escorts, draws);
+  return added;
+}
+
+/**
+ * `_addCourierShort` (`oolite-populator.js:1482-1502`): arriving, home from the
+ * systems within 7 LY, fuel from the chart, destination this system, scarce
+ * goods. A station launch (Phase 26): destination from the 7 LY list, home
+ * here, plentiful goods.
+ */
+export function buildCourierShort(
+  facts: SystemFacts,
+  records: readonly PopulationRecord[],
+  draws: PopulationDraws,
+  options: FreighterOptions,
+): readonly PlannedPopShip[] {
+  const added = addCourier(facts, records, draws);
+  if (added === undefined) {
+    return [];
+  }
+  const { mother } = added;
+  const systemIndex = systemIndexOf(facts.systemIndex, 0);
+  if (options.arriving) {
+    mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.destinationSystem = systemIndex;
+    mother.cargoKind = "scarce";
+  } else {
+    mother.destinationSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
+    mother.homeSystem = systemIndex;
+    mother.cargoKind = "plentiful";
+  }
+  return finishShips([mother, ...added.escorts]);
+}
+
+/**
+ * `_addCourierLong` (`oolite-populator.js:1505-1525`): as the short courier,
+ * with the destination drawn from the systems within 25 LY. Arriving, the home
+ * system is drawn first (7 LY), then the destination.
+ */
+export function buildCourierLong(
+  facts: SystemFacts,
+  records: readonly PopulationRecord[],
+  draws: PopulationDraws,
+  options: FreighterOptions,
+): readonly PlannedPopShip[] {
+  const added = addCourier(facts, records, draws);
+  if (added === undefined) {
+    return [];
+  }
+  const { mother } = added;
+  const systemIndex = systemIndexOf(facts.systemIndex, 0);
+  if (options.arriving) {
+    mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.destinationSystem = nearbySystem(facts, LONG_RANGE_LY, draws);
+    mother.cargoKind = "scarce";
+  } else {
+    mother.destinationSystem = nearbySystem(facts, LONG_RANGE_LY, draws);
+    mother.homeSystem = systemIndex;
+    mother.cargoKind = "plentiful";
+  }
+  return finishShips([mother, ...added.escorts]);
+}
+
+// --- Smugglers (plan 22-08) ---------------------------------------------------
+
+/**
+ * `_addSmuggler` (`oolite-populator.js:1528-1575`): a `trader-smuggler` (else a
+ * `trader`) with bounty `min(ceil(r * 20), 2 * cargoSpaceCapacity)`, arriving
+ * from a system within 7 LY with the chart fuel (a station launch: destination
+ * within 7 LY, home here), contraband cargo, the fuel injector forced on for a
+ * ship with `auto_weapons` (`EQ_FUEL_INJECTION`, `:1560`), `_setWeapons(1.2)`,
+ * `_setEscortWeapons`, and `bounty |= 3 + floor(r * 12)` on every escort.
+ */
+export function buildSmuggler(
+  facts: SystemFacts,
+  records: readonly PopulationRecord[],
+  draws: PopulationDraws,
+  options: FreighterOptions,
+): readonly PlannedPopShip[] {
+  const added = addTradeShip("trader-smuggler", facts, records, draws);
+  if (added === undefined) {
+    return [];
+  }
+  const { mother, escorts } = added;
+  const systemIndex = systemIndexOf(facts.systemIndex, 0);
+  const capacity = numberOf(mother.record.maxCargo);
+  const rolled = Math.ceil(draws.next("body") * 20);
+  mother.bounty = boundedBounty(rolled > capacity * 2 ? capacity * 2 : rolled);
+  if (options.arriving) {
+    mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.destinationSystem = systemIndex;
+  } else {
+    mother.destinationSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
+    mother.homeSystem = systemIndex;
+  }
+  mother.cargoKind = "contraband";
+  const autoWeapons = numberOf(mother.record.autoWeapons) > 0;
+  if (autoWeapons) {
+    // Smugglers always have injectors (`:1558-1561`).
+    mother.injector = true;
+  }
+  setWeapons(mother.weaponTypes, 1.2, autoWeapons, () => draws.next("weapons"));
+  setEscortWeapons(escorts, draws);
+  addOffenderEscortBounty(escorts, draws);
+  return finishShips([mother, ...escorts]);
 }
