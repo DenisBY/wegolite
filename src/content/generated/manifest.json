@@ -981,6 +981,11 @@
       "sha256": "e4149f551e64d5cc013933e9d4d977633f1e8fbaff41ee77b8a397f9750563bd"
     },
     {
+      "bytes": 3710,
+      "path": "src/content/generated/comms.json",
+      "sha256": "a95a210e96416d21848483c1bd0842ac8028df652dc472d0c9ef2da0e0ff692f"
+    },
+    {
       "bytes": 514,
       "path": "src/content/generated/dock-port.json",
       "sha256": "eb14630651ad32563cf621c1c427c5f93cb568f255a7a2dd95cb7ab81eb35abf"
@@ -999,6 +1004,11 @@
       "bytes": 6370,
       "path": "src/content/generated/labels.json",
       "sha256": "d0302d18161a8e3477976d7a5db93d074856b8ec0ead83c852ca1d9c98528ebc"
+    },
+    {
+      "bytes": 4061,
+      "path": "src/content/generated/role-categories.json",
+      "sha256": "2048f7b509ba8cc702c11b616c9bbd9e4b13d5c44ddb8514f2399cf89c6ed104"
     },
     {
       "bytes": 19644,

@@ -1,0 +1,105 @@
+{
+  "entries": [
+    {
+      "key": "beg-for-mercy",
+      "value": [
+        "No!",
+        "Help! Anyone!",
+        "Our systems are failing, please let us flee!",
+        "Leave us alone!",
+        "Don’t shoot, please!",
+        "Please stop! Have mercy!",
+        "Please don’t kill us! I beg you!",
+        "S.O.S. … S.O.S. … S.O.S. …"
+      ]
+    },
+    {
+      "key": "describe-Pirate",
+      "value": ["Brigand", "Pirate", "Hostile vessel", "Marauder", "Criminal"]
+    },
+    {
+      "key": "describe-pirate",
+      "value": ["brigand", "pirate", "hostile vessel", "marauder", "criminal"]
+    },
+    {
+      "key": "distress-call",
+      "value": [
+        "We are [7] by [describe-pirate]s! Please help!",
+        "Our vessel is under attack, please help us.",
+        "[describe-Pirate]s are attacking us. Please assist!",
+        "Help! Anyone!",
+        "Mayday! Mayday! Mayday! We are under attack.",
+        "Help! They’re firing on us!",
+        "Mayday! Please assist. Mayday! Please assist.",
+        "S.O.S. … S.O.S. … S.O.S. …"
+      ]
+    },
+    {
+      "key": "oolite-comms-acceptPirateDemand",
+      "value": "[beg-for-mercy]"
+    },
+    {
+      "key": "oolite-comms-contractAttack",
+      "value": "You picked the wrong client, [oolite_entityName]!"
+    },
+    {
+      "key": "oolite-comms-distressResponseAggressor",
+      "value": "[police-attack-warning]"
+    },
+    {
+      "key": "oolite-comms-makeDistressCall",
+      "value": "[distress-call]"
+    },
+    {
+      "key": "oolite-comms-makePirateDemand",
+      "value": "Your cargo or your life, [oolite_entityName]. [oolite_demandSize] barrels and we'll let you go."
+    },
+    {
+      "key": "oolite-comms-markForFines",
+      "value": [
+        "[oolite_entityName], this is %H Police. You have been scanned and will face penalties if you choose to dock here.",
+        "[oolite_entityName], this is %H Police. Fines will be imposed if you dock here.",
+        "This is the police. Docking at %H will require legal compensation for your offences, [oolite_entityName].",
+        "This is the police. %H Station will fine you for your offences when you dock, [oolite_entityName]."
+      ]
+    },
+    {
+      "key": "oolite-comms-offenceDetected",
+      "value": "[police-attack-warning]"
+    },
+    {
+      "key": "oolite-comms-police-thanksForHelp",
+      "value": [
+        "Thank you for the assistance, [oolite_entityName].",
+        "%H Police thank you for your assistance, [oolite_entityName]."
+      ]
+    },
+    {
+      "key": "oolite-comms-surrender",
+      "value": "[beg-for-mercy]"
+    },
+    {
+      "key": "oolite-comms-thanksForHelp",
+      "value": [
+        "Thank you for the assistance, [oolite_entityName].",
+        "Thanks, [oolite_entityName]!",
+        "%R bless you, [oolite_entityName]!",
+        "Oh thank you, [oolite_entityName]! Help at last!"
+      ]
+    },
+    {
+      "key": "police-attack-warning",
+      "value": [
+        "Offender, your craft will be destroyed under GalCop codes.",
+        "Please slow your engines and do not attempt to dodge our lasers, [describe-pirate]!",
+        "%R! Leave now, or face Police retribution.",
+        "[describe-Pirate], you are not welcome in this system.",
+        "Offender vessel, this is %H Police. Leave now or be fired upon.",
+        "[describe-Pirate], you have been scheduled for termination.",
+        "Leave %H now or be destroyed.",
+        "%H Police. Offending ship targeted. Moving to intercept."
+      ]
+    }
+  ],
+  "variables": ["%H", "%R", "[7]", "[oolite_demandSize]", "[oolite_entityName]"]
+}
