@@ -275,7 +275,7 @@ Plans:
 **Pitfalls to address**: C1 (the frozen path stays untouched), C4 (one forked stream per group and roll), C12 (atomic groups and the entity cap), M7 (float and ordering traps in the populator formulas), m7 (process traps from earlier milestones)
 **Decisions to settle**: what the station and planet locations mean for a ship with no AI yet; how many systems the oracle records; the rule for a population that does not fit under the cap
 **Todos**: `2026-11-25-missiles-and-ecm.md` (missiles are forced to zero at spawn here; its tripwire guard lands with CBT-19 in Phase 23)
-**Plans**: 11/16 plans executed in 14 waves
+**Plans**: 12/16 plans executed in 14 waves
 
 Plans:
 **Wave 1**
@@ -308,7 +308,7 @@ Plans:
 - [x] 22-11-PLAN.md — Wave 9: the pod-kind runtime check closes the folded todo; the WITCHPOINT, cap-rule and inert-fallback records (D-05, D-06) (WORLD-08)
 
 **Wave 10** *(blocked on Wave 9 completion)*
-- [ ] 22-12-PLAN.md — Wave 10: the 2,048-system census, no skipped group, launch-corridor hits, triangle and call bounds, the spec systems (WORLD-08, QUAL-09)
+- [x] 22-12-PLAN.md — Wave 10: the 2,048-system census, no skipped group, launch-corridor hits, triangle and call bounds, the spec systems (WORLD-08, QUAL-09)
 
 **Wave 11** *(blocked on Wave 10 completion)*
 - [ ] 22-13-PLAN.md — Wave 11: `createSystemPopulate`, the Node twin switch and its re-pins, the 30/60/144 Hz cadence (WORLD-08)
@@ -478,7 +478,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
-| 22. Initial Population | v2.4 | 11/16 | In Progress | - |
+| 22. Initial Population | v2.4 | 12/16 | In Progress | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
 | 25. Police, Legal Status, Bounty and Rating | v2.4 | 0/TBD | Not started | - |
