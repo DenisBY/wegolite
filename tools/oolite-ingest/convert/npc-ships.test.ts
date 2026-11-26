@@ -49,6 +49,7 @@ import {
   DEFAULT_FUEL,
   DEFAULT_HAS_FUEL_INJECTION,
   DEFAULT_HAS_SCOOP,
+  DEFAULT_HYPERSPACE_MOTOR,
   DEFAULT_MISSILES,
   DEFAULT_EXPLOSION_TYPE,
   DEFAULT_FACING_WEAPON,
@@ -310,6 +311,8 @@ describe("NPC ship records", () => {
     expect(DEFAULT_AUTO_WEAPONS).toBe(golden.defaults.autoWeapons);
     expect(DEFAULT_HAS_SCOOP).toBe(golden.defaults.hasScoop);
     expect(DEFAULT_HAS_FUEL_INJECTION).toBe(golden.defaults.hasFuelInjection);
+    expect(DEFAULT_HYPERSPACE_MOTOR).toBe(golden.defaults.hyperspaceMotor);
+    expect(DEFAULT_HYPERSPACE_MOTOR).toBe(true);
     expect(DEFAULT_FUEL).toBe(golden.defaults.fuel);
     expect(DEFAULT_COUNTS_AS_KILL).toBe(golden.defaults.countsAsKill);
     expect(DEFAULT_ESCORTS).toBe(golden.defaults.escorts);
@@ -1690,6 +1693,68 @@ describe("NPC role fields (DATA-17, plan 21-05)", () => {
     expect(compiled(edited("has_scoop", 0.1), "viper").hasScoop).toBe(
       Math.fround(0.1),
     );
+  });
+
+  it("compiles hyperspace_motor through like_ship: the nine no-motor hulls false, the rest the default true (plan 22-05)", () => {
+    // `hyperspace_motor = no` is authored on the gecko, krait, mamba, shuttle,
+    // sidewinder and viper templates (shipdata.plist 2287, 2525, 2599, 3512,
+    // 3569, 3846); the escort and pursuit hulls reach it through like_ship.
+    const NO_MOTOR = [
+      "gecko",
+      "krait",
+      "mamba",
+      "mamba-escort",
+      "shuttle",
+      "sidewinder",
+      "sidewinder-escort",
+      "viper",
+      "viper-pursuit",
+    ];
+    for (const record of records) {
+      expect(record.hyperspaceMotor, record.key).toBe(
+        !NO_MOTOR.includes(record.key),
+      );
+    }
+    // The escort and pursuit hulls inherit it through like_ship.
+    for (const key of ["mamba-escort", "sidewinder-escort", "viper-pursuit"]) {
+      expect(requireEntry(key).extras["hyperspace_motor"], key).toBe(false);
+    }
+    expect(requireEntry("viper-interceptor").extras["hyperspace_motor"]).toBe(
+      undefined,
+    );
+    // The default is the value of an absent key.
+    expect(
+      compiled(
+        withExtras("viper", (extras) => {
+          delete extras["hyperspace_motor"];
+          return extras;
+        }),
+        "viper",
+      ).hyperspaceMotor,
+    ).toBe(DEFAULT_HYPERSPACE_MOTOR);
+    expect(
+      compiled(edited("hyperspace_motor", false, "adder"), "adder")
+        .hyperspaceMotor,
+    ).toBe(false);
+    expect(
+      compiled(edited("hyperspace_motor", true), "viper").hyperspaceMotor,
+    ).toBe(true);
+  });
+
+  it("fails the build on a hyperspace_motor that is not a boolean, naming the record and the key", () => {
+    for (const value of ["no", "yes", 1, 0, 0.5, null, []]) {
+      const error = capture(() =>
+        compileNpcShips(
+          edited("hyperspace_motor", value),
+          masses,
+          radii,
+          meshes,
+        ),
+      );
+      expect(error.code, JSON.stringify(value)).toBe("SCHEMA");
+      expect(error.construct).toBe("viper");
+      expect(error.excerpt).toContain("hyperspace_motor");
+    }
   });
 
   it("fails the build on a bounty of -1 or 1.5 and compiles a whole bounty", () => {
