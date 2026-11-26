@@ -676,6 +676,7 @@ describe("hit resolution order (A6, Pitfall 7)", () => {
     expect(destroyed).toEqual([
       {
         kind: "shipDestroyed",
+        velocity: { x: 0, y: 0, z: 0 },
         id,
         killer: PLAYER_ID,
         specKey: "adder",
@@ -1320,6 +1321,7 @@ describe("the nav buoy shot to destruction at its live pose (tracer, CBT-17)", (
     expect(ofKind(killing, "shipDestroyed")).toEqual([
       {
         kind: "shipDestroyed",
+        velocity: { x: 0, y: 0, z: 0 },
         id: STATION_NAV_BUOY_ID,
         position: { ...layout.navBuoy.position },
         radius: layout.navBuoy.radius,
@@ -1373,6 +1375,7 @@ describe("the nav buoy shot to destruction at its live pose (tracer, CBT-17)", (
     expect(ofKind(events, "shipDestroyed")).toEqual([
       {
         kind: "shipDestroyed",
+        velocity: { x: 0, y: 0, z: 0 },
         id: WITCHPOINT_BUOY_ID,
         position: { ...layout.witchpoint.position },
         radius: layout.witchpoint.radius,

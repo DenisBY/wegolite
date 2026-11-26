@@ -962,9 +962,16 @@ describe("createExplosionLayer: the burst drifts with the dying ship (D-02)", ()
   ): Vec3 {
     const still = recorded().layer;
     const moving = recorded().layer;
-    const base: ExplosionAddOptions = { flash: false, kind };
+    const base: ExplosionAddOptions =
+      kind === undefined ? { flash: false } : { flash: false, kind };
     still.add(position, 20, DEFAULT, 0, base);
-    moving.add(position, 20, DEFAULT, 0, { ...base, velocity });
+    moving.add(
+      position,
+      20,
+      DEFAULT,
+      0,
+      velocity === undefined ? base : { ...base, velocity },
+    );
     still.update(camera, FACING, age);
     moving.update(camera, FACING, age);
     const a = particles(still);

@@ -295,7 +295,7 @@ describe("killPlayer carries the player's total velocity (D-02)", () => {
     const [died] = ofKind(events, "playerDestroyed");
     expect(died?.velocity).toEqual({ x: 0, y: 0, z: -195 });
     expect(died?.velocity).not.toBe(state.drift);
-    state.drift.z = 77;
+    Object.assign(state.drift, { z: 77 });
     expect(died?.velocity.z).toBe(-195);
   });
 });

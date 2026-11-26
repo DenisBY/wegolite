@@ -166,7 +166,7 @@ describe("killShip", () => {
     expect(event?.velocity).toEqual({ x: 1, y: 2, z: -97 });
     expect(event?.velocity).not.toBe(entity.velocity);
     // A later change of the entity's drift never reaches the event.
-    entity.velocity.x = 999;
+    Object.assign(entity.velocity, { x: 999 });
     expect(event?.velocity.x).toBe(1);
   });
 
