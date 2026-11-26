@@ -783,7 +783,7 @@ test("a traffic-on cold start requests no NPC model before the prefetch trigger,
   test.info().annotations.push(
     {
       type: "traffic-npc-requests",
-      description: `${requestedGlbs.length} GLBs, ${npcFinished.length - requestedGlbs.length} textures`,
+      description: `${requestedGlbs.length} GLBs, ${npcFinished.length - requestedGlbs.length} texture responses`,
     },
     {
       type: "traffic-prefetch",
