@@ -160,10 +160,11 @@ describe("texture reference closure", () => {
       expect(names).not.toContain(variant);
       expect(VENDORED_TEXTURES).not.toContain(variant);
     }
-    for (const directory of [
-      "third_party/oolite/Textures",
-      "public/textures",
-    ]) {
+    // Plan 21-02 vendors the Cobra Mk III pirate and alternate maps as inputs
+    // for the 28-record roster (`cobra3-pirate`, `cobra3-alternate`), so
+    // `third_party/oolite/Textures` is no longer checked here. Plan 21-08
+    // replaces this case when the closure grows to include them.
+    for (const directory of ["public/textures"]) {
       const entries = readdirSync(join(REPO_ROOT, directory));
       expect(entries.some((name) => name.includes("diffuse_alt"))).toBe(false);
       expect(entries.some((name) => name.includes("diffuse_pirate"))).toBe(
