@@ -24,14 +24,14 @@ IN-04 and IN-05 carry the `necessity` category. Per the project's deferred-work 
 
 ## Fixed Issues
 
-### WR-01: `buildNeighbourhood` can throw for extreme integer chart coordinates
+### WR-01: `buildNeighbourhood` can throw for extreme integer chart coordinates, though the arrival install block relies on it being total
 
 **Files modified:** `src/sim/world/neighbourhood.ts`, `src/content/schemas/system.ts`, `tests/sim/world/neighbourhood.test.ts`
 **Commit:** e632100f
 **Status:** fixed: requires human verification (a condition change, the logic is checked by tests but not by a human)
 **Applied fix:** `isChartCoordinate` now also requires `0 <= value <= 255` (Oolite's chart byte range), so a record with `chartX` of 9e15 or 1e300 is dropped before any `chartDistance` call. The `SystemSchema` `chartX` and `chartY` got `.min(0).max(255)`. Shipped content spans exactly 0..255 on all 2,048 systems, and `assets:check` reports no differences. Two tests were added: a deterministic one for the extreme values (9e15, -9e15, 1e300, -1e300, 256, -1, MAX_VALUE on either axis) and a fast-check property over ±2^53 integers, ±9e15, 1e300, NaN, Infinity and arbitrary doubles paired with two valid records. Both fail without the fix (checked by stashing `neighbourhood.ts`) and pass with it. Two existing bottleneck fixtures used negative `chartX` (-16, -8); they were translated by +16 (distances are translation invariant), with the same assertions.
 
-### WR-02: Forked RNG streams (assumption A8) had no `FIDELITY.md` row
+### WR-02: The per-entry / per-group / per-site RNG stream design (assumption A8) is a divergence with no `FIDELITY.md` row
 
 **Files modified:** `FIDELITY.md`
 **Commit:** c687f27f
