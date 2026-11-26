@@ -6,17 +6,19 @@ This document records the frame budget Wegolite is held to, what the container m
 
 Each rendered frame must stay inside these limits. Each row names the gate that enforces it.
 
-| Quantity                      | Budget          | Source                                   | Enforced by                                                                                           |
-| ----------------------------- | --------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| Draw calls per rendered frame | at most 50      | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`DRAW_CALL_BUDGET`); `tests/e2e/traffic.spec.ts` for the traffic-on scene |
-| Triangles per rendered frame  | at most 250 000 | STACK.md lines 442-443 (research target) | `tests/e2e/budget.spec.ts` (`TRIANGLE_BUDGET`)                                                        |
-| Planet noise evaluations      | at most 9       | `BUDGET_CEILING` (D-12, unchanged)       | `tests/render/planet-budget.test.ts` (`BUDGET_CEILING = 9`)                                           |
+| Quantity                      | Budget          | Source                                   | Enforced by                                                                                                                                                                                               |
+| ----------------------------- | --------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Draw calls per rendered frame | at most 50      | STACK.md lines 442-443 (research target) | `DRAW_CALL_BUDGET` in `tests/e2e/helpers/budgets.ts`, asserted by `budget.spec.ts`, `traffic.spec.ts` (traffic on), `npc-flight.spec.ts`, `combat.spec.ts` and `anarchy.spec.ts` (the full anarchy, D-05) |
+| Triangles per rendered frame  | at most 250 000 | STACK.md lines 442-443 (research target) | `TRIANGLE_BUDGET` in `tests/e2e/helpers/budgets.ts`, asserted by `budget.spec.ts` and `anarchy.spec.ts`                                                                                                   |
+| Planet noise evaluations      | at most 9       | `BUDGET_CEILING` (D-12, unchanged)       | `tests/render/planet-budget.test.ts` (`BUDGET_CEILING = 9`)                                                                                                                                               |
 
 The budget applies to the default Standard quality, which is what every test renders. The opt-in High quality (the "High-quality graphics" setting) spends up to 17 planet noise evaluations (`HIGH_NOISE_EVAL_BUDGET`) and adds up to five draw calls: one for the atmosphere shell and one per nebula texture. It has no frame-rate evidence yet; measure it with the reference-desktop protocol below before changing the default.
 
 The Settings "Show FPS counter" option shows the animation-frame rate over 500 ms windows, the same interval the sampler below measures, as a quick on-screen reading. It is not QUAL-01 evidence and does not replace the reference-desktop protocol. It is a DOM text element in the document footer, so it adds no draw call and no triangles. Docked, it reports the loop rate, while the redraw gate skips unchanged GPU draws.
 
 Both draw-call and triangle comparisons are inclusive: 50 calls and 250 000 triangles pass, while 51 calls and 250 001 triangles fail. A scene that reports zero calls or zero triangles also fails, so a blank frame cannot pass the budget.
+
+The draw-call budget stayed at 50 through Phase 21's full-anarchy spike (D-05, plan 21-19, 2026-11-26): after fix (1), the per-hull primitive merge of plan 21-17, the 29-hull anarchy draws 39 calls and 42 after a kill with its debris and explosion live, and the bound with all seven debris models present is 49. Fix (2), variant instancing (plan 21-18), is deferred, and no raise is allowed while it is. The numbers are in "Full-anarchy draw-call spike (Phase 21, D-05)" below. The browser budgets and `withinBudget`, the inclusive comparison with the zero rule, have one source, `tests/e2e/helpers/budgets.ts`, proven at the boundary by `tests/app/e2e-budgets.test.ts`.
 
 ## Container measurements
 
@@ -39,6 +41,36 @@ The after-a-kill row (Phase 16, plan 16-09) is the scene of `tests/e2e/combat.sp
 Since quick task 261110-a3k a docked or paused scene is drawn when it is entered and then left alone until something changes (`src/app/redraw-gate.ts`). The docked rows above are the counts of that last draw; they are no longer a per-frame cost. `budget.spec.ts` therefore settles on loop frames (`probe.frames`), not on rendered frames.
 
 The Diso scenes are reached through an IndexedDB save fixture (`tests/e2e/helpers/save-fixtures.ts`) and the spec asserts the live `systemId` is Diso's before reading the counts. Their counts match Lave's because the docked and in-flight scenes have the same structure.
+
+### Full-anarchy draw-call spike (Phase 21, D-05)
+
+`tests/e2e/anarchy.spec.ts` (plan 21-16) spawns one inert ship of every one of the 29 catalogue keys on a ring ahead of the player (`?test=1&traffic=1&clock=manual`), waits until every key's model and textures have arrived and the counters hold still, reads the frame, then kills the `?test=1` cargo shooter with the player's laser and reads again 60 ticks after the kill, with its debris and explosion live. The spec asserts both triangle counts within `TRIANGLE_BUDGET` and both call counts within `DRAW_CALL_BUDGET` through `withinBudget` (`tests/e2e/helpers/budgets.ts`, plan 21-19). SwiftShader counts in the browser-test bundle on the remote test machine.
+
+| D-05 step                                                          | Worst case calls | Worst case triangles | After kill calls | After kill triangles | Run                          |
+| ------------------------------------------------------------------ | ---------------- | -------------------- | ---------------- | -------------------- | ---------------------------- |
+| 21-16 baseline, before any fix                                     | 65               | 77 934               | 68               | 78 598               | plan 21-16                   |
+| After fix (1), every NPC hull merged to one primitive (plan 21-17) | 39               | 77 934               | 42               | 78 598               | `90c5f209`, again `985b9049` |
+| After fix (2a) and (2b), variant families instanced (plan 21-18)   | deferred         | deferred             | deferred         | deferred             | see `21-18-SUMMARY.md`       |
+| Plan 21-19, fix (1) only, with the budget assertions               | 39               | 77 934               | 42               | 78 598               | `f8ea61cb`, 2026-11-26       |
+
+Fix (1) merged all 22 multi-primitive hulls; no hull was refused by a validity condition and the 7 single-primitive hulls were already one primitive, so every NPC key costs exactly one call: 39 = 29 hull calls and the 10 calls of the scene without ships (the `Lave in flight` row above). Fix (2) was deferred by the orchestrator on 2026-11-26 (owner offline, independent reviewer consulted): with the anarchy at 39 and 42 calls no raise is needed, so D-05's precondition for a raise never triggers, and the variant instancing would save about 10 calls with a low-confidence shader patch and no texture-memory benefit. No variant family is split and no hull is refused, because fix (2) did not run. The deferral is recorded under D-05 in `21-CONTEXT.md` and in the Key Decisions row "Draw-call budget and NPC model loading for the v2.4 roster", flagged for owner review; its tripwire is the calls assertion of the anarchy spec, and its work is todo `2026-11-26-npc-variant-family-instancing`.
+
+**Seven-debris upper bound.** The kill shows only the debris models its own pieces use (5 debris entities in this run), and the probe does not name them, so the bound counts all seven stock debris models (`barrel`, `alloy`, `wreck1` to `wreck5`, one primitive each in their GLBs) as not shown: 42 + 7 = **49 calls**. The bound by layer maxima agrees: the 39-call anarchy, plus the laser-shot layer (1 call while any shot is live), the explosion layer (2: cloud and flash) and the debris layer (at most 7) is 49 calls. Both are within the 50-call budget with one call to spare, at the Standard quality the budget applies to (the opt-in High quality adds up to 5 calls). A populator that ever needs a second instanced mesh set per hull key, or an eighth debris model, passes 50 and brings the deferred work back first.
+
+**Triangles.** 77 934 before the kill and 78 598 after it, 31 % of the 250 000-triangle budget. No authorisation covers a triangle raise and none was needed.
+
+**Budget decision.** `DRAW_CALL_BUDGET` stays **50**: the worst measured count after fix (1) is 42 and the seven-debris bound is 49, both within 50, and no raise is allowed while plan 21-18 is deferred. The browser budgets have one source, `tests/e2e/helpers/budgets.ts`, which all five specs import.
+
+**GPU frame time (D-06, one-off).** Measured on 2026-11-26 on the remote test machine's NVIDIA GeForce RTX 4060, renderer string `ANGLE (Microsoft Corporation, D3D12 (NVIDIA GeForce RTX 4060), OpenGL 4.6)`, read from the game page itself, in Chromium 159.0.8154.6 running headed under Xvfb (the `wegolite-pw-mcp` container's GPU recipe), viewport 1920x1080 at `devicePixelRatio` 1, against the production preview (`npm run build`) of `f8ea61cb` served on the same machine. The sampler is the one of "Scenarios and sampler" below, 30 s per row. Fight: `?test=1&traffic=1` on the real clock, launch, speed 0, `spawnTestAnarchy()`, wait until the counters hold at 39 calls (29 ships drawn), then hold the fire key, spawn the 20-capsule cargo shooter and start the sampler at once (start delay 0); the shooter died inside the window and the per-second reads ran 39 to 43 calls. Baseline: `?test=1` (traffic off), Lave in flight after launch, start delay 5 s.
+
+| Row (remote RTX 4060, Chromium 159)                     | Count  | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) | Share above 16.7 ms | Share above 33.3 ms |
+| ------------------------------------------------------- | ------ | -------- | -------- | -------- | -------- | ------------------- | ------------------- |
+| Full-anarchy fight, 60 Hz paced                         | 1 794  | 16.70    | 16.70    | 16.80    | 83.30    | 43.31 %             | 0.11 %              |
+| Baseline, Lave in flight, traffic off, 60 Hz paced      | 1 800  | 16.70    | 16.70    | 16.80    | 16.80    | 41.83 %             | 0 %                 |
+| Full-anarchy fight, unpaced (vsync and frame limit off) | 13 581 | 2.00     | 3.40     | 6.90     | 71.80    | 0.04 %              | 0.03 %              |
+| Baseline, Lave in flight, traffic off, unpaced          | 20 933 | 1.40     | 1.70     | 2.40     | 670.40   | 0.005 %             | 0.005 %             |
+
+The paced rows meet D-05's condition (fight p95 at most 16.7 ms), but they cannot discriminate: Chromium paces rAF at 60 Hz, so the fight and the baseline both read the frame interval (p95 16.70 ms, p99 16.80 ms, the same as the Chrome rows of "Results"). The unpaced rows (launched with `--disable-gpu-vsync --disable-frame-rate-limit`, an addition to the protocol for this reading only) show the headroom the paced rows hide: the fight's p95 is 3.4 ms against the baseline's 1.7 ms. The baseline's unpaced max is one 670 ms stall, outside p99. These readings inform D-05 only. They are **not QUAL-01 evidence** (D-06): QUAL-01's 60 fps evidence remains the reference-desktop protocol below, which is still deferred.
 
 ### Collision stage at the entity cap (informational)
 

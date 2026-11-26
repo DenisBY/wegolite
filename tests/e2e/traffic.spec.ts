@@ -44,6 +44,13 @@ import {
   laveInertWorld,
   poseNearFirstShip,
 } from "../helpers/traffic-fixture.js";
+// The draw-call budget and the cold-start ceiling are the shared ones; the
+// ceiling is unchanged by the owner decision of 2026-11-14 (option A): the same
+// 9 MiB, measured here with traffic on.
+import {
+  DRAW_CALL_BUDGET,
+  FIRST_LOAD_BYTES_CEILING,
+} from "./helpers/budgets.js";
 import { waitForReady } from "./helpers/probe.js";
 import { inFlightSaveAt } from "./helpers/save-fixtures.js";
 import { writeRaw } from "./helpers/save-store.js";
@@ -51,18 +58,6 @@ import { startNewGame } from "./helpers/title.js";
 
 /** A correctness bound, not a performance claim (the SwiftShader loop is slow). */
 const SLOW = 30_000;
-/**
- * The draw-call budget per rendered frame (the same limit as
- * tests/e2e/budget.spec.ts `DRAW_CALL_BUDGET`, unchanged).
- */
-const DRAW_CALL_BUDGET = 50;
-/** One MiB, the rounding unit of the first-load ceiling. */
-const MIB = 1_048_576;
-/**
- * The cold-start ceiling of tests/e2e/budget.spec.ts, unchanged by the owner
- * decision of 2026-11-14 (option A): the same 9 MiB, now measured with traffic on.
- */
-const FIRST_LOAD_BYTES_CEILING = 9 * MIB;
 /**
  * The window, in loop frames (`probe.frames`) counted from the first in-flight
  * frame, within which the NPC models of the present keys and their textures

@@ -13,11 +13,12 @@
  * player's lasers on the `?test=1` cargo shooter) and reads both again with the
  * kill's debris and explosion live.
  *
- * Numbers, not assertions: this plan asserts no budget. The four counts are
- * attached to the report and printed; plan 21-19 records them in
- * `docs/PERFORMANCE.md`, compares the calls with the draw-call budget and the
- * triangles with the 250,000 triangle budget and adds those assertions, after
- * plans 21-17 and 21-18 apply the D-05 fixes and re-measure on this spec.
+ * The four counts are attached to the report and printed, and compared with
+ * the shared budgets of `helpers/budgets.ts` (plan 21-19): both triangle counts
+ * must be within `TRIANGLE_BUDGET` (250,000; no authorisation covers a triangle
+ * raise), and both call counts within `DRAW_CALL_BUDGET` (50, kept by D-05
+ * after fix (1); the tripwire of the deferred plan 21-18). `docs/PERFORMANCE.md`
+ * "Full-anarchy draw-call spike" records them.
  *
  * Readiness is by key, never a fixed sleep: every catalogue key's GLB and the
  * textures it references (the NPC-owned ones) must have finished downloading,
@@ -38,6 +39,11 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import {
+  DRAW_CALL_BUDGET,
+  TRIANGLE_BUDGET,
+  withinBudget,
+} from "./helpers/budgets.js";
 import { waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
@@ -368,12 +374,37 @@ test("a full anarchy of the 29 hulls and a fight with its debris and explosion: 
       type: "anarchy-after-kill",
       description: `${afterKill.calls} calls, ${afterKill.triangles} triangles (debris and explosion live, kill + ${AFTER_KILL_TICKS} ticks)`,
     },
+    {
+      type: "anarchy-calls-within-budget",
+      description: `worst case ${withinBudget(worst.calls, DRAW_CALL_BUDGET)}, after kill ${withinBudget(afterKill.calls, DRAW_CALL_BUDGET)} (budget ${DRAW_CALL_BUDGET})`,
+    },
   );
   await test.info().attach("anarchy-counts", {
     body: JSON.stringify(report, null, 2),
     contentType: "application/json",
   });
   console.log(`anarchy-counts: ${JSON.stringify(report)}`);
+
+  // The 21-18 deferral tripwire (orchestrator decision 2026-11-26): fix (2) of
+  // D-05 is deferred because fix (1) put the anarchy within the budget, so a
+  // call count above it brings todo 2026-11-26-npc-variant-family-instancing
+  // back before any raise.
+  expect(
+    withinBudget(worst.calls, DRAW_CALL_BUDGET),
+    `worst-case calls ${worst.calls} within the ${DRAW_CALL_BUDGET}-call budget`,
+  ).toBe(true);
+  expect(
+    withinBudget(afterKill.calls, DRAW_CALL_BUDGET),
+    `after-kill calls ${afterKill.calls} within the ${DRAW_CALL_BUDGET}-call budget`,
+  ).toBe(true);
+  expect(
+    withinBudget(worst.triangles, TRIANGLE_BUDGET),
+    `worst-case triangles ${worst.triangles} within the ${TRIANGLE_BUDGET} triangle budget`,
+  ).toBe(true);
+  expect(
+    withinBudget(afterKill.triangles, TRIANGLE_BUDGET),
+    `after-kill triangles ${afterKill.triangles} within the ${TRIANGLE_BUDGET} triangle budget`,
+  ).toBe(true);
 
   expect(errors).toEqual([]);
 });

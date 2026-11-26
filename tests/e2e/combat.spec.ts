@@ -47,6 +47,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import { DRAW_CALL_BUDGET } from "./helpers/budgets.js";
 import { waitForReady } from "./helpers/probe.js";
 import { startNewGame } from "./helpers/title.js";
 
@@ -150,8 +151,6 @@ function bankDial(energy: number): [number, number, number, number] {
   return [bank(3), bank(2), bank(1), bank(0)];
 }
 
-/** Draw calls per rendered frame (docs/PERFORMANCE.md, budget.spec.ts). */
-const DRAW_CALL_BUDGET = 50;
 /** Loop frames to wait for after a step, so the counters describe a settled scene. */
 const SETTLE_FRAMES = 3;
 
