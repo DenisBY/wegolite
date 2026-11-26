@@ -33,9 +33,9 @@ import {
 import type { CensusRow } from "./population-census.js";
 
 /** Galaxies censused: `0..GALAXIES-1`. */
-const GALAXIES = 1;
+const GALAXIES = 8;
 /** Epochs censused: `1..EPOCHS`. */
-const EPOCHS = 1;
+const EPOCHS = 20;
 
 const OUTPUT = new URL(
   "../golden/world/population-census.json",

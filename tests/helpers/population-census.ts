@@ -20,6 +20,7 @@ import type { System } from "../../src/content/types.js";
 import { marketSeedForSystem } from "../../src/sim/economy/market.js";
 import { worldSeedFor } from "../../src/sim/rng.js";
 import { deriveSystemLayout } from "../../src/sim/world/layout.js";
+import { POPULATION_ENTITY_LIMIT } from "../../src/sim/world/limits.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { buildNeighbourhood } from "../../src/sim/world/neighbourhood.js";
 import { systemFactsFrom } from "../../src/sim/world/population/plan.js";
@@ -242,6 +243,12 @@ export interface CensusStats {
   };
   readonly peakCalls: WorldRef & { readonly calls: number };
   readonly peakKeys: WorldRef & { readonly keys: number };
+  /** The entity limit, the largest world's ships and the room left under it (D-06). */
+  readonly peakHeadroom: {
+    readonly limit: number;
+    readonly ships: number;
+    readonly headroom: number;
+  };
 }
 
 /** Rows ordered by system order (galaxy, then index) and epoch: the census order. */
@@ -329,6 +336,11 @@ export function summarise(input: readonly CensusRow[]): CensusStats {
       system: peakKeys.id,
       epoch: peakKeys.epoch,
       keys: peakKeys.keys,
+    },
+    peakHeadroom: {
+      limit: POPULATION_ENTITY_LIMIT,
+      ships: peak.ships,
+      headroom: POPULATION_ENTITY_LIMIT - peak.ships,
     },
   };
 }
