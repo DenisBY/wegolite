@@ -126,9 +126,14 @@ export function internalDamageFactsFor(
 }
 
 /**
- * The debris content per system, derived once per content object and system id
+ * The debris content per system, derived once per content object and system
  * (plan 21-15): a pod's draw is a pure function of the content, so the same
- * object comes back for the same inputs and no step rebuilds the market.
+ * object comes back for the same inputs and no step rebuilds the market. The
+ * inner key is the system id and its economy, the two inputs
+ * `firstGenerationMarket` reads (review APP-IN-02): in shipped content the id
+ * determines the economy, but the cache is module-wide, so a caller that reuses
+ * one content object with a synthetic system of the same id and another economy
+ * must not get the first market.
  */
 const debrisBySystem = new WeakMap<DebrisContent, Map<string, DebrisContent>>();
 
@@ -152,7 +157,8 @@ function debrisWithMarket(
     bySystem = new Map();
     debrisBySystem.set(debris, bySystem);
   }
-  const cached = bySystem.get(system.id);
+  const key = `${system.id}:${String(system.economy)}`;
+  const cached = bySystem.get(key);
   if (cached !== undefined) return cached;
   const market: readonly PodMarketEntry[] = Object.freeze(
     firstGenerationMarket(system, debris.goods).goods.map(
@@ -164,7 +170,7 @@ function debrisWithMarket(
     ),
   );
   const derived: DebrisContent = Object.freeze({ ...debris, market });
-  bySystem.set(system.id, derived);
+  bySystem.set(key, derived);
   return derived;
 }
 

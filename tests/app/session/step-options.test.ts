@@ -307,6 +307,22 @@ describe("buildStepOptions and the pod market (plan 21-15, CBT-11 pod clause)", 
     );
   });
 
+  it("keys the cache by id and economy: a same-id system with another economy gets its own market (review APP-IN-02)", () => {
+    const shifted = {
+      ...lave.system,
+      economy: (lave.system.economy + 4) % 8,
+    };
+    expect(stockOf(shifted)).not.toEqual(stockOf(lave.system));
+    // Warm the cache for Lave first, then ask for the same id.
+    buildStepOptions({ ...input, debris: goodsContent });
+    const options = buildStepOptions({
+      ...input,
+      system: shifted,
+      debris: goodsContent,
+    });
+    expect(options.combat?.debris?.market).toEqual(stockOf(shifted));
+  });
+
   it("is a function of the system and its seed only, never of the live market or the profile", () => {
     const equipped = buildStepOptions({
       ...input,
