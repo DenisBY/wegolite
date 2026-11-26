@@ -36,9 +36,18 @@
  */
 
 import type { CargoKindName, WeaponTypes } from "../entity.js";
+import { POPULATOR_ENTRIES } from "./table.js";
 import type { PopulatorEntry } from "./table.js";
-import type { SystemFacts } from "./plan.js";
+import { planCounts } from "./plan.js";
+import type { CountDraws, SystemFacts } from "./plan.js";
 import type { PopulationDraws } from "./streams.js";
+import {
+  buildInterceptors,
+  buildLightHunter,
+  buildPolicePatrol,
+  buildStationPatrol,
+} from "./police.js";
+import { buildIndependentPirate, buildPiratePack } from "./pirates.js";
 import {
   buildCourierLong,
   buildCourierShort,
@@ -120,6 +129,13 @@ export interface GroupPlan {
   /** The group number within the entry. */
   readonly groupIndex: number;
   readonly location: PopulatorEntry["location"];
+  /**
+   * Whether the group is a remote pirate pack: the script shifts the lane
+   * position with `pos.z = pos.z % 100000` before the callback runs
+   * (`oolite-populator.js:1881-1885`); the spawner applies `remotePackZ`
+   * (`pirates.ts`) to the centre's z.
+   */
+  readonly remotePack: boolean;
   readonly ships: readonly PlannedPopShip[];
 }
 
@@ -154,6 +170,14 @@ export interface BuildOptions {
   readonly groupIndex: number;
   /** The arriving branch of the script; false is a station launch. Default true. */
   readonly arriving?: boolean;
+  /**
+   * The `pos.z` the callback was given, for the one test the script makes on it:
+   * an independent pirate takes its missile-test draw `if (pos.z)`, so only a z
+   * of exactly 0 (or NaN) skips the draw (`oolite-populator.js:1725`). Absent
+   * counts non-zero, which is every planned position (placement happens after
+   * planning, plan 22-10).
+   */
+  readonly posZ?: number | undefined;
 }
 
 /**
@@ -183,6 +207,41 @@ export function buildGroup(
     case "smuggler":
       ships = buildSmuggler(facts, records, draws, { arriving });
       break;
+    case "lightHunter":
+      ships = buildLightHunter(facts, records, draws);
+      break;
+    case "policePatrol":
+      ships = buildPolicePatrol(facts, records, draws);
+      break;
+    case "stationPatrol":
+      ships = buildStationPatrol(facts, records, draws);
+      break;
+    case "interceptors":
+      ships = buildInterceptors(facts, records, draws);
+      break;
+    case "independentPirate":
+      ships = buildIndependentPirate(facts, records, draws, {
+        posZ: options.posZ,
+      });
+      break;
+    case "lightPirateLocal":
+      ships = buildPiratePack(facts, records, draws, "light", false);
+      break;
+    case "lightPirateRemote":
+      ships = buildPiratePack(facts, records, draws, "light", true);
+      break;
+    case "mediumPirateLocal":
+      ships = buildPiratePack(facts, records, draws, "medium", false);
+      break;
+    case "mediumPirateRemote":
+      ships = buildPiratePack(facts, records, draws, "medium", true);
+      break;
+    case "heavyPirateLocal":
+      ships = buildPiratePack(facts, records, draws, "heavy", false);
+      break;
+    case "heavyPirateRemote":
+      ships = buildPiratePack(facts, records, draws, "heavy", true);
+      break;
     default:
       break;
   }
@@ -190,6 +249,62 @@ export function buildGroup(
     ordinal: entry.ordinal,
     groupIndex: options.groupIndex,
     location: entry.location,
+    remotePack:
+      entry.builder === "lightPirateRemote" ||
+      entry.builder === "mediumPirateRemote" ||
+      entry.builder === "heavyPirateRemote",
     ships,
   });
+}
+
+/**
+ * Where a system's draws come from: the `count` draws of each counted entry and
+ * the draws of one group. Production gives each its own forked stream
+ * (`countDrawSource` and `populationDraws` of `streams.ts`); the replay gives
+ * the recorded draws through the same interfaces.
+ */
+export interface SystemDraws {
+  /** The next `count` draw of an entry (the three draws of its `randomise`). */
+  readonly counts: CountDraws;
+  /** The draws of group `groupIndex` of the entry `ordinal`. */
+  readonly group: (ordinal: number, groupIndex: number) => PopulationDraws;
+}
+
+/**
+ * The groups of a whole system: `planCounts` for the group count of every kept
+ * entry, then `buildGroup` for each entry and group index, in engine order (a
+ * stable sort by priority, equal priorities in registration order,
+ * `Universe.m:9990-10001`). Within a group the ships are in creation order: the
+ * leader, its engine escorts, then the script's own additions. A group whose
+ * role no record carries is planned with no ships. Placement is not planned
+ * here; a remote pack's group says so (`remotePack`) and the spawner applies
+ * `remotePackZ`.
+ *
+ * Total (T-22-13): every group count is clamped to `MAX_ENTITIES` by
+ * `planCounts` and every `addGroup` size to `1..64`, whatever the facts.
+ */
+export function planSystemGroups(
+  facts: SystemFacts,
+  records: readonly PopulationRecord[],
+  draws: SystemDraws,
+): readonly GroupPlan[] {
+  const plans: GroupPlan[] = [];
+  for (const planned of planCounts(facts, draws.counts)) {
+    const entry = POPULATOR_ENTRIES[planned.ordinal];
+    if (entry === undefined) {
+      continue;
+    }
+    for (let groupIndex = 0; groupIndex < planned.count; groupIndex += 1) {
+      plans.push(
+        buildGroup(
+          entry,
+          facts,
+          records,
+          draws.group(planned.ordinal, groupIndex),
+          { groupIndex },
+        ),
+      );
+    }
+  }
+  return plans;
 }

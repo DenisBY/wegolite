@@ -39,12 +39,13 @@ import type { PlannedPopShip, PopulationRecord, ShipDraft } from "./groups.js";
 import {
   MEDICAL_PATTERN,
   boundedBounty,
+  chartDistance,
   createPlannedShip,
   finishShips,
   listOf,
   numberOf,
-  pickPopulationRecord,
   readField,
+  roleExists,
   setFuel,
   setSkill,
   setWeapons,
@@ -150,41 +151,9 @@ export function buildFreighter(
 
 // --- Couriers (plan 22-08) ---------------------------------------------------
 
-/**
- * `Neighbourhood.distanceTo` of untrusted facts as a total function: an
- * unknown system, or facts without the function, give no distance.
- */
-function chartDistance(
-  facts: SystemFacts,
-): (systemIndex: number) => number | undefined {
-  const distanceTo = readField(facts.neighbourhood, "distanceTo");
-  return (systemIndex) => {
-    if (typeof distanceTo !== "function") {
-      return undefined;
-    }
-    const distance = (distanceTo as (index: number) => unknown).call(
-      facts.neighbourhood,
-      systemIndex,
-    );
-    return typeof distance === "number" ? distance : undefined;
-  };
-}
-
 /** The `_nearbySystem` ranges of the courier and smuggler callbacks, in LY. */
 const NEAR_RANGE_LY = 7;
 const LONG_RANGE_LY = 25;
-
-/**
- * `_roleExists` (`oolite-populator.js:2162-2170`): whether the catalogue has a
- * record for the role (`Ship.keysForRole`). Dead with the shipped catalogue,
- * which carries `trader-courier` and `trader-smuggler`; ported as written.
- */
-function roleExists(
-  records: readonly PopulationRecord[],
-  role: string,
-): boolean {
-  return pickPopulationRecord(0, records, role) !== undefined;
-}
 
 /**
  * `_nearbySystem(range)` (`oolite-populator.js:2477-2487`): a system chosen
