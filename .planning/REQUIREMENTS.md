@@ -15,7 +15,7 @@ Requirements for milestone v2.4 Pirates and Police (Phases 21 onward). IDs and w
 
 ### World population
 
-- [ ] **WORLD-08**: Each system is populated with traders, pirates (independents and packs), police and light bounty hunters at Oolite's rates for its government, economy, tech level and neighbours (`oolite-populator.js`), matching recorded oracle fixtures of Oolite's own script. *(Narrowed: scavengers, shuttles, medium and heavy hunters deferred.)*
+- [x] **WORLD-08**: Each system is populated with traders, pirates (independents and packs), police and light bounty hunters at Oolite's rates for its government, economy, tech level and neighbours (`oolite-populator.js`), matching recorded oracle fixtures of Oolite's own script. *(Narrowed: scavengers, shuttles, medium and heavy hunters deferred.)*
 - [ ] **WORLD-19**: The system is repopulated every 20 s by Oolite's rates (witchpoint arrivals, station launches), deterministically and bounded by a populator ceiling and entity-cap rule set from measured data.
 - [ ] **WORLD-09**: NPC ships launch from the main station and leave the system (dock at the station, jump out at the witchpoint, land on the planet) through a simplified stand-in with one seam for a later faithful port; a departing ship never explodes, drops cargo or credits a kill. *(Recorded divergence from Oolite's station queue and NPC docking.)*
 - [x] **QUAL-09**: A full anarchy population with combat stays within the draw-call budget; a render spike measures it before the populator ships, and any budget raise is an owner decision.
@@ -86,7 +86,7 @@ D1 bounty at the kill (Oolite); D2 minimal station responder; D3 simplified NPC 
 | FOUND-20 | Phase 21 | Complete |
 | DATA-17 | Phase 21 | Complete |
 | DATA-18 | Phase 21 | Complete |
-| WORLD-08 | Phase 22 | Pending |
+| WORLD-08 | Phase 22 | Complete |
 | QUAL-09 | Phase 22 | Complete |
 | AI-02 | Phase 23 | Pending |
 | AI-03 | Phase 23 | Pending |
