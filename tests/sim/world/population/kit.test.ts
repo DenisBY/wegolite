@@ -317,6 +317,21 @@ describe("the record pick", () => {
     );
   });
 
+  it("walks float32 cumulative weights, as OOProbabilitySet does", () => {
+    // Weights 0.1, 0.2 and 0.3 sum to 0.6000000238 in float32; half of it is
+    // exactly the cumulative weight of the second record, which Oolite returns
+    // (the leftmost record that reaches the target). In doubles the target is
+    // 0.30000000000000004, not above the second cumulative weight, so a double
+    // walk would go on to the third record.
+    const weighted = [0.1, 0.2, 0.3].map((weight, at) => ({
+      key: `r${String(at)}`,
+      roles: [`x(${String(weight)})`],
+    }));
+    expect(pickPopulationRecord(0.5, weighted, "x")?.key).toBe("r1");
+    expect(pickPopulationRecord(0.1, weighted, "x")?.key).toBe("r0");
+    expect(pickPopulationRecord(0.99, weighted, "x")?.key).toBe("r2");
+  });
+
   it("never picks a record without a positive weight for the role", () => {
     fc.assert(
       fc.property(fc.double({ min: 0, max: 1, maxExcluded: true }), (draw) => {
