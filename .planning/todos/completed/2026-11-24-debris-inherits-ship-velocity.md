@@ -57,3 +57,7 @@ Solution direction for this part: carry the dying ship's velocity in the
 explosion event (the player's from `killPlayer`, an NPC's from `killShip`) and
 offset each burst's centre by `velocity x t` in the layer, with the 0.85 factor
 for big bursts; update E-173 and E-179.
+
+## Resolution
+
+Implemented in Phase 21 (decisions D-01 to D-03, plans 21-13 and 21-15): debris and pods inherit the dying ship's velocity; see 21-13-SUMMARY.md and 21-15-SUMMARY.md.

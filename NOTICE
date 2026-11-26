@@ -59,6 +59,14 @@ re-encoded to WebP by Wegolite's build (lossy for the diffuse and specular
 maps, near-lossless for the normal maps, with the unused alpha channel of the
 diffuse and normal maps dropped); they are derivative works of those textures
 and remain CC BY-NC-SA 3.0, never GPL, under the same attribution,
+non-commercial and share-alike terms. The per-hull NPC texture atlases
+`public/textures/*_atlas_*.webp` and `public/textures/*_atlas_*.png` are
+composites built by Wegolite's build from those Oolite PNG textures: each hull's
+maps are packed into one image with mirrored edge gutters (a roughness atlas
+holds each region's material roughness as one constant value), then encoded as
+above; each is a
+derivative work of the textures it is built from, which its `ASSETS.md` row
+names, and remains CC BY-NC-SA 3.0, never GPL, under the same attribution,
 non-commercial and share-alike terms. The four sky textures
 `public/textures/oolite-nebula-*.png` are byte-identical to the vendored
 originals and are redistributed unmodified under the same licence. The two
@@ -76,11 +84,14 @@ non-commercial use only and share-alike terms.
 
 The generated NPC ship record file `src/content/generated/ships-npc.json` is
 compiled at build time from the vendored Oolite `shipdata.plist` (with
-`like_ship` resolved, for nine NPC ships: the roles, AI name, scan class, model
+`like_ship` resolved, for every NPC ship record of the roster: the roles, AI name, scan class, model
 and display name, the maximum energy and energy recharge rate, the forward, aft,
 port and starboard weapon types and positions gated by `weapon_facings`, the
 flight constants (maximum speed, roll and pitch rate, and thrust),
-`likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type`) and from
+`likely_cargo`, `max_cargo`, `fragment_chance` and `explosion_type`, the
+bounty, escort count and escort roles, missiles, fuel, fuel injection, cargo
+scoop and its position, laser colour, auto-AI and auto-weapons flags and
+whether the ship counts as a kill) and from
 the vendored Oolite `.dat` models: the `mass` of each record is computed by
 Wegolite's port of Oolite's octree volume rule over the hull and its solid
 subentities, and the `radius` of each record is computed from the same vendored
@@ -93,7 +104,7 @@ non-commercial use only and share-alike terms.
 
 The generated hull file `src/content/generated/ships-hulls.json` is compiled at
 build time from the vendored Oolite `.dat` models of the player Cobra Mk III
-(`oolite_cobra3`) and the nine NPC ships: for each hull it carries the octree
+(`oolite_cobra3`) and the NPC ship models of the roster: for each hull it carries the octree
 Wegolite's port of Oolite's octree builder computes from the model, and the hull
 collision radius computed as for `ships-npc.json`. It is a derivative work of
 those models and remains CC BY-NC-SA 3.0, never GPL, with attribution to the
