@@ -8,6 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Explosions now move with the ship that blew up, as in Oolite, including your
+  own: a ship destroyed at speed leaves its fireball and sparks travelling on
+  along its course instead of hanging where it died.
 - With NPC traffic on, the game now downloads the NPC ship models in the
   background while you are docked, two at a time, so ships draw at once when
   they first appear. The download is outside the first-load size limit and is
