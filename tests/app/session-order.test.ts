@@ -119,6 +119,7 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
   },
   shipDestroyed: {
     kind: "shipDestroyed",
+    velocity: { x: 7, y: 8, z: 9 },
     id: 101,
     position: { x: 10, y: 20, z: 30 },
     radius: 40,
@@ -129,6 +130,7 @@ const EVENTS: Readonly<Record<RoutedKind, SimEvent>> = {
   cargoDestroyed: { kind: "cargoDestroyed", commodity: "food", amount: 1 },
   playerDestroyed: {
     kind: "playerDestroyed",
+    velocity: { x: 0, y: 0, z: 0 },
     position: { x: 1, y: 2, z: 3 },
     cause: { damage: "laser", culprit: "viper" },
   },
@@ -1062,7 +1064,16 @@ describe("shipDestroyed reaches the scene's explosion layer (WORLD-17, D16-21)",
   it("adds the position, the radius, the compiled setting and the flight clock, once", () => {
     const { h, added } = withExplosions();
     h.router.dispatch(EVENTS.shipDestroyed);
-    expect(added).toEqual([[{ x: 10, y: 20, z: 30 }, 40, SETTING, 12.5]]);
+    // D-02: the event's velocity rides to the layer as the add's option.
+    expect(added).toEqual([
+      [
+        { x: 10, y: 20, z: 30 },
+        40,
+        SETTING,
+        12.5,
+        { velocity: { x: 7, y: 8, z: 9 } },
+      ],
+    ]);
     // No message and no feedback envelope.
     expect(h.log).toEqual([]);
   });
@@ -1071,6 +1082,7 @@ describe("shipDestroyed reaches the scene's explosion layer (WORLD-17, D16-21)",
     const { h, added } = withExplosions();
     const event = {
       kind: "shipDestroyed",
+      velocity: { x: 0, y: 0, z: 0 },
       position: { x: 1, y: 2, z: 3 },
       radius: 5,
       get id(): never {
@@ -1156,6 +1168,7 @@ describe("an unrouted kind", () => {
       },
       shipDestroyed: {
         kind: "shipDestroyed",
+        velocity: { x: 0, y: 0, z: 0 },
         id: 101,
         position: { x: 0, y: 0, z: 0 },
         radius: 1,
@@ -1194,6 +1207,7 @@ describe("an unrouted kind", () => {
       },
       playerDestroyed: {
         kind: "playerDestroyed",
+        velocity: { x: 0, y: 0, z: 0 },
         position: { x: 0, y: 0, z: 0 },
         cause: { damage: "laser" },
       },

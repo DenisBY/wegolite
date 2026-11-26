@@ -12,17 +12,21 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 
 import {
+  BIG_BURST_DRIFT_FACTOR,
   BIG_BURST_DURATION,
   BIG_BURST_MIN_SPEED_BASE,
   BIG_BURST_MIN_SPEED_PER_RADIUS,
   BIG_BURST_SIZE_FACTOR,
   BIG_BURST_SPEED_SPAN,
+  CLOUD_DRIFT_FACTOR,
+  CLOUD_MAX_DRIFT_SPEED,
   EXPLOSION_MAX_PARTICLES,
   EXPLOSION_POOL,
   FLASH_ALPHA,
   FLASH_DURATION,
   FLASH_GROWTH_FACTOR,
   FLASH_MIN_GROWTH,
+  SMALL_BURST_DRIFT_FACTOR,
   SMALL_BURST_DURATION,
   SMALL_BURST_MAX_SPEED,
   SMALL_BURST_MIN_SPEED,
@@ -943,5 +947,107 @@ describe("createExplosionLayer: lazy textures and disposal", () => {
     }).not.toThrow();
     expect(urls).toEqual([]);
     expect(drawObjects(layer)).toBe(0);
+  });
+});
+
+describe("createExplosionLayer: the burst drifts with the dying ship (D-02)", () => {
+  const position = vec(5, 6, 7);
+  const camera = vec(0, 0, 0);
+
+  /** The mean offset of every drawn particle from a still twin, per axis. */
+  function centreShift(
+    kind: ExplosionBurstKind | undefined,
+    velocity: Vec3 | undefined,
+    age: number,
+  ): Vec3 {
+    const still = recorded().layer;
+    const moving = recorded().layer;
+    const base: ExplosionAddOptions = { flash: false, kind };
+    still.add(position, 20, DEFAULT, 0, base);
+    moving.add(position, 20, DEFAULT, 0, { ...base, velocity });
+    still.update(camera, FACING, age);
+    moving.update(camera, FACING, age);
+    const a = particles(still);
+    const b = particles(moving);
+    expect(b).toHaveLength(a.length);
+    expect(a.length).toBeGreaterThan(0);
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    for (let i = 0; i < a.length; i += 1) {
+      x += (b[i]?.position.x ?? 0) - (a[i]?.position.x ?? 0);
+      y += (b[i]?.position.y ?? 0) - (a[i]?.position.y ?? 0);
+      z += (b[i]?.position.z ?? 0) - (a[i]?.position.z ?? 0);
+    }
+    return vec(x / a.length, y / a.length, z / a.length);
+  }
+
+  it("pins Oolite's two burst factors and the cloud cap", () => {
+    expect(SMALL_BURST_DRIFT_FACTOR).toBe(1);
+    expect(BIG_BURST_DRIFT_FACTOR).toBe(0.85);
+    expect(CLOUD_DRIFT_FACTOR).toBe(1);
+    expect(CLOUD_MAX_DRIFT_SPEED).toBe(1000);
+  });
+
+  it("moves a small burst's centre by velocity x t (1x): 5 m along +x in 0.5 s", () => {
+    const shift = centreShift("small", vec(10, 0, 0), 0.5);
+    expect(shift.x).toBeCloseTo(5, 3);
+    expect(shift.y).toBeCloseTo(0, 3);
+    expect(shift.z).toBeCloseTo(0, 3);
+  });
+
+  it("moves a big burst's centre at 0.85x: 4.25 m in 0.5 s", () => {
+    const shift = centreShift("big", vec(10, 0, 0), 0.5);
+    expect(shift.x).toBeCloseTo(4.25, 3);
+  });
+
+  it("moves the ordinary cloud at 1x, cut to 1000 m/s above that", () => {
+    expect(centreShift(undefined, vec(10, 0, 0), 0.5).x).toBeCloseTo(5, 3);
+    // 3000 m/s along +y is cut to 1000 m/s: 500 m in 0.5 s, not 1500 m.
+    const fast = centreShift(undefined, vec(0, 3000, 0), 0.5);
+    expect(fast.y).toBeCloseTo(500, 1);
+    expect(fast.x).toBeCloseTo(0, 3);
+  });
+
+  it("leaves a still add exactly where it was: no velocity, or a zero one", () => {
+    for (const velocity of [undefined, vec(0, 0, 0)]) {
+      for (const kind of [undefined, "small", "big"] as const) {
+        const shift = centreShift(kind, velocity, 0.4);
+        expect(shift).toEqual(vec(0, 0, 0));
+      }
+    }
+  });
+
+  it("moves the flash with the whole velocity (OOFlashEffectEntity.m:74-76)", () => {
+    const still = recorded().layer;
+    const moving = recorded().layer;
+    still.add(position, 20, DEFAULT, 0);
+    moving.add(position, 20, DEFAULT, 0, { velocity: vec(10, 0, 0) });
+    still.update(camera, FACING, 0.2);
+    moving.update(camera, FACING, 0.2);
+    expect(
+      flashAt(moving, 0).position.x - flashAt(still, 0).position.x,
+    ).toBeCloseTo(2, 3);
+  });
+
+  it("treats a non-finite component as 0 and keeps every instance finite at the sanitiser bound", () => {
+    const shift = centreShift("small", vec(Number.NaN, 10, Infinity), 0.5);
+    expect(shift.x).toBeCloseTo(0, 3);
+    expect(shift.y).toBeCloseTo(5, 3);
+    expect(shift.z).toBeCloseTo(0, 3);
+    // MAX_ENTITY_VELOCITY (1e4) per component over a whole lifetime.
+    const { layer } = recorded();
+    layer.add(position, 20, DEFAULT, 0, {
+      kind: "big",
+      velocity: vec(1e4, -1e4, 1e4),
+    });
+    for (const t of [0, 0.5, 0.99]) {
+      layer.update(camera, FACING, t);
+      for (const particle of particles(layer)) {
+        expect(Number.isFinite(particle.position.x)).toBe(true);
+        expect(Number.isFinite(particle.position.y)).toBe(true);
+        expect(Number.isFinite(particle.position.z)).toBe(true);
+      }
+    }
   });
 });

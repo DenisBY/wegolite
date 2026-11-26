@@ -75,9 +75,16 @@
  * with `fnv1a32` of the event's position and radius, never from a sim stream,
  * so the world hash cannot depend on this layer. The layer stores positions,
  * times and colours only: no entity id, no killer. The system scene owns and
- * disposes it, so a jump or a Load clears it. Oolite's cloud also drifts with
- * the dead ship's velocity (`OOExplosionCloudEntity.m:62, 102-105`); the event
- * carries none, so the cloud stays where the ship died.
+ * disposes it, so a jump or a Load clears it. Oolite's explosions drift with
+ * the dead ship's velocity (D-02): the cloud at the whole velocity, cut to
+ * 1000 m/s (`OOExplosionCloudEntity.m:62, 102-105`), a small burst at 1x
+ * (`OOParticleSystem.m:274`) and a big burst at 0.85x (`:324`), each moving
+ * its centre by velocity x factor x age on this layer's clock. The flash too:
+ * `explosionFlashFromEntity` hands it `[entity velocity]`
+ * (`OOFlashEffectEntity.m:74-76`) and `Entity -update:` integrates it
+ * (`Entity.m:869`, `applyVelocity:` at `:878-881`; no effect class overrides
+ * either), so it moves at 1x. The velocity is a copy in the event; an add
+ * without one stays where the ship died.
  *
  * **Textures.** The cloud texture and `oolite-particle-flash.png` (Oolite's
  * flash texture, `OOFlashEffectEntity.m:125`) are requested on the first
@@ -196,6 +203,29 @@ export const BIG_BURST_SIZE_FACTOR = 2;
 /** Big burst: the lifetime in seconds, `duration:1.0` (`src/Core/Entities/OOParticleSystem.m:311`). */
 export const BIG_BURST_DURATION = 1;
 
+/**
+ * Small burst: the fraction of the dying ship's velocity the burst's centre
+ * moves at, 1 (`velocity:[entity velocity]`, `src/Core/Entities/OOParticleSystem.m:274`).
+ */
+export const SMALL_BURST_DRIFT_FACTOR = 1;
+
+/**
+ * Big burst: the fraction of the dying ship's velocity, 0.85
+ * (`vector_multiply_scalar([entity velocity], 0.85)`, `src/Core/Entities/OOParticleSystem.m:324`).
+ */
+export const BIG_BURST_DRIFT_FACTOR = 0.85;
+
+/**
+ * The ordinary ship-explosion cloud moves with the whole velocity too
+ * (`Vector vel = [entity velocity]`, `src/Core/Entities/OOExplosionCloudEntity.m:62`),
+ * but a velocity above `CLOUD_MAX_DRIFT_SPEED` is cut to that length at the
+ * same heading (`:102-105`, "slow down rapidly translating explosions").
+ */
+export const CLOUD_DRIFT_FACTOR = 1;
+
+/** The longest drift of an ordinary cloud in m/s (`OOExplosionCloudEntity.m:102-105`: a squared magnitude above 1000000 is cut to 1000). */
+export const CLOUD_MAX_DRIFT_SPEED = 1000;
+
 /** The fragment-burst kinds of `becomeLargeExplosion:` (D-01a). */
 export type ExplosionBurstKind = "small" | "big";
 
@@ -233,6 +263,15 @@ export interface ExplosionAddOptions {
    * form is the remaining divergence (DIV-2). Any other kind is skipped.
    */
   readonly kind?: ExplosionBurstKind;
+  /**
+   * The dying ship's total velocity in m/s (D-02, the event's `velocity`).
+   * Each burst's centre moves by it times its kind's factor
+   * (`SMALL_BURST_DRIFT_FACTOR`, `BIG_BURST_DRIFT_FACTOR`, `CLOUD_DRIFT_FACTOR`)
+   * times the burst's age; the flash moves at the whole velocity. Absent, or
+   * with a non-finite component (that component counts as 0), the explosion
+   * stays where the ship died, as before.
+   */
+  readonly velocity?: Vec3;
 }
 
 /** The explosion layer of one system scene. */
@@ -288,6 +327,11 @@ const CLOUD_CAPACITY = EXPLOSION_POOL * EXPLOSION_MAX_PARTICLES;
 
 function finiteVec(v: Vec3): boolean {
   return Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
+}
+
+/** `n` when it is a finite number, else 0 (a missing velocity component). */
+function finiteOr0(n: number | undefined): number {
+  return n !== undefined && Number.isFinite(n) ? n : 0;
 }
 
 function clamp01(value: number): number {
@@ -362,6 +406,10 @@ export function createExplosionLayer(
 ): ExplosionLayer {
   // Per slot (float64 where it is a world value or a time).
   const origin = new Float64Array(EXPLOSION_POOL * 3);
+  // The cloud's centre velocity (factor and cap applied) and the flash's own
+  // (the whole velocity), both in m/s; zero for an add with no velocity.
+  const cloudVelocity = new Float64Array(EXPLOSION_POOL * 3);
+  const flashVelocity = new Float64Array(EXPLOSION_POOL * 3);
   // NaN marks an empty slot.
   const startTime = new Float64Array(EXPLOSION_POOL).fill(Number.NaN);
   const particleCount = new Uint8Array(EXPLOSION_POOL);
@@ -507,6 +555,28 @@ export function createExplosionLayer(
       origin[slot * 3] = position.x;
       origin[slot * 3 + 1] = position.y;
       origin[slot * 3 + 2] = position.z;
+      const vx = finiteOr0(options?.velocity?.x);
+      const vy = finiteOr0(options?.velocity?.y);
+      const vz = finiteOr0(options?.velocity?.z);
+      flashVelocity[slot * 3] = vx;
+      flashVelocity[slot * 3 + 1] = vy;
+      flashVelocity[slot * 3 + 2] = vz;
+      let cloudScale =
+        kind === "small"
+          ? SMALL_BURST_DRIFT_FACTOR
+          : kind === "big"
+            ? BIG_BURST_DRIFT_FACTOR
+            : CLOUD_DRIFT_FACTOR;
+      if (kind === undefined) {
+        // OOExplosionCloudEntity.m:102-105: cut a fast drift to 1000 m/s.
+        const speedNow = Math.sqrt(vx * vx + vy * vy + vz * vz);
+        if (speedNow > CLOUD_MAX_DRIFT_SPEED) {
+          cloudScale *= CLOUD_MAX_DRIFT_SPEED / speedNow;
+        }
+      }
+      cloudVelocity[slot * 3] = vx * cloudScale;
+      cloudVelocity[slot * 3 + 1] = vy * cloudScale;
+      cloudVelocity[slot * 3 + 2] = vz * cloudScale;
       startTime[slot] = flightTime;
       particleCount[slot] = count;
       growthRate[slot] =
@@ -626,7 +696,11 @@ export function createExplosionLayer(
 
         if (flashOn) {
           // The float64 subtraction happens here, before any float32 write.
-          place.set(ox - cameraWorld.x, oy - cameraWorld.y, oz - cameraWorld.z);
+          place.set(
+            ox + (flashVelocity[slot * 3] ?? 0) * t - cameraWorld.x,
+            oy + (flashVelocity[slot * 3 + 1] ?? 0) * t - cameraWorld.y,
+            oz + (flashVelocity[slot * 3 + 2] ?? 0) * t - cameraWorld.z,
+          );
           const edge =
             2 * ((flashSize[slot] ?? 0) + (flashGrowth[slot] ?? 0) * t);
           scale.set(edge, edge, edge);
@@ -652,15 +726,19 @@ export function createExplosionLayer(
         const secondary = order[slot * 3 + 1] ?? 1;
         const tertiary = order[slot * 3 + 2] ?? 2;
         const count = particleCount[slot] ?? 0;
+        // The burst's centre has moved by its velocity over its age.
+        const cx = ox + (cloudVelocity[slot * 3] ?? 0) * t;
+        const cy = oy + (cloudVelocity[slot * 3 + 1] ?? 0) * t;
+        const cz = oz + (cloudVelocity[slot * 3 + 2] ?? 0) * t;
         for (let i = 0; i < count; i += 1) {
           const p = slot * EXPLOSION_MAX_PARTICLES + i;
           const v = speed[p] ?? 0;
           const travel = v * t;
           // The float64 subtraction happens here, before any float32 write.
           place.set(
-            ox + (direction[p * 3] ?? 0) * travel - cameraWorld.x,
-            oy + (direction[p * 3 + 1] ?? 0) * travel - cameraWorld.y,
-            oz + (direction[p * 3 + 2] ?? 0) * travel - cameraWorld.z,
+            cx + (direction[p * 3] ?? 0) * travel - cameraWorld.x,
+            cy + (direction[p * 3 + 1] ?? 0) * travel - cameraWorld.y,
+            cz + (direction[p * 3 + 2] ?? 0) * travel - cameraWorld.z,
           );
           // Oolite's quad spans -size..+size.
           const edge = 2 * ((startSize[p] ?? 0) + growth * t);

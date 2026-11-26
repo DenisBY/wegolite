@@ -1041,6 +1041,7 @@ describe("entityRemoved and the reserved event kinds", () => {
       { kind: "shipHit", target: 101, source: 102, amount: 5, shield: true },
       {
         kind: "shipDestroyed",
+        velocity: { x: 0, y: 0, z: 0 },
         id: 101,
         position: origin,
         radius: 50,
@@ -1055,7 +1056,12 @@ describe("entityRemoved and the reserved event kinds", () => {
       { kind: "cargoScooped", scooper: 100, commodity: "food", amount: 1 },
       { kind: "shipSpawned", id: 101, specKey: "viper" },
       { kind: "legalStatusChanged", from: "clean", to: "offender" },
-      { kind: "playerDestroyed", position: origin, cause: { damage: "laser" } },
+      {
+        kind: "playerDestroyed",
+        position: origin,
+        cause: { damage: "laser" },
+        velocity: { x: 0, y: 0, z: 0 },
+      },
       { kind: "podEjected", pod: 104, owner: 101 },
       { kind: "proximityWarning", id: 101, other: 102 },
       { kind: "energyLow", id: 101 },

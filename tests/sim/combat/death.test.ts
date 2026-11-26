@@ -284,6 +284,22 @@ describe("a lethal laser hit kills the player in flight (DEATH-01, D-04)", () =>
   });
 });
 
+describe("killPlayer carries the player's total velocity (D-02)", () => {
+  it("posts drift plus forward x speed as a copy: drift (0, 0, 5), speed 200 give (0, 0, -195)", () => {
+    const state = flyingPlayer();
+    state.orientation = identity();
+    state.drift = vec(0, 0, 5);
+    state.speed = 200;
+    const events: SimEvent[] = [];
+    killPlayer(state, createPlayerCombatState(), { damage: "laser" }, events);
+    const [died] = ofKind(events, "playerDestroyed");
+    expect(died?.velocity).toEqual({ x: 0, y: 0, z: -195 });
+    expect(died?.velocity).not.toBe(state.drift);
+    state.drift.z = 77;
+    expect(died?.velocity.z).toBe(-195);
+  });
+});
+
 describe("killPlayer is a no-op unless the player is in flight (D-10)", () => {
   it("leaves a docked, a launching and an already dead state untouched", () => {
     for (const make of [

@@ -291,4 +291,34 @@ describe("killPlayer is total and posts at most one death (DEATH-01)", () => {
     expect(tallies.killed).toBeGreaterThanOrEqual(20);
     expect(tallies.untouched).toBeGreaterThanOrEqual(20);
   });
+
+  it("posts a finite velocity for any drift, speed and orientation of the dying player (D-02)", () => {
+    fc.assert(
+      fc.property(
+        fc.record({ x: numberArb, y: numberArb, z: numberArb }),
+        fc.record({ w: numberArb, x: numberArb, y: numberArb, z: numberArb }),
+        numberArb,
+        (drift, orientation, speed) => {
+          const player = playerIn("inFlight");
+          player.drift = drift;
+          player.orientation = orientation;
+          player.speed = speed;
+          const events: SimEvent[] = [];
+          killPlayer(
+            player,
+            createPlayerCombatState(),
+            { damage: "laser" },
+            events,
+          );
+          const [died] = events;
+          if (died?.kind !== "playerDestroyed") throw new Error("no death");
+          expect(Number.isFinite(died.velocity.x)).toBe(true);
+          expect(Number.isFinite(died.velocity.y)).toBe(true);
+          expect(Number.isFinite(died.velocity.z)).toBe(true);
+          expect(died.velocity).not.toBe(player.drift);
+        },
+      ),
+      { seed: 21130001, numRuns: 300 },
+    );
+  });
 });

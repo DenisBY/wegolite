@@ -15,6 +15,7 @@
 
 import { readFileSync } from "node:fs";
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { createTestPilotAi } from "../../../src/sim/ai/pilots/test-pilot.js";
@@ -23,8 +24,14 @@ import { initFlightState } from "../../../src/sim/flight/state.js";
 import type { FlightState } from "../../../src/sim/flight/state.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { clampFrameDelta } from "../../../src/sim/loop.js";
-import { add, identity, vec } from "../../../src/sim/math.js";
-import type { Vec3 } from "../../../src/sim/math.js";
+import {
+  add,
+  axisAngle,
+  identity,
+  rotate,
+  vec,
+} from "../../../src/sim/math.js";
+import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { statsFor } from "../../../src/sim/npc/stats.js";
 import type {
   NpcFlightStats,
@@ -36,6 +43,8 @@ import {
   BUOY_THRUST,
   brakeShipDrift,
   SHIP_DRIFT_THRUST_FACTOR,
+  playerVelocity,
+  shipVelocity,
   stepBuoyDrift,
   stepShipDrift,
 } from "../../../src/sim/world/drift.js";
@@ -469,5 +478,112 @@ describe("cadence (criterion 5)", () => {
       return [...mid, hashWorld(state, world)].join("\n");
     }
     expect(new Set([30, 60, 144].map(replay)).size).toBe(1);
+  });
+});
+
+describe("shipVelocity: the total velocity (D-01, ShipEntity.m:11158-11166)", () => {
+  it("is the drift plus the forward axis (-Z) times the speed: (1, 2, 3) and speed 100 give (1, 2, -97)", () => {
+    const world = createWorld(1);
+    const ship = spawnOk(
+      world,
+      shipInit({ velocity: vec(1, 2, 3), speed: 100 }),
+    );
+    expect(shipVelocity(ship)).toEqual(vec(1, 2, -97));
+  });
+
+  it("equals the drift at speed 0, as a new object", () => {
+    const world = createWorld(1);
+    const ship = spawnOk(world, shipInit({ velocity: vec(1, 2, 3) }));
+    const v = shipVelocity(ship);
+    expect(v).toEqual(vec(1, 2, 3));
+    expect(v).not.toBe(ship.velocity);
+  });
+
+  it("rotates the forward axis with the orientation", () => {
+    // A quarter turn about +Y takes -Z to -X.
+    const world = createWorld(1);
+    const ship = spawnOk(
+      world,
+      shipInit({ orientation: axisAngle(0, 1, 0, Math.PI / 2), speed: 10 }),
+    );
+    const v = shipVelocity(ship);
+    expect(v.x).toBeCloseTo(-10, 9);
+    expect(v.y).toBeCloseTo(0, 9);
+    expect(v.z).toBeCloseTo(0, 9);
+  });
+
+  it("is the same function for the player's drift, orientation and speed", () => {
+    const state = restingPlayer();
+    state.orientation = identity();
+    state.drift = vec(0, 0, 5);
+    state.speed = 200;
+    expect(playerVelocity(state)).toEqual(vec(0, 0, -195));
+  });
+
+  const hostile: fc.Arbitrary<number> = fc.oneof(
+    { weight: 6, arbitrary: fc.double({ min: -1e5, max: 1e5, noNaN: true }) },
+    {
+      weight: 2,
+      arbitrary: fc.constantFrom(
+        Number.NaN,
+        Infinity,
+        -Infinity,
+        1e308,
+        -1e308,
+        -0,
+      ),
+    },
+  );
+  const vecArb: fc.Arbitrary<Vec3> = fc.record({
+    x: hostile,
+    y: hostile,
+    z: hostile,
+  });
+  const quatArb: fc.Arbitrary<Quat> = fc.record({
+    w: hostile,
+    x: hostile,
+    y: hostile,
+    z: hostile,
+  });
+  const finite = (v: Vec3): boolean =>
+    Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
+
+  it("is total: any drift, speed and orientation give a finite vector and never throw", () => {
+    fc.assert(
+      fc.property(vecArb, quatArb, hostile, (drift, orientation, speed) => {
+        const v = shipVelocity({ velocity: drift, orientation, speed });
+        expect(finite(v)).toBe(true);
+        const p = playerVelocity({ drift, orientation, speed });
+        expect(finite(p)).toBe(true);
+        expect(p).toEqual(v);
+      }),
+    );
+  });
+
+  it("equals drift plus forward x speed in the domain, and exactly the drift at speed 0", () => {
+    const sane = fc.double({ min: -1e4, max: 1e4, noNaN: true });
+    fc.assert(
+      fc.property(
+        fc.record({ x: sane, y: sane, z: sane }),
+        fc.double({ min: -Math.PI, max: Math.PI, noNaN: true }),
+        fc.double({ min: -1, max: 1, noNaN: true }),
+        fc.double({ min: -1, max: 1, noNaN: true }),
+        fc.double({ min: 0, max: 1e3, noNaN: true }),
+        (drift, angle, ax, az, speed) => {
+          const axis = Math.hypot(ax, 1, az);
+          const orientation = axisAngle(ax / axis, 1 / axis, az / axis, angle);
+          const forward = rotate(orientation, vec(0, 0, -1));
+          const v = shipVelocity({ velocity: drift, orientation, speed });
+          expect(v.x).toBeCloseTo(drift.x + forward.x * speed, 6);
+          expect(v.y).toBeCloseTo(drift.y + forward.y * speed, 6);
+          expect(v.z).toBeCloseTo(drift.z + forward.z * speed, 6);
+          const rest = shipVelocity({ velocity: drift, orientation, speed: 0 });
+          // A drift of -0 reads +0 (no sign of zero reaches an event).
+          expect(rest.x).toBe(drift.x === 0 ? 0 : drift.x);
+          expect(rest.y).toBe(drift.y === 0 ? 0 : drift.y);
+          expect(rest.z).toBe(drift.z === 0 ? 0 : drift.z);
+        },
+      ),
+    );
   });
 });
