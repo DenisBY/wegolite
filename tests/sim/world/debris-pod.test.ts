@@ -6,7 +6,7 @@
  * orchestrator decision 3).
  *
  * The oracles are written here from the C lines, never by calling the draw's
- * internals: `getContainersOfGoods` (`Universe.m:3894-3955`),
+ * internals: `getContainersOfGoods` (`Universe.m:3894-3940`),
  * `getRandomAmountOfCommodity` (`Universe.m:3977-3996`) and `setCargoFlag:`
  * (`ShipEntity.m:7318-7373`), with `Ranrot() % N` = `floor(u * N)`. The tests
  * prove four things: the contents come from the stateless `pod` fork, so no
@@ -141,7 +141,7 @@ function podsOf(world: World): Entity[] {
   );
 }
 
-/** The unit range a drawn amount must lie in (`Universe.m:3984-3991`). */
+/** The unit range a drawn amount must lie in (`Universe.m:3987-3993`). */
 function amountRange(unit: string | undefined): readonly [number, number] {
   if (unit === "kg") return [1, 16];
   if (unit === "g") return [4, 34];
@@ -151,7 +151,7 @@ function amountRange(unit: string | undefined): readonly [number, number] {
 // ---------------------------------------------------------------------------
 // The independent oracle: the C lines, over a plain list of weights.
 
-/** `getContainersOfGoods`' weights (`Universe.m:3905-3925`). */
+/** `getContainersOfGoods`' weights (`Universe.m:3894-3910`). */
 function oracleWeights(
   goods: readonly Commodity[],
   stock: Readonly<Record<string, number>>,
@@ -383,7 +383,7 @@ describe("drawPodContents follows Oolite's distribution", () => {
   });
 
   it("keeps Oolite's small chance of an illegal good at odd stock (q & 1)", () => {
-    // Oolite `Universe.m:3915-3918`: legal wants `q &= 1`, so an odd stock keeps
+    // Oolite `Universe.m:3904-3905`: legal wants `q &= 1`, so an odd stock keeps
     // weight 1 * 100 / 64 = 1 and an even stock none. Ported as written.
     const odd = [
       { key: "alpha", quantity: 0 },
@@ -430,7 +430,7 @@ describe("drawPodContents follows Oolite's distribution", () => {
       { key: "bravo", quantity: 0 },
     ];
     // plentiful over an all-zero market: total 0, `co_type = 0`, as written
-    // (`Universe.m:3930-3945`). Tonnes need no amount draw, so no draw at all.
+    // (`Universe.m:3916-3926`). Tonnes need no amount draw, so no draw at all.
     const contents = drawPodContents(KIND.plentiful, rng, [A, B], market, 4);
     expect(contents.map((c) => c.commodity)).toEqual(Array(4).fill("alpha"));
     expect(rng.s).toBe(createRngState(77).s);

@@ -578,7 +578,7 @@ const KIND_MEDICAL = kindIndex("medical");
 const KIND_CONTRABAND = kindIndex("contraband");
 const KIND_PIRATE = kindIndex("pirate");
 
-/** The commodity `CARGO_FLAG_FULL_MEDICAL` fills with (`ShipEntity.m:7355`). */
+/** The commodity `CARGO_FLAG_FULL_MEDICAL` fills with (`ShipEntity.m:7356`). */
 const MEDICAL_COMMODITY = "narcotics";
 
 /** A role is in `family` when it is the family name or `<family>-...`. */
@@ -596,7 +596,7 @@ function inRoleFamily(role: string, family: string): boolean {
  * the role decides: the trader and shuttle families give `plentiful` (Oolite's
  * legacy trader and the station shuttle, `Universe.m` and `StationEntity.m`
  * `setCargoFlag:CARGO_FLAG_FULL_PLENTIFUL`), the pirate family gives `pirate`
- * (scarce goods, illegal allowed, `ShipEntity.m:7364-7365`), and any other or
+ * (scarce goods, illegal allowed, `ShipEntity.m:7359-7362`), and any other or
  * unknown role (the inert ships' pristine "" included) falls back to `scarce`
  * legal goods. An invalid stored kind (NaN, negative, fractional, out of range)
  * falls back by role. The families are matched by `===` and a prefix check
@@ -629,7 +629,7 @@ export function resolvePodCargoKind(
 /** The most market stock read for one good: Oolite's quantity limit, with headroom. */
 const POD_QUANTITY_CAP = 0xffff;
 
-/** `getContainersOfGoods` weights quantities against this (`Universe.m:3913-3924`). */
+/** `getContainersOfGoods` weights quantities against this (`Universe.m:3907-3910`). */
 const POD_QUANTITY_FULL = 64;
 
 /** A good the draw can pick: a legal key with its unit and export legality. */
@@ -682,11 +682,11 @@ function podStockOf(market: unknown): Map<string, number> {
 }
 
 /**
- * One capsule weight per good, `getContainersOfGoods` (`Universe.m:3894-3924`)
+ * One capsule weight per good, `getContainersOfGoods` (`Universe.m:3894-3910`)
  * in integer arithmetic: `q` is the market quantity; for scarce goods
- * `q < 64 ? 64 - q : 0` (3908-3912); when only legal goods are wanted an
+ * `q < 64 ? 64 - q : 0` (3896-3901); when only legal goods are wanted an
  * export-illegal good keeps `q & 1`, "a very small chance, sometimes"
- * (3915-3918); then `q = min(q, 64)`, `q = q * 100 / 64` truncated (3919-3923).
+ * (3902-3906); then `q = min(q, 64)`, `q = q * 100 / 64` truncated (3907-3910).
  */
 function podWeightsOf(
   goods: readonly PodGood[],
@@ -729,15 +729,15 @@ function podAmountOf(rng: RngState, unit: unknown): number {
  * stateless `pod` fork of the victim, never from the combat stream.
  *
  * Order: every pod's commodity first, in capsule index order
- * (`getContainersOfGoods`, `Universe.m:3894-3955`, run once by `setCargoFlag:`,
- * `ShipEntity.m:7340-7366`), then every pod's amount (`cargoPodFromTemplate`,
- * `ShipEntity.m:7810-7812` to `Universe.m:3977-3996`), as the real pods are
+ * (`getContainersOfGoods`, `Universe.m:3894-3940`, run once by `setCargoFlag:`,
+ * `ShipEntity.m:7347-7365`), then every pod's amount (`cargoPodFromTemplate`,
+ * `Universe.m:3863-3873` to `3977-3996`), as the real pods are
  * made at release. Per capsule, with `total` the sum of the weights
  * (`podWeightsOf`): no draw when `total` is 0, then the first good (the
- * `co_type = 0` initial, `Universe.m:3930-3945`, ported as written); otherwise
+ * `co_type = 0` initial, `Universe.m:3916-3926`, ported as written); otherwise
  * `qr = 1 + (r % total)` and the first good whose running weight reaches `qr`.
  *
- * The kind picks the rule (`ShipEntity.m:7343-7366`): `plentiful` is
+ * The kind picks the rule (`ShipEntity.m:7347-7365`): `plentiful` is
  * `scarce:NO legal:YES`, `scarce` is `scarce:YES legal:YES`, `contraband` and
  * `pirate` are `scarce:YES legal:NO` (the pirate's pod count, `r % (1 + num /
  * 2)`, belongs to the caller, which counts survivors), `medical` is Narcotics
