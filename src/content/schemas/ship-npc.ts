@@ -68,7 +68,9 @@ export const NpcShipSchema = z.strictObject({
   roles: z.array(z.string().min(1)).min(1),
   aiType: z.string().min(1),
   scanClass: z.string().regex(/^CLASS_[A-Z_]+$/),
-  model: z.string().regex(/^oolite_[a-z0-9_]+\.dat$/),
+  // A hyphen is allowed inside the name (`oolite_boa-mk2.dat`, plan 21-05);
+  // the pattern stays anchored and nothing else about the shape loosens.
+  model: z.string().regex(/^oolite_[a-z0-9_-]+\.dat$/),
   glb: z.string().regex(NPC_GLB_PATH_PATTERN),
   // Oolite's float32 mass; `z.number()` already rejects NaN and Infinity, so
   // `positive()` leaves a finite number above zero; the upper bound keeps the

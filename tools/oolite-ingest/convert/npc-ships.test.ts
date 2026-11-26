@@ -61,6 +61,7 @@ import {
   NPC_SHIP_KEYS,
   NPC_SHIPS_PATH,
   OOCOLOR_NAMED_RGB,
+  STEERING_ASSUMED_ABSENT_KEYS,
   compileNpcShips,
   emitNpcShips,
   facingWeapon,
@@ -1146,20 +1147,50 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
     ["accuracy", 7],
     ["reaction_time", 0.5],
     ["scanner_range", 50000],
-    ["aft_weapon_type", "WEAPON_BEAM_LASER"],
     ["port_weapon_type", "WEAPON_PULSE_LASER"],
     ["starboard_weapon_type", "WEAPON_PULSE_LASER"],
   ];
 
-  it("pins the six refused keys", () => {
+  it("pins the five refused keys; plan 21-05 lifted the aft weapon type (DATA-17)", () => {
     expect(REFUSED.map(([key]) => key)).toEqual([
       "accuracy",
       "reaction_time",
       "scanner_range",
-      "aft_weapon_type",
       "port_weapon_type",
       "starboard_weapon_type",
     ]);
+    expect([...STEERING_ASSUMED_ABSENT_KEYS]).toEqual(
+      REFUSED.map(([key]) => key),
+    );
+  });
+
+  it("compiles an authored aft_weapon_type with its position (DATA-17, plan 21-05)", () => {
+    const aft = withExtras("viper", (extras) => ({
+      ...extras,
+      aft_weapon_type: "WEAPON_PULSE_LASER",
+      weapon_position_aft: "0.0 1.5 -20.5",
+      weapon_facings: 3,
+    }));
+    const record = compileNpcShips(aft, masses, radii, meshes).find(
+      (item) => item.key === "viper",
+    );
+    expect(record?.aftWeapon).toBe("EQ_WEAPON_PULSE_LASER");
+    expect(record?.aftWeaponPosition).toEqual([0, 1.5, -20.5]);
+    // The refusal stays for port and starboard even with the aft key authored.
+    const mixed = withExtras("viper", (extras) => ({
+      ...extras,
+      aft_weapon_type: "WEAPON_BEAM_LASER",
+      port_weapon_type: "WEAPON_PULSE_LASER",
+    }));
+    expect(
+      capture(() => compileNpcShips(mixed, masses, radii, meshes)).excerpt,
+    ).toContain("port_weapon_type");
+  });
+
+  it("keeps the nine records' aft weapon at EQ_WEAPON_NONE", () => {
+    for (const record of records) {
+      expect(record.aftWeapon).toBe("EQ_WEAPON_NONE");
+    }
   });
 
   it.each(REFUSED.map(([key, value]) => [key, value] as const))(
@@ -1188,7 +1219,7 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
     ).toBe("adder");
   });
 
-  it("finds none of the six keys on the nine stock records after like_ship", () => {
+  it("finds none of the five keys on the stock records after like_ship", () => {
     for (const key of NPC_SHIP_KEYS) {
       for (const [field] of REFUSED) {
         expect(requireEntry(key).extras).not.toHaveProperty(field);
@@ -1435,5 +1466,19 @@ describe("NPC role fields (DATA-17, plan 21-05)", () => {
       NpcShipSchema.safeParse({ ...requireRecord("viper"), hasEscapePod: 1 })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("the model pattern (plan 21-05)", () => {
+  const withModel = (model: string): unknown =>
+    NpcShipSchema.safeParse({ ...requireRecord("viper"), model }).success;
+
+  it("allows a hyphen inside the name and stays anchored", () => {
+    expect(withModel("oolite_boa-mk2.dat")).toBe(true);
+    expect(withModel("oolite_viper.dat")).toBe(true);
+    expect(withModel("oolite_Boa.dat")).toBe(false);
+    expect(withModel("oolite_boa.dat.bak")).toBe(false);
+    expect(withModel("x_oolite_boa.dat")).toBe(false);
+    expect(withModel("oolite_../boa.dat")).toBe(false);
   });
 });

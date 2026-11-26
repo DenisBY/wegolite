@@ -304,10 +304,16 @@ export const FORWARD_WEAPON_KEYS: Readonly<Record<string, string>> =
  * The resolved-record keys the Phase 14 steering port assumes are absent for
  * every compiled NPC ship (14-RESEARCH reachability analysis, Assumptions A1
  * and A2). With none authored, Oolite's defaults apply: accuracy 0, reaction
- * time 1.5 s, scanner range 25600 m and no aft, port or starboard weapon. The
- * port derives which attack sub-behaviours the nine ships can reach from those
- * defaults, so a pin bump that authors one of these keys must fail the build and
- * needs a new decision, not a silent change in reachability.
+ * time 1.5 s, scanner range 25600 m and no port or starboard weapon. The port
+ * derives which attack sub-behaviours the ships can reach from those defaults,
+ * so a pin bump that authors one of these keys must fail the build and needs a
+ * new decision, not a silent change in reachability.
+ *
+ * Plan 21-05 (DATA-17) lifted the refusal of the aft weapon key only: six hulls
+ * of the v2.4 roster author it. The per-facing weapon state is snapshot v5
+ * (plan 21-03), the fire path's facing shape is plan 21-12, and AI-driven aft
+ * fire is CBT-19 in Phase 23. The other five keys stay refused, and the build
+ * re-checks them over every record.
  *
  * `has_fuel_injection` (the afterburner) and `missiles`/`max_missiles` are now
  * compiled as data (DATA-17, plan 21-05): the injector is consumed from Phase
@@ -319,7 +325,6 @@ export const STEERING_ASSUMED_ABSENT_KEYS: readonly string[] = [
   "accuracy",
   "reaction_time",
   "scanner_range",
-  "aft_weapon_type",
   "port_weapon_type",
   "starboard_weapon_type",
 ];
@@ -543,8 +548,9 @@ function missileCounts(
  * unknown name fails the build (T-13-29).
  *
  * Exported so the converter test can pin the aft, port and starboard mapping
- * directly: the refusal loop in `compileNpcShips` keeps the stock catalogue from
- * authoring those types.
+ * directly. The aft type compiles from plan 21-05 on (DATA-17); the refusal loop
+ * in `compileNpcShips` still keeps every catalogue from authoring a port or
+ * starboard type.
  */
 export function facingWeapon(
   key: string,
@@ -708,10 +714,8 @@ export function compileNpcShips(
     }
 
     // The steering port relies on Oolite's default for these keys (T-14-06).
-    // The v4 weapon record (Phase 15, plan 15-02) holds a single temperature,
-    // Oolite's `forward_weapon_temp` (ShipEntity.h:303-304), so lifting this
-    // refusal for an aft, port or starboard weapon type also needs per-facing
-    // temperatures, which is a snapshot-format change.
+    // The aft refusal was lifted by plan 21-05 (snapshot v5 holds per-facing
+    // weapon state); the port and starboard types stay refused.
     for (const assumed of STEERING_ASSUMED_ABSENT_KEYS) {
       if (Object.hasOwn(entry.extras, assumed)) {
         return fail(
