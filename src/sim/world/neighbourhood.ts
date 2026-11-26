@@ -93,8 +93,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/** A chart coordinate is one byte in Oolite (`legacy_random.h`), 0 to 255. */
+const MAX_CHART_COORDINATE = 255;
+
+/**
+ * Bounded to the chart's byte range, not merely integral: an integer-valued
+ * double of 9e15 or 1e300 would make `chartDistance` overflow to a non-safe
+ * integer and throw, which the install block must never see (T-22-04).
+ */
 function isChartCoordinate(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value);
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= MAX_CHART_COORDINATE
+  );
 }
 
 /**

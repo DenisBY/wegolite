@@ -297,12 +297,12 @@ describe("empty and ordering edges", () => {
 
   it("is a bottleneck when the locals split without the current system", () => {
     // 1 and 2 are 32 apart, so they connect only through 0; 3 is out of range.
-    const galaxy = [at(0, 0), at(1, -16), at(2, 16), at(3, 32)];
+    const galaxy = [at(0, 16), at(1, 0), at(2, 32), at(3, 48)];
     const hood = buildNeighbourhood(galaxy, 0);
     expect(hood.locals.map((n) => n.systemIndex)).toEqual([1, 2]);
     expect(hood.bottleneck).toBe(true);
     // 1 and 2 are 16 apart: within 7 LY of each other, so one component.
-    const joined = buildNeighbourhood([at(0, 0), at(1, -8), at(2, 8)], 0);
+    const joined = buildNeighbourhood([at(0, 8), at(1, 0), at(2, 16)], 0);
     expect(joined.bottleneck).toBe(false);
   });
 });
@@ -321,6 +321,56 @@ describe("malformed galaxies (T-22-04, totality)", () => {
     expect(hood.locals.map((n) => n.systemIndex)).toEqual([1]);
     expect(hood.inRange(25)).toEqual([1, 2, 3]);
     expect(hood.distanceTo(9)).toBeUndefined();
+  });
+
+  it("drops a record whose chart coordinate is outside the byte range, so chartDistance cannot overflow", () => {
+    const extreme = [9e15, -9e15, 1e300, -1e300, 256, -1, Number.MAX_VALUE];
+    const bad: unknown[] = extreme.flatMap((value, k) => [
+      { ...at(20 + k, 5), chartX: value },
+      { ...at(40 + k, 5), chartY: value },
+    ]);
+    const hood = buildNeighbourhood([...bad, ...good], 0);
+    expect(hood.locals.map((n) => n.systemIndex)).toEqual([1]);
+    expect(hood.inRange(25)).toEqual([1, 2, 3]);
+    expect(hood.distanceTo(20)).toBeUndefined();
+  });
+
+  it("never throws for any numeric chart coordinate of any magnitude", () => {
+    const coordinate = fc.oneof(
+      fc.constantFrom(
+        9e15,
+        -9e15,
+        2 ** 53,
+        -(2 ** 53),
+        1e300,
+        -1e300,
+        Number.NaN,
+        Infinity,
+        -Infinity,
+      ),
+      fc.integer({ min: -(2 ** 53), max: 2 ** 53 }),
+      fc.double({ noNaN: false }),
+    );
+    fc.assert(
+      fc.property(
+        fc.array(fc.tuple(coordinate, coordinate), { maxLength: 8 }),
+        (coordinates) => {
+          const galaxy = [
+            ...coordinates.map(([x, y], k) => at(k + 1, x, y)),
+            // Two valid records pair with the extreme ones.
+            at(100, 0, 0),
+            at(101, 255, 255),
+          ];
+          for (const current of [0, 1, 100, 101]) {
+            const hood = buildNeighbourhood(galaxy, current);
+            expect(hood.inRange(25)).toBeDefined();
+            expect(systemsInRange(galaxy, current, 25)).toBeDefined();
+            expect(Number.isNaN(hood.distanceTo(100) ?? 0)).toBe(false);
+          }
+        },
+      ),
+      { numRuns: 300 },
+    );
   });
 
   it("drops non-objects, bad indices and later duplicates", () => {
