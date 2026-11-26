@@ -21,14 +21,20 @@
  * no group record.
  */
 
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
+import {
+  MAX_BOUNTY,
+  MAX_ESCORT_SLOT,
+} from "../../../../src/sim/world/limits.js";
 import {
   buildGroup,
   planSystemGroups,
 } from "../../../../src/sim/world/population/groups.js";
 import type {
   GroupPlan,
+  PlannedPopShip,
   PopulationRecord,
   SystemDraws,
 } from "../../../../src/sim/world/population/groups.js";
@@ -71,15 +77,12 @@ const COMPARED_TAGS = POPULATION_EXACT_DRAW_TAGS.filter(
 );
 
 /**
- * The builders this plan has not written yet. Task 1 (the tracer) implements
- * the light hunters; Task 2 empties the pirate builders, Task 3 the police
- * ones. A group of a pending builder is planned empty and is not compared.
+ * The builders this plan has not written yet. Task 1 (the tracer) implemented
+ * the light hunters, Task 2 the pirate builders and Task 3 the police ones, so
+ * the set is empty: every recorded group of every fixture is compared. A group
+ * of a pending builder would be planned empty and skipped.
  */
-const PENDING_BUILDERS: ReadonlySet<PopulatorBuilderId> = new Set([
-  "policePatrol",
-  "stationPatrol",
-  "interceptors",
-]);
+const PENDING_BUILDERS: ReadonlySet<PopulatorBuilderId> = new Set([]);
 
 function builderOf(ordinal: number): PopulatorBuilderId | null {
   return POPULATOR_ENTRIES[ordinal]?.builder ?? null;
@@ -285,9 +288,20 @@ describe("planSystemGroups: every recorded system", () => {
     expect(compared).toBeGreaterThan(800);
   });
 
-  it("lists the builders that are still pending (Tasks 2 and 3 empty this list)", () => {
-    const pending = [...PENDING_BUILDERS].sort();
-    expect(pending).toEqual(["interceptors", "policePatrol", "stationPatrol"]);
+  it("has no pending builder: every kept entry has a builder and every recorded group is compared", () => {
+    expect([...PENDING_BUILDERS]).toEqual([]);
+    const kept = POPULATOR_ENTRIES.filter((entry) => entry.status === "kept");
+    expect(kept.every((entry) => entry.builder !== null)).toBe(true);
+    const recorded = FIXTURES.flatMap((loaded) => loaded.fixture.groups);
+    expect(recorded.every((group) => !isPending(group.entry))).toBe(true);
+    // every kept entry has a recorded group somewhere, bar two that no recorded
+    // system reaches (each shares its builder with a recorded entry)
+    const seen = new Set(recorded.map((group) => group.entry));
+    expect(
+      kept
+        .filter((entry) => !seen.has(entry.ordinal))
+        .map((entry) => entry.name),
+    ).toEqual(["oolite-pirate-heavy-remote", "oolite-interceptors-route1"]);
   });
 });
 
@@ -800,8 +814,199 @@ describe("remote packs: the z rule and the dangerous-system pick", () => {
   });
 });
 
+describe("police and hunters: every recorded group", () => {
+  const POLICE = recordedGroupsOf(
+    "policePatrol",
+    "stationPatrol",
+    "interceptors",
+  );
+
+  it("covers the patrols, the station patrol and the interceptor wings, in both roles", () => {
+    // Entry 32 (the interceptors on route 1) has no recording: a wing needs a
+    // heavy remote pack to answer. It shares its builder with entry 33, which
+    // the unit case below pins.
+    expect(new Set(POLICE.map(({ group }) => group.entry))).toEqual(
+      new Set([29, 30, 31, 33]),
+    );
+    const roles = new Set(
+      POLICE.flatMap(({ group }) => group.ships.map((ship) => ship.role)),
+    );
+    expect(roles).toEqual(new Set(["police", "interceptor"]));
+  });
+
+  it("plans one station patrol in every recorded system, with no group record", () => {
+    for (const loaded of FIXTURES) {
+      const patrols = replaySystem(loaded).plans.filter(
+        (plan) => builderOf(plan.ordinal) === "stationPatrol",
+      );
+      expect(patrols, loaded.id).toHaveLength(1);
+      const ships = patrols[0]?.ships ?? [];
+      expect(ships, loaded.id).toHaveLength(1);
+      const patrol = ships[0];
+      expect(patrol?.primaryRole).toBe("police-station-patrol");
+      expect(patrol?.bounty).toBe(0);
+      // Oolite joins the main station's group; the port's station is a static
+      // with no entity id (D-11, FIDELITY).
+      expect(patrol?.groupRecord).toBe(false);
+      expect(patrol?.leaderIndex).toBeNull();
+      expect(patrol?.ownerIndex).toBeNull();
+    }
+    // every recorded station patrol is in the station's group in Oolite
+    for (const { group } of POLICE.filter(({ group }) => group.entry === 31)) {
+      expect(group.ships[0]?.group).toBe("station");
+    }
+  });
+
+  it("plans a police patrol as a leaderless group of police ships or interceptors", () => {
+    for (const { loaded, group } of POLICE.filter(
+      ({ group }) => group.entry === 29 || group.entry === 30,
+    )) {
+      const plan = replaySystem(loaded).plans.find(
+        (candidate) =>
+          candidate.ordinal === group.entry &&
+          candidate.groupIndex === group.index,
+      );
+      const ships = plan?.ships ?? [];
+      expect(ships.length).toBeGreaterThanOrEqual(2);
+      expect(ships.length).toBeLessThanOrEqual(4);
+      for (const ship of ships) {
+        expect(ship.role).toBe(ships[0]?.role);
+        expect(["police", "interceptor"]).toContain(ship.role);
+        expect(ship.bounty).toBe(0);
+        expect(ship.groupRecord).toBe(true);
+        expect(ship.leaderIndex).toBeNull();
+      }
+    }
+  });
+
+  it("plans an interceptor wing of 1 + ceil(techlevel / 6) to 3 + ceil(techlevel / 6) ships", () => {
+    for (const { loaded, group } of POLICE.filter(
+      ({ group }) => group.entry === 32 || group.entry === 33,
+    )) {
+      const plan = replaySystem(loaded).plans.find(
+        (candidate) =>
+          candidate.ordinal === group.entry &&
+          candidate.groupIndex === group.index,
+      );
+      const ships = plan?.ships ?? [];
+      const base = 1 + Math.ceil(loaded.fixture.inputs.techLevel / 6);
+      expect(ships.length, loaded.id).toBeGreaterThanOrEqual(base);
+      expect(ships.length, loaded.id).toBeLessThanOrEqual(base + 2);
+      for (const ship of ships) {
+        expect(ship.role).toBe("interceptor");
+        expect(ship.primaryRole).toBe("police-witchpoint-patrol");
+        expect(ship.bounty).toBe(0);
+        expect(ship.groupRecord).toBe(true);
+      }
+    }
+  });
+
+  const EDGES = loadEdgeDraws();
+
+  /** The first ship's role for each probe of a role edge case. */
+  function probedRoles(
+    id: string,
+  ): readonly { readonly expected: string; readonly role: string }[] {
+    const edge = EDGES.cases.find((candidate) => candidate.id === id);
+    const entry = POPULATOR_ENTRIES.find(
+      (candidate) => candidate.name === edge?.entry,
+    );
+    // The edge system (g0-s153, tech level 12) is not one of the committed
+    // system fixtures: the role draw reads nothing but the tech level, so the
+    // Lave facts with the tech level of the edge system give the same test.
+    const loaded = FIXTURES.find((candidate) => candidate.id === "g0-s7-seed1");
+    if (edge === undefined || entry === undefined || loaded === undefined) {
+      throw new Error(`edge case ${id} is not in the committed oracle`);
+    }
+    expect(edge.system).toBe("g0-s153");
+    const facts = { ...factsFromFixture(loaded.fixture), techlevel: 12 };
+    return edge.probes.map((probe) => {
+      const draw = probe.draws[0];
+      // the role draw is the first `body` draw of both callbacks
+      expect(edge.slots[0]?.occurrence).toBe(0);
+      if (draw === undefined || typeof probe.result !== "string") {
+        throw new Error(`edge case ${id}: an unexpected probe`);
+      }
+      const { draws } = scripted(edge.fixedDraw, new Map([[0, draw]]));
+      const plan = buildGroup(entry, facts, RECORDS, draws, { groupIndex: 0 });
+      return { expected: probe.result, role: plan.ships[0]?.role ?? "" };
+    });
+  }
+
+  it("gives Oolite's role at the 9 + r * 6 < techlevel equality (patrol)", () => {
+    const results = probedRoles("police-patrol-interceptor-role");
+    expect(results.length).toBeGreaterThanOrEqual(4);
+    for (const { expected, role } of results) {
+      expect(role).toBe(expected);
+    }
+  });
+
+  it("gives Oolite's role at the 9 + r * 6 < techlevel equality (station patrol)", () => {
+    const results = probedRoles("station-patrol-interceptor-role");
+    expect(results.length).toBeGreaterThanOrEqual(4);
+    for (const { expected, role } of results) {
+      expect(role).toBe(expected);
+    }
+  });
+
+  it("clamps every group size to 1..64 before any loop (T-22-13)", () => {
+    const loaded = FIXTURES.find((candidate) => candidate.id === "g0-s7-seed1");
+    if (loaded === undefined) {
+      throw new Error("no g0-s7-seed1 fixture");
+    }
+    const facts = { ...factsFromFixture(loaded.fixture), techlevel: 1e300 };
+    const wing = buildGroup(
+      entryNamed("oolite-interceptors-route1"),
+      facts,
+      RECORDS,
+      scripted(0.5).draws,
+      { groupIndex: 0 },
+    );
+    expect(wing.ships).toHaveLength(64);
+    const nan = buildGroup(
+      entryNamed("oolite-interceptors-route1"),
+      { ...facts, techlevel: Number.NaN },
+      RECORDS,
+      scripted(0.5).draws,
+      { groupIndex: 0 },
+    );
+    expect(nan.ships).toHaveLength(1);
+  });
+
+  it("plans the unrecorded route-1 interceptor wing exactly as the recorded witchpoint wing", () => {
+    const first = POLICE.find(({ group }) => group.entry === 33);
+    if (first === undefined) {
+      throw new Error("no recorded witchpoint wing");
+    }
+    const facts = factsFromFixture(first.loaded.fixture);
+    const wing = (name: string): readonly PlannedPopShip[] =>
+      buildGroup(entryNamed(name), facts, RECORDS, recordedDraws(first.group), {
+        groupIndex: first.group.index,
+      }).ships;
+    expect(wing("oolite-interceptors-route1")).toEqual(
+      wing("oolite-interceptors-witchpoint"),
+    );
+    expect(wing("oolite-interceptors-route1").length).toBeGreaterThan(0);
+  });
+
+  it("asks no group role (hunter, pirate, police, interceptor) of a hull that authors escort_roles", () => {
+    // addGroupShips adds no engine escorts: the shipped catalogue gives no hull
+    // of these roles an escort set-up, so there is nothing to omit.
+    for (const role of ["hunter", "pirate", "police", "interceptor"]) {
+      for (const record of RECORDS) {
+        const carries = record.roles.some(
+          (token) => token.split("(")[0] === role,
+        );
+        if (carries) {
+          expect(record.escortRoles, `${record.key} as ${role}`).toBeNull();
+        }
+      }
+    }
+  });
+});
+
 describe("planSystemGroups: g7-s162 (the empty system)", () => {
-  it("plans exactly one group, the station patrol (its builder is pending until Task 3)", () => {
+  it("plans exactly one group, the station patrol, in a government 7 system", () => {
     for (const id of ["g7-s162-seed1", "g7-s162-seed2"]) {
       const loaded = FIXTURES.find((candidate) => candidate.id === id);
       if (loaded === undefined) {
@@ -812,6 +1017,257 @@ describe("planSystemGroups: g7-s162 (the empty system)", () => {
       expect(POPULATOR_ENTRIES[plans[0]?.ordinal ?? -1]?.builder, id).toBe(
         "stationPatrol",
       );
+      const ships = plans[0]?.ships ?? [];
+      expect(ships, id).toHaveLength(1);
+      expect(["police", "interceptor"]).toContain(ships[0]?.role);
+      expect(ships[0]?.primaryRole).toBe("police-station-patrol");
+      expect(ships[0]?.bounty).toBe(0);
+      expect(ships[0]?.groupRecord).toBe(false);
     }
+  });
+});
+
+describe("planSystemGroups: the cut paths stay cut (T-22-14)", () => {
+  it("never reads a record's missile counts in any builder, over every system", () => {
+    const sentinel = (record: PopulationRecord): PopulationRecord =>
+      new Proxy(record, {
+        get(target, key, receiver) {
+          if (key === "missiles" || key === "maxMissiles") {
+            throw new Error(`a builder read ${String(key)}`);
+          }
+          return Reflect.get(target, key, receiver) as unknown;
+        },
+      });
+    const guarded = RECORDS.map(sentinel);
+    for (const loaded of FIXTURES) {
+      expect(() => replaySystem(loaded, guarded), loaded.id).not.toThrow();
+    }
+  });
+
+  it("gives no planned ship a member for a cut write", () => {
+    const allowed = new Set([
+      "recordKey",
+      "role",
+      "primaryRole",
+      "bounty",
+      "cargoKind",
+      "weaponTypes",
+      "accuracy",
+      "fuel",
+      "homeSystem",
+      "destinationSystem",
+      "injector",
+      "leaderIndex",
+      "ownerIndex",
+      "escortSlot",
+      "groupRecord",
+    ]);
+    for (const loaded of FIXTURES) {
+      for (const plan of replaySystem(loaded).plans) {
+        for (const ship of plan.ships) {
+          expect(Object.keys(ship).filter((key) => !allowed.has(key))).toEqual(
+            [],
+          );
+        }
+      }
+    }
+  });
+
+  it("plans an empty group, throwing nothing, when the catalogue has no record", () => {
+    for (const loaded of FIXTURES.slice(0, 6)) {
+      const { plans } = replaySystem(loaded, []);
+      expect(plannedOrder(plans), loaded.id).toEqual(recordedOrder(loaded));
+      for (const plan of plans) {
+        expect(plan.ships, loaded.id).toEqual([]);
+      }
+    }
+  });
+});
+
+describe("planSystemGroups totality (fast-check)", () => {
+  const lave = (() => {
+    const loaded = FIXTURES.find((candidate) => candidate.id === "g0-s7-seed1");
+    if (loaded === undefined) {
+      throw new Error("no g0-s7-seed1 fixture");
+    }
+    return factsFromFixture(loaded.fixture);
+  })();
+
+  const number = fc.oneof(
+    fc.double(),
+    fc.constantFrom(
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      0,
+      -1,
+      1e300,
+      7,
+      14,
+    ),
+  );
+  /** A lane length: mostly a real one, now and then anything. */
+  const lane = fc.oneof(
+    { weight: 8, arbitrary: fc.double({ min: 0, max: 3e6, noNaN: true }) },
+    { weight: 1, arbitrary: number },
+  );
+  const word = fc.oneof(
+    fc.constantFrom(
+      "hunter",
+      "pirate",
+      "police",
+      "interceptor",
+      "pirate-light-fighter",
+      "pirate-light-freighter(0.5)",
+      "escort",
+      "constructor",
+      "__proto__",
+      "toString",
+      "",
+      "(",
+    ),
+    fc.string(),
+  );
+  const arbitraryRecord = fc.record({
+    key: word,
+    name: word,
+    roles: fc.array(word, { maxLength: 6 }),
+    scanClass: fc.constantFrom("CLASS_NEUTRAL", "CLASS_POLICE", "CLASS_X", ""),
+    radius: number,
+    maxEnergy: number,
+    energyRechargeRate: number,
+    likelyCargo: number,
+    maxCargo: number,
+    autoAi: number,
+    autoWeapons: number,
+    hasFuelInjection: number,
+    hyperspaceMotor: fc.boolean(),
+    escortRoles: fc.oneof(
+      fc.constant(null),
+      fc.array(fc.record({ min: number, max: number, role: word }), {
+        maxLength: 20,
+      }),
+    ),
+    forwardWeapon: word,
+    aftWeapon: word,
+    fuel: number,
+    bounty: number,
+  });
+  const arbitraryFacts = fc.record({
+    government: number,
+    economy: number,
+    techlevel: number,
+    systemIndex: fc.oneof(fc.integer({ min: 0, max: 255 }), number),
+    l1: lane,
+    l2: lane,
+    l3: lane,
+    bottleneck: fc.boolean(),
+    verylocals: fc.array(
+      fc.record({
+        systemIndex: number,
+        government: number,
+        economy: number,
+        techLevelRaw: number,
+      }),
+      { maxLength: 6 },
+    ),
+  });
+  const arbitraryDraws = fc.array(
+    fc.oneof(
+      fc.double({ min: 0, max: 1, maxExcluded: true, noNaN: true }),
+      fc.constantFrom(0, 0.5, 0.9999999999999999),
+    ),
+    { minLength: 1, maxLength: 16 },
+  );
+
+  /** Every draw site cycles through the same list, so arbitrary draws repeat. */
+  function cycling(values: readonly number[]): SystemDraws {
+    const next = (): (() => number) => {
+      let at = 0;
+      return () => values[at++ % values.length] ?? 0;
+    };
+    const counts = next();
+    return {
+      counts: () => counts(),
+      group: () => {
+        const draw = next();
+        return { next: draw, nextU32: () => draw() * 4_294_967_296 };
+      },
+    };
+  }
+
+  it("never throws and keeps every planned group and ship in range", () => {
+    fc.assert(
+      fc.property(
+        arbitraryFacts,
+        fc.array(arbitraryRecord, { maxLength: 6 }),
+        fc.boolean(),
+        arbitraryDraws,
+        (generated, extra, withCatalogue, values) => {
+          const facts = {
+            ...lave,
+            government: generated.government,
+            economy: generated.economy,
+            techlevel: generated.techlevel,
+            systemIndex: generated.systemIndex,
+            laneLengths: {
+              l1: generated.l1,
+              l2: generated.l2,
+              l3: generated.l3,
+            },
+            neighbourhood: {
+              ...lave.neighbourhood,
+              bottleneck: generated.bottleneck,
+              verylocals: generated.verylocals,
+            },
+          };
+          const records = withCatalogue ? [...RECORDS, ...extra] : extra;
+          const plans = planSystemGroups(facts, records, cycling(values));
+          const problems: string[] = [];
+          for (const plan of plans) {
+            if (plan.ships.length > 64 + 16) {
+              problems.push(`${String(plan.ships.length)} ships in a group`);
+            }
+            if (plan.groupIndex >= 256) {
+              problems.push(`group index ${String(plan.groupIndex)}`);
+            }
+            for (const ship of plan.ships) {
+              if (
+                ship.escortSlot !== null &&
+                !(ship.escortSlot >= 0 && ship.escortSlot <= MAX_ESCORT_SLOT)
+              ) {
+                problems.push(`escort slot ${String(ship.escortSlot)}`);
+              }
+              if (
+                !Number.isInteger(ship.bounty) ||
+                ship.bounty < 0 ||
+                ship.bounty > MAX_BOUNTY
+              ) {
+                problems.push(`bounty ${String(ship.bounty)}`);
+              }
+              if (!Number.isInteger(ship.fuel) || ship.fuel < 0) {
+                problems.push(`fuel ${String(ship.fuel)}`);
+              }
+              if (
+                !Number.isInteger(ship.homeSystem) ||
+                !Number.isInteger(ship.destinationSystem)
+              ) {
+                problems.push("a system index");
+              }
+              for (const index of [ship.leaderIndex, ship.ownerIndex]) {
+                if (
+                  index !== null &&
+                  !(index >= 0 && index < plan.ships.length)
+                ) {
+                  problems.push(`link ${String(index)}`);
+                }
+              }
+            }
+          }
+          expect(problems).toEqual([]);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 });

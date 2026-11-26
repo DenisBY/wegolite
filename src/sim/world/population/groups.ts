@@ -41,7 +41,12 @@ import type { PopulatorEntry } from "./table.js";
 import { planCounts } from "./plan.js";
 import type { CountDraws, SystemFacts } from "./plan.js";
 import type { PopulationDraws } from "./streams.js";
-import { buildLightHunter } from "./police.js";
+import {
+  buildInterceptors,
+  buildLightHunter,
+  buildPolicePatrol,
+  buildStationPatrol,
+} from "./police.js";
 import { buildIndependentPirate, buildPiratePack } from "./pirates.js";
 import {
   buildCourierLong,
@@ -204,6 +209,15 @@ export function buildGroup(
       break;
     case "lightHunter":
       ships = buildLightHunter(facts, records, draws);
+      break;
+    case "policePatrol":
+      ships = buildPolicePatrol(facts, records, draws);
+      break;
+    case "stationPatrol":
+      ships = buildStationPatrol(facts, records, draws);
+      break;
+    case "interceptors":
+      ships = buildInterceptors(facts, records, draws);
       break;
     case "independentPirate":
       ships = buildIndependentPirate(facts, records, draws, {
