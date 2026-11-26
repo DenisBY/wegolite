@@ -19,7 +19,11 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
-import { initFlightState } from "../../../src/sim/flight/state.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import {
+  initFlightState,
+  serializeFlight,
+} from "../../../src/sim/flight/state.js";
 import { fnv1a32 } from "../../../src/sim/hash.js";
 import { identity, vec } from "../../../src/sim/math.js";
 import { CARGO_KINDS } from "../../../src/sim/world/entity.js";
@@ -36,7 +40,12 @@ import {
   restoreWorld,
   snapshotWorld,
 } from "../../../src/sim/world/snapshot.js";
-import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
+import {
+  createPopulatorClock,
+  createStationRecord,
+  createWorld,
+  spawnEntity,
+} from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { laveInertWorld } from "../../helpers/traffic-fixture.js";
@@ -550,6 +559,225 @@ describe("a fast-check property over random v5 entities", () => {
         },
       ),
       { numRuns: 300 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The v5 world records and the player's standing (FOUND-20, plan 21-06).
+//
+// The expected texts below are literals written from the line spellings of the
+// plan (`groups:`, `repop:`, `station:`), never computed with the serializers
+// under test. The base text is the flight text plus the captured pristine
+// section; each line is appended in the documented order before the combat
+// line, so a deleted line reproduces the previous text and hash.
+
+const COMBAT_PRISTINE =
+  "combat=view:fore|shield:128.000000,128.000000|energy:256.000000|cabin:60.000000|" +
+  "temp:0.000000,0.000000,0.000000,0.000000|shot:12000,12000,12000,12000|ident:false:0";
+
+interface RecordCase {
+  readonly name: string;
+  readonly apply: (world: World) => void;
+  /** The exact line it must print. */
+  readonly line: string;
+}
+
+const RECORD_CASES: readonly RecordCase[] = [
+  {
+    name: "one group whose leader is its founder",
+    apply: (w) => {
+      w.groups = [{ id: 101, leader: 101 }];
+    },
+    line: "groups:101,101",
+  },
+  {
+    name: "two groups, ascending",
+    apply: (w) => {
+      w.groups = [
+        { id: 101, leader: 101 },
+        { id: 102, leader: 101 },
+      ];
+    },
+    line: "groups:101,101;102,101",
+  },
+  {
+    name: "a populator clock",
+    apply: (w) => {
+      w.populator = { nextTick: 2400, rolls: 3 };
+    },
+    line: "repop:2400,3",
+  },
+  {
+    name: "a populator with only rolls set",
+    apply: (w) => {
+      w.populator.rolls = 1;
+    },
+    line: "repop:0,1",
+  },
+  {
+    name: "station alert 3 alone",
+    apply: (w) => {
+      w.station.alert = 3;
+    },
+    line: "station:3,0,",
+  },
+  {
+    name: "station alert 0 (docked)",
+    apply: (w) => {
+      w.station.alert = 0;
+    },
+    line: "station:0,0,",
+  },
+  {
+    name: "station launched 5 alone",
+    apply: (w) => {
+      w.station.launched = 5;
+    },
+    line: "station:1,5,",
+  },
+  {
+    name: "station marks alone",
+    apply: (w) => {
+      w.station.marks = [100, 205];
+    },
+    line: "station:1,0,100/205",
+  },
+];
+
+describe("the v5 world records print one line each, pristine-omit (FOUND-20, plan 21-06)", () => {
+  const player = initFlightState(layout);
+  const base = `${serializeFlight(player)}\n${PRISTINE_SECTION}`;
+
+  it("creates every record pristine", () => {
+    const world = createWorld(5);
+    expect(world.station).toEqual({ alert: 1, launched: 0, marks: [] });
+    expect(world.groups).toEqual([]);
+    expect(world.populator).toEqual({ nextTick: 0, rolls: 0 });
+  });
+
+  it("hashes a world that sets none of them as the captured pristine text", () => {
+    expect(hashWorld(player, twoShipWorld())).toBe(fnv1a32(base));
+    // A never-spawned world prints no section and no line either.
+    expect(hashWorld(player, createWorld(5))).toBe(
+      fnv1a32(serializeFlight(player)),
+    );
+  });
+
+  it.each(RECORD_CASES.map((c) => [c.name, c] as const))(
+    "%s prints exactly its one line, and deleting it reproduces the pristine hash",
+    (_name, recordCase) => {
+      const world = twoShipWorld();
+      recordCase.apply(world);
+      expect(hashWorld(player, world)).toBe(
+        fnv1a32(`${base}\n${recordCase.line}`),
+      );
+      expect(hashWorld(player, world)).not.toBe(fnv1a32(base));
+      // Strip and rehash: the same world with its records back at rest hashes
+      // as the pristine text again.
+      world.station = createStationRecord();
+      world.groups = [];
+      world.populator = createPopulatorClock();
+      expect(hashWorld(player, world)).toBe(fnv1a32(base));
+    },
+  );
+
+  it("prints the lines of a never-spawned world after the flight text", () => {
+    const world = createWorld(5);
+    world.station.alert = 2;
+    expect(hashWorld(player, world)).toBe(
+      fnv1a32(`${serializeFlight(player)}\nstation:2,0,`),
+    );
+  });
+
+  it("prints all three in the order groups, repop, station, whatever the assignment order", () => {
+    const forward = twoShipWorld();
+    forward.groups = [{ id: 101, leader: 101 }];
+    forward.populator = { nextTick: 2400, rolls: 3 };
+    forward.station = { alert: 3, launched: 2, marks: [101, 102] };
+    const reversed = twoShipWorld();
+    reversed.station = { alert: 3, launched: 2, marks: [101, 102] };
+    reversed.populator = { nextTick: 2400, rolls: 3 };
+    reversed.groups = [{ id: 101, leader: 101 }];
+    const expected = fnv1a32(
+      `${base}\ngroups:101,101\nrepop:2400,3\nstation:3,2,101/102`,
+    );
+    expect(hashWorld(player, forward)).toBe(expected);
+    expect(hashWorld(player, reversed)).toBe(expected);
+  });
+
+  it("prints the lines after buoys: and before the combat line", () => {
+    const world = twoShipWorld();
+    world.buoys.navBuoy.offset = vec(1, 0, 0);
+    world.station.alert = 3;
+    const combat = createPlayerCombatState();
+    combat.standing.legalStatus = 64;
+    const buoys =
+      "buoys:offset 0.000000,0.000000,0.000000;velocity 0.000000,0.000000,0.000000;sub 200.000000;taking 0" +
+      "|offset 1.000000,0.000000,0.000000;velocity 0.000000,0.000000,0.000000;sub 200.000000;taking 0";
+    expect(hashWorld(player, world, combat)).toBe(
+      fnv1a32(`${base}\n${buoys}\nstation:3,0,\n${COMBAT_PRISTINE}|std:64,0`),
+    );
+  });
+
+  it("gives distinct hashes to every record case (no two print alike)", () => {
+    const hashes = new Set<string>([hashWorld(player, twoShipWorld())]);
+    for (const recordCase of RECORD_CASES) {
+      const world = twoShipWorld();
+      recordCase.apply(world);
+      hashes.add(hashWorld(player, world));
+    }
+    expect(hashes.size).toBe(RECORD_CASES.length + 1);
+  });
+
+  it("sorts and collapses a malformed list before it prints, so equal content prints equal text", () => {
+    const messy = twoShipWorld();
+    messy.station.marks = [205, 101, 205, 100];
+    messy.groups = [
+      { id: 105, leader: 105 },
+      { id: 101, leader: 101 },
+      { id: 105, leader: 999 },
+    ];
+    const clean = twoShipWorld();
+    clean.station.marks = [100, 101, 205];
+    clean.groups = [
+      { id: 101, leader: 101 },
+      { id: 105, leader: 105 },
+    ];
+    expect(hashWorld(player, messy)).toBe(hashWorld(player, clean));
+    expect(hashWorld(player, clean)).toBe(
+      fnv1a32(`${base}\ngroups:101,101;105,105\nstation:1,0,100/101/205`),
+    );
+  });
+});
+
+describe("the standing prints as the |std: suffix of the combat line (FOUND-20, plan 21-06)", () => {
+  const player = initFlightState(layout);
+  const base = `${serializeFlight(player)}\n${PRISTINE_SECTION}`;
+
+  it("prints nothing while the standing is pristine", () => {
+    const combat = createPlayerCombatState();
+    expect(hashWorld(player, twoShipWorld(), combat)).toBe(fnv1a32(base));
+  });
+
+  it("prints the suffix alone when only the standing differs, and deleting it reproduces the hash", () => {
+    const combat = createPlayerCombatState();
+    combat.standing = { legalStatus: 64, kills: 3 };
+    expect(hashWorld(player, twoShipWorld(), combat)).toBe(
+      fnv1a32(`${base}\n${COMBAT_PRISTINE}|std:64,3`),
+    );
+    combat.standing = { legalStatus: 0, kills: 0 };
+    expect(hashWorld(player, twoShipWorld(), combat)).toBe(fnv1a32(base));
+  });
+
+  it("keeps the combat text unchanged for a state that changes something else", () => {
+    const combat = createPlayerCombatState();
+    combat.energy = 100;
+    expect(hashWorld(player, twoShipWorld(), combat)).toBe(
+      fnv1a32(
+        `${base}\ncombat=view:fore|shield:128.000000,128.000000|energy:100.000000|cabin:60.000000|` +
+          "temp:0.000000,0.000000,0.000000,0.000000|shot:12000,12000,12000,12000|ident:false:0",
+      ),
     );
   });
 });
