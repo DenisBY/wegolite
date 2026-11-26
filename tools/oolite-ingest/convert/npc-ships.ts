@@ -51,31 +51,55 @@ import {
 } from "../../../src/content/schemas/ship-npc.js";
 import { boundingBox } from "./dat.js";
 import type { ParsedMesh } from "./dat.js";
-import { EMITTED_ENTRIES, MODEL_SOURCE_FILES, shipGlbFile } from "./glb.js";
+import { EMITTED_ENTRIES, MODEL_SOURCE_FILES, npcGlbFile } from "./glb.js";
 import type { EmittedShips, ShipCatalogue } from "./ships.js";
 
 /** Where the NPC records are written, repository-relative. */
 export const NPC_SHIPS_PATH = "src/content/generated/ships-npc.json";
 
 /**
- * One canonical record per compiled NPC model (D-02): the non-template record
- * of each model, together covering the police, trader, pirate, hunter, shuttle
- * and scavenger roles. Every other record that uses one of these models (player
- * variants, `cobramk1-alt`, `morayMED`, `cobramk1-miner`, `mamba-escort`,
- * `viper-pursuit`, the tutorial krait records and the `oolite_template_*`
- * parents) is left out; the reasons are in plan 09-04's objective table. Code
- * unit sorted, like `CLIENT_SHIP_KEYS`.
+ * The compiled NPC records (DATA-17, plan 21-08): the 28 records the milestone's
+ * in-scope roles resolve to over the `like_ship`-resolved catalogue, plus
+ * `shuttle`. The 28 are the non-template records whose role tokens (probability
+ * suffixes stripped) name a trader, trader-courier, trader-smuggler, hunter,
+ * hunter-medium, hunter-heavy, pirate, pirate fighter or interceptor or freighter
+ * role, police, interceptor, wingman, escort, escort-medium or escort-heavy
+ * (the roster test in `npc-ships.test.ts` derives them from `ships.json` and
+ * fails on any difference); they sit on 18 models. `shuttle`'s only role is
+ * `shuttle`, which the roadmap defers, but `INERT_POPULATION` and the `?test=1`
+ * flyer hook still need it, so it stays (RESEARCH A1). A record owns one GLB,
+ * named after its key (`npcGlbFile`). Code unit sorted, like `CLIENT_SHIP_KEYS`.
  */
 export const NPC_SHIP_KEYS: readonly string[] = [
   "adder",
+  "anaconda",
+  "anaconda-pirate",
+  "asp",
+  "boa",
+  "boa-mk2",
+  "boa-mk2-pirate",
+  "boa-pirate",
+  "cobra3-alternate",
+  "cobra3-pirate",
+  "cobra3-trader",
   "cobramk1",
+  "cobramk1-alt",
+  "ferdelance",
   "gecko",
   "krait",
   "mamba",
+  "mamba-escort",
   "moray",
+  "morayMED",
+  "python",
+  "python-blackdog",
+  "python-trader",
   "shuttle",
   "sidewinder",
+  "sidewinder-escort",
   "viper",
+  "viper-interceptor",
+  "viper-pursuit",
 ];
 
 /**
@@ -700,7 +724,7 @@ export function compileNpcShips(
 
     // The record set must equal the emitted model set: the GLB is built from
     // this record's own model and is owned by this record's key alone.
-    const file = shipGlbFile(entry.model);
+    const file = npcGlbFile(key);
     const owners = EMITTED_ENTRIES[file];
     const sources = MODEL_SOURCE_FILES[file];
     if (

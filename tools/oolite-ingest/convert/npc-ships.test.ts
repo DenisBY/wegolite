@@ -29,7 +29,13 @@ import type { PlistValue } from "../openstep/plist-value.js";
 import { getEntry } from "../openstep/plist-value.js";
 import { parseDat } from "./dat.js";
 import type { ParsedMesh } from "./dat.js";
-import { MODEL_SOURCE_FILES, NPC_SHIP_GLBS, shipGlbFile } from "./glb.js";
+import {
+  EMITTED_ENTRIES,
+  MODEL_SOURCE_FILES,
+  NPC_SHIP_GLBS,
+  npcGlbFile,
+} from "./glb.js";
+import { NPC_GLB_PATH_PATTERN } from "../../../src/content/npc-glb-path.js";
 import {
   DEFAULT_AI_TYPE,
   DEFAULT_AUTO_AI,
@@ -165,6 +171,46 @@ function requireRecord(key: string): NpcShip {
   return match;
 }
 
+/**
+ * The role tokens the milestone's populator and AI resolve (probability
+ * suffixes stripped): traders, hunters, pirates, police and their escorts.
+ */
+const ROSTER_ROLES: ReadonlySet<string> = new Set([
+  "trader",
+  "trader-courier",
+  "trader-smuggler",
+  "hunter",
+  "hunter-medium",
+  "hunter-heavy",
+  "pirate",
+  "pirate-light-fighter",
+  "pirate-medium-fighter",
+  "pirate-heavy-fighter",
+  "pirate-interceptor",
+  "pirate-light-freighter",
+  "pirate-medium-freighter",
+  "pirate-heavy-freighter",
+  "police",
+  "interceptor",
+  "wingman",
+  "escort",
+  "escort-medium",
+  "escort-heavy",
+]);
+
+/** The three Viper variants: `scan_class` and `laser_color` are authored on them only. */
+const VIPER_VARIANTS = ["viper", "viper-interceptor", "viper-pursuit"];
+
+/** The six hulls that author an aft weapon, and the equipment key it compiles to. */
+const AFT_ARMED: Readonly<Record<string, string>> = {
+  anaconda: "EQ_WEAPON_PULSE_LASER",
+  "anaconda-pirate": "EQ_WEAPON_BEAM_LASER",
+  boa: "EQ_WEAPON_BEAM_LASER",
+  "boa-mk2": "EQ_WEAPON_BEAM_LASER",
+  "boa-mk2-pirate": "EQ_WEAPON_BEAM_LASER",
+  "boa-pirate": "EQ_WEAPON_BEAM_LASER",
+};
+
 function capture(fn: () => unknown): ContentError {
   try {
     fn();
@@ -196,6 +242,35 @@ describe("NPC ship records", () => {
     );
     expect(records).toHaveLength(NPC_SHIP_KEYS.length);
     expect(records).toHaveLength(golden.keys.length);
+  });
+
+  it("holds the 28 records the in-scope roles resolve to over the like_ship-resolved catalogue, plus shuttle (DATA-17)", () => {
+    const resolved = (
+      JSON.parse(readText("src/content/generated/ships.json")) as {
+        key: string;
+        isTemplate: boolean;
+        model: string | null;
+        roles: string[] | null;
+      }[]
+    ).filter(
+      (entry) =>
+        !entry.isTemplate &&
+        (entry.roles ?? []).some((token) =>
+          ROSTER_ROLES.has(token.replace(/\([^)]*\)$/, "")),
+        ),
+    );
+    expect(resolved.map((entry) => entry.key)).toHaveLength(28);
+    // 18 distinct models carry the 28 records.
+    expect(new Set(resolved.map((entry) => entry.model)).size).toBe(18);
+    const expected = [...resolved.map((entry) => entry.key), "shuttle"].sort(
+      (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+    );
+    expect([...NPC_SHIP_KEYS]).toEqual(expected);
+    expect(NPC_SHIP_KEYS).toHaveLength(29);
+    // shuttle stays for INERT_POPULATION and the ?test=1 flyer hook (RESEARCH A1):
+    // its only role is outside the in-scope set.
+    expect(requireRecord("shuttle").roles).toEqual(["shuttle"]);
+    expect(resolved.map((entry) => entry.key)).not.toContain("shuttle");
   });
 
   it("carries exactly the golden's forty-one fields and passes the strict schema", () => {
@@ -272,13 +347,15 @@ describe("NPC ship records", () => {
     }
   });
 
-  it("authors the Viper's scan class and defaults the other eight", () => {
-    expect(requireEntry("oolite_template_viper").extras["scan_class"]).toBe(
-      "CLASS_POLICE",
-    );
-    expect(requireRecord("viper").scanClass).toBe("CLASS_POLICE");
+  it("authors the three Viper variants' scan class and defaults the other 26", () => {
+    for (const key of VIPER_VARIANTS) {
+      expect(requireEntry(`oolite_template_${key}`).extras["scan_class"]).toBe(
+        "CLASS_POLICE",
+      );
+      expect(requireRecord(key).scanClass).toBe("CLASS_POLICE");
+    }
     for (const key of NPC_SHIP_KEYS) {
-      if (key === "viper") continue;
+      if (VIPER_VARIANTS.includes(key)) continue;
       expect(requireEntry(`oolite_template_${key}`).extras).not.toHaveProperty(
         "scan_class",
       );
@@ -286,9 +363,14 @@ describe("NPC ship records", () => {
     }
   });
 
-  it("derives each glb from the model and finds the file under public/", () => {
+  it("names each glb after its record key in lower case and finds the file under public/", () => {
     for (const record of records) {
-      expect(record.glb).toBe(`models/${shipGlbFile(record.model)}`);
+      expect(record.glb).toBe(`models/${npcGlbFile(record.key)}`);
+      expect(NPC_GLB_PATH_PATTERN.test(record.glb), record.key).toBe(true);
+      // One GLB per record: its row has this record as the only owner.
+      expect(EMITTED_ENTRIES[record.glb.slice("models/".length)]).toEqual([
+        record.key,
+      ]);
       expect(existsSync(new URL(`public/${record.glb}`, REPO))).toBe(true);
       expect(NPC_SHIP_GLBS).toContain(record.glb.slice("models/".length));
     }
@@ -471,14 +553,16 @@ function compiled(source: ShipCatalogue, key: string): NpcShip {
 }
 
 describe("NPC laser_color (quick 261119-i9g, ShipEntity.m:421-427, 6469-6474)", () => {
-  it("compiles the Viper to magenta and the other eight to null", () => {
-    expect(requireEntry("oolite_template_viper").extras["laser_color"]).toBe(
-      "magentaColor",
-    );
+  it("compiles the three Viper variants to magenta and the other 26 to null", () => {
     expect(requireEntry("viper").extras["laser_color"]).toBe("magentaColor");
-    expect(requireRecord("viper").laserColor).toEqual([1, 0, 1]);
+    for (const key of VIPER_VARIANTS) {
+      expect(requireEntry(`oolite_template_${key}`).extras["laser_color"]).toBe(
+        "magentaColor",
+      );
+      expect(requireRecord(key).laserColor).toEqual([1, 0, 1]);
+    }
     for (const key of NPC_SHIP_KEYS) {
-      if (key === "viper") continue;
+      if (VIPER_VARIANTS.includes(key)) continue;
       expect(requireEntry(`oolite_template_${key}`).extras).not.toHaveProperty(
         "laser_color",
       );
@@ -561,14 +645,44 @@ describe("NPC laser_color (quick 261119-i9g, ShipEntity.m:421-427, 6469-6474)", 
 describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
   const EXPECTED: Record<string, readonly [string, number, number, string]> = {
     adder: ["Adder", 85, 2, "EQ_WEAPON_PULSE_LASER"],
+    anaconda: ["Anaconda", 500, 3, "EQ_WEAPON_PULSE_LASER"],
+    "anaconda-pirate": ["Anaconda", 500, 3, "EQ_WEAPON_BEAM_LASER"],
+    asp: ["Asp Mark II", 350, 4, "EQ_WEAPON_BEAM_LASER"],
+    boa: ["Boa", 450, 3, "EQ_WEAPON_PULSE_LASER"],
+    "boa-mk2": ["Boa Class Cruiser", 525, 3.2, "EQ_WEAPON_BEAM_LASER"],
+    "boa-mk2-pirate": ["Boa Class Cruiser", 525, 3.2, "EQ_WEAPON_BEAM_LASER"],
+    "boa-pirate": ["Boa", 450, 3, "EQ_WEAPON_BEAM_LASER"],
+    "cobra3-alternate": ["Cobra Mark III", 256, 4, "EQ_WEAPON_BEAM_LASER"],
+    "cobra3-pirate": ["Cobra Mark III", 256, 4, "EQ_WEAPON_PULSE_LASER"],
+    "cobra3-trader": ["Cobra Mark III", 256, 4, "EQ_WEAPON_BEAM_LASER"],
     cobramk1: ["Cobra Mark I", 150, 2.5, "EQ_WEAPON_PULSE_LASER"],
+    "cobramk1-alt": ["Cobra Mark I", 200, 3.75, "EQ_WEAPON_BEAM_LASER"],
+    ferdelance: ["Fer-de-Lance", 150, 4.5, "EQ_WEAPON_BEAM_LASER"],
     gecko: ["Gecko", 250, 4, "EQ_WEAPON_BEAM_LASER"],
     krait: ["Krait", 250, 2.5, "EQ_WEAPON_BEAM_LASER"],
     mamba: ["Mamba", 240, 3, "EQ_WEAPON_PULSE_LASER"],
+    "mamba-escort": ["Mamba Escort", 240, 3, "EQ_WEAPON_BEAM_LASER"],
     moray: ["Moray Star Boat", 240, 3, "EQ_WEAPON_PULSE_LASER"],
+    morayMED: ["Moray Medical Boat", 240, 3, "EQ_WEAPON_PULSE_LASER"],
+    python: ["Python", 450, 2.5, "EQ_WEAPON_BEAM_LASER"],
+    "python-blackdog": ["Python", 450, 3.5, "EQ_WEAPON_BEAM_LASER"],
+    "python-trader": ["Python", 450, 2.5, "EQ_WEAPON_BEAM_LASER"],
     shuttle: ["Orbital Shuttle", 120, 1, "EQ_WEAPON_NONE"],
     sidewinder: ["Sidewinder Scout Ship", 240, 2, "EQ_WEAPON_PULSE_LASER"],
+    "sidewinder-escort": [
+      "Sidewinder Scout Ship",
+      240,
+      2.5,
+      "EQ_WEAPON_BEAM_LASER",
+    ],
     viper: ["GalCop Viper", 180, 4, "EQ_WEAPON_BEAM_LASER"],
+    "viper-interceptor": [
+      "GalCop Viper Interceptor",
+      280,
+      6,
+      "EQ_WEAPON_MILITARY_LASER",
+    ],
+    "viper-pursuit": ["GalCop Viper", 180, 4, "EQ_WEAPON_BEAM_LASER"],
   };
 
   it("pins the name, energy and forward weapon of all nine records", () => {
@@ -578,8 +692,8 @@ describe("NPC combat fields (CBT-07, minimum of DATA-15)", () => {
     )) {
       const record = requireRecord(key);
       expect(record.name).toBe(name);
-      expect(record.maxEnergy).toBe(maxEnergy);
-      expect(record.energyRechargeRate).toBe(recharge);
+      expect(record.maxEnergy).toBe(Math.fround(maxEnergy));
+      expect(record.energyRechargeRate).toBe(Math.fround(recharge));
       expect(record.forwardWeapon).toBe(weapon);
     }
   });
@@ -708,14 +822,34 @@ describe("NPC flight fields (AI-01, minimum of DATA-15)", () => {
   // numbers; the record holds their float32.
   const EXPECTED: Record<string, readonly [number, number, number, number]> = {
     adder: [240, 2.8, 2, 30],
+    anaconda: [140, 0.75, 0.4, 14],
+    "anaconda-pirate": [140, 0.75, 0.4, 14],
+    asp: [400, 2, 1, 50],
+    boa: [240, 2.8, 1, 36],
+    "boa-mk2": [312, 2.5, 1, 40],
+    "boa-mk2-pirate": [312, 2.5, 1, 40],
+    "boa-pirate": [240, 2.8, 1, 36],
+    "cobra3-alternate": [300, 2, 1, 32],
+    "cobra3-pirate": [300, 2, 1, 32],
+    "cobra3-trader": [300, 2, 1, 30],
     cobramk1: [260, 2, 1.2, 25],
+    "cobramk1-alt": [260, 2, 1.2, 30],
+    ferdelance: [300, 3.6, 1, 36],
     gecko: [300, 3, 1.5, 45],
     krait: [300, 2.75, 1.5, 35],
     mamba: [320, 2.1, 1.4, 32],
+    "mamba-escort": [320, 2.1, 1.4, 32],
     moray: [300, 2.5, 1.5, 32],
+    morayMED: [300, 2.5, 1.5, 32],
+    python: [200, 2, 0.8, 20],
+    "python-blackdog": [200, 2, 0.8, 20],
+    "python-trader": [200, 2, 0.8, 20],
     shuttle: [80, 2, 0.9, 16],
     sidewinder: [370, 2.8, 1.6, 37],
+    "sidewinder-escort": [370, 2.8, 1.8, 37],
     viper: [320, 2.8, 1.8, 32],
+    "viper-interceptor": [520, 4.2, 2, 50],
+    "viper-pursuit": [360, 2.8, 1.8, 36],
   };
 
   it("pins the speed, roll, pitch and thrust of all nine records as float32", () => {
@@ -801,14 +935,34 @@ describe("NPC cargo fields (DATA-14, D-06)", () => {
   // key is Oolite's default 0 (oo_unsignedIntForKey, ShipEntity.m:566, :378).
   const EXPECTED: Record<string, readonly [number, number]> = {
     adder: [2, 5],
+    anaconda: [125, 250],
+    "anaconda-pirate": [125, 250],
+    asp: [0, 0],
+    boa: [100, 125],
+    "boa-mk2": [125, 175],
+    "boa-mk2-pirate": [125, 175],
+    "boa-pirate": [100, 125],
+    "cobra3-alternate": [15, 35],
+    "cobra3-pirate": [15, 20],
+    "cobra3-trader": [15, 20],
     cobramk1: [10, 10],
+    "cobramk1-alt": [10, 10],
+    ferdelance: [8, 12],
     gecko: [3, 3],
     krait: [2, 2],
     mamba: [3, 4],
+    "mamba-escort": [3, 4],
     moray: [5, 7],
+    morayMED: [15, 22],
+    python: [75, 100],
+    "python-blackdog": [75, 100],
+    "python-trader": [75, 100],
     shuttle: [0, 30],
     sidewinder: [0, 0],
+    "sidewinder-escort": [0, 0],
     viper: [0, 0],
+    "viper-interceptor": [0, 0],
+    "viper-pursuit": [0, 0],
   };
 
   it("pins likelyCargo and maxCargo of all nine records", () => {
@@ -864,7 +1018,47 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
   // positions as authored in shipdata.plist; the record holds their float32.
   const POSITIONS: Record<string, readonly [string, string, string]> = {
     adder: ["0.0 0.0 -22.5", "-15.0 0.0 -14.5", "15.0 0.0 -14.5"],
+    anaconda: [
+      "0.0 12.111841 -78.506901",
+      "-26.255348 9.75 -31.565586",
+      "26.255348 9.75 -31.565586",
+    ],
+    "anaconda-pirate": [
+      "0.0 12.111841 -78.506901",
+      "-26.255348 9.75 -31.565586",
+      "26.255348 9.75 -31.565586",
+    ],
+    asp: [
+      "0.0 1.5 -39.5811",
+      "-27.73195 7.75933 2.57624",
+      "-27.73195 7.75933 2.57624",
+    ],
+    boa: [
+      "0.0 -0.894413 -51.6227",
+      "-16.75005 4.88388 15.119505",
+      "16.75005 4.88388 15.119505",
+    ],
+    "boa-mk2": [
+      "0.0 5.343195 -55.8465",
+      "-21.7753 2.22895 -5.45145",
+      "21.7753 2.22895 -5.45145",
+    ],
+    "boa-mk2-pirate": [
+      "0.0 5.343195 -55.8465",
+      "-21.7753 2.22895 -5.45145",
+      "21.7753 2.22895 -5.45145",
+    ],
+    "boa-pirate": [
+      "0.0 -0.894413 -51.6227",
+      "-16.75005 4.88388 15.119505",
+      "16.75005 4.88388 15.119505",
+    ],
+    "cobra3-alternate": ["0.0 0.0 -33.5", "-47.4 -2.3 0.0", "47.4 -2.3 0.0"],
+    "cobra3-pirate": ["0.0 0.0 -33.5", "-47.4 -2.3 0.0", "47.4 -2.3 0.0"],
+    "cobra3-trader": ["0.0 0.0 -33.5", "-47.4 -2.3 0.0", "47.4 -2.3 0.0"],
     cobramk1: ["0.0 0.0 -27.5", "-35.0 -1.0 0.5", "35.0 -1.0 0.5"],
+    "cobramk1-alt": ["0.0 0.0 -27.5", "-35.0 -1.0 0.5", "35.0 -1.0 0.5"],
+    ferdelance: ["0.0 0.0 -42.5", "-16.875 -4.0 3.5", "16.875 -4.0 3.5"],
     gecko: [
       "0.0 5.54957 -12.1558",
       "-13.75 -2.0625 -1.875",
@@ -872,21 +1066,53 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
     ],
     krait: ["0.0 0.0 -34.6", "-45.0 0.0 -13.5", "45.0 0.0 -13.5"],
     mamba: ["0.0 1.5184 -30.3193", "-16.5 -3.0 0.0", "16.5 -3.0 0.0"],
+    "mamba-escort": ["0.0 1.5184 -30.3193", "-16.5 -3.0 0.0", "16.5 -3.0 0.0"],
     moray: ["0.0 -2.554795 -27.78225", "-30.0 -2.0 6.25", "30.0 -2.0 6.25"],
+    morayMED: ["0.0 -2.554795 -27.78225", "-30.0 -2.0 6.25", "30.0 -2.0 6.25"],
+    python: ["0.0 0.0 -70.0", "-26.67 0.0 4.33", "26.67 0.0 4.33"],
+    "python-blackdog": ["0.0 0.0 -70.0", "-26.67 0.0 4.33", "26.67 0.0 4.33"],
+    "python-trader": ["0.0 0.0 -70.0", "-26.67 0.0 4.33", "26.67 0.0 4.33"],
     shuttle: ["0.0 0.0 -17.5", "-9.0 0.0 11.5", "9.0 0.0 11.5"],
     sidewinder: ["0.0 -6.5 -17.5", "-24.25 0.0 0.0", "24.25 0.0 0.0"],
+    "sidewinder-escort": ["0.0 -6.5 -17.5", "-24.25 0.0 0.0", "24.25 0.0 0.0"],
     viper: ["0.0 0.0 -27.5", "-12.5 0.0 0.0", "12.5 0.0 0.0"],
+    "viper-interceptor": [
+      "0.0 -8.0 -32.0",
+      "-23.75 0.0 -1.75",
+      "23.75 0.0 -1.75",
+    ],
+    "viper-pursuit": ["0.0 0.0 -27.5", "-12.5 0.0 0.0", "12.5 0.0 0.0"],
   };
   const MASKS: Record<string, number> = {
     adder: 1,
+    anaconda: 15,
+    "anaconda-pirate": 15,
+    asp: 3,
+    boa: 15,
+    "boa-mk2": 15,
+    "boa-mk2-pirate": 15,
+    "boa-pirate": 15,
+    "cobra3-alternate": 15,
+    "cobra3-pirate": 15,
+    "cobra3-trader": 15,
     cobramk1: 3,
+    "cobramk1-alt": 3,
+    ferdelance: 15,
     gecko: 1,
     krait: 1,
     mamba: 1,
+    "mamba-escort": 1,
     moray: 15,
+    morayMED: 1,
+    python: 15,
+    "python-blackdog": 15,
+    "python-trader": 15,
     shuttle: 0,
     sidewinder: 1,
+    "sidewinder-escort": 1,
     viper: 1,
+    "viper-interceptor": 1,
+    "viper-pursuit": 1,
   };
   const float32 = (text: string): number[] =>
     text.split(/\s+/).map((part) => {
@@ -926,9 +1152,11 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
     }
   });
 
-  it("compiles every facing of the nine records to the facing default", () => {
+  it("compiles the port and starboard facing of every record to the facing default, and the aft facing of all but the six aft-armed hulls", () => {
     for (const record of records) {
-      expect(record.aftWeapon).toBe("EQ_WEAPON_NONE");
+      if (!Object.hasOwn(AFT_ARMED, record.key)) {
+        expect(record.aftWeapon, record.key).toBe("EQ_WEAPON_NONE");
+      }
       expect(record.portWeapon).toBe("EQ_WEAPON_NONE");
       expect(record.starboardWeapon).toBe("EQ_WEAPON_NONE");
     }
@@ -937,14 +1165,34 @@ describe("NPC weapon facings, fragment chance and explosion type (DATA-14)", () 
   it("keeps the nine forward weapons unchanged by the facing mask", () => {
     const FORWARD: Record<string, string> = {
       adder: "EQ_WEAPON_PULSE_LASER",
+      anaconda: "EQ_WEAPON_PULSE_LASER",
+      "anaconda-pirate": "EQ_WEAPON_BEAM_LASER",
+      asp: "EQ_WEAPON_BEAM_LASER",
+      boa: "EQ_WEAPON_PULSE_LASER",
+      "boa-mk2": "EQ_WEAPON_BEAM_LASER",
+      "boa-mk2-pirate": "EQ_WEAPON_BEAM_LASER",
+      "boa-pirate": "EQ_WEAPON_BEAM_LASER",
+      "cobra3-alternate": "EQ_WEAPON_BEAM_LASER",
+      "cobra3-pirate": "EQ_WEAPON_PULSE_LASER",
+      "cobra3-trader": "EQ_WEAPON_BEAM_LASER",
       cobramk1: "EQ_WEAPON_PULSE_LASER",
+      "cobramk1-alt": "EQ_WEAPON_BEAM_LASER",
+      ferdelance: "EQ_WEAPON_BEAM_LASER",
       gecko: "EQ_WEAPON_BEAM_LASER",
       krait: "EQ_WEAPON_BEAM_LASER",
       mamba: "EQ_WEAPON_PULSE_LASER",
+      "mamba-escort": "EQ_WEAPON_BEAM_LASER",
       moray: "EQ_WEAPON_PULSE_LASER",
+      morayMED: "EQ_WEAPON_PULSE_LASER",
+      python: "EQ_WEAPON_BEAM_LASER",
+      "python-blackdog": "EQ_WEAPON_BEAM_LASER",
+      "python-trader": "EQ_WEAPON_BEAM_LASER",
       shuttle: "EQ_WEAPON_NONE",
       sidewinder: "EQ_WEAPON_PULSE_LASER",
+      "sidewinder-escort": "EQ_WEAPON_BEAM_LASER",
       viper: "EQ_WEAPON_BEAM_LASER",
+      "viper-interceptor": "EQ_WEAPON_MILITARY_LASER",
+      "viper-pursuit": "EQ_WEAPON_BEAM_LASER",
     };
     for (const [key, weapon] of Object.entries(FORWARD)) {
       expect(requireRecord(key).forwardWeapon).toBe(weapon);
@@ -1187,9 +1435,39 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
     ).toContain("port_weapon_type");
   });
 
-  it("keeps the nine records' aft weapon at EQ_WEAPON_NONE", () => {
-    for (const record of records) {
-      expect(record.aftWeapon).toBe("EQ_WEAPON_NONE");
+  it("compiles an aft weapon for exactly the six aft-armed hulls (DATA-17, plan 21-08)", () => {
+    const armed = records
+      .filter((record) => record.aftWeapon !== "EQ_WEAPON_NONE")
+      .map((record) => [record.key, record.aftWeapon]);
+    expect(Object.fromEntries(armed)).toEqual(AFT_ARMED);
+    // Each authored aft type and position survives the compile.
+    for (const key of Object.keys(AFT_ARMED)) {
+      const extras = requireEntry(key).extras;
+      const record = requireRecord(key);
+      expect(Number(extras["weapon_facings"]) & 2, key).toBe(2);
+      expect([...record.aftWeaponPosition], key).toEqual(
+        String(extras["weapon_position_aft"])
+          .split(/\s+/)
+          .map((part) => Math.fround(Number(part))),
+      );
+    }
+    expect(requireRecord("anaconda").aftWeapon).toBe("EQ_WEAPON_PULSE_LASER");
+    expect(requireRecord("boa").aftWeapon).toBe("EQ_WEAPON_BEAM_LASER");
+  });
+
+  it("authors no port, starboard, accuracy, reaction_time or scanner_range on any of the 29", () => {
+    for (const key of NPC_SHIP_KEYS) {
+      for (const field of [
+        "port_weapon_type",
+        "starboard_weapon_type",
+        "accuracy",
+        "reaction_time",
+        "scanner_range",
+      ]) {
+        expect(requireEntry(key).extras, `${key} ${field}`).not.toHaveProperty(
+          field,
+        );
+      }
     }
   });
 
@@ -1293,7 +1571,7 @@ describe("NPC role fields (DATA-17, plan 21-05)", () => {
   ): ShipCatalogue =>
     withExtras(key, (extras) => ({ ...extras, [field]: value }));
 
-  it("compiles every field to Oolite's default or the authored value for the nine records", () => {
+  it("compiles every field to Oolite's default or the authored value for the legacy nine records", () => {
     // Authored in the templates: the fuzzy has_scoop of adder, cobramk1,
     // gecko, krait, mamba and moray, auto_weapons, fuel, scoop_position.
     expect(requireRecord("adder")).toMatchObject({
@@ -1322,10 +1600,26 @@ describe("NPC role fields (DATA-17, plan 21-05)", () => {
       missiles: DEFAULT_MISSILES,
       maxMissiles: DEFAULT_MISSILES,
     });
+    const ESCORTING = [
+      "anaconda",
+      "anaconda-pirate",
+      "boa",
+      "boa-mk2",
+      "boa-mk2-pirate",
+      "boa-pirate",
+      "python-blackdog",
+      "python-trader",
+    ];
     for (const record of records) {
       expect(record.countsAsKill).toBe(true);
-      expect(record.escortRoles).toBeNull();
+      expect(record.escortRoles !== null, record.key).toBe(
+        ESCORTING.includes(record.key),
+      );
     }
+    expect(requireRecord("cobra3-pirate").bounty).toBe(50);
+    expect(
+      records.filter((record) => record.bounty !== 0).map((r) => r.key),
+    ).toEqual(["cobra3-pirate"]);
   });
 
   it("takes max_missiles from missiles when absent and clamps both as Oolite does (ShipEntity.m:313-328)", () => {

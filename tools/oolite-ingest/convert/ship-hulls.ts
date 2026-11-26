@@ -10,8 +10,9 @@
  * built here, at build time, from the vendored `.dat` models with the same
  * `buildOctree` the mass port uses and the same `hullRadius` the NPC radii use:
  * nothing about the octree or the radius is re-derived. The artifact covers the
- * ten hulls a shot can meet: the player's Cobra Mk III (so a scripted pilot can
- * hit the player, RESEARCH Pitfall 11) and the nine NPC hulls.
+ * hulls a shot can meet: the player's Cobra Mk III (so a scripted pilot can
+ * hit the player, RESEARCH Pitfall 11) and the hulls of the NPC records, one
+ * entry per model (19 entries for the 30 keys).
  *
  * One octree per model (DATA-18, RESEARCH A8): records that share a model share
  * one entry. The entry's `key` is the group's existing key (the player's Cobra
@@ -50,7 +51,7 @@ export const SHIP_HULLS_PATH = "src/content/generated/ships-hulls.json";
 export const PLAYER_HULL_KEY = "oolite_template_cobra3-player";
 
 /**
- * The ten hulls, player first and then the nine NPC keys in their own order.
+ * The hull keys, player first and then the NPC keys in their own order.
  */
 export const HULL_SHIP_KEYS: readonly string[] = [
   PLAYER_HULL_KEY,
@@ -191,8 +192,8 @@ function compactRoot(root: ShipHull["octree"]["root"]): string {
  * element per line; an entry without aliases writes no such key.
  *
  * The shared `canonicalJson` writes one array element per line, which puts the
- * ten hulls (about 37,000 nodes) at roughly 750 KB; the compact root brings them
- * to about 100 KB, inside `MAX_HULL_ARTIFACT_BYTES` (RESEARCH Alternatives: use
+ * ten original hulls (about 37,000 nodes) at roughly 750 KB; the compact root
+ * brings them to about 90 KB (162,546 bytes for today's 19 entries), inside `MAX_HULL_ARTIFACT_BYTES` (RESEARCH Alternatives: use
  * the compact encoding rather than raise a ceiling). The bytes remain a pure
  * function of the records.
  */

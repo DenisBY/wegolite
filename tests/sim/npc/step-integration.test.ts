@@ -287,18 +287,38 @@ describe("flightTableFrom and massFor", () => {
     expect(table[1]?.forwardWeapon).toBe("EQ_WEAPON_NONE");
   });
 
-  it("the real table has the nine committed kinds", () => {
+  it("the real table has the 29 committed kinds (plan 21-08)", () => {
     const table = realNpcFlightTable();
     expect(table.map((row) => row.specKey)).toEqual([
       "adder",
+      "anaconda",
+      "anaconda-pirate",
+      "asp",
+      "boa",
+      "boa-mk2",
+      "boa-mk2-pirate",
+      "boa-pirate",
+      "cobra3-alternate",
+      "cobra3-pirate",
+      "cobra3-trader",
       "cobramk1",
+      "cobramk1-alt",
+      "ferdelance",
       "gecko",
       "krait",
       "mamba",
+      "mamba-escort",
       "moray",
+      "morayMED",
+      "python",
+      "python-blackdog",
+      "python-trader",
       "shuttle",
       "sidewinder",
+      "sidewinder-escort",
       "viper",
+      "viper-interceptor",
+      "viper-pursuit",
     ]);
   });
 

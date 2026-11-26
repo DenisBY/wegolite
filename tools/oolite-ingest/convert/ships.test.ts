@@ -174,7 +174,19 @@ describe("shipdata catalogue", () => {
       "adder",
       "adder-player",
       "alloy",
+      "anaconda",
+      "anaconda-pirate",
+      "anaconda-player",
+      "asp",
+      "asp-cloaked",
+      "asp-player",
       "barrel",
+      "boa",
+      "boa-mk2",
+      "boa-mk2-pirate",
+      "boa-mk2-player",
+      "boa-pirate",
+      "boa-player",
       "buoy",
       "buoy-witchpoint",
       "cobra3-alternate",
@@ -186,6 +198,8 @@ describe("shipdata catalogue", () => {
       "cobramk1-miner",
       "cobramk1-player",
       "coriolis-station",
+      "ferdelance",
+      "ferdelance-player",
       "gecko",
       "krait",
       "mamba",
@@ -207,10 +221,16 @@ describe("shipdata catalogue", () => {
       "oolite_buoy_subentity",
       "oolite_template_tutorial-krait-wave1",
       "oolite_template_wreckage-chunk",
+      "python",
+      "python-blackdog",
+      "python-player",
+      "python-trader",
       "scarred-alloy",
       "shuttle",
       "sidewinder",
+      "sidewinder-escort",
       "viper",
+      "viper-interceptor",
       "viper-pursuit",
       "wreckage-chunk",
       "wreckage-chunk2",
@@ -225,7 +245,7 @@ describe("shipdata catalogue", () => {
     ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
     expect([...VENDORED_MODEL_FILES]).toEqual(expected);
-    expect(VENDORED_MODEL_FILES).toHaveLength(23);
+    expect(VENDORED_MODEL_FILES).toHaveLength(32);
   });
 
   it("keeps every remaining resolved key in extras", () => {

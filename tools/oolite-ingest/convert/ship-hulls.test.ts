@@ -117,9 +117,41 @@ function synthetic(rows: readonly (readonly [string, string])[]): {
 }
 
 describe("compileShipHulls", () => {
-  it("compiles the ten keys in HULL_SHIP_KEYS order, the Cobra player first", () => {
-    expect(hulls.map((hull) => hull.key)).toEqual([...HULL_SHIP_KEYS]);
+  it("compiles one entry per model in HULL_SHIP_KEYS order, the Cobra player first", () => {
+    const aliased = new Set(hulls.flatMap((hull) => hull.aliases ?? []));
+    expect(hulls.map((hull) => hull.key)).toEqual(
+      HULL_SHIP_KEYS.filter((key) => !aliased.has(key)),
+    );
     expect(HULL_SHIP_KEYS[0]).toBe(PLAYER_HULL_KEY);
+  });
+
+  it("shares each octree per model: 19 entries for the 30 keys, the Cobra family on the player's entry (DATA-18)", () => {
+    expect(HULL_SHIP_KEYS).toHaveLength(30);
+    expect(hulls).toHaveLength(19);
+    expect(distinctModels().size).toBe(19);
+    expect(hulls[0]?.key).toBe(PLAYER_HULL_KEY);
+    expect(hulls[0]?.aliases).toEqual([
+      "cobra3-alternate",
+      "cobra3-pirate",
+      "cobra3-trader",
+    ]);
+    // The other multi-key groups, by model.
+    const groups = Object.fromEntries(
+      hulls
+        .filter((hull) => hull.aliases !== undefined)
+        .map((hull) => [hull.key, hull.aliases]),
+    );
+    expect(groups).toEqual({
+      [PLAYER_HULL_KEY]: ["cobra3-alternate", "cobra3-pirate", "cobra3-trader"],
+      anaconda: ["anaconda-pirate"],
+      boa: ["boa-pirate"],
+      "boa-mk2": ["boa-mk2-pirate"],
+      cobramk1: ["cobramk1-alt"],
+      mamba: ["mamba-escort"],
+      moray: ["morayMED"],
+      python: ["python-blackdog"],
+      viper: ["viper-pursuit"],
+    });
   });
 
   it("derives the key count and the entry count from the catalogue (ten of each today)", () => {

@@ -48,17 +48,21 @@ function catalogue(): NpcShip[] {
 }
 
 describe("trafficContent", () => {
-  it("maps the authored laser colour by spec key: the viper only (quick 261119-i9g)", () => {
+  it("maps the authored laser colour by spec key: the three Viper variants only (quick 261119-i9g, plan 21-08)", () => {
     const content = trafficContent(catalogue());
-    expect([...content.laserColors.entries()]).toEqual([["viper", [1, 0, 1]]]);
+    expect([...content.laserColors.entries()]).toEqual([
+      ["viper", [1, 0, 1]],
+      ["viper-interceptor", [1, 0, 1]],
+      ["viper-pursuit", [1, 0, 1]],
+    ]);
   });
 
-  it("maps the nine committed records to records and masses in catalogue order", () => {
+  it("maps the 29 committed records to records and masses in catalogue order", () => {
     const source = catalogue();
-    expect(source).toHaveLength(9);
+    expect(source).toHaveLength(29);
     const content = trafficContent(source);
-    expect(content.records).toHaveLength(9);
-    expect(content.masses).toHaveLength(9);
+    expect(content.records).toHaveLength(29);
+    expect(content.masses).toHaveLength(29);
     source.forEach((ship, index) => {
       expect(content.records[index]).toEqual({
         key: ship.key,
@@ -80,7 +84,7 @@ describe("trafficContent", () => {
   it("builds the flight table with flightTableFrom, one row per catalogue ship (plan 14-18)", () => {
     const source = catalogue();
     const content = trafficContent(source);
-    expect(content.flight).toHaveLength(9);
+    expect(content.flight).toHaveLength(29);
     // One builder: the table equals the sim's own, not a second mapping.
     expect(content.flight).toEqual(flightTableFrom(source));
     source.forEach((ship, index) => {
@@ -120,13 +124,13 @@ function explosionRecords(): ExplosionRecord[] {
 }
 
 describe("debrisContentFrom (plan 16-06, WORLD-17)", () => {
-  it("maps the nine hulls with their boxes, the pod, the plate and five wrecks in catalogue order", () => {
+  it("maps the 29 hulls with their boxes, the pod, the plate and five wrecks in catalogue order", () => {
     const source = catalogue();
     const records = debrisRecords();
     const content = debrisContentFrom(source, records);
     if (content === undefined) throw new Error("no debris content");
     expect(content.hulls).toBeInstanceOf(Map);
-    expect(content.hulls.size).toBe(9);
+    expect(content.hulls.size).toBe(29);
     for (const ship of source) {
       const [minX, minY, minZ] = ship.boundingBox.min;
       const [maxX, maxY, maxZ] = ship.boundingBox.max;
@@ -318,7 +322,8 @@ describe("createInertPopulate", () => {
 });
 
 /**
- * The merged hull table (plan 18-13, DATA-15): the ten ship hulls and, with
+ * The merged hull table (plan 18-13, DATA-15): the ship hulls (plan 21-08: 19
+ * entries, one per model, carrying 30 keys through their aliases) and, with
  * traffic on, the four static hulls of the separate artifact. Expected keys,
  * positions and masses are the committed artifact's (pinned against Oolite in
  * `tests/content/ships-static-hulls.test.ts`), written out here literally.
@@ -330,33 +335,55 @@ describe("hullTable with the static hulls (plan 18-13)", () => {
   const statics = JSON.parse(
     readFileSync("src/content/generated/ships-static-hulls.json", "utf8"),
   ) as StaticHullArtifact;
-  const TEN = [
+  // Entry order, each entry key followed by its aliases (DATA-18).
+  const SHIP_KEYS = [
     "oolite_template_cobra3-player",
+    "cobra3-alternate",
+    "cobra3-pirate",
+    "cobra3-trader",
     "adder",
+    "anaconda",
+    "anaconda-pirate",
+    "asp",
+    "boa",
+    "boa-pirate",
+    "boa-mk2",
+    "boa-mk2-pirate",
     "cobramk1",
+    "cobramk1-alt",
+    "ferdelance",
     "gecko",
     "krait",
     "mamba",
+    "mamba-escort",
     "moray",
+    "morayMED",
+    "python",
+    "python-blackdog",
+    "python-trader",
     "shuttle",
     "sidewinder",
+    "sidewinder-escort",
     "viper",
+    "viper-pursuit",
+    "viper-interceptor",
   ];
   const STATIC_KEYS = ["coriolis-station", "buoy", "barrel", "alloy"];
 
-  it("without statics holds the ten ship hulls, none with a subentity or frangible key", () => {
+  it("without statics holds the 30 ship keys on 19 hulls, none with a subentity or frangible key", () => {
     const table = hullTable(ships);
-    expect([...table.keys()]).toEqual(TEN);
+    expect([...table.keys()]).toEqual(SHIP_KEYS);
+    expect(new Set(table.values()).size).toBe(19);
     for (const hull of table.values()) {
       expect(Object.keys(hull).sort()).toEqual(["collisionRadius", "octree"]);
     }
   });
 
-  it("with statics holds fourteen keys, the statics after the ten", () => {
+  it("with statics holds 34 keys, the statics after the ship keys", () => {
     const table = hullTable(ships, statics.hulls);
-    expect([...table.keys()]).toEqual([...TEN, ...STATIC_KEYS]);
+    expect([...table.keys()]).toEqual([...SHIP_KEYS, ...STATIC_KEYS]);
     // The ship hulls are unchanged by the merge.
-    for (const key of TEN) {
+    for (const key of SHIP_KEYS) {
       expect(table.get(key)).toEqual(hullTable(ships).get(key));
     }
   });
@@ -451,11 +478,26 @@ describe("hullTable with the static hulls (plan 18-13)", () => {
     ).toThrow(/shared-alias/);
   });
 
-  it("is what fullHullTable() builds, entry for entry, and realHullTable() stays the ten", () => {
+  it("shares one hull object between an alias and its entry key (DATA-18)", () => {
+    const table = hullTable(ships);
+    const player = table.get("oolite_template_cobra3-player");
+    expect(player).toBeDefined();
+    for (const alias of [
+      "cobra3-alternate",
+      "cobra3-pirate",
+      "cobra3-trader",
+    ]) {
+      expect(table.get(alias), alias).toBe(player);
+    }
+    expect(table.get("morayMED")).toBe(table.get("moray"));
+    expect(table.get("viper-interceptor")).not.toBe(table.get("viper"));
+  });
+
+  it("is what fullHullTable() builds, entry for entry, and realHullTable() holds the ship keys", () => {
     const merged = hullTable(ships, statics.hulls);
     const full = fullHullTable();
     expect([...full.keys()]).toEqual([...merged.keys()]);
     for (const [key, hull] of merged) expect(full.get(key), key).toEqual(hull);
-    expect([...realHullTable().keys()]).toEqual(TEN);
+    expect([...realHullTable().keys()]).toEqual(SHIP_KEYS);
   });
 });

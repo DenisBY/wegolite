@@ -158,6 +158,29 @@ function npcAssetPaths(): NpcAssetPaths {
 }
 
 /**
+ * The URL paths of every texture the three first-load GLBs reference (the
+ * player's Cobra Mk III, the Coriolis and the navigation buoy), read from each
+ * GLB's JSON chunk. Plan 21-08: the Cobra Mk III NPC variants (`cobra3-trader`
+ * and the like) and the Mamba, Moray and Viper variants reuse maps the player's
+ * Cobra already loads, so those paths are first-load assets, not NPC-owned ones.
+ */
+function firstLoadTexturePaths(): ReadonlySet<string> {
+  const paths = new Set<string>();
+  for (const glb of ["cobra3.glb", "coriolis.glb", "buoy.glb"]) {
+    const glbUrl = new URL(`/models/${glb}`, "http://localhost");
+    const bytes = readFileSync(join(process.cwd(), "public", "models", glb));
+    const jsonLength = bytes.readUInt32LE(12);
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + jsonLength).toString("utf8"),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    for (const image of json.images ?? []) {
+      paths.add(new URL(image.uri, glbUrl).pathname);
+    }
+  }
+  return paths;
+}
+
+/**
  * The debris model paths (`ships-debris.json`), every texture those GLBs
  * reference, and the two explosion particle textures (the cloud texture of
  * `explosions.json` and Oolite's flash, `/textures/oolite-particle-flash.png`):
@@ -453,9 +476,16 @@ test("a traffic-on cold start requests no NPC model before the first in-flight f
   });
 
   const npc = npcAssetPaths();
-  const npcPaths = new Set([...npc.glbs, ...npc.textures]);
-  // Plan 21-04: the counts follow the catalogue (9 GLBs and 43 textures today),
-  // with a floor: some GLB, and at least one texture per GLB.
+  // A texture the first-load models (the player's Cobra, the Coriolis, the buoy)
+  // already reference is not NPC-owned: the Cobra variants share its maps.
+  const firstLoadTextures = firstLoadTexturePaths();
+  const npcPaths = new Set(
+    [...npc.glbs, ...npc.textures].filter(
+      (path) => !firstLoadTextures.has(path),
+    ),
+  );
+  // Plan 21-04: the counts follow the catalogue (29 GLBs today), with a floor:
+  // some GLB, and at least one texture per GLB.
   expect(npc.glbs.length, "NPC GLB paths (vacuity guard)").toBeGreaterThan(0);
   expect(npc.glbs, "NPC GLB paths (vacuity guard)").toHaveLength(
     npcRecords().length,

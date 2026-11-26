@@ -732,7 +732,8 @@ describe("loadSessionContent (plan 18-13)", () => {
       "barrel",
       "alloy",
     ]);
-    expect(ctx.core.hulls?.size).toBe(14);
+    // 30 ship keys (19 hulls, the rest as aliases, plan 21-08) and the 4 static hulls.
+    expect(ctx.core.hulls?.size).toBe(34);
     expect(ctx.core.hulls?.has("adder")).toBe(true);
     expect(ctx.core.hulls?.get("coriolis-station")?.subentities).toHaveLength(
       3,

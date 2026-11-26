@@ -34,6 +34,7 @@ import {
   resolveReferencedTextures,
   sampleNearest,
 } from "./textures.js";
+import type { TextureReference } from "./textures.js";
 import {
   DEBRIS_GLBS,
   LEGACY_TEXTURED_ENTRIES,
@@ -83,12 +84,12 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 59 allowlisted names, in both directions", () => {
+  it("resolves exactly the 110 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(59);
+    expect(references.size).toBe(110);
   });
 
   it("adds the legacy wreck texture and the alloy plate's maps (DATA-16)", () => {
@@ -149,27 +150,25 @@ describe("texture reference closure", () => {
     expect((caught as Error).message).toContain("wreck.png");
   });
 
-  it("keeps the Cobra variant textures out of the closure and both trees", () => {
+  it("puts the Cobra variant textures in the closure and in both trees", () => {
     const references = resolveReferencedTextures(catalogue());
     const names = nameList(references);
+    const served = readdirSync(join(REPO_ROOT, "public/textures"));
 
-    for (const variant of [
-      "oolite_cobra3_diffuse_alt.png",
-      "oolite_cobra3_diffuse_pirate.png",
-    ]) {
-      expect(names).not.toContain(variant);
-      expect(VENDORED_TEXTURES).not.toContain(variant);
-    }
-    // Plan 21-02 vendors the Cobra Mk III pirate and alternate maps as inputs
-    // for the 28-record roster (`cobra3-pirate`, `cobra3-alternate`), so
-    // `third_party/oolite/Textures` is no longer checked here. Plan 21-08
-    // replaces this case when the closure grows to include them.
-    for (const directory of ["public/textures"]) {
-      const entries = readdirSync(join(REPO_ROOT, directory));
-      expect(entries.some((name) => name.includes("diffuse_alt"))).toBe(false);
-      expect(entries.some((name) => name.includes("diffuse_pirate"))).toBe(
-        false,
-      );
+    // Plan 21-08: each NPC record owns a GLB, so the maps of the Cobra Mk III
+    // variants are referenced by their own records and served as WebP.
+    for (const [variant, shipKey] of [
+      ["oolite_cobra3_diffuse_alt.png", "cobra3-alternate"],
+      ["oolite_cobra3_diffuse_pirate.png", "cobra3-pirate"],
+    ] as const) {
+      expect(names).toContain(variant);
+      expect(VENDORED_TEXTURES).toContain(variant);
+      expect(
+        (references.get(variant) ?? []).map((reference) => reference.shipKey),
+        variant,
+      ).toEqual([shipKey, shipKey]);
+      expect(served).toContain(encodedTextureFile(variant));
+      expect(served).not.toContain(variant);
     }
   });
 
@@ -177,11 +176,15 @@ describe("texture reference closure", () => {
     const references = resolveReferencedTextures(catalogue());
 
     // Cobra: Hull and Gun maps. The Hull's diffuse is also its emission source.
-    expect([...(references.get("oolite_cobra3_diffuse.png") ?? [])]).toEqual([
+    const ofPlayer = (name: string): TextureReference[] =>
+      (references.get(name) ?? []).filter(
+        (reference) => reference.shipKey === "cobra3-player",
+      );
+    expect(ofPlayer("oolite_cobra3_diffuse.png")).toEqual([
       { shipKey: "cobra3-player", materialKey: "Hull", mapKind: "diffuse" },
       { shipKey: "cobra3-player", materialKey: "Hull", mapKind: "emission" },
     ]);
-    expect([...(references.get("oolite_cobra3_subents.png") ?? [])]).toEqual([
+    expect(ofPlayer("oolite_cobra3_subents.png")).toEqual([
       { shipKey: "cobra3-player", materialKey: "Gun", mapKind: "diffuse" },
     ]);
 
@@ -230,10 +233,13 @@ describe("texture reference closure", () => {
 describe("the emitted texture tree", () => {
   it("serves each vendored texture as WebP only, beside the bakes, the sky and the particles", () => {
     const entries = readdirSync(join(REPO_ROOT, "public/textures")).sort();
+    // Resolved once: the closure is a pure function of the catalogue, and the
+    // allowlist grew to 110 names (plan 21-08).
+    const references = resolveReferencedTextures(catalogue());
     const expected = [
       ...VENDORED_TEXTURES.map((name) => encodedTextureFile(name)),
       ...VENDORED_TEXTURES.filter((name) =>
-        (resolveReferencedTextures(catalogue()).get(name) ?? []).some(
+        (references.get(name) ?? []).some(
           (reference) => reference.mapKind === "emission",
         ),
       ).map((name) => emissiveFile(name)),
@@ -354,21 +360,43 @@ function emissiveUri(json: GlbJson, material: GlbMaterialJson): string | null {
 const EMISSIVE_FILES = [
   "oolite_adder_diffuse_emissive.png",
   "oolite_alloy_diffuse_emissive.png",
+  "oolite_anaconda_diffuse_emissive.png",
+  "oolite_anaconda_subents_emissive.png",
+  "oolite_asp_diffuse_emissive.png",
+  "oolite_boa-mk2_diffuse_emissive.png",
+  "oolite_boa-mk2_subents_emissive.png",
+  "oolite_boa_diffuse_emissive.png",
+  "oolite_boa_subents_emissive.png",
   "oolite_buoy_subents_emissive.png",
+  "oolite_cobra3_diffuse_alt_emissive.png",
   "oolite_cobra3_diffuse_emissive.png",
+  "oolite_cobra3_diffuse_pirate_emissive.png",
+  "oolite_cobramk1_diffuse_alt_emissive.png",
   "oolite_cobramk1_diffuse_emissive.png",
   "oolite_coriolis_diffuse_emissive.png",
   "oolite_coriolis_dock_diffuse_emissive.png",
   "oolite_coriolis_faceplate_diffuse_emissive.png",
   "oolite_coriolis_tris_diffuse_emissive.png",
+  "oolite_ferdelance_diffuse_emissive.png",
+  "oolite_ferdelance_subents_emissive.png",
   "oolite_gecko_diffuse_emissive.png",
   "oolite_krait_diffuse_emissive.png",
   "oolite_mamba_diffuse_emissive.png",
+  "oolite_mamba_diffuse_escort_emissive.png",
   "oolite_moray_diffuse_emissive.png",
+  "oolite_moray_diffuse_med_emissive.png",
   "oolite_moray_subents_emissive.png",
+  "oolite_python_diffuse_blackdog_emissive.png",
+  "oolite_python_diffuse_emissive.png",
+  "oolite_python_diffuse_trader_emissive.png",
+  "oolite_python_subents_emissive.png",
+  "oolite_python_subents_trader_emissive.png",
   "oolite_shuttle_diffuse_emissive.png",
   "oolite_sidewinder_diffuse_emissive.png",
+  "oolite_sidewinder_diffuse_escort_emissive.png",
   "oolite_viper_diffuse_emissive.png",
+  "oolite_viper_diffuse_pursuit_emissive.png",
+  "oolite_viper_interceptor_diffuse_emissive.png",
 ];
 
 describe("decodePng", () => {
@@ -469,15 +497,15 @@ describe("emitTextures", () => {
       const npcImages = [...NPC_SHIP_GLBS, ...DEBRIS_GLBS].flatMap(
         (file) => readGlbJson(`public/models/${file}`).images,
       );
+      // Variant records share their model's maps (a GLB per record, plan
+      // 21-08), so the same bake is named by several GLBs: compare the set.
       const glbEmissive = [
-        ...cobra.images,
-        ...coriolis.images,
-        ...buoy.images,
-        ...npcImages,
-      ]
-        .map((image) => image.uri.replace("../textures/", ""))
-        .filter((name) => name.endsWith("_emissive.png"))
-        .sort();
+        ...new Set(
+          [...cobra.images, ...coriolis.images, ...buoy.images, ...npcImages]
+            .map((image) => image.uri.replace("../textures/", ""))
+            .filter((name) => name.endsWith("_emissive.png")),
+        ),
+      ].sort();
       expect(glbEmissive).toEqual(EMISSIVE_FILES);
 
       const cobraHull = cobra.materials.find(

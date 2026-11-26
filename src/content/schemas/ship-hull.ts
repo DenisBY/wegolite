@@ -19,7 +19,7 @@
  * - the nesting never exceeds `MAX_HULL_DEPTH` (7, Oolite's `OCTREE_MAX_DEPTH`)
  *   and never exceeds the record's own declared `depth`;
  * - a hull holds at most `MAX_HULL_NODES` nodes;
- * - a catalogue holds one to sixteen hulls;
+ * - a catalogue holds one to `MAX_HULLS` hulls;
  * - a hull lists at most `MAX_HULL_ALIASES` further ship keys that share its
  *   octree (DATA-18), and no key or alias repeats across the catalogue.
  */
@@ -37,8 +37,14 @@ export const MAX_HULL_DEPTH = 7;
  */
 export const MAX_HULL_NODES = 16_384;
 
-/** The most hulls one catalogue may hold. */
-export const MAX_HULLS = 16;
+/**
+ * The most hulls one catalogue may hold. One entry per distinct model, the
+ * player's Cobra Mk III included: the 18 NPC models plus the shuttle give 19
+ * entries (plan 21-08, the other 11 of the 30 keys ride as aliases); 24 leaves
+ * five entries of headroom for a pin bump that adds a model, and stays far under
+ * what one lazy chunk should carry.
+ */
+export const MAX_HULLS = 24;
 
 /**
  * The most extra keys one hull entry may carry in `aliases` (DATA-18): records
@@ -53,7 +59,10 @@ export const MAX_HULL_ALIASES = 8;
  * The size the generated file must stay under, in bytes: the first-load
  * ceiling (9,437,184 bytes) is measured with the file outside it (D-01), but
  * the file is still bounded so a runaway artifact cannot grow unnoticed. The
- * ten stock hulls measure well under half of it.
+ * ten stock hulls measured 89,673 bytes; the 19 entries of plan 21-08 (the
+ * player's Cobra plus 18 NPC models, the other 11 keys as aliases) measure
+ * 162,546 bytes, so the cap stays at 200,000: it holds, with 18 percent to
+ * spare, and the artifact is still fetched only on first use.
  */
 export const MAX_HULL_ARTIFACT_BYTES = 200_000;
 

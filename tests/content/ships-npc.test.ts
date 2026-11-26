@@ -87,9 +87,19 @@ describe("findNpcShip", () => {
 
   it("throws an error naming a key that is not in the catalogue", async () => {
     const catalogue = await loadNpcCatalogue();
-    expect(() => findNpcShip(catalogue, "python")).toThrow(/python/);
+    expect(() => findNpcShip(catalogue, "nosuchship")).toThrow(/nosuchship/);
   });
 });
+
+/** The six hulls that author an aft weapon (plan 21-08) and its equipment key. */
+const AFT_ARMED: Readonly<Record<string, string>> = {
+  anaconda: "EQ_WEAPON_PULSE_LASER",
+  "anaconda-pirate": "EQ_WEAPON_BEAM_LASER",
+  boa: "EQ_WEAPON_BEAM_LASER",
+  "boa-mk2": "EQ_WEAPON_BEAM_LASER",
+  "boa-mk2-pirate": "EQ_WEAPON_BEAM_LASER",
+  "boa-pirate": "EQ_WEAPON_BEAM_LASER",
+};
 
 describe("NpcShipCatalogueSchema", () => {
   const accepts = (records: unknown): boolean =>
@@ -272,7 +282,11 @@ describe("NpcShipCatalogueSchema", () => {
 
   it("carries the DATA-14 fields on every record", () => {
     for (const record of generated as Record<string, unknown>[]) {
-      for (const field of ["aftWeapon", "portWeapon", "starboardWeapon"]) {
+      // Plan 21-08: six hulls author an aft weapon; port and starboard stay refused.
+      expect(record["aftWeapon"], String(record["key"])).toBe(
+        AFT_ARMED[String(record["key"])] ?? "EQ_WEAPON_NONE",
+      );
+      for (const field of ["portWeapon", "starboardWeapon"]) {
         expect(record[field]).toBe("EQ_WEAPON_NONE");
       }
       for (const field of [
@@ -347,12 +361,16 @@ describe("NpcShipCatalogueSchema", () => {
     }
   });
 
-  it("carries laserColor on every record: [1, 0, 1] for the viper, null for the rest (quick 261119-i9g)", () => {
+  it("carries laserColor on every record: [1, 0, 1] for the three Viper variants, null for the rest (quick 261119-i9g)", () => {
     const records = generated as Record<string, unknown>[];
     expect(records).toHaveLength(NPC_SHIP_KEYS.length);
     for (const record of records) {
       expect(record["laserColor"]).toEqual(
-        record["key"] === "viper" ? [1, 0, 1] : null,
+        ["viper", "viper-interceptor", "viper-pursuit"].includes(
+          String(record["key"]),
+        )
+          ? [1, 0, 1]
+          : null,
       );
     }
   });

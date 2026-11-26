@@ -51,6 +51,7 @@
  */
 
 import { contentError } from "../content-error.js";
+import { NPC_GLB_PATH_PATTERN } from "../../../src/content/npc-glb-path.js";
 import type { ContentErrorOptions } from "../content-error.js";
 import {
   resolveCornerNormals,
@@ -79,9 +80,20 @@ export const SHIPDATA_SOURCE_FILE = "third_party/oolite/Config/shipdata.plist";
 export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["adder"],
   "alloy.glb": ["alloy"],
+  "anaconda-pirate.glb": ["anaconda-pirate"],
+  "anaconda.glb": ["anaconda"],
+  "asp.glb": ["asp"],
   "barrel.glb": ["barrel"],
+  "boa-mk2-pirate.glb": ["boa-mk2-pirate"],
+  "boa-mk2.glb": ["boa-mk2"],
+  "boa-pirate.glb": ["boa-pirate"],
+  "boa.glb": ["boa"],
   "buoy.glb": ["buoy", "oolite_buoy_subentity"],
+  "cobra3-alternate.glb": ["cobra3-alternate"],
+  "cobra3-pirate.glb": ["cobra3-pirate"],
+  "cobra3-trader.glb": ["cobra3-trader"],
   "cobra3.glb": ["cobra3-player"],
+  "cobramk1-alt.glb": ["cobramk1-alt"],
   "cobramk1.glb": ["cobramk1"],
   "coriolis.glb": [
     "coriolis-station",
@@ -89,12 +101,21 @@ export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
     "oolite_coriolis_tris",
     "oolite_coriolis_dock",
   ],
+  "ferdelance.glb": ["ferdelance"],
   "gecko.glb": ["gecko"],
   "krait.glb": ["krait"],
+  "mamba-escort.glb": ["mamba-escort"],
   "mamba.glb": ["mamba"],
   "moray.glb": ["moray"],
+  "moraymed.glb": ["morayMED"],
+  "python-blackdog.glb": ["python-blackdog"],
+  "python-trader.glb": ["python-trader"],
+  "python.glb": ["python"],
   "shuttle.glb": ["shuttle"],
+  "sidewinder-escort.glb": ["sidewinder-escort"],
   "sidewinder.glb": ["sidewinder"],
+  "viper-interceptor.glb": ["viper-interceptor"],
+  "viper-pursuit.glb": ["viper-pursuit"],
   "viper.glb": ["viper"],
   "wreck1.glb": ["wreckage-component"],
   "wreck2.glb": ["more-wreckage2"],
@@ -107,9 +128,20 @@ export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
 export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
   "adder.glb": ["oolite_adder.dat"],
   "alloy.glb": ["oolite_alloy.dat"],
+  "anaconda-pirate.glb": ["oolite_anaconda.dat"],
+  "anaconda.glb": ["oolite_anaconda.dat"],
+  "asp.glb": ["oolite_asp.dat"],
   "barrel.glb": ["oolite_barrel.dat"],
+  "boa-mk2-pirate.glb": ["oolite_boa-mk2.dat"],
+  "boa-mk2.glb": ["oolite_boa-mk2.dat"],
+  "boa-pirate.glb": ["oolite_boa.dat"],
+  "boa.glb": ["oolite_boa.dat"],
   "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
+  "cobra3-alternate.glb": ["oolite_cobra3.dat"],
+  "cobra3-pirate.glb": ["oolite_cobra3.dat"],
+  "cobra3-trader.glb": ["oolite_cobra3.dat"],
   "cobra3.glb": ["oolite_cobra3.dat"],
+  "cobramk1-alt.glb": ["oolite_cobramk1.dat"],
   "cobramk1.glb": ["oolite_cobramk1.dat"],
   "coriolis.glb": [
     "oolite_coriolis.dat",
@@ -117,12 +149,21 @@ export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
     "oolite_coriolis_tris.dat",
     "oolite_coriolis_dock.dat",
   ],
+  "ferdelance.glb": ["oolite_ferdelance.dat"],
   "gecko.glb": ["oolite_gecko.dat"],
   "krait.glb": ["oolite_krait.dat"],
+  "mamba-escort.glb": ["oolite_mamba.dat"],
   "mamba.glb": ["oolite_mamba.dat"],
   "moray.glb": ["oolite_moray.dat"],
+  "moraymed.glb": ["oolite_moray.dat"],
+  "python-blackdog.glb": ["oolite_python.dat"],
+  "python-trader.glb": ["oolite_python_trader.dat"],
+  "python.glb": ["oolite_python.dat"],
   "shuttle.glb": ["oolite_shuttle.dat"],
+  "sidewinder-escort.glb": ["oolite_sidewinder_escort.dat"],
   "sidewinder.glb": ["oolite_sidewinder.dat"],
+  "viper-interceptor.glb": ["oolite_viper_interceptor.dat"],
+  "viper-pursuit.glb": ["oolite_viper.dat"],
   "viper.glb": ["oolite_viper.dat"],
   "wreck1.glb": ["wreck1.dat"],
   "wreck2.glb": ["wreck2.dat"],
@@ -138,22 +179,48 @@ export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
  */
 export const NPC_SHIP_GLBS: readonly string[] = [
   "adder.glb",
+  "anaconda-pirate.glb",
+  "anaconda.glb",
+  "asp.glb",
+  "boa-mk2-pirate.glb",
+  "boa-mk2.glb",
+  "boa-pirate.glb",
+  "boa.glb",
+  "cobra3-alternate.glb",
+  "cobra3-pirate.glb",
+  "cobra3-trader.glb",
+  "cobramk1-alt.glb",
   "cobramk1.glb",
+  "ferdelance.glb",
   "gecko.glb",
   "krait.glb",
+  "mamba-escort.glb",
   "mamba.glb",
   "moray.glb",
+  "moraymed.glb",
+  "python-blackdog.glb",
+  "python-trader.glb",
+  "python.glb",
   "shuttle.glb",
+  "sidewinder-escort.glb",
   "sidewinder.glb",
+  "viper-interceptor.glb",
+  "viper-pursuit.glb",
   "viper.glb",
 ];
 
-const SHIP_MODEL_PATTERN = /^oolite_([a-z0-9_]+)\.dat$/;
+/**
+ * The model-name rule: `oolite_<name>.dat` with `<name>` made of lower-case
+ * letters, digits, `_` and `-`. The hyphen is the stock `oolite_boa-mk2.dat`
+ * (the schema's model pattern allows it too, plan 21-05); the pattern is
+ * anchored, so a name outside it still fails the build.
+ */
+const SHIP_MODEL_PATTERN = /^oolite_([a-z0-9_-]+)\.dat$/;
 
 /**
- * The single naming rule shared by the converter and the NPC record compiler:
- * `oolite_<name>.dat` becomes `<name>.glb` (`oolite_viper.dat` is `viper.glb`).
- * Any other model name fails the build.
+ * The naming rule of the debris GLBs: `oolite_<name>.dat` becomes `<name>.glb`
+ * (`oolite_barrel.dat` is `barrel.glb`). Any other model name fails the build.
+ * The NPC GLBs are named after their record, see {@link npcGlbFile}.
  */
 export function shipGlbFile(model: string): string {
   const match = SHIP_MODEL_PATTERN.exec(model);
@@ -164,6 +231,25 @@ export function shipGlbFile(model: string): string {
     );
   }
   return `${match[1]}.glb`;
+}
+
+/**
+ * The naming rule of the NPC GLBs (DATA-18, plan 21-08): one GLB per record,
+ * named after the record key in lower case (`viper` is `viper.glb`, `morayMED`
+ * is `moraymed.glb`, `boa-mk2-pirate` is `boa-mk2-pirate.glb`), so records that
+ * share a model still own their own variant textures. The name must pass the
+ * client's anchored `NPC_GLB_PATH_PATTERN` (lower case only, so the client
+ * pattern stays unedited); a key that would not fails the build.
+ */
+export function npcGlbFile(key: string): string {
+  const file = `${key.toLowerCase()}.glb`;
+  if (!NPC_GLB_PATH_PATTERN.test(`models/${file}`)) {
+    return glbFailure(
+      "models",
+      `record key "${key}" would be emitted as "${file}", outside the NPC GLB path pattern`,
+    );
+  }
+  return file;
 }
 
 /**
@@ -1359,7 +1445,7 @@ function requireEntry(
  */
 function emitSingleMeshGlbs(
   files: readonly string[],
-  nameRule: (model: string) => string,
+  nameRule: (model: string, owner: string) => string,
   kind: string,
   models: Readonly<Record<string, ParsedMesh>>,
   entries: Readonly<Record<string, ShipEntry>>,
@@ -1378,10 +1464,10 @@ function emitSingleMeshGlbs(
     ) {
       glbFailure(file, `${kind} needs exactly one source mesh and one owner`);
     }
-    if (nameRule(source) !== file) {
+    if (nameRule(source, owner) !== file) {
       glbFailure(
         file,
-        `source "${source}" would be emitted as "${nameRule(source)}"`,
+        `source "${source}" owned by "${owner}" would be emitted as "${nameRule(source, owner)}"`,
       );
     }
     const entry = requireEntry(entries, owner);
@@ -1498,14 +1584,14 @@ export function emitModels(
   emitted.push(
     ...emitSingleMeshGlbs(
       NPC_SHIP_GLBS,
-      shipGlbFile,
+      (_model, owner) => npcGlbFile(owner),
       "an NPC ship",
       models,
       entries,
     ),
     ...emitSingleMeshGlbs(
       DEBRIS_GLBS,
-      debrisGlbFile,
+      (model) => debrisGlbFile(model),
       "a debris model",
       models,
       entries,
