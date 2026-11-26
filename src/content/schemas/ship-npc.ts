@@ -23,7 +23,8 @@
  * plates. Quick 261119-i9g adds `laserColor`, the colour of the ship's laser shots.
  * Plan 21-05 (DATA-17) adds the role fields: bounty, auto-AI and auto-weapons,
  * scoop, fuel injection, fuel, scoop position, `countsAsKill`, escorts and
- * escort roles, and the missile counts (data only). No other combat or flight
+ * escort roles, and the missile counts (data only). Plan 22-05 (WORLD-08) adds
+ * `hyperspaceMotor`, read by the system populator. No other combat or flight
  * stat is compiled here, and the strict object rejects any extra field.
  *
  * `glb` is a locator, not inert-world data: it is never copied from the plist
@@ -209,6 +210,13 @@ export const NpcShipSchema = z.strictObject({
   // both default no.
   hasScoop: z.number().min(0).max(1),
   hasFuelInjection: z.number().min(0).max(1),
+  // `hyperspace_motor` (`oo_boolForKey` default YES, ShipEntity.m:382; a no
+  // sets the spin time to -1, so the ship has no hyperspace motor). The system
+  // populator reads it as `hasHyperspaceMotor` to choose an independent
+  // pirate's weapon level, 1.75 or 1.3 (`oolite-populator.js:1714`, Phase 22).
+  // A plain boolean, not a fuzzy probability: Oolite reads it with
+  // `oo_boolForKey`, never `oo_fuzzyBooleanForKey`.
+  hyperspaceMotor: z.boolean(),
   // `fuel` (default 0, an unsigned short, ShipEntity.m:555).
   fuel: z.number().int().min(0).max(65535),
   // `scoop_position` (default 0 0 0, ShipEntity.m:1801), float32 per component.
