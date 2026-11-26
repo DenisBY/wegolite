@@ -9,9 +9,9 @@ Requirements for milestone v2.4 Pirates and Police (Phases 21 onward). IDs and w
 
 ### Foundation and data
 
-- [ ] **FOUND-20**: Every new hashed field of the milestone (NPC bounty, role, group, cargo kind, pod commodity and amount, per-facing weapon type and temperature, fuel injection state, priority-AI state, `World.groups`, `World.populator`, `World.station`, the player's legal status and kill tally) arrives in one world snapshot bump (v4 to v5) with pristine-omit hashing; the inert populator, `INERT_POPULATION` and the frozen 20-seed acceptance inputs stay byte-identical, pinned by a hash test over epochs 1 to 20.
-- [ ] **DATA-17**: The NPC catalogue grows from 9 to the records the populator's trader, pirate, police and light-hunter roles resolve to (about 28 records on 18 models), compiled from Oolite with bounty, roles, auto-AI, scoop, escorts, `counts_as_kill`, fuel injection and aft weapons; the converter's `aft_weapon_type` refusal is lifted; `autoAImap.plist`, `role-categories.plist` and the comms strings of `descriptions.plist` are compiled.
-- [ ] **DATA-18**: The new hull models and textures are vendored from the local Oolite checkout through `scripts/vendor-oolite.sh` with `CHECKSUMS.sha256`, `ASSETS.md` and `NOTICE` rows, and load lazily outside the first-load ceiling.
+- [x] **FOUND-20**: Every new hashed field of the milestone (NPC bounty, role, group, cargo kind, pod commodity and amount, per-facing weapon type and temperature, fuel injection state, priority-AI state, `World.groups`, `World.populator`, `World.station`, the player's legal status and kill tally) arrives in one world snapshot bump (v4 to v5) with pristine-omit hashing; the inert populator, `INERT_POPULATION` and the frozen 20-seed acceptance inputs stay byte-identical, pinned by a hash test over epochs 1 to 20.
+- [x] **DATA-17**: The NPC catalogue grows from 9 to the records the populator's trader, pirate, police and light-hunter roles resolve to (about 28 records on 18 models), compiled from Oolite with bounty, roles, auto-AI, scoop, escorts, `counts_as_kill`, fuel injection and aft weapons; the converter's `aft_weapon_type` refusal is lifted; `autoAImap.plist`, `role-categories.plist` and the comms strings of `descriptions.plist` are compiled.
+- [x] **DATA-18**: The new hull models and textures are vendored from the local Oolite checkout through `scripts/vendor-oolite.sh` with `CHECKSUMS.sha256`, `ASSETS.md` and `NOTICE` rows, and load lazily outside the first-load ceiling.
 
 ### World population
 
@@ -83,9 +83,9 @@ D1 bounty at the kill (Oolite); D2 minimal station responder; D3 simplified NPC 
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-20 | Phase 21 | Pending |
-| DATA-17 | Phase 21 | Pending |
-| DATA-18 | Phase 21 | Pending |
+| FOUND-20 | Phase 21 | Complete |
+| DATA-17 | Phase 21 | Complete |
+| DATA-18 | Phase 21 | Complete |
 | WORLD-08 | Phase 22 | Pending |
 | QUAL-09 | Phase 22 | Pending |
 | AI-02 | Phase 23 | Pending |

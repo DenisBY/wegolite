@@ -71,7 +71,7 @@
     {
       "number": "21",
       "name": "Roster, State Shape and Seams",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "22",
@@ -101,8 +101,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 1 of 6 · 0% · executing"
+    "label": "Advance to the next step (plan phase 22)",
+    "reason": "Phase 2 of 6 — needs a plan"
   },
-  "updated_at": "2026-11-25T23:04:33.296Z"
+  "updated_at": "2026-11-26T09:29:18.284Z"
 }
