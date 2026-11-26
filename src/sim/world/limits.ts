@@ -312,6 +312,51 @@ export const MAX_STATION_MARKS = 32;
 export const MAX_WORLD_GROUPS = 256;
 
 /**
+ * The fight the population reserve covers: kills whose debris is all live.
+ * D-06 (plan 22-10): "a fight" is four kills with every piece of their debris
+ * in the world (pods and plates never expire, D16-06). Plan 22-12's census must
+ * show that no committed system reaches `POPULATION_ENTITY_LIMIT`; if one does,
+ * 22-12 lowers this toward 1 and records it, and below one kill's worth it stops
+ * for the owner.
+ */
+export const POPULATION_RESERVE_KILLS = 4;
+
+/**
+ * The entities the initial populator leaves free for debris: the smallest
+ * multiple of 8 at or above
+ * `(MAX_ENTITIES - floor(0.95 * MAX_ENTITIES)) + POPULATION_RESERVE_KILLS * W`,
+ * where `MAX_ENTITIES - floor(0.95 * MAX_ENTITIES)` is 13, the headroom above
+ * which debris itself stops spawning (`DEBRIS_ENTITY_LIMIT`, 243.2), and `W` is
+ * the most debris entities one kill releases.
+ *
+ * Oolite has no cap at population time (its `UNIVERSE_MAX_ENTITIES` is 2048 and
+ * the initial population stays far below it); Wegolite's store holds 256, so a
+ * fight in a populated system would starve its own debris without a reserve.
+ *
+ * Measured, not guessed (`tests/sim/world/population/debris-reserve.test.ts`
+ * recomputes it and fails if this literal drifts): W is 21, found by killing
+ * all 29 catalogue records at their largest cargo (capped at
+ * `MAX_ENTITY_CARGO`) through the production kill path over 400 world seeds
+ * each in an otherwise empty world. The record that gives it is the anaconda
+ * (hull mass 437,686.9 kg, so 2.92 alloys: up to 15 pods (`POD_LIMIT`) with 200
+ * capsules, up to 4 wrecks (`floor(u * (n + 2))` for n below 3) and up to 2
+ * plates); W equals the analytic ceiling of those rules. 13 + 4 * 21 = 97,
+ * rounded up to the next multiple of 8: 104.
+ *
+ * A literal because this file takes no imports; the test pins the sum
+ * `POPULATION_ENTITY_LIMIT === MAX_ENTITIES - POPULATION_DEBRIS_RESERVE`.
+ */
+export const POPULATION_DEBRIS_RESERVE = 104;
+
+/**
+ * The most live entities the initial populator takes a world to: 256
+ * (`MAX_ENTITIES`) minus `POPULATION_DEBRIS_RESERVE`. A group that does not fit
+ * under it is skipped whole (D-05), and population continues with the next
+ * group in engine order.
+ */
+export const POPULATION_ENTITY_LIMIT = 152;
+
+/**
  * The largest `PlayerCombatState.standing.kills`: Oolite keeps the kill tally
  * as an unsigned 32-bit count (`PlayerEntity` `ship_kills`).
  */

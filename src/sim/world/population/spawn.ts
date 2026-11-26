@@ -63,7 +63,12 @@ import { CARGO_KINDS } from "../entity.js";
 import type { CargoKindName, SpawnInit } from "../entity.js";
 import { NO_ENTITY, MAX_ENTITIES } from "../ids.js";
 import type { SystemLayout } from "../layout.js";
-import { MAX_ENTITY_CARGO, MAX_UINT32, MAX_WORLD_GROUPS } from "../limits.js";
+import {
+  MAX_ENTITY_CARGO,
+  MAX_UINT32,
+  MAX_WORLD_GROUPS,
+  POPULATION_ENTITY_LIMIT,
+} from "../limits.js";
 import {
   locationByCode,
   randomQuaternion,
@@ -105,8 +110,9 @@ export interface PopulateSystemResult {
 export interface PopulateOptions {
   /**
    * The most live entities the populated world may hold; default
-   * `MAX_ENTITIES` (the plan-22-10 task 2 limit replaces it). Values above
-   * `MAX_ENTITIES` count as `MAX_ENTITIES`, as the store cannot hold more.
+   * `POPULATION_ENTITY_LIMIT` (the store's cap less the measured debris
+   * reserve, D-06). Values above `MAX_ENTITIES` count as `MAX_ENTITIES`, as the
+   * store cannot hold more.
    */
   readonly entityLimit?: number;
   /** The spawn tick of every ship; default 0 ("present at world creation"). */
@@ -403,7 +409,10 @@ export function spawnPlannedGroups(
   records: readonly PopulationRecord[],
   options: PopulateOptions = {},
 ): PopulateSystemResult {
-  const limit = Math.min(options.entityLimit ?? MAX_ENTITIES, MAX_ENTITIES);
+  const limit = Math.min(
+    options.entityLimit ?? POPULATION_ENTITY_LIMIT,
+    MAX_ENTITIES,
+  );
   const tick = options.tick ?? 0;
   const byKey = new Map<string, PopulationRecord>();
   for (const record of records) {
