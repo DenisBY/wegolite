@@ -840,7 +840,6 @@ class PopulatorWorld {
   public readonly logs: string[] = [];
   private readonly _source: () => number;
   private readonly _tagStack: PopulationDrawTag[] = [];
-  private readonly _byKey = new Map<string, PopulatorCatalogueRecord>();
   private readonly _infos: PopulatorSystemInfo[];
   private readonly _shipsByProxy = new WeakMap<object, PopulatorShip>();
   private readonly _groupsByProxy = new WeakMap<object, PopulatorGroup>();
@@ -858,9 +857,6 @@ class PopulatorWorld {
     this._infos = options.systems.map(
       (row) => new PopulatorSystemInfo(this, row),
     );
-    for (const record of options.catalogue) {
-      this._byKey.set(record.key, record);
-    }
     this.stationGroup = new PopulatorGroup(this, "station group");
   }
 
