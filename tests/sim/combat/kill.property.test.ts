@@ -200,7 +200,7 @@ function ofKind<K extends SimEvent["kind"]>(
 function shotOf(world: World, id: number): ShotRequest {
   const entity = world.store.get(id);
   const weapon =
-    entity === undefined ? undefined : NPC_WEAPONS.get(entity.specKey);
+    entity === undefined ? undefined : NPC_WEAPONS.get(entity.specKey)?.fore;
   if (entity === undefined || weapon === undefined)
     throw new Error("no weapon");
   const ray = npcLaserRay(entity, weapon);
@@ -1434,7 +1434,7 @@ describe("the new sim functions are total (D-15)", () => {
           }
           for (const event of queued) postAiEvent(world, event);
           for (let i = 0; i < fireEntries; i += 1)
-            world.fireQueue.push(101 + i);
+            world.fireQueue.push({ id: 101 + i, facing: "fore" });
           const entryLength = world.fireQueue.length;
           const seen: string[] = [];
           const module = {

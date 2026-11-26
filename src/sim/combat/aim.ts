@@ -42,6 +42,21 @@ export interface NpcWeapon {
   readonly offset: Vec3;
 }
 
+/**
+ * An NPC hull's weapons per facing (FOUND-20), compiled from the NPC ship
+ * catalogue's `forwardWeapon`/`aftWeapon`/`portWeapon`/`starboardWeapon` and
+ * their positions. A facing the record leaves unarmed is absent (the forward
+ * entry is the exception: it is always present for a catalogue hull, so a ship
+ * with no forward weapon still takes the gate's one draw and refuses, as it did
+ * before the shape was per facing).
+ */
+export interface NpcWeapons {
+  readonly fore?: NpcWeapon;
+  readonly aft?: NpcWeapon;
+  readonly port?: NpcWeapon;
+  readonly starboard?: NpcWeapon;
+}
+
 /** The three axes of a laser's frame in world space. */
 export interface LaserFrame {
   readonly forward: Vec3;
@@ -103,16 +118,19 @@ export function playerLaserRay(
 }
 
 /**
- * The ray of an NPC's forward weapon (CBT-07): the same setup as the player's
- * fore laser (`Universe.m:5584-5611`) with the record's mount offset. Returns
- * null for a ship whose weapon is `EQ_WEAPON_NONE` or not a known laser.
+ * The ray of an NPC's weapon on `facing` (CBT-07; fore when omitted): the same
+ * setup as the player's laser on that facing (`Universe.m:5584-5611`) with the
+ * record's mount offset for that facing (`NpcWeapon.offset`, the facing's
+ * `weapon_position_*` in Oolite's model frame). Returns null for a ship whose
+ * weapon is `EQ_WEAPON_NONE` or not a known laser.
  */
 export function npcLaserRay(
   entity: { readonly position: Vec3; readonly orientation: Quat },
   weapon: NpcWeapon,
+  facing: Facing = "fore",
 ): LaserRay | null {
   if (weapon.laser === NO_LASER || !isMountKey(weapon.laser)) return null;
-  const frame = laserFrame(entity.orientation, "fore");
+  const frame = laserFrame(entity.orientation, facing);
   const offset = rotate(entity.orientation, toWegoliteLocal(weapon.offset));
   return {
     origin: add(entity.position, offset),

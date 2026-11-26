@@ -248,7 +248,7 @@ describe("a firing attacker heats up, cuts out and recovers (tracer, criterion 1
       const range = rangeBetween(viper, adder);
 
       stepOnly(world, player);
-      const asked = world.fireQueue.includes(viper.id);
+      const asked = world.fireQueue.some((request) => request.id === viper.id);
       const drawnBefore = viper.rng.combat;
       const fired = shotsOf(drain(world, player), viper.id) === 1;
       const after = viper.nav.behaviour;

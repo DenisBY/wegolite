@@ -28,7 +28,7 @@ import {
   TEST_SHOOTER_DISTANCE,
   TEST_SHOOTER_HOLD_RANGE,
 } from "../../../src/sim/ai/test-spawn.js";
-import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
+import type { NpcWeapon, NpcWeapons } from "../../../src/sim/combat/aim.js";
 import { LASER_STATS } from "../../../src/sim/combat/constants.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
@@ -121,8 +121,11 @@ const VIPER: InertShipRecord = {
 };
 
 const [WX, WY, WZ] = VIPER_JSON.forwardWeaponPosition;
-const WEAPONS = new Map<string, NpcWeapon>([
-  [VIPER.key, { laser: VIPER_JSON.forwardWeapon, offset: vec(WX, WY, WZ) }],
+const WEAPONS = new Map<string, NpcWeapons>([
+  [
+    VIPER.key,
+    { fore: { laser: VIPER_JSON.forwardWeapon, offset: vec(WX, WY, WZ) } },
+  ],
 ]);
 
 function options(): StepOptions {

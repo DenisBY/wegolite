@@ -168,9 +168,33 @@ describe("fire (CBT-07, Pitfall 19, T-13-20, T-13-21)", () => {
 
     control.fire(actor.id);
     control.fire(actor.id);
-    expect(world.fireQueue).toEqual([actor.id]);
+    expect(world.fireQueue).toEqual([{ id: actor.id, facing: "fore" }]);
     // The shot is queued, never resolved here: the entity is untouched.
     expect(actor).toEqual(before);
+  });
+
+  it("queues one request per facing: aft beside fore, a repeat of either ignored, a malformed facing ignored", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const control = createShipControl(world, actor.id, 0);
+    control.fire(actor.id, "aft");
+    control.fire(actor.id, "aft");
+    control.fire(actor.id, "fore");
+    control.fire(actor.id);
+    control.fire(actor.id, "up" as never);
+    control.fire(actor.id, 3 as never);
+    expect(world.fireQueue).toEqual([
+      { id: actor.id, facing: "aft" },
+      { id: actor.id, facing: "fore" },
+    ]);
+  });
+
+  it("ignores an aft call addressed to another entity", () => {
+    const world = createWorld(1);
+    const actor = spawnOk(world);
+    const other = spawnOk(world);
+    createShipControl(world, actor.id, 0).fire(other.id, "aft");
+    expect(world.fireQueue).toEqual([]);
   });
 
   it("ignores a call addressed to another entity, the player, a static or a ghost, without throwing", () => {
@@ -204,7 +228,7 @@ describe("fire (CBT-07, Pitfall 19, T-13-20, T-13-21)", () => {
       control.fire(id);
       control.fire(id);
     }
-    expect(world.fireQueue).toEqual(ids);
+    expect(world.fireQueue).toEqual(ids.map((id) => ({ id, facing: "fore" })));
   });
 });
 

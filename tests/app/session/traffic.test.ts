@@ -100,6 +100,47 @@ describe("trafficContent", () => {
     expect(Object.isFrozen(content.flight)).toBe(true);
   });
 
+  it("builds the per-facing weapon map: fore always, aft only for the six aft-armed hulls, never port or starboard (plan 21-12)", () => {
+    const source = catalogue();
+    const content = trafficContent(source);
+    expect(content.weapons.size).toBe(29);
+    const aftArmed: string[] = [];
+    for (const ship of source) {
+      const weapons = content.weapons.get(ship.key);
+      expect(weapons?.fore).toEqual({
+        laser: ship.forwardWeapon,
+        offset: {
+          x: ship.forwardWeaponPosition[0],
+          y: ship.forwardWeaponPosition[1],
+          z: ship.forwardWeaponPosition[2],
+        },
+      });
+      expect(weapons?.port).toBeUndefined();
+      expect(weapons?.starboard).toBeUndefined();
+      if (weapons?.aft !== undefined) {
+        aftArmed.push(ship.key);
+        expect(weapons.aft.laser).toBe(ship.aftWeapon);
+        expect(weapons.aft.laser).not.toBe("EQ_WEAPON_NONE");
+      } else {
+        expect(ship.aftWeapon).toBe("EQ_WEAPON_NONE");
+      }
+    }
+    expect(aftArmed.sort()).toEqual([
+      "anaconda",
+      "anaconda-pirate",
+      "boa",
+      "boa-mk2",
+      "boa-mk2-pirate",
+      "boa-pirate",
+    ]);
+    // The adder is forward-only.
+    expect(Object.keys(content.weapons.get("adder") ?? {})).toEqual(["fore"]);
+    expect(Object.keys(content.weapons.get("anaconda") ?? {})).toEqual([
+      "fore",
+      "aft",
+    ]);
+  });
+
   it("copies the scan class as the catalogue's own string and freezes the arrays", () => {
     const content = trafficContent(catalogue());
     expect(content.records.map((record) => record.scanClass)).toEqual(

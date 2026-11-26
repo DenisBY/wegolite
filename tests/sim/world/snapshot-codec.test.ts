@@ -1796,7 +1796,7 @@ describe("snapshotWorld refusals", () => {
 
   it("refuses an unresolved fire request", () => {
     const world = richWorld();
-    world.fireQueue.push(101);
+    world.fireQueue.push({ id: 101, facing: "fore" });
     expect(reasonOfSnapshot(world)).toBe("queue-not-empty");
     world.fireQueue.length = 0;
     expect(reasonOfSnapshot(world)).toBe("ok");

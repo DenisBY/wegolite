@@ -398,7 +398,7 @@ describe("the reaction sink of resolveShots", () => {
     combat: {
       mounts: DEFAULT_LASER_MOUNTS,
       hulls: realHullTable(),
-      npcWeapons: new Map([["viper", VIPER_BEAM]]),
+      npcWeapons: new Map([["viper", { fore: VIPER_BEAM }]]),
     },
   };
 

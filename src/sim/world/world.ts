@@ -19,6 +19,8 @@
 import type { AiComponent, AiEvent, ParamValue } from "../ai/types.js";
 import { AI_EVENT_NAMES, AI_KEYS } from "../ai/types.js";
 import type { Quat, Vec3 } from "../math.js";
+import { isFacing } from "../combat/mounts.js";
+import type { Facing } from "../combat/mounts.js";
 import { createRngState, forkSeed } from "../rng.js";
 import type { RngState } from "../rng.js";
 import { CARGO_KINDS } from "./entity.js";
@@ -125,6 +127,22 @@ export const STATIC_ENTITIES: readonly StaticEntity[] = Object.freeze([
  */
 export const MAX_AI_QUEUE_LENGTH = 4096;
 
+/**
+ * One queued shot request (FOUND-20): the actor's id and the weapon facing it
+ * asked to fire. A ship has one gate and one `shot_time` but a temperature per
+ * facing (`ShipEntity.m:9930-9993`), so the request names the facing.
+ */
+export interface FireRequest {
+  readonly id: EntityId;
+  readonly facing: Facing;
+}
+
+/**
+ * The most fire requests a world queue holds: one per live entity per facing
+ * (`requestFire` keeps at most one request per id and facing).
+ */
+export const MAX_FIRE_REQUESTS = MAX_ENTITIES * 4;
+
 export interface World {
   readonly worldSeed: number;
   readonly statics: readonly StaticEntity[];
@@ -138,12 +156,12 @@ export interface World {
    */
   aiQueue: AiEvent[];
   /**
-   * Ids of the actors that asked `ShipControl.fire` this tick, in call order,
-   * at most one entry per actor. Drained and cleared by `resolveShots` after
-   * the world step, so it is empty at every tick boundary and is never hashed
-   * or saved; `snapshotWorld` refuses a non-empty queue.
+   * The shots the actors asked for through `ShipControl.fire` this tick, in call
+   * order, at most one request per actor and facing. Drained and cleared by
+   * `resolveShots` after the world step, so it is empty at every tick boundary
+   * and is never hashed or saved; `snapshotWorld` refuses a non-empty queue.
    */
-  fireQueue: EntityId[];
+  fireQueue: FireRequest[];
   /**
    * Well-formed AI events dropped by the pass cap, the per-drain delivery
    * budget or the queue-length cap. Hashed state; saturates at `MAX_UINT32`.
@@ -336,17 +354,28 @@ export function createWorld(worldSeed: number): World {
 }
 
 /**
- * Queue `id` for the NPC fire gate at the drain: the one push of the fire queue,
- * shared by `ShipControl.fire` and the steering's `ctx.fire` (Phase 17, advisor
- * decision 2). Bounded by `MAX_ENTITIES` (the most live entities a world can
- * hold) and de-duplicated, so one actor makes at most one request per tick
- * (T-13-21). It never throws and takes no draw; whether the shot happens is the
- * gate's decision at the drain.
+ * Queue a shot of `id`'s `facing` weapon for the NPC fire gate at the drain: the
+ * one push of the fire queue, shared by `ShipControl.fire` and the steering's
+ * `ctx.fire` (Phase 17, advisor decision 2). Bounded by `MAX_FIRE_REQUESTS`
+ * (one request per live entity and facing) and de-duplicated by (id, facing), so
+ * one actor makes at most one request per facing per tick (T-13-21). A
+ * non-integer id, or a value that is not one of the four facings, is ignored
+ * (T-21-24). It never throws and takes no draw; whether the shot happens is the
+ * gate's decision at the drain. Aft, port and starboard shots by an AI are
+ * Phase 23 (CBT-19): no production path passes anything but the default.
  */
-export function requestFire(world: World, id: EntityId): void {
-  if (world.fireQueue.length >= MAX_ENTITIES) return;
-  if (world.fireQueue.includes(id)) return;
-  world.fireQueue.push(id);
+export function requestFire(
+  world: World,
+  id: EntityId,
+  facing: Facing = "fore",
+): void {
+  if (!Number.isSafeInteger(id) || !isFacing(facing)) return;
+  const queue = world.fireQueue;
+  if (queue.length >= MAX_FIRE_REQUESTS) return;
+  for (const request of queue) {
+    if (request.id === id && request.facing === facing) return;
+  }
+  queue.push({ id, facing });
 }
 
 /** The static record for ids 1-5; undefined for any other id. */

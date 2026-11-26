@@ -18,6 +18,7 @@
  * issued it.
  */
 
+import type { Facing } from "../combat/mounts.js";
 import type { Vec3 } from "../math.js";
 import type { BehaviourId, EntityId } from "./ids.js";
 
@@ -31,12 +32,15 @@ export interface ShipControl {
   /** Ask to be woken `ticks` ticks from now; the earlier wake wins. */
   scheduleWake(id: EntityId, ticks: number): void;
   /**
-   * Queue one shot of the actor's forward weapon (CBT-07, Pitfall 19). The shot
-   * is not resolved here: the world fire queue is drained once per tick after
-   * the world step, at the one fixed point where every shot of the tick is
-   * resolved by the same hit rule and the same damage function the player's
-   * shots use. A call for any entity but the actor, and a second call by the
-   * same actor in the same tick, are ignored.
+   * Queue one shot of the actor's `facing` weapon (CBT-07, Pitfall 19; fore when
+   * omitted). The shot is not resolved here: the world fire queue is drained
+   * once per tick after the world step, at the one fixed point where every shot
+   * of the tick is resolved by the same hit rule and the same damage function
+   * the player's shots use. A call for any entity but the actor, a facing that
+   * is not one of the four, and a second call by the same actor for the same
+   * facing in the same tick, are ignored; a fore and an aft call in one tick
+   * queue two requests. An AI asking for aft, port or starboard fire is
+   * Phase 23 (CBT-19): nothing in Phase 21 does.
    */
-  fire(id: EntityId): void;
+  fire(id: EntityId, facing?: Facing): void;
 }

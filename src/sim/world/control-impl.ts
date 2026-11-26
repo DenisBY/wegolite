@@ -19,6 +19,7 @@
  * `setTarget` target are ids of `world` only.
  */
 
+import type { Facing } from "../combat/mounts.js";
 import type { Vec3 } from "../math.js";
 import { enterBehaviour } from "../npc/enter.js";
 import type { Entity } from "./entity.js";
@@ -120,12 +121,13 @@ export function createShipControl(
       const pending = entity.ai.wakeTick;
       entity.ai.wakeTick = pending === 0 ? wake : Math.min(pending, wake);
     },
-    fire(id: EntityId): void {
+    fire(id: EntityId, facing?: Facing): void {
       const entity = actor(id);
       if (entity === undefined) return;
-      // One shot per actor per tick (T-13-21) and the queue bound are
-      // `requestFire`'s, the one push the steering route shares.
-      requestFire(world, id);
+      // One shot per actor and facing per tick (T-13-21), the queue bound and
+      // the facing check are `requestFire`'s, the one push the steering route
+      // shares.
+      requestFire(world, id, facing);
     },
   };
 }
