@@ -18,6 +18,15 @@
  *   tree, e.g. `git archive 7437f22 src` extracted there): every excerpt must
  *   equal the cited lines of that tree. Without `OOLITE_SRC` this case is
  *   reported as skipped, never as passed, because CI has no Oolite checkout.
+ *   `OOLITE_SRC` holds `git archive 7437f22 src Resources` (the engine source
+ *   and the scripts); an excerpt of `Resources/Scripts/*.js` is checked against
+ *   it the same way as one of `src/Core`.
+ *
+ * The Oolite side of a row is either the engine source (`src/Core/<file>`, an
+ * `objc` excerpt) or one of Oolite's scripts (`Resources/Scripts/<file>.js`, a
+ * `js` excerpt): the initial populator is a script (Phase 22, WORLD-08). The
+ * fence language must match the path, so a script cited under an `objc` fence
+ * is refused.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -42,9 +51,10 @@ const TABLE_HEADER = [
   "Fidelity",
   "Excerpt",
 ];
-const ROW_HEADING = /^### (E-\d{2,3}) (src\/[^:]+):(\d+)-(\d+)$/;
+const ROW_HEADING = /^### (E-\d{2,3}) ((?:src|Resources)\/[^:]+):(\d+)-(\d+)$/;
 const WEGOLITE_CELL = /^`(src\/[^`:]+):(\d+)`$/;
-const OOLITE_CELL = /^`(src\/Core\/[^`:]+):(\d+)-(\d+)`$/;
+const OOLITE_CELL =
+  /^`((?:src\/Core\/[^`:]+|Resources\/Scripts\/[^`:]+\.js)):(\d+)-(\d+)`$/;
 const EXCERPT_CELL = /^E-\d{2,3}$/;
 
 interface Row {
@@ -138,6 +148,11 @@ function parseRows(lines: readonly string[]): Row[] {
   return rows;
 }
 
+/** The fence an excerpt of `path` must carry: a script is `js`, engine source `objc`. */
+function fenceFor(path: string): string {
+  return path.startsWith("Resources/") ? "```js" : "```objc";
+}
+
 function parseExcerpts(lines: readonly string[]): Excerpt[] {
   const [from, to] = sectionBody(lines, "Excerpts");
   const excerpts: Excerpt[] = [];
@@ -151,9 +166,20 @@ function parseExcerpts(lines: readonly string[]): Excerpt[] {
       );
     }
     let fence = index + 1;
-    while (fence < to && (lines[fence] ?? "") === "") fence += 1;
-    if (lines[fence] !== "```objc") {
-      throw new Error(`${match[1] ?? "excerpt"} has no objc fence after it`);
+    // A script excerpt carries a Prettier guard: Prettier would otherwise
+    // reformat the embedded `js` and break the verbatim quotation.
+    while (
+      fence < to &&
+      ((lines[fence] ?? "") === "" ||
+        lines[fence] === "<!-- prettier-ignore -->")
+    ) {
+      fence += 1;
+    }
+    const expectedFence = fenceFor(match[2] ?? "");
+    if (lines[fence] !== expectedFence) {
+      throw new Error(
+        `${match[1] ?? "excerpt"} has no ${expectedFence.slice(3)} fence after it`,
+      );
     }
     const block: string[] = [];
     let close = fence + 1;
@@ -193,6 +219,29 @@ describe("FIDELITY.md contract (QUAL-06, D-22)", () => {
   it("is a real map, not a vacuous one", () => {
     expect(rows.length).toBeGreaterThanOrEqual(MIN_ROWS);
     expect(excerpts.length).toBeGreaterThanOrEqual(MIN_EXCERPTS);
+  });
+
+  it("refuses a script excerpt under an objc fence and an engine excerpt under a js fence", () => {
+    const document = (heading: string, fence: string): string[] => [
+      "## Excerpts",
+      "",
+      heading,
+      "",
+      fence,
+      "line",
+      "```",
+      "",
+    ];
+    const script = "### E-900 Resources/Scripts/oolite-populator.js:1-1";
+    const engine = "### E-901 src/Core/Universe.m:1-1";
+    expect(() => parseExcerpts(document(script, "```objc"))).toThrow(
+      /js fence/,
+    );
+    expect(() => parseExcerpts(document(engine, "```js"))).toThrow(
+      /objc fence/,
+    );
+    expect(parseExcerpts(document(script, "```js"))).toHaveLength(1);
+    expect(parseExcerpts(document(engine, "```objc"))).toHaveLength(1);
   });
 
   it("names the Oolite commit that third_party/oolite/pin.json pins", () => {

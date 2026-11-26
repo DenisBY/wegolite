@@ -80,6 +80,12 @@ export function mix32(a: number, b: number): number {
  *  - "scoop" (code 7): the spawn-time roll for a scoop fitting (Phase 22);
  *  - "repop" (code 8): the repopulation draws (Phase 26);
  *  - "inj" (code 9): the spawn-time roll for fuel injectors (Phase 22).
+ *
+ * "pop" (code 10, plan 22-06) is the initial population's stream, stateless
+ * like the others: it is forked once per populator entry (the entry ordinal is
+ * the entity id) and then per group and per draw site
+ * (`src/sim/world/population/streams.ts`), never stored on an entity and never
+ * in `ENTITY_RNG_PURPOSES`.
  */
 export type RngPurpose =
   | "world"
@@ -90,12 +96,13 @@ export type RngPurpose =
   | "pod"
   | "scoop"
   | "repop"
-  | "inj";
+  | "inj"
+  | "pop";
 
 /**
  * The per-entity purposes whose streams are stored; "world" is forked with
- * entity id 0. "cargo", "damage", "pod", "scoop", "repop" and "inj" are not
- * listed: each is forked per spawn, per tick or per event and never stored.
+ * entity id 0. "cargo", "damage", "pod", "scoop", "repop", "inj" and "pop" are
+ * not listed: each is forked per spawn, per tick or per event and never stored.
  */
 export const ENTITY_RNG_PURPOSES = ["ai", "combat"] as const;
 
@@ -115,6 +122,7 @@ export const RNG_PURPOSE_CODES: Readonly<Record<RngPurpose, number>> =
     scoop: 7,
     repop: 8,
     inj: 9,
+    pop: 10,
   });
 
 const MAX_UINT32 = 0xffffffff;

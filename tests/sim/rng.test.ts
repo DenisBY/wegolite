@@ -202,6 +202,7 @@ describe("worldSeedFor and forkSeed vectors (D-02, D-04)", () => {
       scoop: 7,
       repop: 8,
       inj: 9,
+      pop: 10,
     });
     expect(Object.isFrozen(RNG_PURPOSE_CODES)).toBe(true);
     expect([...ENTITY_RNG_PURPOSES]).toEqual(["ai", "combat"]);
@@ -218,6 +219,7 @@ describe("worldSeedFor and forkSeed vectors (D-02, D-04)", () => {
       "scoop",
       "repop",
       "inj",
+      "pop",
     ] as const;
     // Codes are appended, never renumbered: the five old codes keep their value.
     expect(RNG_PURPOSE_CODES.world).toBe(1);
@@ -226,7 +228,8 @@ describe("worldSeedFor and forkSeed vectors (D-02, D-04)", () => {
     expect(RNG_PURPOSE_CODES.scoop).toBe(7);
     expect(RNG_PURPOSE_CODES.repop).toBe(8);
     expect(RNG_PURPOSE_CODES.inj).toBe(9);
-    for (const purpose of ["pod", "scoop", "repop", "inj"] as const) {
+    expect(RNG_PURPOSE_CODES.pop).toBe(10);
+    for (const purpose of ["pod", "scoop", "repop", "inj", "pop"] as const) {
       expect([...ENTITY_RNG_PURPOSES]).not.toContain(purpose);
     }
     for (const seed of [0, 1, 0x1234abcd, 726532988, 0xffffffff]) {
@@ -260,6 +263,18 @@ describe("worldSeedFor and forkSeed vectors (D-02, D-04)", () => {
     expect(cargo).not.toBe(forkSeed(world, 102, "cargo"));
     // "cargo" is forked per spawn and never stored: not an entity purpose.
     expect([...ENTITY_RNG_PURPOSES]).not.toContain("cargo");
+  });
+
+  it("pins the initial-population purpose (Phase 22, code 10) with a literal vector", () => {
+    // `pop` is appended: no existing code moves (inj stays 9).
+    expect(RNG_PURPOSE_CODES.inj).toBe(9);
+    expect(RNG_PURPOSE_CODES.pop).toBe(10);
+    expect(forkSeed(0x2b4e037c, 1, "pop")).toBe(0xffaa813c);
+    expect(forkSeed(0x2b4e037c, 1, "pop")).toBe(
+      mix32(mix32(0x2b4e037c, 1), 10),
+    );
+    expect(forkSeed(0x2b4e037c, 0, "pop")).toBe(0x80b8a953);
+    expect([...ENTITY_RNG_PURPOSES]).not.toContain("pop");
   });
 
   it("pins worldSeedFor for the Lave market seed at epochs 0, 1 and 2", () => {
