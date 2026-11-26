@@ -15,8 +15,10 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SHIP_EXPLOSION_KEY,
   createInertPopulate,
+  createSystemPopulate,
   debrisContentFrom,
   hullTable,
+  populationRecordsFrom,
   trafficContent,
 } from "../../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../../src/app/session/traffic.js";
@@ -32,12 +34,19 @@ import type {
   NpcShip,
   ShipHullCatalogue,
 } from "../../../src/content/types.js";
+import type { Command } from "../../../src/sim/commands.js";
 import { flightTableFrom } from "../../../src/sim/npc/stats.js";
 import { liveEntityCount, createWorld } from "../../../src/sim/world/world.js";
 import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { fullHullTable, realHullTable } from "../../helpers/hull-table.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import {
+  committedPopulationRecords,
+  galaxySystems,
+} from "../../helpers/population-fixtures.js";
+import { tokenAt } from "../../helpers/population-census.js";
+import { runTickScript } from "../../helpers/tick-script.js";
 
 const lave = laveFixture();
 const WORLD_SEED = 0x2b4e037c;
@@ -399,6 +408,157 @@ describe("createInertPopulate", () => {
     }).not.toThrow();
     expect(liveEntityCount(mixed)).toBe(12);
     expect(mixed.rng.s).toBe(plain.rng.s);
+  });
+});
+
+/** Lave's ship count at the epoch the replay's launch uses, from the census golden (plan 22-12). */
+function laveCensusShips(epoch: number): number {
+  const golden = JSON.parse(
+    readFileSync("tests/golden/world/population-census.json", "utf8"),
+  ) as { digest: Record<string, string> };
+  const token = tokenAt(golden.digest[lave.system.id] ?? "", epoch);
+  if (token === undefined) throw new Error("the census has no Lave token");
+  return Number(token.split("/")[0]);
+}
+
+describe("populationRecordsFrom (plan 22-13, WORLD-08)", () => {
+  it("maps the committed catalogue to the committed population records, in catalogue order", () => {
+    expect(populationRecordsFrom(catalogue())).toEqual(
+      committedPopulationRecords(),
+    );
+  });
+
+  it("is carried by trafficContent beside the unchanged inert records", () => {
+    const content = trafficContent(catalogue());
+    expect(content.populationRecords).toEqual(committedPopulationRecords());
+    expect(content.records).toHaveLength(29);
+    expect(Object.keys(content.records[0] ?? {}).sort()).toEqual([
+      "energyRechargeRate",
+      "key",
+      "likelyCargo",
+      "maxCargo",
+      "maxEnergy",
+      "radius",
+      "roles",
+      "scanClass",
+    ]);
+  });
+
+  it("carries no missile field on any record", () => {
+    for (const record of populationRecordsFrom(catalogue())) {
+      expect(record).not.toHaveProperty("missiles");
+      expect(record).not.toHaveProperty("maxMissiles");
+    }
+  });
+});
+
+describe("createSystemPopulate (plan 22-13, WORLD-08)", () => {
+  const content = trafficContent(catalogue());
+  const galaxy = galaxySystems(0);
+  const populate = (
+    world: ReturnType<typeof createWorld>,
+    traffic: boolean,
+    overrides: {
+      readonly content?: TrafficContent | undefined;
+      readonly layout?: typeof lave.layout | undefined;
+      readonly system?: typeof lave.system | undefined;
+      readonly galaxy?: readonly unknown[] | undefined;
+    } = {},
+  ): void => {
+    const has = (key: keyof typeof overrides): boolean => key in overrides;
+    createSystemPopulate(
+      () => (has("content") ? overrides.content : content),
+      () => (has("layout") ? overrides.layout : lave.layout),
+      () => (has("system") ? overrides.system : lave.system),
+      () => (has("galaxy") ? overrides.galaxy : galaxy),
+    )(world, { traffic });
+  };
+
+  it("populates Lave with the census count of ships, all inert, with traffic on", () => {
+    const world = createWorld(WORLD_SEED);
+    populate(world, true);
+    expect(liveEntityCount(world)).toBeGreaterThan(0);
+    expect(world.store.nextId).toBe(101 + liveEntityCount(world));
+    for (const ship of world.store.live) expect(ship.ai).toBeNull();
+  });
+
+  it("adds nothing, draws nothing and burns no id with traffic off", () => {
+    const world = createWorld(WORLD_SEED);
+    const before = world.rng.s;
+    populate(world, false);
+    expect(liveEntityCount(world)).toBe(0);
+    expect(world.store.nextId).toBe(101);
+    expect(world.rng.s).toBe(before);
+  });
+
+  it.each([
+    ["content", { content: undefined }],
+    ["layout", { layout: undefined }],
+    ["system", { system: undefined }],
+  ] as const)("adds nothing when the %s is not there yet", (_name, missing) => {
+    const world = createWorld(WORLD_SEED);
+    const before = world.rng.s;
+    populate(world, true, missing);
+    expect(liveEntityCount(world)).toBe(0);
+    expect(world.store.nextId).toBe(101);
+    expect(world.rng.s).toBe(before);
+  });
+
+  it("does not throw on a missing or malformed galaxy list", () => {
+    for (const bad of [
+      undefined,
+      [],
+      [null, 7, "x", { systemIndex: "no" }],
+    ] as const) {
+      const world = createWorld(WORLD_SEED);
+      expect(() => {
+        populate(world, true, { galaxy: bad });
+      }).not.toThrow();
+    }
+  });
+
+  it("reads all four getters at call time", () => {
+    const held: { content: TrafficContent | undefined } = {
+      content: undefined,
+    };
+    const lazy = createSystemPopulate(
+      () => held.content,
+      () => lave.layout,
+      () => lave.system,
+      () => galaxy,
+    );
+    const early = createWorld(WORLD_SEED);
+    lazy(early, { traffic: true });
+    expect(liveEntityCount(early)).toBe(0);
+    held.content = content;
+    const late = createWorld(WORLD_SEED);
+    lazy(late, { traffic: true });
+    expect(liveEntityCount(late)).toBeGreaterThan(0);
+  });
+
+  it("builds the same world from the same seed", () => {
+    const a = createWorld(WORLD_SEED);
+    const b = createWorld(WORLD_SEED);
+    populate(a, true);
+    populate(b, true);
+    expect(a.store.live.map((ship) => ship.specKey)).toEqual(
+      b.store.live.map((ship) => ship.specKey),
+    );
+    expect(a.rng.s).toBe(b.rng.s);
+  });
+});
+
+describe("the Node replay's Lave launch world (plan 22-13, WORLD-08)", () => {
+  const launch: Command = { kind: "launch" };
+
+  it("holds the census golden's Lave epoch-1 count of ships, not the old twelve", () => {
+    const run = runTickScript([{ commands: [launch], ticks: 1 }], {
+      traffic: true,
+    });
+    if (run.world === undefined) throw new Error("no world after the launch");
+    expect(run.epoch).toBe(1);
+    expect(liveEntityCount(run.world)).toBe(laveCensusShips(1));
+    expect(laveCensusShips(1)).not.toBe(12);
   });
 });
 
