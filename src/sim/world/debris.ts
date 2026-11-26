@@ -39,10 +39,14 @@
  * gate below, or any `spawnEntity` refusal) never changes a later value or
  * `nextId` (Pitfall 1).
  *
- * Draws for features not modelled are not taken (D16-24): Oolite's commodity,
- * amount and 50 % pod role roll (`Universe.m:3863-3878`, `3977-3996`) and
- * `randomEjectaTemperature` (`ShipEntity.m:7562-7582`). Every pod is one
- * anonymous `barrel` cargopod (D16-01, OC-1).
+ * Draws for features not modelled are not taken (D16-24): Oolite's 50 % pod
+ * role roll (`Universe.m:3863-3878`) and `randomEjectaTemperature`
+ * (`ShipEntity.m:7562-7582`). Every pod is one `barrel` cargopod (D16-01,
+ * OC-1). Its commodity and amount (plan 21-14, CBT-11's pod clause, staged) come
+ * from the stateless `pod` fork of the victim, never from the combat stream, so
+ * no draw above moves: see `drawPodContents`. They are drawn only when the
+ * content carries `goods` and a `market`; without either the pod stays
+ * anonymous, bit for bit as before.
  *
  * Records (D16-15): a pod or a plate is kind `cargo`, scan class `CLASS_CARGO`, max energy
  * 1, no recharge, no AI, speed 0, the pod model's radius. Its position is the
@@ -93,12 +97,21 @@ import {
   vec,
 } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
-import { createRngState, rngNext } from "../rng.js";
+import { createRngState, forkSeed, rngNext } from "../rng.js";
 import type { RngState } from "../rng.js";
+import type { Commodity } from "../../content/types.js";
+import { CARGO_KINDS } from "./entity.js";
 import type { Entity } from "./entity.js";
 import { MAX_ENTITIES } from "./ids.js";
 import type { SystemLayout } from "./layout.js";
-import { MAX_ENTITY_CARGO, MAX_ENTITY_VELOCITY } from "./limits.js";
+import {
+  COMMODITY_KEY_PATTERN,
+  MAX_COMMODITY_KEY_LENGTH,
+  MAX_ENTITY_CARGO,
+  MAX_ENTITY_VELOCITY,
+  MAX_POD_AMOUNT,
+  MAX_UINT32,
+} from "./limits.js";
 import { randomQuaternion } from "./placement.js";
 import {
   buoyPosition,
@@ -145,6 +158,26 @@ export interface DebrisContent {
   readonly plate: DebrisModel;
   /** The wreckage models (plan 16-04). */
   readonly wrecks: readonly DebrisModel[];
+  /**
+   * The compiled commodity records (plan 21-14): the goods a pod can carry, in
+   * the order Oolite's `commodityMarket` lists them. With `market` it makes a
+   * released pod carry a commodity and an amount; absent, pods stay anonymous.
+   */
+  readonly goods?: readonly Commodity[];
+  /**
+   * The current system's first-generation market quantities (plan 21-14),
+   * set per system by the one step-options builder (plan 21-15): never the
+   * player-modified live market (RESEARCH A6), so the draw does not depend on
+   * what the player bought or sold. A good absent from it has quantity 0.
+   * Absent means anonymous pods.
+   */
+  readonly market?: readonly PodMarketEntry[];
+}
+
+/** One good's stock in `DebrisContent.market`: a commodity key and its quantity. */
+export interface PodMarketEntry {
+  readonly key: string;
+  readonly quantity: number;
 }
 
 /**
@@ -529,6 +562,246 @@ function boxOf(hull: DebrisHull | undefined): DebrisBox {
   };
 }
 
+/** What a released pod carries (plan 21-14): a commodity key and a unit count. */
+export interface PodContents {
+  readonly commodity: string;
+  readonly amount: number;
+}
+
+/** The `CARGO_KINDS` index of `name`, resolved once from the frozen tuple. */
+const kindIndex = (name: (typeof CARGO_KINDS)[number]): number =>
+  CARGO_KINDS.indexOf(name);
+
+const KIND_PLENTIFUL = kindIndex("plentiful");
+const KIND_SCARCE = kindIndex("scarce");
+const KIND_MEDICAL = kindIndex("medical");
+const KIND_CONTRABAND = kindIndex("contraband");
+const KIND_PIRATE = kindIndex("pirate");
+
+/** The commodity `CARGO_FLAG_FULL_MEDICAL` fills with (`ShipEntity.m:7356`). */
+const MEDICAL_COMMODITY = "narcotics";
+
+/** A role is in `family` when it is the family name or `<family>-...`. */
+function inRoleFamily(role: string, family: string): boolean {
+  return role === family || role.startsWith(`${family}-`);
+}
+
+/**
+ * The cargo kind a destroyed ship's pods are drawn with, resolved AT RELEASE
+ * (orchestrator decision 3, plan 21-14): never stored on an inert ship at spawn,
+ * because a stored kind would print a `ck:` segment and move the epoch 1-20
+ * pin.
+ *
+ * An explicit `cargoKind` (an index 1 to 6 into `CARGO_KINDS`) wins. Otherwise
+ * the role decides: the trader and shuttle families give `plentiful` (Oolite's
+ * legacy trader and the station shuttle, `Universe.m` and `StationEntity.m`
+ * `setCargoFlag:CARGO_FLAG_FULL_PLENTIFUL`), the pirate family gives `pirate`
+ * (scarce goods, illegal allowed, `ShipEntity.m:7359-7362`), and any other or
+ * unknown role (the inert ships' pristine "" included) falls back to `scarce`
+ * legal goods. An invalid stored kind (NaN, negative, fractional, out of range)
+ * falls back by role. The families are matched by `===` and a prefix check
+ * over the closed names, never an object lookup. Total: any input returns a
+ * valid index from 1 to `CARGO_KINDS.length - 1`. The fallback is for the
+ * frozen inert path and the test hooks only; a live populator sets the kind
+ * itself (`tests/guards/pod-kind-fallback.test.ts`).
+ */
+export function resolvePodCargoKind(
+  victim: Pick<Entity, "cargoKind" | "role">,
+): number {
+  const stored: unknown = victim.cargoKind;
+  if (
+    typeof stored === "number" &&
+    Number.isInteger(stored) &&
+    stored >= 1 &&
+    stored <= CARGO_KINDS.length - 1
+  ) {
+    return stored;
+  }
+  const role: unknown = victim.role;
+  if (typeof role !== "string") return KIND_SCARCE;
+  if (inRoleFamily(role, "trader") || inRoleFamily(role, "shuttle")) {
+    return KIND_PLENTIFUL;
+  }
+  if (inRoleFamily(role, "pirate")) return KIND_PIRATE;
+  return KIND_SCARCE;
+}
+
+/** The most market stock read for one good: Oolite's quantity limit, with headroom. */
+const POD_QUANTITY_CAP = 0xffff;
+
+/** `getContainersOfGoods` weights quantities against this (`Universe.m:3907-3910`). */
+const POD_QUANTITY_FULL = 64;
+
+/** A good the draw can pick: a legal key with its unit and export legality. */
+interface PodGood {
+  readonly key: string;
+  readonly unit: unknown;
+  readonly illegal: boolean;
+}
+
+/** The goods the draw can name: object records whose `key` is a legal commodity key. */
+function podGoodsOf(goods: unknown): PodGood[] {
+  if (!Array.isArray(goods)) return [];
+  const found: PodGood[] = [];
+  for (const entry of goods as unknown[]) {
+    if (!isObject(entry)) continue;
+    const { key, unit, legalityExport } = entry as Partial<Commodity>;
+    if (
+      typeof key !== "string" ||
+      key.length === 0 ||
+      key.length > MAX_COMMODITY_KEY_LENGTH ||
+      !COMMODITY_KEY_PATTERN.test(key)
+    ) {
+      continue;
+    }
+    found.push({
+      key,
+      unit,
+      illegal: typeof legalityExport === "number" && legalityExport > 0,
+    });
+  }
+  return found;
+}
+
+/** The market stock by key: the first entry of a key wins; bad quantities are 0. */
+function podStockOf(market: unknown): Map<string, number> {
+  const stock = new Map<string, number>();
+  if (!Array.isArray(market)) return stock;
+  for (const entry of market as unknown[]) {
+    if (!isObject(entry)) continue;
+    const { key, quantity } = entry as Partial<PodMarketEntry>;
+    if (typeof key !== "string" || stock.has(key)) continue;
+    stock.set(
+      key,
+      typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0
+        ? Math.min(Math.floor(quantity), POD_QUANTITY_CAP)
+        : 0,
+    );
+  }
+  return stock;
+}
+
+/**
+ * One capsule weight per good, `getContainersOfGoods` (`Universe.m:3894-3910`)
+ * in integer arithmetic: `q` is the market quantity; for scarce goods
+ * `q < 64 ? 64 - q : 0` (3896-3901); when only legal goods are wanted an
+ * export-illegal good keeps `q & 1`, "a very small chance, sometimes"
+ * (3902-3906); then `q = min(q, 64)`, `q = q * 100 / 64` truncated (3907-3910).
+ */
+function podWeightsOf(
+  goods: readonly PodGood[],
+  stock: ReadonlyMap<string, number>,
+  scarce: boolean,
+  legal: boolean,
+): number[] {
+  return goods.map((good) => {
+    let q = stock.get(good.key) ?? 0;
+    if (scarce) q = q < POD_QUANTITY_FULL ? POD_QUANTITY_FULL - q : 0;
+    if (legal && good.illegal) q &= 1;
+    if (q > POD_QUANTITY_FULL) q = POD_QUANTITY_FULL;
+    return Math.floor((q * 100) / POD_QUANTITY_FULL);
+  });
+}
+
+/** `Ranrot() % n` over the stream: `floor(u * n)`. */
+const modulo = (rng: RngState, n: number): number =>
+  Math.floor(rngNext(rng) * n);
+
+/**
+ * The amount of one pod of `good`, `getRandomAmountOfCommodity`
+ * (`Universe.m:3977-3996`): tonnes 1, kilograms `1 + r%6 + r%6 + r%6`, grams
+ * `4 + r%16 + r%11 + r%6`, an unknown unit 1; drawn left to right, clamped
+ * into `MAX_POD_AMOUNT`.
+ */
+function podAmountOf(rng: RngState, unit: unknown): number {
+  let amount = 1;
+  if (unit === "kg") {
+    amount = 1 + modulo(rng, 6) + modulo(rng, 6) + modulo(rng, 6);
+  } else if (unit === "g") {
+    amount = 4 + modulo(rng, 16) + modulo(rng, 11) + modulo(rng, 6);
+  }
+  return Math.min(amount, MAX_POD_AMOUNT);
+}
+
+/**
+ * The contents of `count` pods of a ship of cargo kind `kind` (plan 21-14,
+ * CBT-11's pod clause): one commodity and amount per pod, drawn from `rng`, the
+ * stateless `pod` fork of the victim, never from the combat stream.
+ *
+ * Order: every pod's commodity first, in capsule index order
+ * (`getContainersOfGoods`, `Universe.m:3894-3940`, run once by `setCargoFlag:`,
+ * `ShipEntity.m:7347-7365`), then every pod's amount (`cargoPodFromTemplate`,
+ * `Universe.m:3863-3873` to `3977-3996`), as the real pods are
+ * made at release. Per capsule, with `total` the sum of the weights
+ * (`podWeightsOf`): no draw when `total` is 0, then the first good (the
+ * `co_type = 0` initial, `Universe.m:3916-3926`, ported as written); otherwise
+ * `qr = 1 + (r % total)` and the first good whose running weight reaches `qr`.
+ *
+ * The kind picks the rule (`ShipEntity.m:7347-7365`): `plentiful` is
+ * `scarce:NO legal:YES`, `scarce` is `scarce:YES legal:YES`, `contraband` and
+ * `pirate` are `scarce:YES legal:NO` (the pirate's pod count, `r % (1 + num /
+ * 2)`, belongs to the caller, which counts survivors), `medical` is Narcotics
+ * and takes no commodity draw. `uniform` needs the hull's `cargo_carried`, which
+ * no per-ship value holds, and an invalid kind has no rule: both take the
+ * `scarce` legal rule, as an unknown role does. Medical with no Narcotics good
+ * in `goods` does the same.
+ *
+ * Total: `goods` entries that are not objects or whose key is not a legal
+ * commodity key are skipped, a market quantity that is not a finite positive
+ * number is 0, a good the market does not list has quantity 0, and `count` is
+ * floored and bounded to `0..MAX_ENTITY_CARGO` (a non-finite count is 0). With
+ * no usable good it returns no contents. Every amount is an integer within its
+ * unit's range and `MAX_POD_AMOUNT`. A pure function of its arguments and the
+ * state of `rng`, which it advances.
+ */
+export function drawPodContents(
+  kind: number,
+  rng: RngState,
+  goods: readonly Commodity[],
+  market: readonly PodMarketEntry[],
+  count: number,
+): PodContents[] {
+  const pods =
+    typeof count === "number" && Number.isFinite(count)
+      ? Math.min(Math.max(0, Math.floor(count)), MAX_ENTITY_CARGO)
+      : 0;
+  const usable = podGoodsOf(goods);
+  if (pods === 0 || usable.length === 0) return [];
+
+  // The commodity of every pod.
+  const chosen: PodGood[] = [];
+  const narcotics =
+    kind === KIND_MEDICAL
+      ? usable.find((good) => good.key === MEDICAL_COMMODITY)
+      : undefined;
+  if (narcotics !== undefined) {
+    for (let i = 0; i < pods; i += 1) chosen.push(narcotics);
+  } else {
+    const scarce = kind !== KIND_PLENTIFUL;
+    const legal = kind !== KIND_CONTRABAND && kind !== KIND_PIRATE;
+    const weights = podWeightsOf(usable, podStockOf(market), scarce, legal);
+    let total = 0;
+    for (const weight of weights) total += weight;
+    for (let i = 0; i < pods; i += 1) {
+      let at = 0;
+      if (total > 0) {
+        let qr = 1 + modulo(rng, total);
+        for (at = 0; at < weights.length - 1; at += 1) {
+          qr -= weights[at] as number;
+          if (qr <= 0) break;
+        }
+      }
+      chosen.push(usable[at] as PodGood);
+    }
+  }
+
+  // The amount of every pod.
+  return chosen.map((good) => ({
+    commodity: good.key,
+    amount: podAmountOf(rng, good.unit),
+  }));
+}
+
 /** One pod's or plate's drawn placement (13 draws). */
 interface Scatter {
   readonly position: Vec3;
@@ -576,7 +849,8 @@ function scatter(
 
 /**
  * Attempt one pod's or plate's spawn behind the cap gate (D16-05): kind
- * `cargo`, `CLASS_CARGO`, energy 1 of 1, no recharge, no AI, speed 0 (D16-15).
+ * `cargo`, `CLASS_CARGO`, energy 1 of 1, no recharge, no AI, speed 0 (D16-15),
+ * carrying `contents` when given (plan 21-14).
  * The result is never read: a refusal (the gate, a missing model or any
  * `spawnEntity` refusal such as a non-finite radius) leaves `nextId`, the live
  * array and every later draw untouched.
@@ -586,6 +860,7 @@ function spawnCargoPiece(
   model: DebrisModel | undefined,
   piece: Scatter,
   tick: number,
+  contents?: PodContents,
 ): void {
   if (model === undefined || !debrisAdmitted(world)) return;
   spawnEntity(
@@ -602,6 +877,9 @@ function spawnCargoPiece(
       maxEnergy: DEBRIS_MAX_ENERGY,
       energyRechargeRate: 0,
       velocity: piece.velocity,
+      ...(contents === undefined
+        ? {}
+        : { podCommodity: contents.commodity, podAmount: contents.amount }),
     },
     tick,
   );
@@ -891,6 +1169,37 @@ export function blastDebrisPiece(
 }
 
 /**
+ * The contents of the `count` pods `victim` releases (plan 21-14): drawn from
+ * the stateless `pod` fork `forkSeed(worldSeed, victim.id, "pod")`, so the
+ * victim's `combat` stream, and with it every placement, survival, wreck and
+ * plate draw, is the same with and without contents. None (anonymous pods) when
+ * the content has no `goods` or no `market`, when no pod survived (no draw at
+ * all) or when the victim's id is outside the fork's domain.
+ */
+function podContentsOf(
+  world: World,
+  victim: Entity,
+  content: DebrisContent,
+  count: number,
+): readonly PodContents[] {
+  const goods: unknown = content.goods;
+  const market: unknown = content.market;
+  if (count === 0 || !Array.isArray(goods) || !Array.isArray(market)) {
+    return [];
+  }
+  const id = victim.id;
+  if (!Number.isSafeInteger(id) || id < 0 || id > MAX_UINT32) return [];
+  const rng = createRngState(forkSeed(world.worldSeed, id, "pod"));
+  return drawPodContents(
+    resolvePodCargoKind(victim),
+    rng,
+    goods as readonly Commodity[],
+    market as readonly PodMarketEntry[],
+    count,
+  );
+}
+
+/**
  * Release the debris of the ship `victim`, already marked dead by `killShip`,
  * into `world` on tick `ctx.tick`. Total; see the module doc for the rule, the
  * draw order and the cap.
@@ -919,19 +1228,22 @@ export function releaseDebris(
   const drift = vecOrZero(victim.velocity);
   let chance = POD_CARGO_CHANCE_START;
   let limit = POD_LIMIT;
+  // Every survivor's 13 draws are taken in order here; the spawns follow, so
+  // the contents (from the pod fork, below) can be drawn for all survivors at
+  // once. No draw depends on a spawn, so the order of draws is unchanged.
+  const survivors: Scatter[] = [];
   for (let i = 0; i < capsules; i += 1) {
     if (Math.floor(rngNext(stream) * 100) < chance) {
       if (chance > POD_CARGO_CHANCE_FLOOR) chance -= POD_CARGO_CHANCE_STEP;
       limit -= 1;
-      // Every draw of this pod is taken: only then is its spawn attempted.
-      spawnCargoPiece(
-        world,
-        pod,
-        scatter(stream, box, origin, drift),
-        ctx.tick,
-      );
+      survivors.push(scatter(stream, box, origin, drift));
     }
     if (limit <= 0) break;
+  }
+  const contents = podContentsOf(world, victim, ctx.content, survivors.length);
+  for (let i = 0; i < survivors.length; i += 1) {
+    // A refused spawn (the cap gate, a missing model) still had its draws.
+    spawnCargoPiece(world, pod, survivors[i] as Scatter, ctx.tick, contents[i]);
   }
 
   // The wreckage (ShipEntity.m:8042-8069, Universe.m:5497-5526).

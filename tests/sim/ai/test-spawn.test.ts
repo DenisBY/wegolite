@@ -25,6 +25,7 @@ import {
   spawnTestShooter,
   TEST_ATTACKER_DISTANCE,
   TEST_FLYER_DISTANCE,
+  TEST_SHOOTER_CARGO_KIND,
   TEST_SHOOTER_DISTANCE,
   TEST_SHOOTER_HOLD_RANGE,
 } from "../../../src/sim/ai/test-spawn.js";
@@ -50,6 +51,7 @@ import {
 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
+import { CARGO_KINDS } from "../../../src/sim/world/entity.js";
 import { MAX_ENTITIES, PLAYER_ID } from "../../../src/sim/world/ids.js";
 import type { InertShipRecord } from "../../../src/sim/world/populate.js";
 import { MAX_ENTITY_CARGO } from "../../../src/sim/world/limits.js";
@@ -273,6 +275,31 @@ describe("spawnTestShooter", () => {
     expect(hashWorld(player, world)).not.toBe(
       hashWorld(player, createWorld(7)),
     );
+  });
+
+  it("names the plentiful cargo kind whenever it spawns with cargo (plan 21-14)", () => {
+    expect(TEST_SHOOTER_CARGO_KIND).toBe(CARGO_KINDS.indexOf("plentiful"));
+    expect(TEST_SHOOTER_CARGO_KIND).toBeGreaterThan(0);
+    const player = flyingPlayer();
+    for (const cargo of [1, 20, MAX_ENTITY_CARGO]) {
+      const world = createWorld(7);
+      expect(spawnTestShooter(world, player, VIPER, player.tick, cargo)).toBe(
+        true,
+      );
+      expect(theShooter(world).cargoKind).toBe(TEST_SHOOTER_CARGO_KIND);
+      expect(serializeEntity(theShooter(world))).toContain(
+        `;ck:${TEST_SHOOTER_CARGO_KIND}`,
+      );
+    }
+    // Without cargo, or with an explicit 0, no kind is stored.
+    for (const cargo of [undefined, 0]) {
+      const world = createWorld(7);
+      expect(spawnTestShooter(world, player, VIPER, player.tick, cargo)).toBe(
+        true,
+      );
+      expect(theShooter(world).cargoKind).toBe(0);
+      expect(serializeEntity(theShooter(world))).not.toContain("ck:");
+    }
   });
 
   it("without the argument spawns bit for bit as in Phase 15: cargo 0, no cargo segment", () => {

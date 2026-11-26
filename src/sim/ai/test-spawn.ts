@@ -39,6 +39,7 @@ import {
 import type { Quat, Vec3 } from "../math.js";
 import { statsFor } from "../npc/stats.js";
 import type { NpcFlightStats } from "../npc/stats.js";
+import { CARGO_KINDS } from "../world/entity.js";
 import { MAX_ENTITIES, PLAYER_ID } from "../world/ids.js";
 import type { ScanClass } from "../world/ids.js";
 import { isScanClass } from "../world/populate.js";
@@ -68,6 +69,15 @@ const LOCAL_FORWARD = vec(0, 0, -1);
  */
 export const TEST_SHOOTER_KEY = "viper";
 
+/**
+ * The cargo kind a hook shooter with cargo spawns with: `plentiful`, fixture
+ * data (orchestrator decision 3, plan 21-14). A kill releases pods whose kind
+ * is resolved at release (`resolvePodCargoKind`); the hook names its kind, so
+ * the pod contents never rely on the scarce-legal fallback of an unset kind.
+ * Unused without `cargo`: a shooter without cargo is unchanged.
+ */
+export const TEST_SHOOTER_CARGO_KIND = CARGO_KINDS.indexOf("plentiful");
+
 /** A half turn about the up axis: a ship's nose and tail swap. */
 const HALF_TURN_ABOUT_UP = quat(0, 0, 1, 0);
 
@@ -89,7 +99,10 @@ const HALF_TURN_ABOUT_UP = quat(0, 0, 1, 0);
  * carries, so a kill releases pods. It is put into the `SpawnInit` only when
  * defined: without it the spawn is bit for bit the Phase 15 one (cargo 0, no
  * cargo segment in the hash). A value outside `spawnEntity`'s domain (an
- * integer 0 to `MAX_ENTITY_CARGO`) is refused there, and nothing spawns.
+ * integer 0 to `MAX_ENTITY_CARGO`) is refused there, and nothing spawns. With
+ * a `cargo` above 0 the ship also spawns with `cargoKind`
+ * `TEST_SHOOTER_CARGO_KIND`; an explicit 0 stays the default (no pods, so no
+ * kind to name) and is the same entity as no argument.
  */
 export function spawnTestShooter(
   world: World,
@@ -119,7 +132,11 @@ export function spawnTestShooter(
       ai,
       maxEnergy: record.maxEnergy,
       energyRechargeRate: record.energyRechargeRate,
-      ...(cargo === undefined ? {} : { cargo }),
+      ...(cargo === undefined
+        ? {}
+        : cargo === 0
+          ? { cargo }
+          : { cargo, cargoKind: TEST_SHOOTER_CARGO_KIND }),
     },
     tick,
   ).ok;
