@@ -29,10 +29,7 @@ import type { InternalDamageFacts } from "../../sim/combat/internal-damage.js";
 import type { LaserMounts } from "../../sim/combat/mounts.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import { capacityPodsFor, holdPods } from "../../sim/economy/cargo.js";
-import {
-  generateMarket,
-  marketSeedForSystem,
-} from "../../sim/economy/market.js";
+import { firstGenerationMarket } from "../../sim/economy/market.js";
 import type { StepOptions } from "../../sim/flight/step.js";
 import {
   NAV_BUOY_MASS,
@@ -137,9 +134,9 @@ const debrisBySystem = new WeakMap<DebrisContent, Map<string, DebrisContent>>();
 
 /**
  * The debris content with the current system's first-generation market (plan
- * 21-15, CBT-11's pod clause): the stock per commodity key of
- * `generateMarket(system, goods, marketSeedForSystem(system.id))`, a pure
- * function of the system and its seed. It is never the player-modified live
+ * 21-15, CBT-11's pod clause): the stock per commodity key of the system's
+ * first-generation market (`firstGenerationMarket`, the market at
+ * `marketSeedForSystem(system.id)`), a pure function of the system and its seed. It is never the player-modified live
  * market (RESEARCH A6): what the player buys or sells must not change a pod's
  * contents, and the Node replay (which has no live market) builds the same
  * options. Content without `goods`, or already carrying a `market`, passes
@@ -158,15 +155,12 @@ function debrisWithMarket(
   const cached = bySystem.get(system.id);
   if (cached !== undefined) return cached;
   const market: readonly PodMarketEntry[] = Object.freeze(
-    generateMarket(
-      system,
-      debris.goods,
-      marketSeedForSystem(system.id),
-    ).goods.map((good): PodMarketEntry =>
-      Object.freeze({
-        key: good.key,
-        quantity: good.stock,
-      }),
+    firstGenerationMarket(system, debris.goods).goods.map(
+      (good): PodMarketEntry =>
+        Object.freeze({
+          key: good.key,
+          quantity: good.stock,
+        }),
     ),
   );
   const derived: DebrisContent = Object.freeze({ ...debris, market });

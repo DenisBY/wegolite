@@ -64,6 +64,20 @@ export function arrivalMarketSeed(
 }
 
 /**
+ * A system's first-generation market: `generateMarket` at the system's own
+ * stable seed, `marketSeedForSystem(system.id)` (D-18). A pure function of the
+ * system and the commodity records, never the live market the player has traded
+ * in and never installed anywhere: it is the read-only view the cargo pods'
+ * contents are weighted by (plan 21-15, CBT-11 pod clause).
+ */
+export function firstGenerationMarket(
+  system: Pick<System, "id" | "economy">,
+  commodities: readonly Commodity[],
+): Market {
+  return generateMarket(system, commodities, marketSeedForSystem(system.id));
+}
+
+/**
  * Oolite's `economicBiasForGood` (`OOCommodities.m:431-452`).
  *
  * The equal-peaks early return is load-bearing: Narcotics has

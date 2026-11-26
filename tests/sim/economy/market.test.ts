@@ -24,6 +24,7 @@ import {
   MARKET_LIMIT,
   arrivalMarketSeed,
   economicBias,
+  firstGenerationMarket,
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
@@ -305,5 +306,14 @@ describe("RANROT", () => {
     );
     expect(shifted.goods).toHaveLength(18);
     expect(good(shifted, "textiles")).not.toEqual(good(baseline, "textiles"));
+  });
+
+  it("firstGenerationMarket is generateMarket at the system's own seed (plan 21-15)", () => {
+    expect(firstGenerationMarket(lave, commodities)).toEqual(
+      generateMarket(lave, commodities, marketSeedForSystem(lave.id)),
+    );
+    expect(firstGenerationMarket(lave, commodities).seed).toBe(
+      marketSeedForSystem(lave.id),
+    );
   });
 });
