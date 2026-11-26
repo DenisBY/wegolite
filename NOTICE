@@ -131,6 +131,17 @@ a derivative work of `explosions.plist` and remain CC BY-NC-SA 3.0, never GPL,
 with attribution to the Oolite contributors, non-commercial use only and
 share-alike terms.
 
+The generated role tables `src/content/generated/auto-ai-map.json`,
+`src/content/generated/role-categories.json` and
+`src/content/generated/comms.json` are compiled at build time from the vendored
+Oolite `autoAImap.plist` (every role with the AI file Oolite gives it),
+`role-categories.plist` (every role category with its role list) and
+`descriptions.plist` (the ten `oolite-comms-*` message templates and every
+description key they reach through `[...]` references, with Oolite's wording
+kept verbatim and the runtime variables listed). They are derivative works of
+those plists and remain CC BY-NC-SA 3.0, never GPL, with attribution to the
+Oolite contributors, non-commercial use only and share-alike terms.
+
 The `mass` values in `src/content/generated/ships-client.json` (the player Cobra
 Mk III, the Coriolis station and the navigation buoy) are computed the same way
 from the vendored Oolite `oolite_cobra3` model, the four Coriolis models

@@ -971,9 +971,19 @@
       "sha256": "9dfe6b16c60f7098ca21841efef1f46d8962f2ca5b99cde2b96ebba56a9681a9"
     },
     {
+      "bytes": 1954,
+      "path": "src/content/generated/auto-ai-map.json",
+      "sha256": "1a0d62145db0d0c14e9e6b1171e2d3e06d8c5a428c48de20db447fb800fa0c41"
+    },
+    {
       "bytes": 10537,
       "path": "src/content/generated/commodities.json",
       "sha256": "e4149f551e64d5cc013933e9d4d977633f1e8fbaff41ee77b8a397f9750563bd"
+    },
+    {
+      "bytes": 3710,
+      "path": "src/content/generated/comms.json",
+      "sha256": "a95a210e96416d21848483c1bd0842ac8028df652dc472d0c9ef2da0e0ff692f"
     },
     {
       "bytes": 514,
@@ -994,6 +1004,11 @@
       "bytes": 6370,
       "path": "src/content/generated/labels.json",
       "sha256": "d0302d18161a8e3477976d7a5db93d074856b8ec0ead83c852ca1d9c98528ebc"
+    },
+    {
+      "bytes": 4061,
+      "path": "src/content/generated/role-categories.json",
+      "sha256": "2048f7b509ba8cc702c11b616c9bbd9e4b13d5c44ddb8514f2399cf89c6ed104"
     },
     {
       "bytes": 19644,

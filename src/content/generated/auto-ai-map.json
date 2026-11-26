@@ -1,0 +1,110 @@
+[
+  {
+    "ai": "oolite-assassinAI.js",
+    "role": "assassin-heavy"
+  },
+  {
+    "ai": "oolite-assassinAI.js",
+    "role": "assassin-light"
+  },
+  {
+    "ai": "oolite-assassinAI.js",
+    "role": "assassin-medium"
+  },
+  {
+    "ai": "dumbAI.plist",
+    "role": "asteroid"
+  },
+  {
+    "ai": "oolite-escortAI.js",
+    "role": "escort"
+  },
+  {
+    "ai": "oolite-bountyHunterAI.js",
+    "role": "hunter"
+  },
+  {
+    "ai": "oolite-bountyHunterLeaderAI.js",
+    "role": "hunter-heavy"
+  },
+  {
+    "ai": "oolite-bountyHunterLeaderAI.js",
+    "role": "hunter-medium"
+  },
+  {
+    "ai": "oolite-policeAI.js",
+    "role": "interceptor"
+  },
+  {
+    "ai": "oolite-scavengerAI.js",
+    "role": "miner"
+  },
+  {
+    "ai": "oolite-pirateAI.js",
+    "role": "pirate"
+  },
+  {
+    "ai": "oolite-pirateInterceptorAI.js",
+    "role": "pirate-aegis-raider"
+  },
+  {
+    "ai": "oolite-pirateAI.js",
+    "role": "pirate-heavy-fighter"
+  },
+  {
+    "ai": "oolite-pirateFreighterAI.js",
+    "role": "pirate-heavy-freighter"
+  },
+  {
+    "ai": "oolite-pirateInterceptorAI.js",
+    "role": "pirate-interceptor"
+  },
+  {
+    "ai": "oolite-pirateAI.js",
+    "role": "pirate-light-fighter"
+  },
+  {
+    "ai": "oolite-pirateFreighterAI.js",
+    "role": "pirate-light-freighter"
+  },
+  {
+    "ai": "oolite-pirateAI.js",
+    "role": "pirate-medium-fighter"
+  },
+  {
+    "ai": "oolite-pirateFreighterAI.js",
+    "role": "pirate-medium-freighter"
+  },
+  {
+    "ai": "oolite-policeAI.js",
+    "role": "police"
+  },
+  {
+    "ai": "oolite-scavengerAI.js",
+    "role": "scavenger"
+  },
+  {
+    "ai": "oolite-shuttleAI.js",
+    "role": "shuttle"
+  },
+  {
+    "ai": "oolite-traderAI.js",
+    "role": "sunskim-trader"
+  },
+  {
+    "ai": "oolite-traderAI.js",
+    "role": "trader"
+  },
+  {
+    "ai": "oolite-traderAI.js",
+    "role": "trader-courier"
+  },
+  {
+    "ai": "oolite-traderAI.js",
+    "role": "trader-smuggler"
+  },
+  {
+    "ai": "oolite-policeAI.js",
+    "role": "wingman"
+  }
+]

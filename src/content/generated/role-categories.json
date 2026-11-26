@@ -1,0 +1,207 @@
+[
+  {
+    "category": "oolite-assassin",
+    "roles": [
+      "assassin-light",
+      "assassin-medium",
+      "assassin-heavy",
+      "assassin-player"
+    ]
+  },
+  {
+    "category": "oolite-bounty-hunter",
+    "roles": [
+      "hunter",
+      "hunter-medium",
+      "hunter-heavy"
+    ]
+  },
+  {
+    "category": "oolite-courier",
+    "roles": [
+      "trader-courier",
+      "trader-courier+"
+    ]
+  },
+  {
+    "category": "oolite-escort",
+    "roles": [
+      "escort",
+      "escort-medium",
+      "escort-heavy",
+      "wingman",
+      "EQ_THARGON"
+    ]
+  },
+  {
+    "category": "oolite-pirate",
+    "roles": [
+      "pirate",
+      "pirate-light-fighter",
+      "pirate-medium-fighter",
+      "pirate-heavy-fighter",
+      "pirate-light-freighter",
+      "pirate-medium-freighter",
+      "pirate-heavy-freighter",
+      "pirate-aegis-raider",
+      "pirate-interceptor"
+    ]
+  },
+  {
+    "category": "oolite-pirate-enemy",
+    "roles": [
+      "hunter",
+      "hunter-medium",
+      "hunter-heavy",
+      "interceptor",
+      "police",
+      "police-station-patrol",
+      "police-witchpoint-patrol"
+    ]
+  },
+  {
+    "category": "oolite-pirate-leader",
+    "roles": [
+      "pirate-light-freighter",
+      "pirate-medium-freighter",
+      "pirate-heavy-freighter"
+    ]
+  },
+  {
+    "category": "oolite-pirate-victim",
+    "roles": [
+      "player",
+      "player-unknown",
+      "trader",
+      "trader-smuggler",
+      "shuttle",
+      "delta",
+      "gemini",
+      "starseeker",
+      "liner",
+      "strelka",
+      "trident",
+      "coachwhip",
+      "coral",
+      "moraytransport",
+      "woma",
+      "fueltransport",
+      "att1",
+      "impfreighter",
+      "imptanker",
+      "sunskim-trader"
+    ]
+  },
+  {
+    "category": "oolite-police-dislike",
+    "roles": [
+      "pirate",
+      "pirate-light-fighter",
+      "pirate-medium-fighter",
+      "pirate-heavy-fighter",
+      "pirate-light-freighter",
+      "pirate-medium-freighter",
+      "pirate-heavy-freighter",
+      "pirate-aegis-raider",
+      "pirate-interceptor",
+      "assassin-light",
+      "assassin-medium",
+      "assassin-heavy",
+      "assassin-player"
+    ]
+  },
+  {
+    "category": "oolite-police-like",
+    "roles": [
+      "trader",
+      "trader-courier",
+      "trader-courier+",
+      "shuttle",
+      "miner",
+      "hunter",
+      "hunter-medium",
+      "hunter-heavy",
+      "escape-capsule",
+      "police",
+      "rockhermit"
+    ]
+  },
+  {
+    "category": "oolite-rockhermits",
+    "roles": [
+      "rockhermit",
+      "rockhermit-chaotic",
+      "rockhermit-pirate"
+    ]
+  },
+  {
+    "category": "oolite-scavenger",
+    "roles": [
+      "miner",
+      "rockhermit",
+      "rockhermit-chaotic",
+      "scavenger"
+    ]
+  },
+  {
+    "category": "oolite-shuttle",
+    "roles": [
+      "shuttle"
+    ]
+  },
+  {
+    "category": "oolite-smuggler-dislike",
+    "roles": [
+      "pirate",
+      "pirate-light-fighter",
+      "pirate-medium-fighter",
+      "pirate-heavy-fighter",
+      "pirate-light-freighter",
+      "pirate-medium-freighter",
+      "pirate-heavy-freighter",
+      "pirate-aegis-raider",
+      "pirate-interceptor",
+      "assassin-light",
+      "assassin-medium",
+      "assassin-heavy",
+      "assassin-player",
+      "player-unknown",
+      "hunter",
+      "hunter-medium",
+      "hunter-heavy",
+      "interceptor",
+      "police",
+      "police-station-patrol",
+      "police-witchpoint-patrol"
+    ]
+  },
+  {
+    "category": "oolite-trader",
+    "roles": [
+      "trader",
+      "trader-courier",
+      "trader-courier+",
+      "trader-smuggler"
+    ]
+  },
+  {
+    "category": "oolite-trader-dislike",
+    "roles": [
+      "pirate",
+      "pirate-light-fighter",
+      "pirate-medium-fighter",
+      "pirate-heavy-fighter",
+      "pirate-light-freighter",
+      "pirate-medium-freighter",
+      "pirate-heavy-freighter",
+      "pirate-aegis-raider",
+      "pirate-interceptor",
+      "assassin-light",
+      "assassin-medium",
+      "assassin-heavy",
+      "assassin-player",
+      "player-unknown",
+      "rockhermit-pirate"
+    ]
+  }
+]
