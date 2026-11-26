@@ -21,8 +21,10 @@
  * and `max_cargo`, `fragment_chance` and `explosion_type`. Phase 16 adds the
  * hull's bounding box (D16-23), the box the debris rule samples for pods and
  * plates. Quick 261119-i9g adds `laserColor`, the colour of the ship's laser shots.
- * No other combat or flight stat is compiled here, and the strict
- * object rejects any extra field.
+ * Plan 21-05 (DATA-17) adds the role fields: bounty, auto-AI and auto-weapons,
+ * scoop, fuel injection, fuel, scoop position, `countsAsKill`, escorts and
+ * escort roles, and the missile counts (data only). No other combat or flight
+ * stat is compiled here, and the strict object rejects any extra field.
  *
  * `glb` is a locator, not inert-world data: it is never copied from the plist
  * but derived from the model by the one naming rule, and both it and `model`
@@ -45,6 +47,9 @@ import { NPC_GLB_PATH_PATTERN } from "../npc-glb-path.js";
 export const MAX_FLIGHT_RATE_BOUND = 1e3;
 export const MAX_FLIGHT_MAGNITUDE_BOUND = 1e12;
 
+/** The largest record `bounty`, equal to the sim's `MAX_BOUNTY` (pinned by a test). */
+export const MAX_RECORD_BOUNTY = 65535;
+
 export { NPC_GLB_PATH_PATTERN };
 
 const WEAPON_KEY = z.enum([
@@ -66,7 +71,9 @@ export const NpcShipSchema = z.strictObject({
   roles: z.array(z.string().min(1)).min(1),
   aiType: z.string().min(1),
   scanClass: z.string().regex(/^CLASS_[A-Z_]+$/),
-  model: z.string().regex(/^oolite_[a-z0-9_]+\.dat$/),
+  // A hyphen is allowed inside the name (`oolite_boa-mk2.dat`, plan 21-05);
+  // the pattern stays anchored and nothing else about the shape loosens.
+  model: z.string().regex(/^oolite_[a-z0-9_-]+\.dat$/),
   glb: z.string().regex(NPC_GLB_PATH_PATTERN),
   // Oolite's float32 mass; `z.number()` already rejects NaN and Infinity, so
   // `positive()` leaves a finite number above zero; the upper bound keeps the
@@ -160,6 +167,53 @@ export const NpcShipSchema = z.strictObject({
         box.min[2] <= box.max[2],
       { message: "boundingBox min must not exceed max on any axis" },
     ),
+  // DATA-17 (plan 21-05): the fields the milestone's roles need, at Oolite's
+  // defaults or authored values. Every fuzzy boolean is a float32 probability in
+  // 0..1 (rolled per ship at spawn, never at compile time).
+  //
+  // `bounty` (default 0, ShipEntity.m:559). Oolite holds an unsigned int; the
+  // record is bounded by the entity field's own limit (`MAX_BOUNTY`, 65535, in
+  // `src/sim/world/limits.ts`; content never imports the sim, so the bound is
+  // restated here and a test pins it equal), so a compiled record can never be
+  // refused at spawn. The stock catalogue's largest bounty is 250.
+  bounty: z.number().int().min(0).max(MAX_RECORD_BOUNTY),
+  // `auto_ai` (default yes, ShipEntity.m:6915) and `auto_weapons` (default no,
+  // ShipEntity.m:6925).
+  autoAi: z.number().min(0).max(1),
+  autoWeapons: z.number().min(0).max(1),
+  // `has_scoop` (ShipEntity.m:338) and `has_fuel_injection` (ShipEntity.m:361),
+  // both default no.
+  hasScoop: z.number().min(0).max(1),
+  hasFuelInjection: z.number().min(0).max(1),
+  // `fuel` (default 0, an unsigned short, ShipEntity.m:555).
+  fuel: z.number().int().min(0).max(65535),
+  // `scoop_position` (default 0 0 0, ShipEntity.m:1801), float32 per component.
+  scoopPosition: POSITION,
+  // `counts_as_kill` (default true, ShipEntity.m:1529).
+  countsAsKill: z.boolean(),
+  // `escorts` (default 0, at most `MAX_ESCORTS`, 16: ShipEntity.m:680).
+  escorts: z.number().int().min(0).max(16),
+  // `escort_roles` (ShipEntity.m:1543, :1621): the authored list, or null for
+  // Oolite's nil. `min` may be negative; `role` may be the empty string (the
+  // Boa authors one for its spare wandering escorts).
+  escortRoles: z
+    .array(
+      z.strictObject({
+        min: z.number().int().min(-128).max(127),
+        max: z.number().int().min(-128).max(127),
+        role: z.string(),
+      }),
+    )
+    .nullable(),
+  // `missiles` and `max_missiles` (ShipEntity.m:313-328), DATA ONLY: no spawn
+  // path reads them in v2.4, every NPC launches with none (FIDELITY E-194,
+  // `tests/guards/npc-missiles-tripwire.test.ts`, CBT-19 in Phase 23).
+  missiles: z.number().int().min(0).max(32),
+  maxMissiles: z.number().int().min(0).max(32),
+  // `has_escape_pod` is not compiled and no NPC ejects in v2.4 (FIDELITY E-195;
+  // CBT-09 and AI-10 are Future Requirements).
+  // `heat_insulation` is not compiled and NPCs carry no cabin temperature in
+  // v2.4 (FIDELITY E-196; the hazards stay deferred, PROJECT.md "Deferred").
 });
 
 export const NpcShipCatalogueSchema = z.array(NpcShipSchema).min(1);

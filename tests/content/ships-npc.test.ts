@@ -19,9 +19,11 @@ import { findNpcShip, loadNpcCatalogue } from "../../src/content/ships-npc.js";
 import {
   MAX_FLIGHT_MAGNITUDE_BOUND,
   MAX_FLIGHT_RATE_BOUND,
+  MAX_RECORD_BOUNTY,
   NpcShipCatalogueSchema,
 } from "../../src/content/schemas/ship-npc.js";
 import {
+  MAX_BOUNTY,
   MAX_ENTITY_MAGNITUDE,
   MAX_STEER_RATE,
 } from "../../src/sim/world/limits.js";
@@ -65,10 +67,10 @@ function sourceFiles(directory: string, found: string[] = []): string[] {
 }
 
 describe("loadNpcCatalogue", () => {
-  it("resolves the nine records, equal to the parsed generated file", async () => {
+  it("resolves every record, equal to the parsed generated file", async () => {
     const catalogue = await loadNpcCatalogue();
     expect(catalogue.map((record) => record.key)).toEqual([...NPC_SHIP_KEYS]);
-    expect(catalogue).toHaveLength(9);
+    expect(catalogue).toHaveLength(NPC_SHIP_KEYS.length);
     expect(catalogue).toEqual(generated);
   });
 
@@ -187,7 +189,7 @@ describe("NpcShipCatalogueSchema", () => {
   });
 
   it("rejects an extra field, so no stat can be compiled in", () => {
-    for (const field of ["accuracy", "maxFlightYaw", "hasFuelInjection"]) {
+    for (const field of ["accuracy", "maxFlightYaw", "hasEscapePod"]) {
       expect(accepts([{ ...firstRecord(), [field]: 1 }])).toBe(false);
     }
   });
@@ -347,7 +349,7 @@ describe("NpcShipCatalogueSchema", () => {
 
   it("carries laserColor on every record: [1, 0, 1] for the viper, null for the rest (quick 261119-i9g)", () => {
     const records = generated as Record<string, unknown>[];
-    expect(records).toHaveLength(9);
+    expect(records).toHaveLength(NPC_SHIP_KEYS.length);
     for (const record of records) {
       expect(record["laserColor"]).toEqual(
         record["key"] === "viper" ? [1, 0, 1] : null,
@@ -506,6 +508,98 @@ describe("the hull bounding box (D16-23)", () => {
       swapped.min[axis] = (swapped.max[axis] ?? 0) + 1;
       expect(accepts(withBox(swapped)), `axis ${axis}`).toBe(false);
     }
+  });
+});
+
+describe("NpcShipSchema role fields (DATA-17, plan 21-05)", () => {
+  const accepts = (records: unknown): boolean =>
+    NpcShipCatalogueSchema.safeParse(records).success;
+  const withField = (field: string, value: unknown): unknown[] => [
+    { ...firstRecord(), [field]: value },
+  ];
+
+  it("carries every new field on every generated record", () => {
+    const fields = [
+      "bounty",
+      "autoAi",
+      "autoWeapons",
+      "hasScoop",
+      "hasFuelInjection",
+      "fuel",
+      "scoopPosition",
+      "countsAsKill",
+      "escorts",
+      "escortRoles",
+      "missiles",
+      "maxMissiles",
+    ];
+    for (const record of generated as Record<string, unknown>[]) {
+      for (const field of fields) expect(record).toHaveProperty(field);
+    }
+  });
+
+  it("bounds the fuzzy probabilities to 0..1", () => {
+    for (const field of [
+      "autoAi",
+      "autoWeapons",
+      "hasScoop",
+      "hasFuelInjection",
+    ]) {
+      expect(accepts(withField(field, 0))).toBe(true);
+      expect(accepts(withField(field, 1))).toBe(true);
+      expect(accepts(withField(field, 0.5))).toBe(true);
+      expect(accepts(withField(field, 1.1))).toBe(false);
+      expect(accepts(withField(field, -0.1))).toBe(false);
+      expect(accepts(withField(field, Number.NaN))).toBe(false);
+      expect(accepts(withField(field, true))).toBe(false);
+    }
+  });
+
+  it("bounds bounty, fuel, escorts and the missile counts", () => {
+    expect(accepts(withField("bounty", 65535))).toBe(true);
+    expect(accepts(withField("bounty", 65536))).toBe(false);
+    expect(MAX_RECORD_BOUNTY).toBe(MAX_BOUNTY);
+    expect(accepts(withField("bounty", -1))).toBe(false);
+    expect(accepts(withField("bounty", 1.5))).toBe(false);
+    expect(accepts(withField("fuel", 65535))).toBe(true);
+    expect(accepts(withField("fuel", 65536))).toBe(false);
+    expect(accepts(withField("escorts", 16))).toBe(true);
+    expect(accepts(withField("escorts", 17))).toBe(false);
+    expect(accepts(withField("escorts", -1))).toBe(false);
+    for (const field of ["missiles", "maxMissiles"]) {
+      expect(accepts(withField(field, 32))).toBe(true);
+      expect(accepts(withField(field, 33))).toBe(false);
+      expect(accepts(withField(field, -1))).toBe(false);
+    }
+  });
+
+  it("accepts escortRoles as null or authored entries, an empty-string role included", () => {
+    expect(accepts(withField("escortRoles", null))).toBe(true);
+    expect(
+      accepts(
+        withField("escortRoles", [
+          { min: -2, max: 2, role: "escort" },
+          { min: 0, max: 2, role: "" },
+        ]),
+      ),
+    ).toBe(true);
+    expect(accepts(withField("escortRoles", [{ min: 0, max: 2 }]))).toBe(false);
+    expect(
+      accepts(withField("escortRoles", [{ min: 0, max: 2, role: 3 }])),
+    ).toBe(false);
+    expect(
+      accepts(
+        withField("escortRoles", [{ min: 0, max: 2, role: "a", extra: 1 }]),
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses a record that leaves a new field out or carries an unknown one", () => {
+    const without = { ...firstRecord() };
+    delete without["countsAsKill"];
+    expect(accepts([without])).toBe(false);
+    expect(accepts(withField("hasEscapePod", 1))).toBe(false);
+    expect(accepts(withField("heatInsulation", 1))).toBe(false);
   });
 });
 

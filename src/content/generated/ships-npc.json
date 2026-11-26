@@ -7,6 +7,8 @@
       -22.5
     ],
     "aiType": "oolite-scavengerAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
     "boundingBox": {
       "max": [
         14.009300231933594,
@@ -19,7 +21,11 @@
         -22.232799530029297
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 2,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
     "forwardWeaponPosition": [
@@ -28,7 +34,10 @@
       28.8523006439209
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 70,
     "glb": "models/adder.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 1,
     "key": "adder",
     "laserColor": null,
     "likelyCargo": 2,
@@ -38,6 +47,8 @@
     "maxFlightPitch": 2,
     "maxFlightRoll": 2.799999952316284,
     "maxFlightSpeed": 240,
+    "maxMissiles": 1,
+    "missiles": 1,
     "model": "oolite_adder.dat",
     "name": "Adder",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -58,6 +69,11 @@
       "hermit-ship"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      -5.099999904632568,
+      22.724000930786133
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       15,
@@ -74,6 +90,8 @@
       -27.5
     ],
     "aiType": "oolite-traderAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
     "boundingBox": {
       "max": [
         35,
@@ -86,7 +104,11 @@
         -32.0536003112793
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 2.5,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
     "forwardWeaponPosition": [
@@ -95,7 +117,10 @@
       34.85029983520508
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 70,
     "glb": "models/cobramk1.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 0.949999988079071,
     "key": "cobramk1",
     "laserColor": null,
     "likelyCargo": 10,
@@ -105,6 +130,8 @@
     "maxFlightPitch": 1.2000000476837158,
     "maxFlightRoll": 2,
     "maxFlightSpeed": 260,
+    "maxMissiles": 1,
+    "missiles": 1,
     "model": "oolite_cobramk1.dat",
     "name": "Cobra Mark I",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -127,6 +154,11 @@
       "assassin-light"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      -5,
+      -9
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       35,
@@ -143,6 +175,8 @@
       -12.155799865722656
     ],
     "aiType": "oolite-pirateAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
     "boundingBox": {
       "max": [
         30.737899780273438,
@@ -155,7 +189,11 @@
         -25.641599655151367
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 4,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
     "forwardWeaponPosition": [
@@ -164,7 +202,10 @@
       25.641599655151367
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 0,
     "glb": "models/gecko.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 1,
     "key": "gecko",
     "laserColor": null,
     "likelyCargo": 3,
@@ -174,6 +215,8 @@
     "maxFlightPitch": 1.5,
     "maxFlightRoll": 3,
     "maxFlightSpeed": 300,
+    "maxMissiles": 1,
+    "missiles": 1,
     "model": "oolite_gecko.dat",
     "name": "Gecko",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -193,6 +236,11 @@
       "escort-heavy"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      -6.599999904632568,
+      8.399999618530273
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       13.75,
@@ -209,6 +257,8 @@
       -34.599998474121094
     ],
     "aiType": "oolite-pirateAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
     "boundingBox": {
       "max": [
         47.203800201416016,
@@ -221,7 +271,11 @@
         -41.30690002441406
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 2.5,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
     "forwardWeaponPosition": [
@@ -230,7 +284,10 @@
       41.50809860229492
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 70,
     "glb": "models/krait.glb",
+    "hasFuelInjection": 0.6499999761581421,
+    "hasScoop": 0.949999988079071,
     "key": "krait",
     "laserColor": null,
     "likelyCargo": 2,
@@ -240,6 +297,8 @@
     "maxFlightPitch": 1.5,
     "maxFlightRoll": 2.75,
     "maxFlightSpeed": 300,
+    "maxMissiles": 0,
+    "missiles": 0,
     "model": "oolite_krait.dat",
     "name": "Krait",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -257,6 +316,11 @@
       "assassin-light"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      -7.283999919891357,
+      4.627999782562256
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       45,
@@ -273,6 +337,8 @@
       -30.319299697875977
     ],
     "aiType": "oolite-pirateAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
     "boundingBox": {
       "max": [
         31.78619956970215,
@@ -285,7 +351,11 @@
         -33.558101654052734
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 3,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
     "forwardWeaponPosition": [
@@ -294,7 +364,10 @@
       33.55799865722656
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 0,
     "glb": "models/mamba.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 0.949999988079071,
     "key": "mamba",
     "laserColor": null,
     "likelyCargo": 3,
@@ -304,6 +377,8 @@
     "maxFlightPitch": 1.399999976158142,
     "maxFlightRoll": 2.0999999046325684,
     "maxFlightSpeed": 320,
+    "maxMissiles": 0,
+    "missiles": 0,
     "model": "oolite_mamba.dat",
     "name": "Mamba",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -319,6 +394,11 @@
       "hunter"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      -2,
+      -3
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       16.5,
@@ -335,6 +415,8 @@
       -27.782249450683594
     ],
     "aiType": "oolite-pirateAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
     "boundingBox": {
       "max": [
         29.678300857543945,
@@ -347,7 +429,11 @@
         -34.85070037841797
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 3,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
     "forwardWeaponPosition": [
@@ -356,7 +442,10 @@
       32.575599670410156
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 70,
     "glb": "models/moray.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 1,
     "key": "moray",
     "laserColor": null,
     "likelyCargo": 5,
@@ -366,6 +455,8 @@
     "maxFlightPitch": 1.5,
     "maxFlightRoll": 2.5,
     "maxFlightSpeed": 300,
+    "maxMissiles": 2,
+    "missiles": 2,
     "model": "oolite_moray.dat",
     "name": "Moray Star Boat",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -388,6 +479,11 @@
       "assassin-light"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      -15.212808609008789,
+      26.539899826049805
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       30,
@@ -404,6 +500,8 @@
       -17.5
     ],
     "aiType": "oolite-shuttleAI.js",
+    "autoAi": 1,
+    "autoWeapons": 0,
     "boundingBox": {
       "max": [
         11.574000358581543,
@@ -416,7 +514,11 @@
         -19.704999923706055
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 1,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_NONE",
     "forwardWeaponPosition": [
@@ -425,7 +527,10 @@
       27.399999618530273
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 0,
     "glb": "models/shuttle.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 0,
     "key": "shuttle",
     "laserColor": null,
     "likelyCargo": 0,
@@ -435,6 +540,8 @@
     "maxFlightPitch": 0.8999999761581421,
     "maxFlightRoll": 2,
     "maxFlightSpeed": 80,
+    "maxMissiles": 0,
+    "missiles": 0,
     "model": "oolite_shuttle.dat",
     "name": "Orbital Shuttle",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -448,6 +555,11 @@
       "shuttle"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      0,
+      0
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       9,
@@ -464,6 +576,8 @@
       -17.5
     ],
     "aiType": "oolite-pirateAI.js",
+    "autoAi": 1,
+    "autoWeapons": 1,
     "boundingBox": {
       "max": [
         31.614599227905273,
@@ -476,7 +590,11 @@
         -22.215499877929688
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 2,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_PULSE_LASER",
     "forwardWeaponPosition": [
@@ -485,7 +603,10 @@
       25.215499877929688
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 0,
     "glb": "models/sidewinder.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 0,
     "key": "sidewinder",
     "laserColor": null,
     "likelyCargo": 0,
@@ -495,6 +616,8 @@
     "maxFlightPitch": 1.600000023841858,
     "maxFlightRoll": 2.799999952316284,
     "maxFlightSpeed": 370,
+    "maxMissiles": 0,
+    "missiles": 0,
     "model": "oolite_sidewinder.dat",
     "name": "Sidewinder Scout Ship",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -510,6 +633,11 @@
       "hunter"
     ],
     "scanClass": "CLASS_NEUTRAL",
+    "scoopPosition": [
+      0,
+      0,
+      0
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       24.25,
@@ -526,6 +654,8 @@
       -27.5
     ],
     "aiType": "oolite-policeAI.js",
+    "autoAi": 1,
+    "autoWeapons": 0,
     "boundingBox": {
       "max": [
         25,
@@ -538,7 +668,11 @@
         -30.165000915527344
       ]
     },
+    "bounty": 0,
+    "countsAsKill": true,
     "energyRechargeRate": 4,
+    "escortRoles": null,
+    "escorts": 0,
     "explosionType": null,
     "forwardWeapon": "EQ_WEAPON_BEAM_LASER",
     "forwardWeaponPosition": [
@@ -547,7 +681,10 @@
       35.034400939941406
     ],
     "fragmentChance": 0.8999999761581421,
+    "fuel": 0,
     "glb": "models/viper.glb",
+    "hasFuelInjection": 0,
+    "hasScoop": 0,
     "key": "viper",
     "laserColor": [
       1,
@@ -561,6 +698,8 @@
     "maxFlightPitch": 1.7999999523162842,
     "maxFlightRoll": 2.799999952316284,
     "maxFlightSpeed": 320,
+    "maxMissiles": 1,
+    "missiles": 1,
     "model": "oolite_viper.dat",
     "name": "GalCop Viper",
     "portWeapon": "EQ_WEAPON_NONE",
@@ -574,6 +713,11 @@
       "police"
     ],
     "scanClass": "CLASS_POLICE",
+    "scoopPosition": [
+      0,
+      0,
+      0
+    ],
     "starboardWeapon": "EQ_WEAPON_NONE",
     "starboardWeaponPosition": [
       12.5,

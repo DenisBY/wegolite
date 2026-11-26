@@ -6,10 +6,10 @@
  *
  * The expected values live in `tests/golden/content/ships-npc.json`, which was
  * written by hand from `shipdata.plist` and is never generated. The compiled
- * records (twenty-nine fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
+ * records (forty-one fields: the Phase 9 six, the Phase 10 `mass`, the Phase 12
  * `radius`, the five Phase 13 combat fields, the four Phase 14 flight fields,
- * the ten Phase 15 DATA-14 fields, the Phase 16 `boundingBox` and the quick
- * 261119-i9g `laserColor`)
+ * the ten Phase 15 DATA-14 fields, the Phase 16 `boundingBox`, the quick
+ * 261119-i9g `laserColor` and the twelve plan 21-05 DATA-17 role fields)
  * are compared with it, with the resolved template parents, and with the committed generated
  * file, so a drift in any one of the four fails.
  */
@@ -32,7 +32,17 @@ import type { ParsedMesh } from "./dat.js";
 import { MODEL_SOURCE_FILES, NPC_SHIP_GLBS, shipGlbFile } from "./glb.js";
 import {
   DEFAULT_AI_TYPE,
+  DEFAULT_AUTO_AI,
+  DEFAULT_AUTO_WEAPONS,
+  DEFAULT_BOUNTY,
+  DEFAULT_COUNTS_AS_KILL,
   DEFAULT_ENERGY_RECHARGE_RATE,
+  DEFAULT_ESCORTS,
+  DEFAULT_ESCORT_ROLES,
+  DEFAULT_FUEL,
+  DEFAULT_HAS_FUEL_INJECTION,
+  DEFAULT_HAS_SCOOP,
+  DEFAULT_MISSILES,
   DEFAULT_EXPLOSION_TYPE,
   DEFAULT_FACING_WEAPON,
   DEFAULT_FORWARD_WEAPON,
@@ -51,6 +61,7 @@ import {
   NPC_SHIP_KEYS,
   NPC_SHIPS_PATH,
   OOCOLOR_NAMED_RGB,
+  STEERING_ASSUMED_ABSENT_KEYS,
   compileNpcShips,
   emitNpcShips,
   facingWeapon,
@@ -122,6 +133,17 @@ interface Golden {
     readonly fragmentChance: number;
     readonly explosionType: string[] | null;
     readonly laserColor: number[] | null;
+    readonly bounty: number;
+    readonly autoAi: number;
+    readonly autoWeapons: number;
+    readonly hasScoop: number;
+    readonly hasFuelInjection: number;
+    readonly fuel: number;
+    readonly scoopPosition: number[];
+    readonly countsAsKill: boolean;
+    readonly escorts: number;
+    readonly escortRoles: null;
+    readonly missiles: number;
   };
   readonly examples: NpcShip[];
   readonly sources: string[];
@@ -172,12 +194,14 @@ describe("NPC ship records", () => {
     expect([...NPC_SHIP_KEYS]).toEqual(
       [...NPC_SHIP_KEYS].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
     );
-    expect(records).toHaveLength(9);
+    expect(records).toHaveLength(NPC_SHIP_KEYS.length);
+    expect(records).toHaveLength(golden.keys.length);
   });
 
-  it("carries exactly the twenty-nine fields and passes the strict schema", () => {
+  it("carries exactly the golden's forty-one fields and passes the strict schema", () => {
     for (const record of records) {
       expect(Object.keys(record).sort()).toEqual(golden.fields);
+      expect(golden.fields).toHaveLength(41);
       expect(NpcShipSchema.safeParse(record).success).toBe(true);
     }
   });
@@ -204,6 +228,16 @@ describe("NPC ship records", () => {
     expect(DEFAULT_FRAGMENT_CHANCE).toBe(Math.fround(0.9));
     expect(DEFAULT_EXPLOSION_TYPE).toBe(golden.defaults.explosionType);
     expect(DEFAULT_LASER_COLOR).toBe(golden.defaults.laserColor);
+    expect(DEFAULT_BOUNTY).toBe(golden.defaults.bounty);
+    expect(DEFAULT_AUTO_AI).toBe(golden.defaults.autoAi);
+    expect(DEFAULT_AUTO_WEAPONS).toBe(golden.defaults.autoWeapons);
+    expect(DEFAULT_HAS_SCOOP).toBe(golden.defaults.hasScoop);
+    expect(DEFAULT_HAS_FUEL_INJECTION).toBe(golden.defaults.hasFuelInjection);
+    expect(DEFAULT_FUEL).toBe(golden.defaults.fuel);
+    expect(DEFAULT_COUNTS_AS_KILL).toBe(golden.defaults.countsAsKill);
+    expect(DEFAULT_ESCORTS).toBe(golden.defaults.escorts);
+    expect(DEFAULT_ESCORT_ROLES).toBe(golden.defaults.escortRoles);
+    expect(DEFAULT_MISSILES).toBe(golden.defaults.missiles);
   });
 
   it.each(golden.examples.map((example) => [example.key, example] as const))(
@@ -1113,20 +1147,50 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
     ["accuracy", 7],
     ["reaction_time", 0.5],
     ["scanner_range", 50000],
-    ["aft_weapon_type", "WEAPON_BEAM_LASER"],
     ["port_weapon_type", "WEAPON_PULSE_LASER"],
     ["starboard_weapon_type", "WEAPON_PULSE_LASER"],
   ];
 
-  it("pins the six refused keys", () => {
+  it("pins the five refused keys; plan 21-05 lifted the aft weapon type (DATA-17)", () => {
     expect(REFUSED.map(([key]) => key)).toEqual([
       "accuracy",
       "reaction_time",
       "scanner_range",
-      "aft_weapon_type",
       "port_weapon_type",
       "starboard_weapon_type",
     ]);
+    expect([...STEERING_ASSUMED_ABSENT_KEYS]).toEqual(
+      REFUSED.map(([key]) => key),
+    );
+  });
+
+  it("compiles an authored aft_weapon_type with its position (DATA-17, plan 21-05)", () => {
+    const aft = withExtras("viper", (extras) => ({
+      ...extras,
+      aft_weapon_type: "WEAPON_PULSE_LASER",
+      weapon_position_aft: "0.0 1.5 -20.5",
+      weapon_facings: 3,
+    }));
+    const record = compileNpcShips(aft, masses, radii, meshes).find(
+      (item) => item.key === "viper",
+    );
+    expect(record?.aftWeapon).toBe("EQ_WEAPON_PULSE_LASER");
+    expect(record?.aftWeaponPosition).toEqual([0, 1.5, -20.5]);
+    // The refusal stays for port and starboard even with the aft key authored.
+    const mixed = withExtras("viper", (extras) => ({
+      ...extras,
+      aft_weapon_type: "WEAPON_BEAM_LASER",
+      port_weapon_type: "WEAPON_PULSE_LASER",
+    }));
+    expect(
+      capture(() => compileNpcShips(mixed, masses, radii, meshes)).excerpt,
+    ).toContain("port_weapon_type");
+  });
+
+  it("keeps the nine records' aft weapon at EQ_WEAPON_NONE", () => {
+    for (const record of records) {
+      expect(record.aftWeapon).toBe("EQ_WEAPON_NONE");
+    }
   });
 
   it.each(REFUSED.map(([key, value]) => [key, value] as const))(
@@ -1155,7 +1219,7 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
     ).toBe("adder");
   });
 
-  it("finds none of the six keys on the nine stock records after like_ship", () => {
+  it("finds none of the five keys on the stock records after like_ship", () => {
     for (const key of NPC_SHIP_KEYS) {
       for (const [field] of REFUSED) {
         expect(requireEntry(key).extras).not.toHaveProperty(field);
@@ -1163,20 +1227,14 @@ describe("NPC steering assumptions (AI-01, T-14-06)", () => {
     }
   });
 
-  it("leaves has_fuel_injection and missiles uncompiled", () => {
-    const source = readFileSync(
-      new URL("tools/oolite-ingest/convert/npc-ships.ts", REPO),
-      "utf8",
-    );
-    const code = source
-      .split("\n")
-      .filter((line) => !/^\s*(\/\/|\/?\*)/.test(line))
-      .join("\n");
-    expect(code).not.toMatch(/has_fuel_injection|"missiles"/);
+  it("compiles has_fuel_injection and missiles as data (DATA-17, plan 21-05)", () => {
     for (const record of records) {
-      expect(record).not.toHaveProperty("hasFuelInjection");
-      expect(record).not.toHaveProperty("missiles");
+      expect(record).toHaveProperty("hasFuelInjection");
+      expect(record).toHaveProperty("missiles");
+      expect(record).toHaveProperty("maxMissiles");
     }
+    expect(requireRecord("krait").hasFuelInjection).toBe(Math.fround(0.65));
+    expect(requireRecord("moray").missiles).toBe(2);
   });
 });
 
@@ -1224,5 +1282,209 @@ describe("the hull bounding box (D16-23)", () => {
     );
     expect(error.code).toBe("SCHEMA");
     expect(error.construct).toBe("adder");
+  });
+});
+
+describe("NPC role fields (DATA-17, plan 21-05)", () => {
+  const edited = (
+    field: string,
+    value: unknown,
+    key = "viper",
+  ): ShipCatalogue =>
+    withExtras(key, (extras) => ({ ...extras, [field]: value }));
+
+  it("compiles every field to Oolite's default or the authored value for the nine records", () => {
+    // Authored in the templates: the fuzzy has_scoop of adder, cobramk1,
+    // gecko, krait, mamba and moray, auto_weapons, fuel, scoop_position.
+    expect(requireRecord("adder")).toMatchObject({
+      autoAi: 1,
+      autoWeapons: 1,
+      hasScoop: 1,
+      hasFuelInjection: 0,
+      fuel: 70,
+      missiles: 1,
+      maxMissiles: 1,
+    });
+    expect(requireRecord("cobramk1").hasScoop).toBe(Math.fround(0.95));
+    expect(requireRecord("krait").hasFuelInjection).toBe(Math.fround(0.65));
+    // The shuttle authors none of the twelve keys: every field is the default.
+    expect(requireRecord("shuttle")).toMatchObject({
+      bounty: DEFAULT_BOUNTY,
+      autoAi: DEFAULT_AUTO_AI,
+      autoWeapons: DEFAULT_AUTO_WEAPONS,
+      hasScoop: DEFAULT_HAS_SCOOP,
+      hasFuelInjection: DEFAULT_HAS_FUEL_INJECTION,
+      fuel: DEFAULT_FUEL,
+      scoopPosition: [0, 0, 0],
+      countsAsKill: DEFAULT_COUNTS_AS_KILL,
+      escorts: DEFAULT_ESCORTS,
+      escortRoles: DEFAULT_ESCORT_ROLES,
+      missiles: DEFAULT_MISSILES,
+      maxMissiles: DEFAULT_MISSILES,
+    });
+    for (const record of records) {
+      expect(record.countsAsKill).toBe(true);
+      expect(record.escortRoles).toBeNull();
+    }
+  });
+
+  it("takes max_missiles from missiles when absent and clamps both as Oolite does (ShipEntity.m:313-328)", () => {
+    expect(compiled(edited("missiles", 3), "viper")).toMatchObject({
+      missiles: 3,
+      maxMissiles: 3,
+    });
+    expect(compiled(edited("max_missiles", 2), "viper")).toMatchObject({
+      missiles: 1,
+      maxMissiles: 2,
+    });
+    // missiles above max_missiles is clamped down to it.
+    const clamped = withExtras("viper", (extras) => ({
+      ...extras,
+      missiles: 5,
+      max_missiles: 2,
+    }));
+    expect(compiled(clamped, "viper")).toMatchObject({
+      missiles: 2,
+      maxMissiles: 2,
+    });
+    // max_missiles is capped at SHIPENTITY_MAX_MISSILES.
+    expect(compiled(edited("max_missiles", 99), "viper").maxMissiles).toBe(32);
+    for (const value of [-1, 1.5, "2", true]) {
+      expect(
+        capture(() =>
+          compileNpcShips(edited("missiles", value), masses, radii, meshes),
+        ).excerpt,
+      ).toContain("missiles");
+    }
+  });
+
+  it("compiles escorts 16 and fails the build at 17, -1, 1.5 and a string", () => {
+    expect(compiled(edited("escorts", 16), "viper").escorts).toBe(16);
+    expect(compiled(edited("escorts", 0), "viper").escorts).toBe(0);
+    for (const value of [17, -1, 1.5, "2"]) {
+      const error = capture(() =>
+        compileNpcShips(edited("escorts", value), masses, radii, meshes),
+      );
+      expect(error.code).toBe("SCHEMA");
+      expect(error.construct).toBe("viper");
+      expect(error.excerpt).toContain("escorts");
+    }
+  });
+
+  it("fails the build on a fuzzy probability outside 0..1 or not finite, and stores a boolean as 1 or 0", () => {
+    for (const field of [
+      "auto_ai",
+      "auto_weapons",
+      "has_scoop",
+      "has_fuel_injection",
+    ]) {
+      for (const value of [1.5, -0.1, "0.5", null]) {
+        const error = capture(() =>
+          compileNpcShips(edited(field, value), masses, radii, meshes),
+        );
+        expect(error.code).toBe("SCHEMA");
+        expect(error.construct).toBe("viper");
+        expect(error.excerpt).toContain(field);
+      }
+    }
+    expect(compiled(edited("has_scoop", true), "viper").hasScoop).toBe(1);
+    expect(compiled(edited("has_scoop", false), "viper").hasScoop).toBe(0);
+    expect(compiled(edited("has_scoop", 0.25), "viper").hasScoop).toBe(0.25);
+    expect(compiled(edited("auto_ai", 0), "viper").autoAi).toBe(0);
+    expect(compiled(edited("has_scoop", 0.1), "viper").hasScoop).toBe(
+      Math.fround(0.1),
+    );
+  });
+
+  it("fails the build on a bounty of -1 or 1.5 and compiles a whole bounty", () => {
+    for (const value of [-1, 1.5, "5", true]) {
+      const error = capture(() =>
+        compileNpcShips(edited("bounty", value), masses, radii, meshes),
+      );
+      expect(error.code).toBe("SCHEMA");
+      expect(error.excerpt).toContain("bounty");
+    }
+    expect(compiled(edited("bounty", 250), "viper").bounty).toBe(250);
+    expect(compiled(edited("bounty", 65535), "viper").bounty).toBe(65535);
+    expect(
+      capture(() =>
+        compileNpcShips(edited("bounty", 65536), masses, radii, meshes),
+      ).excerpt,
+    ).toContain("bounty");
+  });
+
+  it("bounds fuel to an unsigned short and reads scoop_position and counts_as_kill", () => {
+    expect(compiled(edited("fuel", 65535), "viper").fuel).toBe(65535);
+    expect(
+      capture(() =>
+        compileNpcShips(edited("fuel", 65536), masses, radii, meshes),
+      ).excerpt,
+    ).toContain("fuel");
+    expect(
+      compiled(edited("scoop_position", "0.0 -5.1 22.724"), "viper")
+        .scoopPosition,
+    ).toEqual([0, Math.fround(-5.1), Math.fround(22.724)]);
+    expect(
+      capture(() =>
+        compileNpcShips(edited("scoop_position", "1 2"), masses, radii, meshes),
+      ).excerpt,
+    ).toContain("scoop_position");
+    expect(
+      compiled(edited("counts_as_kill", false), "viper").countsAsKill,
+    ).toBe(false);
+    expect(
+      capture(() =>
+        compileNpcShips(edited("counts_as_kill", "no"), masses, radii, meshes),
+      ).excerpt,
+    ).toContain("counts_as_kill");
+  });
+
+  it("compiles escort_roles as authored, with an empty-string role, and refuses malformed entries", () => {
+    const roles = [
+      { role: "escort", min: -2, max: 2 },
+      { role: "", min: 0, max: 2 },
+    ];
+    expect(
+      compiled(edited("escort_roles", roles), "viper").escortRoles,
+    ).toEqual(roles);
+    expect(compiled(edited("escort_roles", []), "viper").escortRoles).toEqual(
+      [],
+    );
+    for (const value of [
+      "escort",
+      [1],
+      [{ role: "escort", min: 0 }],
+      [{ role: 5, min: 0, max: 1 }],
+      [{ role: "escort", min: 0.5, max: 1 }],
+      [{ role: "escort", min: 0, max: 128 }],
+    ]) {
+      const error = capture(() =>
+        compileNpcShips(edited("escort_roles", value), masses, radii, meshes),
+      );
+      expect(error.code).toBe("SCHEMA");
+      expect(error.construct).toBe("viper");
+      expect(error.excerpt).toContain("escort_roles");
+    }
+  });
+
+  it("rejects an unknown extra key in the strict schema", () => {
+    expect(
+      NpcShipSchema.safeParse({ ...requireRecord("viper"), hasEscapePod: 1 })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("the model pattern (plan 21-05)", () => {
+  const withModel = (model: string): unknown =>
+    NpcShipSchema.safeParse({ ...requireRecord("viper"), model }).success;
+
+  it("allows a hyphen inside the name and stays anchored", () => {
+    expect(withModel("oolite_boa-mk2.dat")).toBe(true);
+    expect(withModel("oolite_viper.dat")).toBe(true);
+    expect(withModel("oolite_Boa.dat")).toBe(false);
+    expect(withModel("oolite_boa.dat.bak")).toBe(false);
+    expect(withModel("x_oolite_boa.dat")).toBe(false);
+    expect(withModel("oolite_../boa.dat")).toBe(false);
   });
 });
