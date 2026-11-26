@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The freighter group replay of the initial populator (Phase 22, plan 22-07,
- * WORLD-08).
+ * The trade group replay of the initial populator (Phase 22, plans 22-07 and
+ * 22-08, WORLD-08): freighters (plan 22-07), couriers and smugglers (plan
+ * 22-08).
  *
  * The oracle is Oolite's own `oolite-populator.js` (pin 7437f22) run against a
  * stub host that models the engine pieces the script relies on (the weighted
@@ -29,7 +30,10 @@ import type {
   PopulationDraws,
   PopulationTag,
 } from "../../../../src/sim/world/population/streams.js";
-import { POPULATOR_ENTRIES } from "../../../../src/sim/world/population/table.js";
+import {
+  POPULATOR_CUTS,
+  POPULATOR_ENTRIES,
+} from "../../../../src/sim/world/population/table.js";
 import { POPULATION_EXACT_DRAW_TAGS } from "../../../oracles/population/schema.js";
 import type { PopulationGroup } from "../../../oracles/population/schema.js";
 import {
@@ -412,6 +416,280 @@ describe("freighter builder: edge draws (edge-draws.json)", () => {
     expect(results.length).toBeGreaterThanOrEqual(4);
     for (const { expected, ship } of results) {
       expect(ship.cargoKind).toBe(expected);
+    }
+  });
+});
+
+// --- Couriers (plan 22-08) ---------------------------------------------------
+
+/** The courier entries: `oolite-couriers-route1` and `oolite-couriers-route3`. */
+const COURIER_ORDINALS: readonly number[] = POPULATOR_ENTRIES.filter(
+  (entry) =>
+    entry.builder === "courierShort" || entry.builder === "courierLong",
+).map((entry) => entry.ordinal);
+
+/** The recorded groups of a fixture that belong to the given entries. */
+function groupsOf(
+  loaded: Loaded,
+  ordinals: readonly number[],
+): readonly PopulationGroup[] {
+  return loaded.fixture.groups.filter((group) =>
+    ordinals.includes(group.entry),
+  );
+}
+
+/** Every recorded group of the given entries with its fixture. */
+function allGroupsOf(ordinals: readonly number[]): readonly {
+  readonly loaded: Loaded;
+  readonly group: PopulationGroup;
+}[] {
+  return FIXTURES.flatMap((loaded) =>
+    groupsOf(loaded, ordinals).map((group) => ({ loaded, group })),
+  );
+}
+
+/** Replay a group and compare the ships and the draws taken per site. */
+function expectReplayed(loaded: Loaded, group: PopulationGroup): void {
+  const at = `${loaded.id} ${String(group.entry)}/${String(group.index)}`;
+  const { plan, taken } = replay(loaded, group);
+  expect({ at, ships: describeShips(plan) }).toEqual({
+    at,
+    ships: recordedShips(group),
+  });
+  expect(plan.ordinal).toBe(group.entry);
+  expect(plan.groupIndex).toBe(group.index);
+  for (const tag of COMPARED_TAGS) {
+    expect(taken.get(tag) ?? 0, `${at} ${tag}`).toBe(
+      group.draws[tag]?.length ?? 0,
+    );
+  }
+}
+
+const COURIERS = allGroupsOf(COURIER_ORDINALS);
+
+describe("courier builder: tracer (one recorded short-courier group)", () => {
+  const first = allGroupsOf(
+    POPULATOR_ENTRIES.filter((entry) => entry.builder === "courierShort").map(
+      (entry) => entry.ordinal,
+    ),
+  )[0];
+
+  it("has a recorded short-courier group", () => {
+    expect(first).toBeDefined();
+  });
+
+  it("reproduces it ship for ship and draw for draw", () => {
+    if (first === undefined) {
+      throw new Error("no short-courier group");
+    }
+    expectReplayed(first.loaded, first.group);
+    const leader = replay(first.loaded, first.group).plan.ships[0];
+    expect(leader?.role).toBe("trader-courier");
+    expect(leader?.bounty).toBe(0);
+    expect(leader?.cargoKind).toBe("scarce");
+  });
+});
+
+describe("courier builder: every recorded group", () => {
+  it("takes the courier ordinals 7 and 8 from the table", () => {
+    expect(COURIER_ORDINALS).toEqual([7, 8]);
+  });
+
+  it.each(FIXTURES.map((loaded) => [loaded.id, loaded] as const))(
+    "%s: every courier group (routes 1 and 3) is reproduced",
+    (_id, loaded) => {
+      for (const group of groupsOf(loaded, COURIER_ORDINALS)) {
+        expectReplayed(loaded, group);
+      }
+    },
+  );
+
+  it("covers both routes and the bottleneck systems (the replay is not vacuous)", () => {
+    expect(
+      COURIERS.filter(({ group }) => group.entry === 7).length,
+    ).toBeGreaterThan(50);
+    expect(
+      COURIERS.filter(({ group }) => group.entry === 8).length,
+    ).toBeGreaterThan(50);
+  });
+
+  it("gives every courier Oolite's data: role, bounty 0, scarce goods, home within 7 LY", () => {
+    for (const { loaded, group } of COURIERS) {
+      const facts = factsFromFixture(loaded.fixture);
+      const { plan } = replay(loaded, group);
+      const leader = plan.ships[0];
+      const at = `${loaded.id} ${String(group.entry)}/${String(group.index)}`;
+      expect(leader?.role, at).toBe("trader-courier");
+      expect(leader?.primaryRole, at).toBe("trader-courier");
+      expect(leader?.bounty, at).toBe(0);
+      expect(leader?.cargoKind, at).toBe("scarce");
+      // The short courier arrives for this system; the long one for a system
+      // within 25 LY (or this one when none is in range).
+      expect(leader?.destinationSystem, at).toSatisfy((id: number) =>
+        group.entry === 7
+          ? id === facts.systemIndex
+          : id === facts.systemIndex ||
+            facts.neighbourhood.inRange(25).includes(id),
+      );
+      expect(leader?.homeSystem, at).toSatisfy(
+        (id: number) =>
+          id === facts.systemIndex ||
+          facts.neighbourhood.inRange(7).includes(id),
+      );
+    }
+  });
+
+  it("draws the long courier's destination from the 25 LY list, not the 7 LY one", () => {
+    const longGroups = COURIERS.filter(({ group }) => group.entry === 8);
+    const beyond = longGroups.filter(({ loaded, group }) => {
+      const facts = factsFromFixture(loaded.fixture);
+      const destination = replay(loaded, group).plan.ships[0]
+        ?.destinationSystem;
+      return (
+        destination !== undefined &&
+        destination !== facts.systemIndex &&
+        !facts.neighbourhood.inRange(7).includes(destination)
+      );
+    });
+    expect(beyond.length).toBeGreaterThan(0);
+  });
+
+  it("keeps heat insulation a cut: recorded as a cut write, in no planned field", () => {
+    expect(
+      POPULATOR_CUTS.some(
+        (cut) => cut.kind === "write" && cut.name === "heatInsulation",
+      ),
+    ).toBe(true);
+    for (const { loaded, group } of COURIERS) {
+      const leader = group.ships[0];
+      expect(
+        leader?.writes.some(
+          (write) => write.member === "heatInsulation" && write.cut === true,
+        ),
+        `${loaded.id} ${String(group.index)}`,
+      ).toBe(true);
+      const planned = replay(loaded, group).plan.ships[0];
+      expect(Object.keys(planned ?? {})).not.toContain("heatInsulation");
+    }
+  });
+});
+
+describe("courier builder: the script's own branches", () => {
+  const route1 = POPULATOR_ENTRIES.find(
+    (entry) => entry.builder === "courierShort",
+  );
+  const route3 = POPULATOR_ENTRIES.find(
+    (entry) => entry.builder === "courierLong",
+  );
+
+  it("takes the station-launch branch: plentiful goods, home here, destination in range", () => {
+    for (const entry of [route1, route3]) {
+      const first = COURIERS.find(
+        ({ group }) => group.entry === entry?.ordinal,
+      );
+      if (entry === undefined || first === undefined) {
+        throw new Error("no courier group");
+      }
+      const facts = factsFromFixture(first.loaded.fixture);
+      const plan = buildGroup(
+        entry,
+        facts,
+        RECORDS,
+        recordedDraws(first.group),
+        { groupIndex: first.group.index, arriving: false },
+      );
+      const leader = plan.ships[0];
+      expect(leader?.cargoKind).toBe("plentiful");
+      expect(leader?.homeSystem).toBe(facts.systemIndex);
+      expect(leader?.bounty).toBe(0);
+    }
+  });
+
+  it("asks for a trader when the catalogue has no trader-courier (_roleExists)", () => {
+    const withoutCourier = RECORDS.filter(
+      (record) =>
+        !record.roles.some((token) => token.startsWith("trader-courier")),
+    );
+    expect(withoutCourier.length).toBeLessThan(RECORDS.length);
+    const first = COURIERS[0];
+    if (route1 === undefined || first === undefined) {
+      throw new Error("no courier group");
+    }
+    const half: PopulationDraws = {
+      next: () => 0.5,
+      nextU32: () => 0x7fffffff,
+    };
+    const plan = buildGroup(
+      route1,
+      factsFromFixture(first.loaded.fixture),
+      withoutCourier,
+      half,
+      { groupIndex: 0 },
+    );
+    const leader = plan.ships[0];
+    expect(leader?.role).toBe("trader");
+    expect(leader?.primaryRole).toBe("trader");
+    expect(leader?.bounty).toBe(0);
+    expect(leader?.cargoKind).toBe("scarce");
+  });
+
+  it("forces bounty 0 on a courier whose record authors a bounty (`t[0].bounty = 0`, :1466)", () => {
+    const first = COURIERS[0];
+    if (route1 === undefined || first === undefined) {
+      throw new Error("no courier group");
+    }
+    // The shipped courier records author no bounty, so the write is only
+    // visible against a record that does.
+    const wanted = RECORDS.map((record) =>
+      record.roles.some((token) => token.startsWith("trader-courier"))
+        ? { ...record, bounty: 9 }
+        : record,
+    );
+    const plan = buildGroup(
+      route1,
+      factsFromFixture(first.loaded.fixture),
+      wanted,
+      recordedDraws(first.group),
+      { groupIndex: first.group.index },
+    );
+    expect(plan.ships[0]?.bounty).toBe(0);
+  });
+
+  it("plans nothing and takes no draw when no record carries trader-courier or trader", () => {
+    const first = COURIERS[0];
+    if (route1 === undefined || route3 === undefined || first === undefined) {
+      throw new Error("no courier group");
+    }
+    const refuse: PopulationDraws = {
+      next: (tag) => {
+        throw new Error(`unexpected draw on ${tag}`);
+      },
+      nextU32: (tag) => {
+        throw new Error(`unexpected draw on ${tag}`);
+      },
+    };
+    const facts = factsFromFixture(first.loaded.fixture);
+    for (const entry of [route1, route3]) {
+      expect(
+        buildGroup(entry, facts, [], refuse, { groupIndex: 0 }).ships,
+      ).toEqual([]);
+    }
+  });
+
+  it("never reads a record's missile counts on a courier path (T-22-12)", () => {
+    const guarded = RECORDS.map(
+      (record): PopulationRecord =>
+        new Proxy(record, {
+          get(target, key, receiver) {
+            if (key === "missiles" || key === "maxMissiles") {
+              throw new Error(`a builder read ${String(key)}`);
+            }
+            return Reflect.get(target, key, receiver) as unknown;
+          },
+        }),
+    );
+    for (const { loaded, group } of COURIERS) {
+      expect(() => replay(loaded, group, guarded)).not.toThrow();
     }
   });
 });

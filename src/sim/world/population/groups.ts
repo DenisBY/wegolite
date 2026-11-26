@@ -39,7 +39,11 @@ import type { CargoKindName, WeaponTypes } from "../entity.js";
 import type { PopulatorEntry } from "./table.js";
 import type { SystemFacts } from "./plan.js";
 import type { PopulationDraws } from "./streams.js";
-import { buildFreighter } from "./traders.js";
+import {
+  buildCourierLong,
+  buildCourierShort,
+  buildFreighter,
+} from "./traders.js";
 
 export { pickPopulationRecord } from "./kit.js";
 
@@ -168,6 +172,12 @@ export function buildGroup(
   switch (entry.builder) {
     case "freighter":
       ships = buildFreighter(facts, records, draws, { arriving });
+      break;
+    case "courierShort":
+      ships = buildCourierShort(facts, records, draws, { arriving });
+      break;
+    case "courierLong":
+      ships = buildCourierLong(facts, records, draws, { arriving });
       break;
     default:
       break;
