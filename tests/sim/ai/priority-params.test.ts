@@ -23,7 +23,7 @@ import {
 } from "../../../src/sim/ai/priority.js";
 import type { PriorityParamKey } from "../../../src/sim/ai/priority.js";
 import { AI_REGISTRY } from "../../../src/sim/ai/registry.js";
-import { AI_KEYS } from "../../../src/sim/ai/types.js";
+import { AI_EVENT_NAMES, AI_KEYS } from "../../../src/sim/ai/types.js";
 import type {
   AiComponent,
   AiContext,
@@ -110,6 +110,65 @@ describe("the priority AI module", () => {
     expect(typeof AI_REGISTRY.priority.think).toBe("function");
     expect(AI_REGISTRY.priority.onEvent).toBeUndefined();
     expect(Object.isFrozen(AI_REGISTRY.priority)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The event vocabulary
+
+/** The 23 names before plan 21-07, in their order: never renamed or reordered. */
+const PREVIOUS_EVENT_NAMES = [
+  "shipAttacked",
+  "shipAttackedOther",
+  "shipAttackedWithMissile",
+  "shipBeingAttackedUnsuccessfully",
+  "shipTargetLost",
+  "shipTargetDestroyed",
+  "shipKilledOther",
+  "shipFiredMissile",
+  "cascadeWeaponDetected",
+  "shipAchievedDesiredRange",
+  "shipCloseContact",
+  "shipLaunchedEscapePod",
+  "shipScoopedOther",
+  "shipWasScooped",
+  "shipDockedWithStation",
+  "shipLaunchedFromStation",
+  "shipEnteredPlanetaryVicinity",
+  "shipEnteredStationAegis",
+  "offenceCommittedNearby",
+  "distressMessageReceived",
+  "helpRequestReceived",
+  "shipNowFacingDestination",
+  "shipAIFrustrated",
+];
+
+/** The 13 names plan 21-07 appends (the priority AI's handler names). */
+const APPENDED_EVENT_NAMES = [
+  "approachingPlanetSurface",
+  "cargoDumpedNearby",
+  "commsMessageReceived",
+  "escortAccepted",
+  "shipAcceptedEscort",
+  "shipAttackerDistracted",
+  "shipWillEnterWormhole",
+  "wormholeSuggested",
+  "playerWillEnterWitchspace",
+  "shipWitchspaceBlocked",
+  "stationWithdrewDockingClearance",
+  "escortDock",
+  "shipScoopedFuel",
+];
+
+describe("AI_EVENT_NAMES", () => {
+  it("holds the 23 previous names in their order, then the 13 appended names", () => {
+    expect(PREVIOUS_EVENT_NAMES).toHaveLength(23);
+    expect(APPENDED_EVENT_NAMES).toHaveLength(13);
+    expect([...AI_EVENT_NAMES]).toEqual([
+      ...PREVIOUS_EVENT_NAMES,
+      ...APPENDED_EVENT_NAMES,
+    ]);
+    expect(new Set(AI_EVENT_NAMES).size).toBe(AI_EVENT_NAMES.length);
   });
 });
 

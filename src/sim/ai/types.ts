@@ -80,6 +80,36 @@ export const AI_EVENT_NAMES = [
   "helpRequestReceived",
   "shipNowFacingDestination",
   "shipAIFrustrated",
+  // Plan 21-07 (FOUND-20): the priority AI's handler names, appended, never
+  // renamed. Oolite's `shipBeingAttacked` is the existing `shipAttacked`. Each
+  // comment names the `oolite-priorityai.js` response (pin 7437f22) the name
+  // stands for; the events have no producer until Phase 23.
+  /** responseComponent_standard_approachingPlanetSurface (:4890, :4981). */
+  "approachingPlanetSurface",
+  /** responseComponent_standard_cargoDumpedNearby (:4891, :4998). */
+  "cargoDumpedNearby",
+  /** responseComponent_standard / station / missile _commsMessageReceived (:4893, :5024). */
+  "commsMessageReceived",
+  /** responseComponent_standard_escortAccepted, to the mother ship (:4895, :5062). */
+  "escortAccepted",
+  /** responseComponent_standard_shipAcceptedEscort, to the escort (:4898, :5194). */
+  "shipAcceptedEscort",
+  /** responseComponent_standard_shipAttackerDistracted (:4901, :5294). */
+  "shipAttackerDistracted",
+  /** responseComponent_standard_shipWillEnterWormhole (:4908, :5619). */
+  "shipWillEnterWormhole",
+  /** responseComponent_standard_wormholeSuggested (:4909, :5645). */
+  "wormholeSuggested",
+  /** responseComponent_standard / trackPlayer _playerWillEnterWitchspace (:4915, :5179, :6181). */
+  "playerWillEnterWitchspace",
+  /** responseComponent_standard_shipWitchspaceBlocked (:3055, :5626). */
+  "shipWitchspaceBlocked",
+  /** responseComponent_docking_stationWithdrewDockingClearance (:4929, :6074). */
+  "stationWithdrewDockingClearance",
+  /** responseComponent_escort_escortDock (:4938, :6081). */
+  "escortDock",
+  /** responseComponent_scooping_shipScoopedFuel (:4945, :6172). */
+  "shipScoopedFuel",
 ] as const;
 export type AiEventName = (typeof AI_EVENT_NAMES)[number];
 
