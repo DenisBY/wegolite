@@ -48,7 +48,7 @@ import type { SceneManager } from "../scene-manager.js";
 import type { GameSessionSave, StartOptions } from "../game-session.js";
 import type { AssetCache } from "../../render/asset-cache.js";
 import { parseTestFlags } from "./test-flags.js";
-import { createInertPopulate, hullTable, trafficContent } from "./traffic.js";
+import { createSystemPopulate, hullTable, trafficContent } from "./traffic.js";
 import { createWorldLifecycle, restoreWorldAnchor } from "./world-lifecycle.js";
 import {
   profileFromSave,
@@ -509,16 +509,21 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     );
     ctx.runtime.testHookEnabled = ctx.runtime.testFlags.hook;
     // D-05/D-10: the world lifecycle carries the traffic setting parsed above
-    // and the inert populator (Phase 12, D-01). It exists before the restore
-    // branch, so a Continue and a launch both reach it. The populate closure
-    // reads the NPC content and the layout at call time and never awaits, so
-    // the lifecycle may be built before the boot load below finishes; the load
-    // completes before the first `begin` or `resume` can run.
+    // and the system populator (Phase 22, WORLD-08): every arrival with traffic
+    // on is populated as Oolite does. The inert table and createInertPopulate
+    // stay only for the frozen Node path (the epoch 1-20 pin). It exists before
+    // the restore branch, so a Continue and a launch both reach it. The populate
+    // closure reads the NPC content, the layout, the arrival system and the
+    // galaxy list at call time and never awaits, so the lifecycle may be built
+    // before the boot load below finishes; the load completes before the first
+    // `begin` or `resume` can run.
     ctx.core.worldLifecycle = createWorldLifecycle({
       traffic: ctx.runtime.testFlags.traffic,
-      populate: createInertPopulate(
+      populate: createSystemPopulate(
         () => ctx.core.npcTraffic,
         () => ctx.core.layout,
+        () => ctx.core.system,
+        () => galaxy,
       ),
     });
 

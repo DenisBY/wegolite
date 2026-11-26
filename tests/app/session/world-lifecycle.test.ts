@@ -875,20 +875,25 @@ describe("session wiring (start-up and dispose)", () => {
   });
 });
 
-describe("session wiring of the inert populator (plan 12-08)", () => {
+describe("session wiring of the system populator (plan 22-14, WORLD-08)", () => {
   const source = readFileSync("src/app/session/start-session.ts", "utf8");
 
-  it("hands the lifecycle the traffic flag first and the inert populate second", () => {
+  it("hands the lifecycle the traffic flag first and the system populate second", () => {
     const created = source.indexOf("createWorldLifecycle({");
     expect(created).toBeGreaterThan(-1);
-    const call = source.slice(created, created + 300);
+    const call = source.slice(created, created + 400);
     const traffic = call.indexOf("traffic: ctx.runtime.testFlags.traffic");
-    const populate = call.indexOf("populate: createInertPopulate(");
+    const populate = call.indexOf("populate: createSystemPopulate(");
     expect(traffic).toBeGreaterThan(-1);
     expect(populate).toBeGreaterThan(traffic);
-    expect(source.match(/createInertPopulate\(/g)).toHaveLength(1);
+    expect(source.match(/createSystemPopulate\(/g)).toHaveLength(1);
+    // Phase 22: the live session no longer populates the inert table; that
+    // table serves only the frozen path (the Node epoch 1-20 pin).
+    expect(source).not.toMatch(/createInertPopulate\(/);
     expect(call).toContain("() => ctx.core.npcTraffic");
     expect(call).toContain("() => ctx.core.layout");
+    expect(call).toContain("() => ctx.core.system");
+    expect(call).toContain("() => galaxy");
   });
 
   it("loads the NPC catalogue once, only behind the traffic flag, in the boot Promise.all", () => {
