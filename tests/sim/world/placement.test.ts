@@ -305,6 +305,82 @@ describe("locationByCode", () => {
     );
   });
 
+  it("keeps every existing code's samples and final stream state (WITCHPOINT must not move them)", () => {
+    // Pinned from the code before WITCHPOINT was added (plan 22-10): seed 4242,
+    // three samples of each code on the Lave layout.
+    const pinned: Record<
+      string,
+      { samples: [number, number, number, boolean][]; state: number }
+    > = {
+      LANE_WP: {
+        samples: [
+          [-22670.459985733032, 44158.660316467285, -246787.08845373243, false],
+          [-21721.193170547485, -24607.848238945007, -312890.3597105108, false],
+          [8982.830572128296, 23675.612616539, -129763.18699247204, false],
+        ],
+        state: 503957518,
+      },
+      LANE_WS: {
+        samples: [
+          [-450891.59737902397, -141981.39478165688, -412134.9033547256, false],
+          [-545558.3668870344, -252310.48097582252, -515158.12389699236, false],
+          [-260584.56753840996, -93500.50494364873, -233850.48291029833, false],
+        ],
+        state: 503957518,
+      },
+      LANE_PS: {
+        samples: [
+          [-450891.59737902397, -141981.39478165688, -617368.2343412627, false],
+          [-545558.3668870344, -252310.48097582252, -665122.0697256128, false],
+          [-260584.56753840996, -93500.50494364873, -530791.1776440913, false],
+        ],
+        state: 503957518,
+      },
+      LANE_WPS: {
+        samples: [
+          [-174068.58332383505, -94119.89182033153, -193123.48698674416, false],
+          [-213502.14100993192, -104376.3398841329, -522318.46081197285, false],
+          [-329466.6747308421, -146972.1435239388, -280793.3401038288, false],
+        ],
+        state: 943969597,
+      },
+      STATION_AEGIS: {
+        samples: [
+          [-44691.611927337646, 38081.700014266964, -383493.73968353274, false],
+          [-48734.73944026947, 78035.05589881897, -449373.5931705475, false],
+          [-74082.16823894501, 50657.85446086883, -443610.9986852646, false],
+        ],
+        state: 3599194671,
+      },
+    };
+    for (const [code, expected] of Object.entries(pinned)) {
+      const rng = createRngState(4242);
+      const samples = [0, 1, 2].map(() => {
+        const s = locationByCode(rng, code as LocationCode, layout);
+        return [s.position.x, s.position.y, s.position.z, s.fallback];
+      });
+      expect(samples, code).toEqual(expected.samples);
+      expect(rng.s, code).toBe(expected.state);
+    }
+  });
+
+  it("WITCHPOINT is randomSpatial(scannerRange) around the origin, one sampler and no fallback", () => {
+    // Universe.m:1786-1788: the witchpoint code draws one spatial sample of the
+    // scanner range, whatever the planet, sun or station.
+    for (let seed = 1; seed <= 50; seed++) {
+      const rng = createRngState(seed);
+      const expectedRng = createRngState(seed);
+      const expected = randomSpatial(expectedRng, layout.scannerRange);
+      const sample = locationByCode(rng, "WITCHPOINT", layout);
+      expect(sample.position).toEqual(expected.position);
+      expect(sample.fallback).toBe(false);
+      expect(rng.s).toBe(expectedRng.s);
+      expect(length(sample.position)).toBeLessThanOrEqual(
+        layout.scannerRange + 1e-6,
+      );
+    }
+  });
+
   it("is deterministic for one stream state", () => {
     const a = locationByCode(createRngState(9), "LANE_WPS", layout);
     const b = locationByCode(createRngState(9), "LANE_WPS", layout);

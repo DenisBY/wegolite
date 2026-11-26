@@ -26,6 +26,7 @@
  */
 
 import { createRngState, forkSeed, mix32, rngNext } from "../../rng.js";
+import type { RngState } from "../../rng.js";
 import type { CountDraws } from "./plan.js";
 
 /**
@@ -91,6 +92,51 @@ export function countDrawSource(worldSeed: number): CountDraws {
   };
 }
 
+/** The seed of group `groupIndex` of the entry `ordinal`; throws on a bad index. */
+function groupSeedOf(
+  worldSeed: number,
+  ordinal: number,
+  groupIndex: number,
+): number {
+  if (
+    !Number.isInteger(groupIndex) ||
+    groupIndex < 0 ||
+    groupIndex > MAX_GROUP_INDEX
+  ) {
+    throw new RangeError(
+      `groupIndex must be an integer in [0, ${String(MAX_GROUP_INDEX)}], got ${String(groupIndex)}`,
+    );
+  }
+  return mix32(forkSeed(worldSeed, ordinal, "pop"), groupIndex + 1);
+}
+
+/** The state of one tag's stream of a group; throws on an unknown tag. */
+function tagStream(groupSeed: number, tag: string): RngState {
+  if (!Object.hasOwn(POPULATION_TAG_CODES, tag)) {
+    throw new RangeError(`tag must be a known PopulationTag, got ${tag}`);
+  }
+  return createRngState(
+    mix32(groupSeed, POPULATION_TAG_CODES[tag as PopulationTag]),
+  );
+}
+
+/**
+ * A fresh state of the stream of one tag of group `groupIndex` of the entry
+ * `ordinal`: the stream {@link populationDraws} reads for the same tag, for the
+ * placement samplers (`placement.ts`), which take an `RngState`. Stateless:
+ * every call starts the stream at its beginning, so a caller that needs the
+ * stream to continue keeps the returned state. Never keyed by an entity id
+ * (pitfall C4): adding or skipping a group moves no other group's draws.
+ */
+export function populationStream(
+  worldSeed: number,
+  ordinal: number,
+  groupIndex: number,
+  tag: PopulationTag,
+): RngState {
+  return tagStream(groupSeedOf(worldSeed, ordinal, groupIndex), tag);
+}
+
 /**
  * The draws of group `groupIndex` of the entry `ordinal`. Every tag has its own
  * stream, so a group's draws at one site never shift another site's. An
@@ -102,26 +148,12 @@ export function populationDraws(
   ordinal: number,
   groupIndex: number,
 ): PopulationDraws {
-  if (
-    !Number.isInteger(groupIndex) ||
-    groupIndex < 0 ||
-    groupIndex > MAX_GROUP_INDEX
-  ) {
-    throw new RangeError(
-      `groupIndex must be an integer in [0, ${String(MAX_GROUP_INDEX)}], got ${String(groupIndex)}`,
-    );
-  }
-  const entrySeed = forkSeed(worldSeed, ordinal, "pop");
-  const groupSeed = mix32(entrySeed, groupIndex + 1);
-  const streams = new Map<string, ReturnType<typeof createRngState>>();
-  const streamOf = (tag: string): ReturnType<typeof createRngState> => {
+  const groupSeed = groupSeedOf(worldSeed, ordinal, groupIndex);
+  const streams = new Map<string, RngState>();
+  const streamOf = (tag: string): RngState => {
     let state = streams.get(tag);
     if (state === undefined) {
-      if (!Object.hasOwn(POPULATION_TAG_CODES, tag)) {
-        throw new RangeError(`tag must be a known PopulationTag, got ${tag}`);
-      }
-      const code = POPULATION_TAG_CODES[tag as PopulationTag];
-      state = createRngState(mix32(groupSeed, code));
+      state = tagStream(groupSeed, tag);
       streams.set(tag, state);
     }
     return state;

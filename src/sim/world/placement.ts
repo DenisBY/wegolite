@@ -40,7 +40,12 @@ export const MAX_PLACEMENT_TRIES = 256;
 
 /** The populator location codes this module samples. */
 export type LocationCode =
-  "LANE_WP" | "LANE_WS" | "LANE_PS" | "LANE_WPS" | "STATION_AEGIS";
+  | "LANE_WP"
+  | "LANE_WS"
+  | "LANE_PS"
+  | "LANE_WPS"
+  | "STATION_AEGIS"
+  | "WITCHPOINT";
 
 /**
  * A sampled point. `fallback` is true when any rejection loop behind it
@@ -159,8 +164,8 @@ export function positionInShell(
 }
 
 /**
- * `locationByCode` (Universe.m lines 1783-1815) for the five codes the first
- * populator uses.
+ * `locationByCode` (Universe.m lines 1783-1815) for the six codes the
+ * populators use.
  *
  * - LANE_WP: the lane from the witchpoint (the origin, exclusion one scanner
  *   range) to the planet (exclusion 3 planet radii), `LANE_WIDTH` wide.
@@ -171,6 +176,10 @@ export function positionInShell(
  * - STATION_AEGIS: the shell between 1.2 station radii and two scanner ranges
  *   (51,200 m) around the station, repeated while the point lies within
  *   sqrt(1.5) planet radii of the planet centre.
+ * - WITCHPOINT (`Universe.m:1786-1788`): one `randomSpatial` of the scanner
+ *   range around the witchpoint (the origin), whatever the planet, sun or
+ *   station. Only the interceptor wing uses it (assassins, the other users,
+ *   are cut; plan 22-10).
  *
  * The sample's `fallback` is true if any loop behind it hit its cap.
  */
@@ -182,6 +191,8 @@ export function locationByCode(
   const planet = layout.planet;
   const sun = layout.sun;
   switch (code) {
+    case "WITCHPOINT":
+      return randomSpatial(rng, layout.scannerRange);
     case "LANE_WPS": {
       const l1 = distance(planet.position, ORIGIN);
       const l2 = distance(sun.position, planet.position);
