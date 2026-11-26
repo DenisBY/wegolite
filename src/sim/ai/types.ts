@@ -15,8 +15,12 @@ import type { WorldView } from "../world/view.js";
  * plans.
  */
 
-/** The registered AI keys. The AI registry (plan 08-09) keys on the same list. */
-export const AI_KEYS = ["test-pilot", "flight-script"] as const;
+/**
+ * The registered AI keys. The AI registry (plan 08-09) keys on the same list.
+ * `"priority"` (plan 21-07, FOUND-20) is the state shape of the hand-ported
+ * priority AI of Phase 23: registered inert, spawned by nothing before then.
+ */
+export const AI_KEYS = ["test-pilot", "flight-script", "priority"] as const;
 export type AiKey = (typeof AI_KEYS)[number];
 
 /**
