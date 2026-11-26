@@ -29,6 +29,12 @@
  * (`ships-debris.json`), every texture they reference and the two explosion
  * particle textures: a traffic-off cold start requests none of them, nor the
  * debris and explosion catalogue chunks.
+ *
+ * Plan 21-11 (D-07): with traffic on, the NPC hull GLBs are prefetched in the
+ * background from the first docked frame, outside this ceiling; that case is
+ * asserted in tests/e2e/traffic.spec.ts. This bundle runs with traffic off, where
+ * the prefetch never starts: the cold start below still requests no NPC model or
+ * texture, and now also none in the frames after the first in-flight one.
  */
 
 import { readFileSync } from "node:fs";
@@ -316,6 +322,15 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
     type: "first-load-bytes",
     description: `${total} bytes (ceiling ${FIRST_LOAD_BYTES_CEILING})`,
   });
+  // Plan 21-11 (D-07): with traffic off the background prefetch never runs, so
+  // a few settled in-flight frames later still no NPC asset has been requested
+  // (the check below reads the same live request log).
+  const settleFrom = (await getProbe(page)).frames;
+  await page.waitForFunction(
+    (target: number) => (window.__wegolite?.frames ?? 0) >= target,
+    settleFrom + 30,
+    { timeout: 60_000 },
+  );
   const npc = npcAssetPaths();
   // A texture the first-load models (the player's Cobra, the Coriolis, the buoy)
   // already reference is not NPC-owned: the Cobra variants share its maps.
@@ -342,7 +357,7 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
   ).toBe(true);
   expect(
     requested.filter((path) => npcPaths.has(path)),
-    "NPC models and textures requested on a cold start",
+    "NPC models and textures requested on a traffic-off cold start (plan 21-11: none, not even after the first in-flight frame)",
   ).toEqual([]);
   // Phase 16 (success criterion 4): no debris model, debris texture or
   // particle texture before the first in-flight frame.
