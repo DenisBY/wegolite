@@ -275,7 +275,7 @@ Plans:
 **Pitfalls to address**: C1 (the frozen path stays untouched), C4 (one forked stream per group and roll), C12 (atomic groups and the entity cap), M7 (float and ordering traps in the populator formulas), m7 (process traps from earlier milestones)
 **Decisions to settle**: what the station and planet locations mean for a ship with no AI yet; how many systems the oracle records; the rule for a population that does not fit under the cap
 **Todos**: `2026-11-25-missiles-and-ecm.md` (missiles are forced to zero at spawn here; its tripwire guard lands with CBT-19 in Phase 23)
-**Plans**: 7/16 plans executed in 14 waves
+**Plans**: 8/16 plans executed in 14 waves
 
 Plans:
 **Wave 1**
@@ -296,7 +296,7 @@ Plans:
 - [x] 22-07-PLAN.md — Wave 5: freighters, the kit helpers and the engine escorts (D-08, D-10) replayed exactly (WORLD-08)
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 22-08-PLAN.md — Wave 6: couriers and smugglers, every trade group replayed; the D-08 and D-10 FIDELITY and Key Decisions records (WORLD-08)
+- [x] 22-08-PLAN.md — Wave 6: couriers and smugglers, every trade group replayed; the D-08 and D-10 FIDELITY and Key Decisions records (WORLD-08)
 
 **Wave 7** *(blocked on Wave 6 completion)*
 - [ ] 22-09-PLAN.md — Wave 7: pirates, packs, hunters, police and interceptors; every recorded system replayed exactly (WORLD-08)
@@ -478,7 +478,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 19. Equipment Damage and Repair | v2.3 | 15/15 | Complete    | 2026-11-22 |
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
-| 22. Initial Population | v2.4 | 7/16 | In Progress | - |
+| 22. Initial Population | v2.4 | 8/16 | In Progress | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
 | 25. Police, Legal Status, Bounty and Rating | v2.4 | 0/TBD | Not started | - |
