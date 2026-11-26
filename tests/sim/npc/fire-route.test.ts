@@ -284,7 +284,9 @@ describe("without the opt-in nothing changes (criterion 4, T-17-15)", () => {
       expect(pose(on.viper)).toBe(pose(off.viper));
       expect(off.world.fireQueue).toEqual([]);
       if (on.world.fireQueue.length > 0) {
-        expect(on.world.fireQueue).toEqual([on.viper.id]);
+        expect(on.world.fireQueue).toEqual([
+          { id: on.viper.id, facing: "fore" },
+        ]);
         first = on.player.tick;
         break;
       }

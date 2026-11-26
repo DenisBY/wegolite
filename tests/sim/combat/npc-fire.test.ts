@@ -947,7 +947,7 @@ describe("who may fire (the drain's refusals, T-17-11, T-17-26)", () => {
     entityOf(world, viper).nav.targetId = PLAYER_ID;
     const before = untouched(world, viper);
     fireFrom(world, viper);
-    expect(world.fireQueue).toEqual([viper]);
+    expect(world.fireQueue).toEqual([{ id: viper, facing: "fore" }]);
 
     const events = resolve(player, world, createPlayerCombatState());
 
@@ -979,7 +979,7 @@ describe("who may fire (the drain's refusals, T-17-11, T-17-26)", () => {
     expect(stepped.some((event) => event.kind === "aiFaulted")).toBe(true);
     expect(ship.ai).toBeNull();
     expect(ship.steer.accuracy).not.toBe(ACCURACY_UNRESOLVED);
-    expect(world.fireQueue).toEqual([viper]);
+    expect(world.fireQueue).toEqual([{ id: viper, facing: "fore" }]);
     const before = untouched(world, viper);
 
     const events = resolve(
@@ -1203,7 +1203,10 @@ describe("resolution order", () => {
     }
     fireFrom(world, second);
     fireFrom(world, first);
-    expect(world.fireQueue).toEqual([second, first]);
+    expect(world.fireQueue).toEqual([
+      { id: second, facing: "fore" },
+      { id: first, facing: "fore" },
+    ]);
 
     const events = resolve(player, world, combat);
 

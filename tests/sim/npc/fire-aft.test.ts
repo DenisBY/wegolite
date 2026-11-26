@@ -17,6 +17,8 @@
  * step, as `tests/sim/combat/npc-fire.test.ts` does.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 import * as fc from "fast-check";
 
@@ -46,7 +48,16 @@ import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { add, identity, rotate, vec } from "../../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { coolWeapon, onTargetCone } from "../../../src/sim/npc/fire.js";
-import { PLAYER_COLLISION_RADIUS_M } from "../../../src/sim/npc/stats.js";
+import {
+  PLAYER_COLLISION_RADIUS_M,
+  flightTableFrom,
+  statsFor,
+} from "../../../src/sim/npc/stats.js";
+import type {
+  FlightRecord,
+  NpcFlightStats,
+} from "../../../src/sim/npc/stats.js";
+import { INERT_RECORD_KEYS } from "../../../src/sim/world/populate.js";
 import { createRngState, rngNext } from "../../../src/sim/rng.js";
 import { DT } from "../../../src/sim/time.js";
 import { createShipControl } from "../../../src/sim/world/control-impl.js";
@@ -302,6 +313,56 @@ describe("onTargetCone by facing (ShipEntity.m:9874-9892)", () => {
         "up" as never,
       ),
     ).toBe(true);
+  });
+});
+
+describe("NpcFlightStats.aftWeapon (plan 21-12)", () => {
+  it("is the compiled aft type: pulse laser for the anaconda, none for the nine legacy keys", () => {
+    const records = JSON.parse(
+      readFileSync("src/content/generated/ships-npc.json", "utf8"),
+    ) as (FlightRecord & { aftWeapon: string })[];
+    const table = flightTableFrom(records);
+    const byKey = new Map(table.map((row) => [row.specKey, row]));
+    expect(byKey.get("anaconda")?.aftWeapon).toBe("EQ_WEAPON_PULSE_LASER");
+    expect(INERT_RECORD_KEYS).toHaveLength(9);
+    for (const key of INERT_RECORD_KEYS) {
+      expect(byKey.get(key)?.aftWeapon, key).toBe("EQ_WEAPON_NONE");
+    }
+  });
+
+  it("is none for a hand-built record without the field and for an unknown key", () => {
+    const base = {
+      maxFlightSpeed: 1,
+      maxFlightRoll: 1,
+      maxFlightPitch: 1,
+      thrust: 1,
+      mass: 1,
+      forwardWeapon: "EQ_WEAPON_NONE",
+    };
+    const [legacy, bogus] = flightTableFrom([
+      { key: "x", ...base },
+      { key: "y", ...base, aftWeapon: "EQ_WEAPON_BOGUS" },
+    ]);
+    expect(legacy?.aftWeapon).toBe("EQ_WEAPON_NONE");
+    expect(bogus?.aftWeapon).toBe("EQ_WEAPON_NONE");
+  });
+
+  it("a legacy-shape row without the field stays usable, and a row with a bad aft key falls back to the defaults", () => {
+    const row: NpcFlightStats = {
+      specKey: "x",
+      maxFlightSpeed: 100,
+      maxFlightRoll: 1,
+      maxFlightPitch: 1,
+      thrust: 10,
+      mass: 5,
+      forwardWeapon: "EQ_WEAPON_NONE",
+    };
+    expect(statsFor([row], "x")).toBe(row);
+    const bad = {
+      ...row,
+      aftWeapon: "EQ_WEAPON_BOGUS",
+    } as unknown as NpcFlightStats;
+    expect(statsFor([bad], "x")).not.toBe(bad);
   });
 });
 
