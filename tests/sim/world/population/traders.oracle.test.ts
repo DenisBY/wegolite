@@ -693,3 +693,253 @@ describe("courier builder: the script's own branches", () => {
     }
   });
 });
+
+// --- Smugglers and every trade entry (plan 22-08) ----------------------------
+
+/** The smuggler entry: `oolite-smugglers`. */
+const SMUGGLER_ORDINALS: readonly number[] = POPULATOR_ENTRIES.filter(
+  (entry) => entry.builder === "smuggler",
+).map((entry) => entry.ordinal);
+
+const SMUGGLERS = allGroupsOf(SMUGGLER_ORDINALS);
+
+/** Every trade entry: freighters, docking freighters, couriers, smugglers. */
+const TRADE_ORDINALS: readonly number[] = [
+  ...FREIGHTER_ORDINALS,
+  ...COURIER_ORDINALS,
+  ...SMUGGLER_ORDINALS,
+];
+
+describe("smuggler builder: every recorded group", () => {
+  it("takes the smuggler ordinal 9 from the table", () => {
+    expect(SMUGGLER_ORDINALS).toEqual([9]);
+  });
+
+  it.each(FIXTURES.map((loaded) => [loaded.id, loaded] as const))(
+    "%s: every smuggler group is reproduced, escorts included",
+    (_id, loaded) => {
+      for (const group of groupsOf(loaded, SMUGGLER_ORDINALS)) {
+        expectReplayed(loaded, group);
+      }
+    },
+  );
+
+  it("covers the cases the port has to get right (the replay is not vacuous)", () => {
+    const leaders = SMUGGLERS.map(({ group }) => group.ships[0]);
+    expect(SMUGGLERS.length).toBeGreaterThanOrEqual(30);
+    expect(leaders.some((ship) => (ship?.bounty ?? 0) > 0)).toBe(true);
+    expect(leaders.some((ship) => ship?.injector === true)).toBe(true);
+  });
+
+  it("ORs 3 + floor(r * 12) into the bounty of a smuggler's escorts (:1564-1572; no recorded smuggler has one)", () => {
+    // The shipped smuggler hulls author no `escort_roles`, so the oracle has no
+    // escorted smuggler: the branch is checked against a record that has one.
+    const first = SMUGGLERS[0];
+    const entry = POPULATOR_ENTRIES.find(
+      (candidate) => candidate.builder === "smuggler",
+    );
+    if (first === undefined || entry === undefined) {
+      throw new Error("no smuggler group");
+    }
+    expect(SMUGGLERS.every(({ group }) => group.ships.length === 1)).toBe(true);
+    const escorted = RECORDS.map((record) =>
+      record.roles.some((token) => token.startsWith("trader-smuggler"))
+        ? {
+            ...record,
+            escortRoles: [{ min: 1, max: 1, role: "escort" }],
+          }
+        : record,
+    );
+    const half: PopulationDraws = {
+      next: () => 0.5,
+      nextU32: () => 0x7fffffff,
+    };
+    const plan = buildGroup(
+      entry,
+      factsFromFixture(first.loaded.fixture),
+      escorted,
+      half,
+      { groupIndex: 0 },
+    );
+    expect(plan.ships).toHaveLength(2);
+    expect(plan.ships[0]?.bounty).toBe(10);
+    expect(plan.ships[1]?.ownerIndex).toBe(0);
+    // 3 + floor(0.5 * 12) = 9, OR-ed into the clean escort's bounty 0.
+    expect(plan.ships[1]?.bounty).toBe(9);
+  });
+
+  it("gives every smuggler Oolite's data: contraband, a bounded bounty, the injector, escorts' bounty", () => {
+    for (const { loaded, group } of SMUGGLERS) {
+      const at = `${loaded.id} ${String(group.index)}`;
+      const { plan } = replay(loaded, group);
+      const leader = plan.ships[0];
+      const record = RECORDS.find((one) => one.key === leader?.recordKey);
+      expect(leader?.cargoKind, at).toBe("contraband");
+      expect(leader?.bounty, at).toBeGreaterThanOrEqual(1);
+      expect(leader?.bounty, at).toBeLessThanOrEqual(
+        Math.min(20, 2 * (record?.maxCargo ?? 0)),
+      );
+      if ((record?.autoWeapons ?? 0) > 0) {
+        expect(leader?.injector, at).toBe(true);
+      }
+      for (const escort of plan.ships.slice(1)) {
+        // `bounty |= 3 + floor(r * 12)`: at least one of the bits 0 and 1 is set.
+        expect(escort.bounty & 3, at).not.toBe(0);
+      }
+    }
+  });
+
+  it("caps the bounty at twice the cargo space (the :1542 clamp), not at 20", () => {
+    const first = SMUGGLERS[0];
+    const entry = POPULATOR_ENTRIES.find(
+      (candidate) => candidate.builder === "smuggler",
+    );
+    if (first === undefined || entry === undefined) {
+      throw new Error("no smuggler group");
+    }
+    const tight = RECORDS.map((record) =>
+      record.roles.some((token) => token.startsWith("trader-smuggler"))
+        ? { ...record, maxCargo: 2 }
+        : record,
+    );
+    const high: PopulationDraws = {
+      next: () => 0.99,
+      nextU32: () => 0x7fffffff,
+    };
+    const plan = buildGroup(
+      entry,
+      factsFromFixture(first.loaded.fixture),
+      tight,
+      high,
+      { groupIndex: 0 },
+    );
+    // ceil(0.99 * 20) = 20 > 2 * 2, so the clamp gives 4.
+    expect(plan.ships[0]?.bounty).toBe(4);
+  });
+
+  it("takes the station-launch branch: contraband, home here, destination within 7 LY", () => {
+    const first = SMUGGLERS[0];
+    const entry = POPULATOR_ENTRIES.find(
+      (candidate) => candidate.builder === "smuggler",
+    );
+    if (first === undefined || entry === undefined) {
+      throw new Error("no smuggler group");
+    }
+    const facts = factsFromFixture(first.loaded.fixture);
+    const plan = buildGroup(entry, facts, RECORDS, recordedDraws(first.group), {
+      groupIndex: first.group.index,
+      arriving: false,
+    });
+    const leader = plan.ships[0];
+    expect(leader?.cargoKind).toBe("contraband");
+    expect(leader?.homeSystem).toBe(facts.systemIndex);
+  });
+
+  it("asks for a trader when the catalogue has no trader-smuggler (_roleExists)", () => {
+    const first = SMUGGLERS[0];
+    const entry = POPULATOR_ENTRIES.find(
+      (candidate) => candidate.builder === "smuggler",
+    );
+    if (first === undefined || entry === undefined) {
+      throw new Error("no smuggler group");
+    }
+    const without = RECORDS.filter(
+      (record) =>
+        !record.roles.some((token) => token.startsWith("trader-smuggler")),
+    );
+    expect(without.length).toBeLessThan(RECORDS.length);
+    const half: PopulationDraws = {
+      next: () => 0.5,
+      nextU32: () => 0x7fffffff,
+    };
+    const plan = buildGroup(
+      entry,
+      factsFromFixture(first.loaded.fixture),
+      without,
+      half,
+      { groupIndex: 0 },
+    );
+    expect(plan.ships[0]?.role).toBe("trader");
+    expect(plan.ships[0]?.cargoKind).toBe("contraband");
+  });
+
+  it("plans nothing and takes no draw when no record carries trader-smuggler or trader", () => {
+    const first = SMUGGLERS[0];
+    const entry = POPULATOR_ENTRIES.find(
+      (candidate) => candidate.builder === "smuggler",
+    );
+    if (first === undefined || entry === undefined) {
+      throw new Error("no smuggler group");
+    }
+    const refuse: PopulationDraws = {
+      next: (tag) => {
+        throw new Error(`unexpected draw on ${tag}`);
+      },
+      nextU32: (tag) => {
+        throw new Error(`unexpected draw on ${tag}`);
+      },
+    };
+    expect(
+      buildGroup(entry, factsFromFixture(first.loaded.fixture), [], refuse, {
+        groupIndex: 0,
+      }).ships,
+    ).toEqual([]);
+  });
+});
+
+describe("trade builders: every group of every trade entry", () => {
+  const EVERY = allGroupsOf(TRADE_ORDINALS);
+
+  it("names the five trade entries of the table", () => {
+    expect(TRADE_ORDINALS).toEqual([5, 6, 7, 8, 9]);
+  });
+
+  it("replays every freighter, docking freighter, courier and smuggler group of every fixture", () => {
+    expect(EVERY.length).toBe(ALL.length + COURIERS.length + SMUGGLERS.length);
+    for (const { loaded, group } of EVERY) {
+      expectReplayed(loaded, group);
+    }
+  });
+
+  it("never reads a record's missile counts, whatever the trade entry (T-22-12)", () => {
+    const guarded = RECORDS.map(
+      (record): PopulationRecord =>
+        new Proxy(record, {
+          get(target, key, receiver) {
+            if (key === "missiles" || key === "maxMissiles") {
+              throw new Error(`a builder read ${String(key)}`);
+            }
+            return Reflect.get(target, key, receiver) as unknown;
+          },
+        }),
+    );
+    for (const { loaded, group } of EVERY) {
+      expect(() => replay(loaded, group, guarded)).not.toThrow();
+    }
+  });
+
+  it("plans a total result for every trade entry on non-finite and prototype-named facts", () => {
+    const hostile = {
+      galaxy: 0,
+      systemIndex: Number.NaN,
+      government: Number.POSITIVE_INFINITY,
+      economy: "constructor",
+      techlevel: undefined,
+      neighbourhood: { inRange: "toString", locals: "__proto__" },
+      laneLengths: { l1: 0, l2: 0, l3: 0 },
+    } as unknown as ReturnType<typeof factsFromFixture>;
+    const half: PopulationDraws = {
+      next: () => 0.5,
+      nextU32: () => 0x7fffffff,
+    };
+    for (const ordinal of TRADE_ORDINALS) {
+      const entry = POPULATOR_ENTRIES[ordinal];
+      if (entry === undefined) {
+        throw new Error(`no entry ${String(ordinal)}`);
+      }
+      expect(() =>
+        buildGroup(entry, hostile, RECORDS, half, { groupIndex: 0 }),
+      ).not.toThrow();
+    }
+  });
+});

@@ -105,11 +105,7 @@ export function buildFreighter(
   let goods: CargoKindName;
   if (options.arriving) {
     mother.homeSystem = weightedNearbyTradeSystem(facts, draws);
-    mother.fuel = setFuel(
-      mother.homeSystem,
-      systemIndex,
-      facts.neighbourhood.distanceTo,
-    );
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
     mother.destinationSystem = systemIndex;
     goods = FREIGHTER_GOODS.scarce;
     // `Math.random() * 8 > government` guards `_setMissiles(ship, -1)`, a cut:
@@ -153,6 +149,26 @@ export function buildFreighter(
 }
 
 // --- Couriers (plan 22-08) ---------------------------------------------------
+
+/**
+ * `Neighbourhood.distanceTo` of untrusted facts as a total function: an
+ * unknown system, or facts without the function, give no distance.
+ */
+function chartDistance(
+  facts: SystemFacts,
+): (systemIndex: number) => number | undefined {
+  const distanceTo = readField(facts.neighbourhood, "distanceTo");
+  return (systemIndex) => {
+    if (typeof distanceTo !== "function") {
+      return undefined;
+    }
+    const distance = (distanceTo as (index: number) => unknown).call(
+      facts.neighbourhood,
+      systemIndex,
+    );
+    return typeof distance === "number" ? distance : undefined;
+  };
+}
 
 /** The `_nearbySystem` ranges of the courier and smuggler callbacks, in LY. */
 const NEAR_RANGE_LY = 7;
@@ -276,11 +292,7 @@ export function buildCourierShort(
   const systemIndex = systemIndexOf(facts.systemIndex, 0);
   if (options.arriving) {
     mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
-    mother.fuel = setFuel(
-      mother.homeSystem,
-      systemIndex,
-      facts.neighbourhood.distanceTo,
-    );
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
     mother.destinationSystem = systemIndex;
     mother.cargoKind = "scarce";
   } else {
@@ -310,11 +322,7 @@ export function buildCourierLong(
   const systemIndex = systemIndexOf(facts.systemIndex, 0);
   if (options.arriving) {
     mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
-    mother.fuel = setFuel(
-      mother.homeSystem,
-      systemIndex,
-      facts.neighbourhood.distanceTo,
-    );
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
     mother.destinationSystem = nearbySystem(facts, LONG_RANGE_LY, draws);
     mother.cargoKind = "scarce";
   } else {
@@ -323,4 +331,49 @@ export function buildCourierLong(
     mother.cargoKind = "plentiful";
   }
   return finishShips([mother, ...added.escorts]);
+}
+
+// --- Smugglers (plan 22-08) ---------------------------------------------------
+
+/**
+ * `_addSmuggler` (`oolite-populator.js:1528-1575`): a `trader-smuggler` (else a
+ * `trader`) with bounty `min(ceil(r * 20), 2 * cargoSpaceCapacity)`, arriving
+ * from a system within 7 LY with the chart fuel (a station launch: destination
+ * within 7 LY, home here), contraband cargo, the fuel injector forced on for a
+ * ship with `auto_weapons` (`EQ_FUEL_INJECTION`, `:1560`), `_setWeapons(1.2)`,
+ * `_setEscortWeapons`, and `bounty |= 3 + floor(r * 12)` on every escort.
+ */
+export function buildSmuggler(
+  facts: SystemFacts,
+  records: readonly PopulationRecord[],
+  draws: PopulationDraws,
+  options: FreighterOptions,
+): readonly PlannedPopShip[] {
+  const added = addTradeShip("trader-smuggler", facts, records, draws);
+  if (added === undefined) {
+    return [];
+  }
+  const { mother, escorts } = added;
+  const systemIndex = systemIndexOf(facts.systemIndex, 0);
+  const capacity = numberOf(mother.record.maxCargo);
+  const rolled = Math.ceil(draws.next("body") * 20);
+  mother.bounty = boundedBounty(rolled > capacity * 2 ? capacity * 2 : rolled);
+  if (options.arriving) {
+    mother.homeSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
+    mother.fuel = setFuel(mother.homeSystem, systemIndex, chartDistance(facts));
+    mother.destinationSystem = systemIndex;
+  } else {
+    mother.destinationSystem = nearbySystem(facts, NEAR_RANGE_LY, draws);
+    mother.homeSystem = systemIndex;
+  }
+  mother.cargoKind = "contraband";
+  const autoWeapons = numberOf(mother.record.autoWeapons) > 0;
+  if (autoWeapons) {
+    // Smugglers always have injectors (`:1558-1561`).
+    mother.injector = true;
+  }
+  setWeapons(mother.weaponTypes, 1.2, autoWeapons, () => draws.next("weapons"));
+  setEscortWeapons(escorts, draws);
+  addOffenderEscortBounty(escorts, draws);
+  return finishShips([mother, ...escorts]);
 }

@@ -43,6 +43,7 @@ import {
   buildCourierLong,
   buildCourierShort,
   buildFreighter,
+  buildSmuggler,
 } from "./traders.js";
 
 export { pickPopulationRecord } from "./kit.js";
@@ -178,6 +179,9 @@ export function buildGroup(
       break;
     case "courierLong":
       ships = buildCourierLong(facts, records, draws, { arriving });
+      break;
+    case "smuggler":
+      ships = buildSmuggler(facts, records, draws, { arriving });
       break;
     default:
       break;
