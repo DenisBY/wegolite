@@ -250,7 +250,9 @@ test("three scripted flyers are on the scanner, drawn within budget and replay t
     hash: window.__wegolite?.test?.worldHash(),
   }));
   expect(browser.tick).toBe(afterTicks.state.tick);
-  expect(browser.entities).toBe(12 + FLYERS);
+  // Plan 22-14 (owner-sanctioned, Phase 21 D-04): the 28 populated Lave ships
+  // (census epoch 1, plan 22-13) replace the 12 inert ones: 28 + FLYERS.
+  expect(browser.entities).toBe(28 + FLYERS);
   expect(browser.hash, "the browser world hash is the Node replay's").toBe(
     afterTicks.hash,
   );

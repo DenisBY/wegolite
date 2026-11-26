@@ -38,10 +38,11 @@ import { buildHudModel } from "../../src/app/hud-model.js";
 import { NPC_PREFETCH_CONCURRENCY } from "../../src/app/npc-models.js";
 import { hashFlight, initFlightState } from "../../src/sim/flight/state.js";
 import { npcContacts } from "../../src/sim/world/contacts.js";
+import { liveEntityCount } from "../../src/sim/world/world.js";
 import { laveFixture } from "../helpers/lave.js";
 import { runTickScript } from "../helpers/tick-script.js";
 import {
-  laveInertWorld,
+  lavePopulatedWorld,
   poseNearFirstShip,
 } from "../helpers/traffic-fixture.js";
 // The draw-call budget and the cold-start ceiling are the shared ones; the
@@ -322,7 +323,8 @@ test("a launch populates the world, draws the ships within budget and matches th
     ).toBe(1);
     await waitForFrames(page, 10);
 
-    // The 12 ships exist from the launch tick, but the session is still
+    // The 28 ships of the populated Lave (plan 22-14; the census's epoch-1 count)
+    // exist from the launch tick, but the session is still
     // launching, so the only NPC models requested are the prefetch's first
     // ones, held (plan 12-11, plan 21-11).
     const launching = await page.evaluate(() => ({
@@ -330,7 +332,10 @@ test("a launch populates the world, draws the ships within budget and matches th
       entities: window.__wegolite?.sim?.entities,
     }));
     expect(launching.mode).toBe("launching");
-    expect(launching.entities).toBe(12);
+    // Plan 22-14 (owner-sanctioned, Phase 21 D-04): from 12. The live session
+    // populates through the system populator; Lave at epoch 1 holds 28 ships
+    // (census golden, Node replay of plan 22-13).
+    expect(launching.entities).toBe(28);
     expect(
       [...new Set(requested)].sort(),
       "NPC GLBs requested while launching (the held prefetch only)",
@@ -380,7 +385,7 @@ test("a launch populates the world, draws the ships within budget and matches th
     });
     expect(held.mode).toBe("inFlight");
     expect(held.traffic).toBe(true);
-    expect(held.entities).toBe(12);
+    expect(held.entities).toBe(28); // plan 22-14: the populated Lave (was 12)
     expect(held.tick).toBe(replay.state.tick);
     expect(held.hash).toBe(replay.hash);
     // A populated world hashes differently from its flight state alone, so the
@@ -572,7 +577,8 @@ test("a traffic-on cold start requests no NPC model before the prefetch trigger,
     entities: window.__wegolite?.sim?.entities,
   }));
   expect(launching.mode).toBe("launching");
-  expect(launching.entities).toBe(12);
+  // Plan 22-14 (owner-sanctioned): the populated Lave, 28 ships (was 12).
+  expect(launching.entities).toBe(28);
 
   expect(
     await page.evaluate(() => window.__wegolite?.test?.advanceTicks(600)),
@@ -806,7 +812,9 @@ test("a reload next to a regenerated ship shows it on the scanner", async ({
   // (epoch 0, as a cold Continue restores it), so the scanner check is never
   // vacuous: a world whose ships were all out of range would pass "every
   // contact is visible" for no reason. The same pose drives the Node count.
-  const pose = poseNearFirstShip(0, 5_000);
+  // Plan 22-14: the world is the populated one (the system populator), not the
+  // inert table.
+  const pose = poseNearFirstShip(0, 5_000, true);
   const { layout, config } = laveFixture();
   const model = buildHudModel(
     {
@@ -822,7 +830,7 @@ test("a reload next to a regenerated ship shows it on the scanner", async ({
     70,
     0,
     "",
-    npcContacts(laveInertWorld(0)),
+    npcContacts(lavePopulatedWorld(0)),
   );
   const expectedShips = model.contacts.filter(
     (contact) => contact.visible && contact.id === "ship",
@@ -860,9 +868,9 @@ test("a reload next to a regenerated ship shows it on the scanner", async ({
     undefined,
     { timeout: SLOW },
   );
-  // The save never holds a ship: the reload regenerates the inert world, whose
-  // id counter (113) differs from the fixture's (101), and the load succeeds
-  // (SAVE-08 mismatch policy).
+  // The save never holds a ship: the reload regenerates the world (since plan
+  // 22-14 the populated Lave of epoch 0, whose id counter differs from the
+  // fixture's 101), and the load succeeds (SAVE-08 mismatch policy).
   await page.evaluate(() => window.__wegolite?.test?.advanceTicks(1));
   await waitForFrames(page, 2);
   const browser = await page.evaluate(() => ({
@@ -872,7 +880,10 @@ test("a reload next to a regenerated ship shows it on the scanner", async ({
       .length,
   }));
   expect(browser.traffic).toBe(true);
-  expect(browser.entities).toBe(12);
+  // Plan 22-14 (owner-sanctioned, Phase 21 D-04): from 12. The cold Continue
+  // rebuilds the epoch-0 world through the system populator; the Node twin
+  // (death-twin.test.ts, plan 22-13) records 16 ships for it.
+  expect(browser.entities).toBe(liveEntityCount(lavePopulatedWorld(0)));
   expect(browser.ships, "ship contacts on the scanner").toBe(expectedShips);
   expect(errors).toEqual([]);
 });

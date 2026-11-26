@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- With NPC traffic on (the default in released builds), every system you arrive
+  in is now populated as in Oolite: traders, often with escorts; pirates alone
+  and in packs; bounty hunters; and police and, in high-tech systems,
+  interceptors, in numbers set by the system's government, economy, tech level
+  and neighbouring systems. The ships do not move or fight yet.
+
 ### Changed
 
 - Explosions now move with the ship that blew up, as in Oolite, including your

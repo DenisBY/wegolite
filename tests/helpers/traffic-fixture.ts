@@ -23,6 +23,7 @@ import { readFileSync } from "node:fs";
 import { NpcShipCatalogueSchema } from "../../src/content/schemas/ship-npc.js";
 import {
   createInertPopulate,
+  createSystemPopulate,
   trafficContent,
 } from "../../src/app/session/traffic.js";
 import type { TrafficContent } from "../../src/app/session/traffic.js";
@@ -69,11 +70,45 @@ export function laveInertWorld(epoch: number): World {
 }
 
 /**
- * A player pose `metres` from the lowest-id ship of `laveInertWorld(epoch)`,
- * along +x from that ship, with identity orientation and speed 0.
+ * The Lave world of `epoch` as the live session builds it since plan 22-14
+ * (WORLD-08): the same seed as `laveInertWorld`, populated through the system
+ * populator over the galaxy-0 system list. `laveInertWorld` stays for the frozen
+ * path (the epoch 1-20 pin and the 20-seed run).
  */
-export function poseNearFirstShip(epoch: number, metres: number): FixturePose {
-  const first = npcContacts(laveInertWorld(epoch))[0];
+export function lavePopulatedWorld(epoch: number): World {
+  const { layout, system } = laveFixture();
+  const content = committedTrafficContent();
+  const galaxy = JSON.parse(
+    readFileSync(
+      new URL("../../src/content/generated/systems/g0.json", import.meta.url),
+      "utf8",
+    ),
+  ) as unknown[];
+  const world = createWorld(
+    worldSeedFor(marketSeedForSystem(LAVE_SYSTEM_ID), epoch),
+  );
+  createSystemPopulate(
+    () => content,
+    () => layout,
+    () => system,
+    () => galaxy,
+  )(world, { traffic: true });
+  return world;
+}
+
+/**
+ * A player pose `metres` from the lowest-id ship of `laveInertWorld(epoch)`
+ * (or of `lavePopulatedWorld(epoch)` when `populated` is true), along +x from
+ * that ship, with identity orientation and speed 0.
+ */
+export function poseNearFirstShip(
+  epoch: number,
+  metres: number,
+  populated = false,
+): FixturePose {
+  const first = npcContacts(
+    populated ? lavePopulatedWorld(epoch) : laveInertWorld(epoch),
+  )[0];
   if (first === undefined) {
     throw new Error(`the Lave world of epoch ${epoch} holds no ship`);
   }

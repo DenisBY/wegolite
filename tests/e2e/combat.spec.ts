@@ -75,15 +75,23 @@ const SHOOTER_CARGO = 20;
 /**
  * The debris twin's pins (tests/app/session/tick-parity.test.ts, plan 16-06):
  * the kill tick relative to the spawn, the probe's entity count on the kill
- * tick (the populated world plus the twin's debris, since plan 17-12 2 pods, no
- * plate and 2 wrecks), and the world hash 60 ticks after the kill with fire released. Never edit these
- * to make the browser pass: a difference is a divergence to report.
+ * tick (the populated world plus the twin's debris: since plan 22-14 the 28-ship
+ * Lave plus 4 pods, 1 plate and no wreck), and the world hash 60 ticks after the
+ * kill with fire released. Never edit these to make the browser pass: a
+ * difference is a divergence to report.
  */
 const TWIN_KILL_OFFSET = 672;
-const TWIN_ENTITIES_AT_KILL = 16;
-// The plates the twin's kill releases (DEBRIS_AT_KILL.plates in the Node twin):
-// the re-measured debris stream releases none, so no plate model is requested.
-const TWIN_PLATES_AT_KILL = 0;
+// Plan 22-14 (owner-sanctioned, Phase 21 D-04): follows the Node twin's re-pin
+// in plan 22-13, from 16. The live session now populates through the system
+// populator, so the world holds the 28 ships of the Lave epoch-1 census, not the
+// 12-ship inert table: 28 ships + 4 pods + 1 plate. Browser equals Node.
+const TWIN_ENTITIES_AT_KILL = 33;
+// The debris the twin's kill releases (DEBRIS_AT_KILL in the Node twin). Plan
+// 22-14 follows plan 22-13: the shooter's id moved from 113 to 129, so its
+// combat stream releases 4 pods, 1 plate and no wreck (was 2 pods, 0 plates and
+// 2 wrecks). A plate model is therefore requested, and no wreck model.
+const TWIN_PLATES_AT_KILL = 1;
+const TWIN_WRECKS_AT_KILL = 0;
 // Follows the Node twin's re-pin in plan 17-05 (D-08): the shooter's shots are
 // the NPC fire gate's, so the kill lands earlier and the debris stream moved.
 // The forward shield and the bank 360 ticks after the spawn, fire held.
@@ -102,7 +110,11 @@ const TWIN_ENERGY_AFTER_SHOOTING = 222.18333333333135;
 // Follows the Node twin's re-pin in plan 21-15 (D-04, owner-sanctioned), from
 // "f6927215": the two surviving pods now carry contents (`pod:"furs",1`), the
 // only segments that differ; the browser equals Node.
-const TWIN_HASH_60_AFTER_KILL = "14a8a453";
+// Follows the Node twin's re-pin in plan 22-13 (plan 22-14, owner-sanctioned,
+// Phase 21 D-04), from "14a8a453": the populated Lave replaces the 12-ship inert
+// table (16 more ships in the world text), the shooter takes id 129 instead of
+// 113, and its debris moved with its stream; the browser equals Node.
+const TWIN_HASH_60_AFTER_KILL = "e0a3e3dc";
 /** Ticks after the kill at which the hash is read (the twin's 60). */
 const AFTER_KILL_TICKS = 60;
 /**
@@ -111,13 +123,19 @@ const AFTER_KILL_TICKS = 60;
  * the Node literal of the same name (`DAMAGE_*`, `DAMAGED_AT_KILL`). Never edit
  * these to make the browser pass: a difference is a divergence to report.
  */
-const TWIN_DAMAGE_SPAWN_DELAY = 1;
-const TWIN_DAMAGE_FIRST_OFFSET = 613;
+// Plan 22-14 (owner-sanctioned, Phase 21 D-04) follows the Node twin's re-pin in
+// plan 22-13: on the populated Lave a spawn delay of 1 damages nothing, so the
+// plan 19-13 selection rule (the smallest delay with a kill, a debris piece and
+// exactly one damaged item) now chooses 2: first damage 612 (was 613), 29
+// entities (28 ships + the one wreck), hash "7bb254ef" (was "5028fc8f"). The
+// damaged item, the debris (0/0/1) and the kill offset (672) do not move.
+const TWIN_DAMAGE_SPAWN_DELAY = 2;
+const TWIN_DAMAGE_FIRST_OFFSET = 612;
 const TWIN_DAMAGE_KILL_OFFSET = 672;
 const TWIN_DAMAGED_AT_KILL = ["EQ_GAL_DRIVE"];
 const TWIN_DAMAGE_DEBRIS_AT_KILL = { pods: 0, plates: 0, wrecks: 1 };
-const TWIN_DAMAGE_ENTITIES_AT_KILL = 13;
-const TWIN_DAMAGE_HASH_60_AFTER_KILL = "5028fc8f";
+const TWIN_DAMAGE_ENTITIES_AT_KILL = 29;
+const TWIN_DAMAGE_HASH_60_AFTER_KILL = "7bb254ef";
 /** The four F3 items the CBT-08 fight grants through the hook while docked. */
 const DAMAGE_ITEMS = [
   "EQ_DOCK_COMP",
@@ -524,8 +542,8 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
     "the tick 60 after the kill",
   ).toBe(killTick + AFTER_KILL_TICKS);
   // The pod models, the plate model when the twin's kill releases one, a wreck
-  // model and both particle textures were requested after the kill and
-  // arrived; the bound is a correctness bound.
+  // model when it releases one and both particle textures were requested after
+  // the kill and arrived; the bound is a correctness bound.
   const drawnAssets = [
     POD_GLB,
     ...(TWIN_PLATES_AT_KILL > 0 ? [PLATE_GLB] : []),
@@ -536,11 +554,13 @@ test("the fire key heats the laser, a test shooter drains the shield and R locks
       timeout: SLOW,
     })
     .toEqual([]);
-  await expect
-    .poll(() => WRECK_GLBS.some((path) => finished.has(path)), {
-      timeout: SLOW,
-    })
-    .toBe(true);
+  if (TWIN_WRECKS_AT_KILL > 0) {
+    await expect
+      .poll(() => WRECK_GLBS.some((path) => finished.has(path)), {
+        timeout: SLOW,
+      })
+      .toBe(true);
+  }
   await waitForFrames(page, SETTLE_FRAMES * 10);
 
   // The Node twin has no render layer: the browser hash with the explosion and
