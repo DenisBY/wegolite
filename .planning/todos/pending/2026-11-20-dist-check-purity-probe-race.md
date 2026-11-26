@@ -26,3 +26,11 @@ on 2026-11-18 (completed todo `2026-11-17-fix-content-boundary-probe-race.md`).
 
 Make the dist-check skip `__purity_*` probe files, as the content scanners, `tests/compliance.test.ts` and
 `tests/sim/rng.test.ts` already do, or skip a file that vanished after the listing. A tooling quick task.
+
+## Second sighting (2026-11-26, plan 22-14)
+
+The same class of race hit another scanner: `tests/guards/harness-isolation.test.ts` failed once in a remote
+`verify-full` (snapshot `0c5c72ca`) with `ENOENT` on `src/sim/ai/__purity_probe_2.ts`, a probe file that
+`tests/guards/ai-zone.test.ts` creates and deletes while the isolation guard walks the tree. The rerun at the
+same snapshot passed. Not isolated or confirmed. Fix both scanners together: skip `__purity_*` files, or skip a
+file that vanished after the listing.
