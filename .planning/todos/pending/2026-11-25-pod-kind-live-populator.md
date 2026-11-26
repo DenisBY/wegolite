@@ -36,3 +36,28 @@ ship's kind matches its role's `setCargoType` call.
 other than `src/sim/world/populate.ts` passes a `cargo` init without naming
 `cargoKind`; it is a source-text tripwire and cannot see a kind assembled out of its
 sight, hence this runtime check. Phase 22 must not widen the guard's allow-list.
+
+## Oolite's assignment to match (owner review, 2026-11-26)
+
+Oolite fixes the cargo when a ship is spawned, never when it dies. The populator
+calls `setCargoType(...)` (`oolite-populator.js:1385-1448` and the call sites at
+:1492-1522, :1557, :1713, :1864), and `setCargoFlag` (`ShipEntity.m:7323-7375`)
+creates the containers there and then. A death releases what is in the hold. The
+populator ported in Phase 22 must reproduce this per spawn context:
+
+- a trader leaving the station gets `PLENTIFUL_GOODS`, and one arriving in the
+  system gets `SCARCE_GOODS` (Wegolite's role fallback gives every trader
+  plentiful goods, so it does not tell the two apart);
+- a medical ship gets `MEDICAL_GOODS`, filled with narcotics as recorded in
+  FIDELITY E-198 (Oolite's own hold stays empty because of the `@"Narcotics"`
+  case mismatch);
+- an offender trader switched to the opportunist AI gets `PIRATE_GOODS`, and so do
+  pirates; couriers get `ILLEGAL_GOODS`;
+- a ship whose type is never set, with no `cargo_carried` in `shipdata`, carries no
+  cargo and releases no pods. The scarce-legal fallback in `resolvePodCargoKind`
+  stays only for the frozen inert path and the test shooter; live ships must never
+  reach it.
+
+When the populator lands, compare each spawn site against the lines above and
+update the FIDELITY rows that describe the fallback (E-197 and the E-78 rewrite)
+so they say that it applies only to the inert path.
