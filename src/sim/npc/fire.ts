@@ -47,7 +47,7 @@
 import { TICKS_PER_SECOND } from "../ai/time.js";
 import { LASER_STATS, WEAPON_COOLING_FACTOR } from "../combat/constants.js";
 import { NO_LASER } from "../combat/mounts.js";
-import type { LaserKey, MountKey } from "../combat/mounts.js";
+import type { Facing, LaserKey, MountKey } from "../combat/mounts.js";
 import { dot, length, rotate, sub, vec } from "../math.js";
 import type { Quat, Vec3 } from "../math.js";
 import type { Entity } from "../world/entity.js";
@@ -85,6 +85,7 @@ const UNARMED_RECHARGE_SECONDS = 100;
 /** Oolite's world +Z (`kBasisZVector`) in Wegolite's frame (z negated). */
 const ZBASIS: Vec3 = vec(0, 0, -1);
 const LOCAL_FORWARD: Vec3 = vec(0, 0, -1);
+const LOCAL_RIGHT: Vec3 = vec(1, 0, 0);
 
 /**
  * Where the gate refused. The first seven are the oracle's names (`gate.json`);
@@ -288,11 +289,29 @@ export function npcFireBlocked(entity: Entity): "noAi" | "selfTarget" | null {
   return null;
 }
 
+/** `dq` of `onTarget:` for one facing (`ShipEntity.m:9874-9892`). */
+function facingCosine(urp: Vec3, orientation: Quat, facing: Facing): number {
+  switch (facing) {
+    case "aft":
+      return -dot(urp, rotate(orientation, LOCAL_FORWARD));
+    case "port":
+      return -dot(urp, rotate(orientation, LOCAL_RIGHT));
+    case "starboard":
+      return dot(urp, rotate(orientation, LOCAL_RIGHT));
+    default:
+      return dot(urp, rotate(orientation, LOCAL_FORWARD));
+  }
+}
+
 /**
- * The cone test of `onTarget:` for a forward weapon (`ShipEntity.m:9874-9909`):
- * the cosine `dq` between the ship's forward vector and the unit direction to
- * the aim point (Oolite's `vector_normal_or_zbasis`, so a zero offset points
- * along world +Z, here (0, 0, -1)). Behind the ship is off target; inside the
+ * The cone test of `onTarget:` (`ShipEntity.m:9851-9909`): the cosine `dq`
+ * between the weapon's axis and the unit direction to the aim point (Oolite's
+ * `vector_normal_or_zbasis`, so a zero offset points along world +Z, here
+ * (0, 0, -1)). The axis follows the facing as `onTarget:` flips it: fore
+ * `+dot(urp, v_forward)`, aft `-dot(urp, v_forward)`, port
+ * `-dot(urp, v_right)`, starboard `+dot(urp, v_right)` (`:9874-9892`); `facing`
+ * defaults to fore, the only facing a forward-only ship asks for. Behind the
+ * weapon is off target; inside the
  * aim circle (`dq > aim * aim`) is on target; otherwise the target must fill
  * `|dq| >= sqrt(1 - radius^2 / (9 * d2))`. Oolite holds the locals as float32;
  * this is float64, and the equality fixture holds in both widths (plan 17-01).
@@ -304,6 +323,7 @@ export function onTargetCone(
   aimPoint: Vec3,
   targetRadius: number,
   aimTolerance: number,
+  facing: Facing = "fore",
 ): boolean {
   const rel = sub(aimPoint, position);
   const d2 = dot(rel, rel);
@@ -312,7 +332,7 @@ export function onTargetCone(
     const magnitude = length(rel);
     urp = vec(rel.x / magnitude, rel.y / magnitude, rel.z / magnitude);
   }
-  const dq = dot(urp, rotate(orientation, LOCAL_FORWARD));
+  const dq = facingCosine(urp, orientation, facing);
   if (dq < 0) return false;
   if (dq > aimTolerance * aimTolerance) return true;
   const astq = Math.sqrt(
@@ -331,6 +351,7 @@ export function npcOnTarget(
   entity: Entity,
   view: WorldView,
   tick: number,
+  facing: Facing = "fore",
 ): boolean {
   const target = targetBody(entity, view);
   if (target === undefined) return false;
@@ -340,6 +361,7 @@ export function npcOnTarget(
     calculateTargetPosition(entity, view, tick),
     target.radius,
     currentAimTolerance(entity),
+    facing,
   );
 }
 

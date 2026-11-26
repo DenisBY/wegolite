@@ -283,6 +283,7 @@ describe("flightTableFrom and massFor", () => {
       thrust: 20,
       mass: 5000,
       forwardWeapon: "EQ_WEAPON_PULSE_LASER",
+      aftWeapon: "EQ_WEAPON_NONE",
     });
     expect(table[1]?.forwardWeapon).toBe("EQ_WEAPON_NONE");
   });

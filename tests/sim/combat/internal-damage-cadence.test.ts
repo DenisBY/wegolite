@@ -145,7 +145,7 @@ function runAtCadence(frameDt: number): LogEntry[] {
       combat: {
         mounts: DEFAULT_LASER_MOUNTS,
         hulls: HULLS,
-        npcWeapons: new Map([["viper", VIPER_BEAM]]),
+        npcWeapons: new Map([["viper", { fore: VIPER_BEAM }]]),
         internalDamage: facts,
       },
     };

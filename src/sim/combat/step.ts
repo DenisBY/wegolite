@@ -46,7 +46,7 @@ import type { ControlIntent } from "../flight/controller.js";
 import type { FlightState } from "../flight/state.js";
 import type { StepOptions } from "../flight/step.js";
 import { AI_REGISTRY } from "../ai/registry.js";
-import { add, scale } from "../math.js";
+import { add, scale, vec } from "../math.js";
 import {
   adjustMissedShots,
   coolWeapon,
@@ -58,6 +58,7 @@ import {
 import { PLAYER_COLLISION_RADIUS_M } from "../npc/stats.js";
 import { rangeToTargetIn } from "../npc/target.js";
 import { createRngState, rngNext } from "../rng.js";
+import type { Entity, WeaponComponent } from "../world/entity.js";
 import { PLAYER_ID } from "../world/ids.js";
 import type { EntityId } from "../world/ids.js";
 import {
@@ -88,9 +89,9 @@ import type { AiRegistry } from "../world/step.js";
 import type { WorldView } from "../world/view.js";
 import { createWorldView } from "../world/view-impl.js";
 import { commitWorld } from "../world/world.js";
-import type { World } from "../world/world.js";
+import type { FireRequest, World } from "../world/world.js";
 import { PLAYER_HULL_KEY, npcLaserRay, playerLaserRay } from "./aim.js";
-import type { NpcWeapon } from "./aim.js";
+import type { NpcWeapon, NpcWeapons } from "./aim.js";
 import { resolveCollisions } from "./collide.js";
 import { LASER_STATS, PLAYER_MASS_KG } from "./constants.js";
 import { killPlayer } from "./death.js";
@@ -102,11 +103,12 @@ import { applyLedger } from "./ledger.js";
 import type { HitReaction, HitRecord } from "./ledger.js";
 import {
   DEFAULT_LASER_MOUNTS,
+  FACINGS,
   NO_LASER,
   isFacing,
   isMountKey,
 } from "./mounts.js";
-import type { LaserKey, LaserMounts } from "./mounts.js";
+import type { Facing, LaserKey, LaserMounts } from "./mounts.js";
 import { coolCabin, rechargeEnergyAndShields } from "./shields.js";
 import { dockReset, launchReset, sanitizeCombat } from "./state.js";
 import type { PlayerCombatState } from "./state.js";
@@ -126,11 +128,12 @@ export interface CombatOptions {
    */
   readonly hulls?: HullTable;
   /**
-   * The forward weapon of each NPC hull, keyed by spec key (compiled from the
-   * NPC ship catalogue). A ship whose key has no entry, or whose laser is
-   * `EQ_WEAPON_NONE`, cannot fire through `ShipControl.fire`.
+   * The weapons of each NPC hull per facing, keyed by spec key (compiled from
+   * the NPC ship catalogue). A ship whose key has no entry, a facing with no
+   * entry, or a laser that is `EQ_WEAPON_NONE`, cannot fire that facing through
+   * `ShipControl.fire`.
    */
-  readonly npcWeapons?: ReadonlyMap<string, NpcWeapon>;
+  readonly npcWeapons?: ReadonlyMap<string, NpcWeapons>;
   /**
    * The compiled debris content (Phase 16, `../world/debris.ts`), built by the
    * app from the lazily loaded catalogues. Absent with traffic off or before the
@@ -295,20 +298,23 @@ function drainFireQueue(
   layout: SystemLayout,
   options: StepOptions | undefined,
 ): ShotRequest[] {
-  const queued = [...world.fireQueue].sort((a, b) => a - b);
+  const queued = [...world.fireQueue].sort(compareFireRequests);
   world.fireQueue.length = 0;
   const shots: ShotRequest[] = [];
   if (!worldStepped) return shots;
   const weapons = options?.combat?.npcWeapons;
   if (weapons === undefined) return shots;
   let view: WorldView | undefined;
-  for (const id of queued) {
+  for (const { id, facing } of queued) {
+    if (!isFacing(facing)) continue;
     const shooter = world.store.get(id);
     if (shooter === undefined || shooter.dead || shooter.kind !== "ship") {
       continue;
     }
     if (npcFireBlocked(shooter) !== null) continue;
-    const weapon = weapons.get(shooter.specKey);
+    const set = weapons.get(shooter.specKey);
+    if (set === undefined) continue;
+    const weapon = resolveNpcWeapon(shooter, set, facing);
     if (weapon === undefined || !isMountKey(weapon.laser)) continue;
     const gateView = (view ??= createWorldView(
       world,
@@ -319,31 +325,102 @@ function drainFireQueue(
     const stream = createRngState(shooter.rng.combat);
     const result = npcFireGate(
       {
-        temperature: shooter.weapon.temperature,
+        temperature: facingTemperature(shooter.weapon, facing),
         energy: shooter.energy,
         tick: player.tick,
         lastShotTick: shooter.weapon.lastShotTick,
         laser: weapon.laser,
         accuracy: shooter.steer.accuracy,
         range: rangeToTargetIn(shooter, gateView),
-        onTarget: () => npcOnTarget(shooter, gateView, player.tick),
+        onTarget: () => npcOnTarget(shooter, gateView, player.tick, facing),
       },
       () => rngNext(stream),
     );
     shooter.rng.combat = stream.s;
     if (result.kind !== "fired") continue;
-    const ray = npcLaserRay(shooter, weapon);
+    const ray = npcLaserRay(shooter, weapon, facing);
     if (ray === null || weapon.laser === NO_LASER) continue;
     const stats = LASER_STATS[weapon.laser];
     shooter.energy -= stats.energy;
-    shooter.weapon.temperature = heatWeapon(
-      shooter.weapon.temperature,
-      stats.shotTemperature,
+    setFacingTemperature(
+      shooter.weapon,
+      facing,
+      heatWeapon(
+        facingTemperature(shooter.weapon, facing),
+        stats.shotTemperature,
+      ),
     );
     shooter.weapon.lastShotTick = player.tick;
     shots.push({ shooter: id, ray, laser: weapon.laser });
   }
   return shots;
+}
+
+/**
+ * The drain order of two fire requests: ascending id, then the facing order of
+ * `FACINGS` (fore, aft, port, starboard), so one ship's shots resolve in a fixed
+ * order whatever order they were queued in (FOUND-20).
+ */
+export function compareFireRequests(a: FireRequest, b: FireRequest): number {
+  return a.id - b.id || FACINGS.indexOf(a.facing) - FACINGS.indexOf(b.facing);
+}
+
+/** The origin: the mount of an override weapon on a facing the record leaves bare. */
+const ORIGIN = vec(0, 0, 0);
+
+/**
+ * The weapon a ship fires on `facing`: the record's compiled weapon for that
+ * facing, replaced by `entity.weaponTypes[facing]` when that is not null
+ * (`EQ_WEAPON_NONE` removes the weapon; a laser key swaps the type and keeps the
+ * record's mount position, or the model origin when the record authors no
+ * weapon on that facing, since the catalogue omits an unarmed facing's
+ * position; an unknown key fires nothing). Undefined means no weapon, with no
+ * gate draw (Oolite refuses a facing it has no weapon for before `fireWeapon:`).
+ */
+function resolveNpcWeapon(
+  shooter: Entity,
+  set: NpcWeapons,
+  facing: Facing,
+): NpcWeapon | undefined {
+  const authored = set[facing];
+  const override = shooter.weaponTypes[facing];
+  if (override === null) return authored;
+  if (override === NO_LASER || !isMountKey(override)) return undefined;
+  return { laser: override, offset: authored?.offset ?? ORIGIN };
+}
+
+/** The temperature of one facing (`forward/aft/port/starboard_weapon_temp`). */
+function facingTemperature(weapon: WeaponComponent, facing: Facing): number {
+  switch (facing) {
+    case "aft":
+      return weapon.aftTemperature;
+    case "port":
+      return weapon.portTemperature;
+    case "starboard":
+      return weapon.starboardTemperature;
+    default:
+      return weapon.temperature;
+  }
+}
+
+function setFacingTemperature(
+  weapon: WeaponComponent,
+  facing: Facing,
+  value: number,
+): void {
+  switch (facing) {
+    case "aft":
+      weapon.aftTemperature = value;
+      break;
+    case "port":
+      weapon.portTemperature = value;
+      break;
+    case "starboard":
+      weapon.starboardTemperature = value;
+      break;
+    default:
+      weapon.temperature = value;
+  }
 }
 
 /**
@@ -399,18 +476,31 @@ function rechargeStatics(world: World, dt: number): void {
 }
 
 /**
- * Cool every live ship's forward weapon by `fround(6 x dt)` in float32, floored
- * at 0 (`ShipEntity.m:2214-2218`, D-07). Runs after the drain and the recharge,
- * so a shot of this tick sees the temperature the previous tick left, as the
- * behaviour step of an Oolite update sees the cooling of the update before it.
- * A weapon at 0 is never written, so a pristine record stays the pristine record
- * and a world that never fires hashes as it did before Phase 17.
+ * Cool every live ship's four weapon temperatures by `fround(6 x dt)` in
+ * float32, floored at 0 (`ShipEntity.m:2213-2218`, D-07; Oolite cools the
+ * forward, aft, port and starboard temperatures by the one rule). Runs after the
+ * drain and the recharge, so a shot of this tick sees the temperature the
+ * previous tick left, as the behaviour step of an Oolite update sees the
+ * cooling of the update before it. A temperature at 0 is never written, so a
+ * pristine record stays the pristine record and a world that never fires (or
+ * never fires aft) hashes as it did before.
  */
 function coolShips(world: World, dt: number): void {
   for (const entity of world.store.live) {
     if (entity.dead || entity.kind !== "ship") continue;
-    if (entity.weapon.temperature === 0) continue;
-    entity.weapon.temperature = coolWeapon(entity.weapon.temperature, dt);
+    const weapon = entity.weapon;
+    if (weapon.temperature !== 0) {
+      weapon.temperature = coolWeapon(weapon.temperature, dt);
+    }
+    if (weapon.aftTemperature !== 0) {
+      weapon.aftTemperature = coolWeapon(weapon.aftTemperature, dt);
+    }
+    if (weapon.portTemperature !== 0) {
+      weapon.portTemperature = coolWeapon(weapon.portTemperature, dt);
+    }
+    if (weapon.starboardTemperature !== 0) {
+      weapon.starboardTemperature = coolWeapon(weapon.starboardTemperature, dt);
+    }
   }
 }
 

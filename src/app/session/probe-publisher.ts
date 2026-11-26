@@ -35,6 +35,7 @@ import { SINGLE_INSTANCE_KEYS } from "../../sim/player/outfitting.js";
 import { MAX_EQUIPMENT_KEYS, setCredits } from "../../sim/player/profile.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
 import {
+  TEST_SHOOTER_KEY,
   spawnTestAttacker,
   spawnTestFlyers,
   spawnTestShooter,
@@ -98,9 +99,6 @@ export interface ProbePublisher {
   /** Remove the hook, save and Save/Load screen probes from the page object. */
   withdrawProbe: () => void;
 }
-
-/** The ship the hook's shooter is: the stock Viper (a police fighter). */
-const TEST_SHOOTER_KEY = "viper";
 
 export function toTuple(position: Vec3): [number, number, number] {
   return [position.x, position.y, position.z];

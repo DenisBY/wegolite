@@ -43,6 +43,13 @@ export interface NpcFlightStats {
   readonly mass: number;
   /** The forward weapon's equipment key (`forward_weapon_type`). */
   readonly forwardWeapon: MountKey;
+  /**
+   * The aft weapon's equipment key (`aft_weapon_type`); absent means none.
+   * `flightTableFrom` always sets it. Read by the aft-weapon tripwire and by
+   * Phase 23's aft attack branches (CBT-19); no steering reads it yet. The
+   * compiled records mount no port or starboard weapon.
+   */
+  readonly aftWeapon?: MountKey;
 }
 
 /**
@@ -57,6 +64,7 @@ export const OOLITE_DEFAULT_FLIGHT_STATS: NpcFlightStats = Object.freeze({
   thrust: DEFAULT_THRUST,
   mass: 0,
   forwardWeapon: "EQ_WEAPON_NONE",
+  aftWeapon: "EQ_WEAPON_NONE",
 });
 
 function inRange(value: number, max: number): boolean {
@@ -77,7 +85,8 @@ function isUsable(row: NpcFlightStats): boolean {
     inRange(row.maxFlightPitch, MAX_STEER_RATE) &&
     inRange(row.thrust, MAX_ENTITY_MAGNITUDE) &&
     inRange(row.mass, MAX_ENTITY_MAGNITUDE) &&
-    isMountKey(row.forwardWeapon)
+    isMountKey(row.forwardWeapon) &&
+    (row.aftWeapon === undefined || isMountKey(row.aftWeapon))
   );
 }
 
@@ -136,6 +145,8 @@ export interface FlightRecord {
   readonly thrust: number;
   readonly mass: number;
   readonly forwardWeapon: string;
+  /** Absent in a hand-built record of the legacy shape: no aft weapon. */
+  readonly aftWeapon?: string;
 }
 
 /**
@@ -158,6 +169,7 @@ export function flightTableFrom(
         forwardWeapon: isMountKey(record.forwardWeapon)
           ? record.forwardWeapon
           : NO_LASER,
+        aftWeapon: isMountKey(record.aftWeapon) ? record.aftWeapon : NO_LASER,
       }),
     ),
   );

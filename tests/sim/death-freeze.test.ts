@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { npcLaserRay } from "../../src/sim/combat/aim.js";
-import type { NpcWeapon } from "../../src/sim/combat/aim.js";
+import type { NpcWeapon, NpcWeapons } from "../../src/sim/combat/aim.js";
 import { DEFAULT_LASER_MOUNTS, NO_LASER } from "../../src/sim/combat/mounts.js";
 import { createPlayerCombatState } from "../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../src/sim/combat/state.js";
@@ -66,7 +66,7 @@ const STEP_OPTIONS: StepOptions = {
   combat: {
     mounts: DEFAULT_LASER_MOUNTS,
     hulls: HULLS,
-    npcWeapons: new Map<string, NpcWeapon>([["viper", VIPER_BEAM]]),
+    npcWeapons: new Map<string, NpcWeapons>([["viper", { fore: VIPER_BEAM }]]),
   },
 };
 

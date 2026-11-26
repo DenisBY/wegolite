@@ -49,6 +49,7 @@ import { MAX_ENTITIES, NO_ENTITY } from "../../../src/sim/world/ids.js";
 import { stepWorld } from "../../../src/sim/world/step.js";
 import type { AiRegistry } from "../../../src/sim/world/step.js";
 import {
+  MAX_FIRE_REQUESTS,
   createWorld,
   requestFire,
   spawnEntity,
@@ -222,7 +223,7 @@ describe("an opted-in scripted attacker fires from fly-to through the gate (trac
     for (let i = 0; i < TICK_BOUND && hits < 5; i += 1) {
       const before = viper.nav.behaviour;
       stepOnly(world, player);
-      const queued = world.fireQueue.includes(viper.id);
+      const queued = world.fireQueue.some((r) => r.id === viper.id);
       const afterSteering = viper.rng.combat;
       // Only the fly-to site asks in this scenario (ATTACK_TARGET and the
       // dispatcher have no call site), and the Adder is a live ship thousands
@@ -283,7 +284,9 @@ describe("without the opt-in nothing changes (criterion 4, T-17-15)", () => {
       expect(pose(on.viper)).toBe(pose(off.viper));
       expect(off.world.fireQueue).toEqual([]);
       if (on.world.fireQueue.length > 0) {
-        expect(on.world.fireQueue).toEqual([on.viper.id]);
+        expect(on.world.fireQueue).toEqual([
+          { id: on.viper.id, facing: "fore" },
+        ]);
         first = on.player.tick;
         break;
       }
@@ -392,19 +395,25 @@ describe("requestFire, the one bounded de-duplicated push (D-17, T-17-17)", () =
     requestFire(world, 102);
     requestFire(world, 101);
     requestFire(world, 102);
-    expect(world.fireQueue).toEqual([102, 101]);
+    expect(world.fireQueue).toEqual([
+      { id: 102, facing: "fore" },
+      { id: 101, facing: "fore" },
+    ]);
   });
 
-  it("refuses a new id once MAX_ENTITIES are queued and still de-duplicates", () => {
+  it("refuses a new request once MAX_FIRE_REQUESTS are queued and still de-duplicates", () => {
     const world = createWorld(1);
-    for (let id = 101; id < 101 + MAX_ENTITIES + 5; id += 1) {
+    for (let id = 101; id < 101 + MAX_FIRE_REQUESTS + 5; id += 1) {
       requestFire(world, id);
     }
-    expect(world.fireQueue).toHaveLength(MAX_ENTITIES);
-    expect(world.fireQueue[0]).toBe(101);
-    expect(world.fireQueue.at(-1)).toBe(101 + MAX_ENTITIES - 1);
+    expect(world.fireQueue).toHaveLength(MAX_FIRE_REQUESTS);
+    expect(world.fireQueue[0]).toEqual({ id: 101, facing: "fore" });
+    expect(world.fireQueue.at(-1)).toEqual({
+      id: 101 + MAX_FIRE_REQUESTS - 1,
+      facing: "fore",
+    });
     requestFire(world, 101);
-    expect(world.fireQueue).toHaveLength(MAX_ENTITIES);
+    expect(world.fireQueue).toHaveLength(MAX_FIRE_REQUESTS);
   });
 
   it("ShipControl.fire delegates to it: one entry per actor, none for another's id", () => {
@@ -413,13 +422,13 @@ describe("requestFire, the one bounded de-duplicated push (D-17, T-17-17)", () =
     control.fire(viper.id);
     control.fire(viper.id);
     control.fire(adder.id); // not the actor: ignored
-    expect(world.fireQueue).toEqual([viper.id]);
+    expect(world.fireQueue).toEqual([{ id: viper.id, facing: "fore" }]);
     // The steering's push and the control's push share the entry.
     requestFire(world, viper.id);
-    expect(world.fireQueue).toEqual([viper.id]);
+    expect(world.fireQueue).toEqual([{ id: viper.id, facing: "fore" }]);
   });
 
-  it("never throws, never exceeds MAX_ENTITIES and never queues an id twice, over any id sequence", () => {
+  it("never throws, never exceeds MAX_FIRE_REQUESTS and never queues an id twice, over any id sequence (a non-integer id is ignored)", () => {
     const ids = fc.oneof(
       fc.integer({ min: 101, max: 101 + 2 * MAX_ENTITIES }),
       fc.integer({ min: -5, max: 5 }),
@@ -442,15 +451,20 @@ describe("requestFire, the one bounded de-duplicated push (D-17, T-17-17)", () =
           const world = createWorld(1);
           for (const id of sequence) {
             requestFire(world, id);
-            expect(world.fireQueue.length).toBeLessThanOrEqual(MAX_ENTITIES);
+            expect(world.fireQueue.length).toBeLessThanOrEqual(
+              MAX_FIRE_REQUESTS,
+            );
           }
-          // One entry per id (SameValueZero: NaN once, -0 and 0 together).
-          expect(new Set(world.fireQueue).size).toBe(world.fireQueue.length);
-          // The first MAX_ENTITIES distinct ids are kept, in order (a Set
-          // folds -0 into 0 as the queue's own comparison does).
-          const distinct = [...new Set(sequence)].slice(0, MAX_ENTITIES);
-          expect(world.fireQueue).toHaveLength(distinct.length);
-          world.fireQueue.forEach((id, index) => {
+          // One entry per id (a Set folds -0 into 0 as the queue's own
+          // comparison does), and only integer ids are queued.
+          const queuedIds = world.fireQueue.map((request) => request.id);
+          expect(new Set(queuedIds).size).toBe(queuedIds.length);
+          // The distinct integer ids are kept, in order.
+          const distinct = [
+            ...new Set(sequence.filter((id) => Number.isSafeInteger(id))),
+          ].slice(0, MAX_FIRE_REQUESTS);
+          expect(queuedIds).toHaveLength(distinct.length);
+          queuedIds.forEach((id, index) => {
             const expected = distinct[index] as number;
             expect(id === expected || Object.is(id, expected)).toBe(true);
           });
@@ -476,19 +490,20 @@ describe("a faulted pilot (review Fable M4, T-17-15)", () => {
     const { world, player, viper, adder } = duel(true);
     // Run until the attacker asks on a tick (the real pilot, the real gate).
     let guard = 0;
-    while (!world.fireQueue.includes(viper.id) && guard < TICK_BOUND) {
+    const asked = (): boolean => world.fireQueue.some((r) => r.id === viper.id);
+    while (!asked() && guard < TICK_BOUND) {
       stepOnly(world, player);
-      if (!world.fireQueue.includes(viper.id)) drain(world, player);
+      if (!asked()) drain(world, player);
       guard += 1;
     }
-    expect(world.fireQueue).toEqual([viper.id]);
+    expect(world.fireQueue).toEqual([{ id: viper.id, facing: "fore" }]);
     drain(world, player);
     // The next tick: steering asks (the AI is still attached), then the think
     // due this tick throws and fault containment nulls the AI.
     viper.ai!.nextThinkTick = player.tick + 1;
     stepOnly(world, player, THROWING);
     expect(viper.ai).toBeNull();
-    expect(world.fireQueue).toEqual([viper.id]);
+    expect(world.fireQueue).toEqual([{ id: viper.id, facing: "fore" }]);
 
     const energy = viper.energy;
     const heat = viper.weapon.temperature;
@@ -913,7 +928,7 @@ describe("the routes stay exclusive (advisor warning, T-17-17)", () => {
       expect(allowed.has(pilot.nav.behaviour)).toBe(true);
       stepOnly(world, player);
       const counts = new Map<number, number>();
-      for (const id of world.fireQueue) {
+      for (const { id } of world.fireQueue) {
         counts.set(id, (counts.get(id) ?? 0) + 1);
       }
       for (const count of counts.values()) expect(count).toBe(1);

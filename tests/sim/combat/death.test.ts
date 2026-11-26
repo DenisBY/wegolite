@@ -18,7 +18,7 @@ import {
   PLAYER_HULL_KEY,
   playerLaserRay,
 } from "../../../src/sim/combat/aim.js";
-import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
+import type { NpcWeapon, NpcWeapons } from "../../../src/sim/combat/aim.js";
 import { resolveCollisions } from "../../../src/sim/combat/collide.js";
 import {
   LASER_STATS,
@@ -85,7 +85,9 @@ function options(): StepOptions {
     combat: {
       mounts: DEFAULT_LASER_MOUNTS,
       hulls: HULLS,
-      npcWeapons: new Map<string, NpcWeapon>([["viper", VIPER_BEAM]]),
+      npcWeapons: new Map<string, NpcWeapons>([
+        ["viper", { fore: VIPER_BEAM }],
+      ]),
     },
   };
 }
@@ -460,7 +462,7 @@ function sceneOptions(extra: {
 /** The explicit request of the shot NPC `id` takes with its real weapon. */
 function npcShot(world: World, id: number): ShotRequest {
   const entity = entityOf(world, id);
-  const weapon = NPC_WEAPONS.get(entity.specKey);
+  const weapon = NPC_WEAPONS.get(entity.specKey)?.fore;
   if (weapon === undefined) throw new Error("no weapon");
   const ray = npcLaserRay(entity, weapon);
   if (ray === null || weapon.laser === NO_LASER) {

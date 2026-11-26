@@ -446,7 +446,7 @@ describe("kill notifications (D-04)", () => {
     const holder = spawnAi(world);
     const other = spawnAi(world);
     target(world, holder, victim);
-    world.fireQueue.push(other);
+    world.fireQueue.push({ id: other, facing: "fore" });
     killShip(world, victim, PLAYER_ID, []);
     drain(
       world,
@@ -454,7 +454,7 @@ describe("kill notifications (D-04)", () => {
         ctx.ctl.fire(ctx.self);
       }),
     );
-    expect(world.fireQueue).toEqual([other]);
+    expect(world.fireQueue).toEqual([{ id: other, facing: "fore" }]);
     world.fireQueue.length = 0;
     commitWorld(world);
     expect(() => snapshotWorld(world)).not.toThrow();
@@ -606,7 +606,7 @@ describe("the immediate drain inside resolveShots", () => {
     combat: {
       mounts: DEFAULT_LASER_MOUNTS,
       hulls: realHullTable(),
-      npcWeapons: new Map([["viper", VIPER_BEAM]]),
+      npcWeapons: new Map([["viper", { fore: VIPER_BEAM }]]),
     },
   };
 
@@ -714,7 +714,7 @@ describe("a test shooter's lethal shot through stepSim", () => {
       combat: {
         mounts: DEFAULT_LASER_MOUNTS,
         hulls: realHullTable(),
-        npcWeapons: new Map([["viper", VIPER_BEAM]]),
+        npcWeapons: new Map([["viper", { fore: VIPER_BEAM }]]),
       },
     };
     const combat = createPlayerCombatState();

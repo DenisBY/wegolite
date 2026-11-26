@@ -46,7 +46,7 @@ import type {
   WriteResult,
 } from "../../../src/persistence/store.js";
 import { npcLaserRay } from "../../../src/sim/combat/aim.js";
-import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
+import type { NpcWeapon, NpcWeapons } from "../../../src/sim/combat/aim.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
 import type { PlayerCombatState } from "../../../src/sim/combat/state.js";
@@ -93,7 +93,9 @@ function stepOptions(): StepOptions {
     combat: {
       mounts: DEFAULT_LASER_MOUNTS,
       hulls: HULLS,
-      npcWeapons: new Map<string, NpcWeapon>([["viper", VIPER_BEAM]]),
+      npcWeapons: new Map<string, NpcWeapons>([
+        ["viper", { fore: VIPER_BEAM }],
+      ]),
     },
   };
 }

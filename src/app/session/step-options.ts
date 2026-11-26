@@ -23,7 +23,7 @@
  */
 
 import type { Commodity, Equipment, System } from "../../content/types.js";
-import type { NpcWeapon } from "../../sim/combat/aim.js";
+import type { NpcWeapons } from "../../sim/combat/aim.js";
 import type { HullTable } from "../../sim/combat/hit.js";
 import type { InternalDamageFacts } from "../../sim/combat/internal-damage.js";
 import type { LaserMounts } from "../../sim/combat/mounts.js";
@@ -67,8 +67,8 @@ export interface StepOptionsInput {
    * nothing.
    */
   readonly hulls?: HullTable;
-  /** The NPC forward weapons keyed by spec key; absent with traffic off. */
-  readonly npcWeapons?: ReadonlyMap<string, NpcWeapon>;
+  /** The NPC weapons per facing keyed by spec key; absent with traffic off. */
+  readonly npcWeapons?: ReadonlyMap<string, NpcWeapons>;
   /**
    * The compiled NPC flight table (AI-01, plan 14-18), from `flightTableFrom`;
    * absent with traffic off. The session and the Node replay hand the same list

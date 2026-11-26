@@ -39,12 +39,13 @@ import type {
   ShipHullCatalogue,
 } from "../../content/types.js";
 import type { FlyerRecords } from "../../sim/ai/test-spawn.js";
-import type { NpcWeapon } from "../../sim/combat/aim.js";
+import type { NpcWeapon, NpcWeapons } from "../../sim/combat/aim.js";
 import type {
   HullData,
   HullTable,
   SubentityHull,
 } from "../../sim/combat/hit.js";
+import { NO_LASER } from "../../sim/combat/mounts.js";
 import type { HullOctree } from "../../sim/combat/octree.js";
 import { vec } from "../../sim/math.js";
 import { flightTableFrom } from "../../sim/npc/stats.js";
@@ -74,10 +75,10 @@ export interface TrafficContent {
    */
   readonly flight: readonly NpcFlightStats[];
   /**
-   * The forward weapon of each hull by spec key (CBT-07): static content keyed
-   * by the catalogue's own string, never by an entity id.
+   * The weapons of each hull per facing by spec key (CBT-07, FOUND-20): static
+   * content keyed by the catalogue's own string, never by an entity id.
    */
-  readonly weapons: ReadonlyMap<string, NpcWeapon>;
+  readonly weapons: ReadonlyMap<string, NpcWeapons>;
   /**
    * The authored shipdata `laser_color` of each hull that has one, by spec key
    * (quick 261119-i9g): static content keyed by the catalogue's own string,
@@ -172,6 +173,41 @@ export function debrisContentFrom(
 }
 
 /**
+ * The per-facing weapons of one catalogue hull (FOUND-20): the forward entry
+ * is always present (a hull with no forward weapon keeps an
+ * `EQ_WEAPON_NONE` entry, so the fire gate still takes its one draw and refuses,
+ * as before the shape was per facing); the aft, port and starboard entries are
+ * present only when the record arms that facing.
+ */
+function npcWeaponsOf(ship: NpcShip): NpcWeapons {
+  const mount = (
+    laser: NpcWeapon["laser"],
+    position: readonly number[],
+  ): NpcWeapon => ({
+    laser,
+    offset: vec(position[0] ?? 0, position[1] ?? 0, position[2] ?? 0),
+  });
+  const aft =
+    ship.aftWeapon === NO_LASER
+      ? undefined
+      : mount(ship.aftWeapon, ship.aftWeaponPosition);
+  const port =
+    ship.portWeapon === NO_LASER
+      ? undefined
+      : mount(ship.portWeapon, ship.portWeaponPosition);
+  const starboard =
+    ship.starboardWeapon === NO_LASER
+      ? undefined
+      : mount(ship.starboardWeapon, ship.starboardWeaponPosition);
+  return Object.freeze({
+    fore: mount(ship.forwardWeapon, ship.forwardWeaponPosition),
+    ...(aft === undefined ? {} : { aft }),
+    ...(port === undefined ? {} : { port }),
+    ...(starboard === undefined ? {} : { starboard }),
+  });
+}
+
+/**
  * Build the populator records, the step masses and the flight table from the
  * catalogue; with the optional extras also the debris content, the debris
  * records and the default explosion setting. Each extra key is set only when
@@ -208,10 +244,7 @@ export function trafficContent(
     ),
     flight: flightTableFrom(ships),
     weapons: new Map(
-      ships.map((ship): [string, NpcWeapon] => {
-        const [x, y, z] = ship.forwardWeaponPosition;
-        return [ship.key, { laser: ship.forwardWeapon, offset: vec(x, y, z) }];
-      }),
+      ships.map((ship): [string, NpcWeapons] => [ship.key, npcWeaponsOf(ship)]),
     ),
     laserColors: new Map(
       ships.flatMap((ship): [string, readonly [number, number, number]][] =>

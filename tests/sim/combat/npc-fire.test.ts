@@ -32,7 +32,7 @@ import { AI_REGISTRY } from "../../../src/sim/ai/registry.js";
 import { spawnTestShooter } from "../../../src/sim/ai/test-spawn.js";
 import type { AiComponent, AiModule } from "../../../src/sim/ai/types.js";
 import { npcLaserRay, PLAYER_HULL_KEY } from "../../../src/sim/combat/aim.js";
-import type { NpcWeapon } from "../../../src/sim/combat/aim.js";
+import type { NpcWeapon, NpcWeapons } from "../../../src/sim/combat/aim.js";
 import {
   ENERGY_DAMAGE_TO_HEAT_FACTOR,
   LASER_STATS,
@@ -121,16 +121,18 @@ const VIPER_BEAM: NpcWeapon = {
 };
 
 /** The Adder's pulse laser and the Shuttle's empty mount. */
-const WEAPONS = new Map<string, NpcWeapon>([
-  ["viper", VIPER_BEAM],
+const WEAPONS = new Map<string, NpcWeapons>([
+  ["viper", { fore: VIPER_BEAM }],
   [
     "adder",
     {
-      laser: "EQ_WEAPON_PULSE_LASER",
-      offset: vec(0, -1.676900029182434, 28.8523006439209),
+      fore: {
+        laser: "EQ_WEAPON_PULSE_LASER",
+        offset: vec(0, -1.676900029182434, 28.8523006439209),
+      },
     },
   ],
-  ["shuttle", { laser: "EQ_WEAPON_NONE", offset: vec(0, 0, 0) }],
+  ["shuttle", { fore: { laser: "EQ_WEAPON_NONE", offset: vec(0, 0, 0) } }],
 ]);
 
 /** The committed Viper record, as the hook's seam reads it. */
@@ -945,7 +947,7 @@ describe("who may fire (the drain's refusals, T-17-11, T-17-26)", () => {
     entityOf(world, viper).nav.targetId = PLAYER_ID;
     const before = untouched(world, viper);
     fireFrom(world, viper);
-    expect(world.fireQueue).toEqual([viper]);
+    expect(world.fireQueue).toEqual([{ id: viper, facing: "fore" }]);
 
     const events = resolve(player, world, createPlayerCombatState());
 
@@ -977,7 +979,7 @@ describe("who may fire (the drain's refusals, T-17-11, T-17-26)", () => {
     expect(stepped.some((event) => event.kind === "aiFaulted")).toBe(true);
     expect(ship.ai).toBeNull();
     expect(ship.steer.accuracy).not.toBe(ACCURACY_UNRESOLVED);
-    expect(world.fireQueue).toEqual([viper]);
+    expect(world.fireQueue).toEqual([{ id: viper, facing: "fore" }]);
     const before = untouched(world, viper);
 
     const events = resolve(
@@ -1057,10 +1059,12 @@ describe("who may fire (the drain's refusals, T-17-11, T-17-26)", () => {
     fireFrom(world, unknown);
     fireFrom(world, bogus);
     // A malformed table: the laser is a string the type refuses, built past it.
-    const table = new Map<string, NpcWeapon>(WEAPONS);
+    const table = new Map<string, NpcWeapons>(WEAPONS);
     table.set("bogus", {
-      laser: "EQ_WEAPON_BOGUS" as unknown as NpcWeapon["laser"],
-      offset: vec(0, 0, 0),
+      fore: {
+        laser: "EQ_WEAPON_BOGUS" as unknown as NpcWeapon["laser"],
+        offset: vec(0, 0, 0),
+      },
     });
 
     const events = resolve(player, world, createPlayerCombatState(), [], {
@@ -1095,8 +1099,8 @@ describe("who may fire (the drain's refusals, T-17-11, T-17-26)", () => {
     fireFrom(world, viper);
     fireFrom(world, barrel);
     // Both have a weapon row, so only the dead and kind checks refuse them.
-    const table = new Map<string, NpcWeapon>(WEAPONS);
-    table.set("barrel", VIPER_BEAM);
+    const table = new Map<string, NpcWeapons>(WEAPONS);
+    table.set("barrel", { fore: VIPER_BEAM });
 
     const events = resolve(player, world, createPlayerCombatState(), [], {
       combat: { mounts: DEFAULT_LASER_MOUNTS, hulls: HULLS, npcWeapons: table },
@@ -1199,7 +1203,10 @@ describe("resolution order", () => {
     }
     fireFrom(world, second);
     fireFrom(world, first);
-    expect(world.fireQueue).toEqual([second, first]);
+    expect(world.fireQueue).toEqual([
+      { id: second, facing: "fore" },
+      { id: first, facing: "fore" },
+    ]);
 
     const events = resolve(player, world, combat);
 
