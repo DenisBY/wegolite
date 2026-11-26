@@ -38,7 +38,6 @@ import {
   POPULATION_SCRIPT_SHA256,
   PopulationFixtureSchema,
   type PopulationDraws,
-  type PopulationDrawTag,
   type PopulationEntry,
   type PopulationFixture,
   type PopulationGroup,
@@ -396,7 +395,7 @@ export function decodePopulationFixture(json: unknown): PopulationFixture {
     for (const tag of POPULATION_DRAW_TAGS) {
       const text = drawsFile[tag];
       if (text !== undefined) {
-        draws[tag as PopulationDrawTag] = decodeDraws(text);
+        draws[tag] = decodeDraws(text);
       }
     }
     const constants = POPULATION_ENTRY_TABLE[entry];

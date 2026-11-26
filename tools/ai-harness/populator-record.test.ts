@@ -2,14 +2,14 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The population recorder (Phase 22, plan 22-01): the byte-for-byte rerun and
- * the pin refusal.
+ * The population recorder (Phase 22, plans 22-01 and 22-02): the byte-for-byte
+ * rerun of every committed file and the pin refusal.
  *
- * Both cases execute Oolite's own JavaScript and need the pinned tree: run
- * with `OOLITE_SRC` naming a directory built from the local Oolite checkout at
+ * The cases execute Oolite's own JavaScript and need the pinned tree: run with
+ * `OOLITE_SRC` naming a directory built from the local Oolite checkout at
  * 7437f22 (`git archive 7437f22 src Resources`). Without it they are reported
  * as skipped (never passed), which is the state on the remote test machine and
- * in CI (no checkout there): CI replays the committed fixtures through
+ * in CI (no checkout there): CI replays the committed files through
  * `tests/oracles/population/population.self.test.ts` instead.
  */
 
@@ -28,12 +28,25 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  EDGE_DRAWS_FILE,
+  NEIGHBOURHOOD_FILE,
   POPULATOR_FILE,
   POPULATOR_SCRIPT_SHA256,
   PopulatorPinError,
+  SHIP_FACTS_FILE,
+  recomputeSelection,
+  recordEdgeDraws,
+  recordNeighbourhoodTable,
   recordPopulation,
+  recordShipFacts,
+  widenedText,
   writeFixture,
 } from "./populator-record.js";
+import {
+  POPULATION_SEEDS,
+  POPULATION_SYSTEMS,
+  recordedSeeds,
+} from "./population-systems.js";
 
 const OOLITE_SRC = process.env.OOLITE_SRC ?? "";
 const NEEDS_TREE = OOLITE_SRC === "";
@@ -58,7 +71,7 @@ function committedFixtures(): { name: string; system: string; seed: number }[] {
   return found;
 }
 
-/** The path of the first key at which two parsed fixtures differ. */
+/** The path of the first key at which two parsed files differ. */
 function firstDifference(a: unknown, b: unknown, path = "$"): string | null {
   if (Array.isArray(a) && Array.isArray(b)) {
     const length = Math.max(a.length, b.length);
@@ -94,6 +107,17 @@ function firstDifference(a: unknown, b: unknown, path = "$"): string | null {
   return Object.is(a, b) ? null : path;
 }
 
+/** Fail naming the first differing key when two files' bytes differ. */
+function expectSameBytes(name: string, committed: Buffer, fresh: Buffer): void {
+  if (!fresh.equals(committed)) {
+    const where = firstDifference(
+      JSON.parse(committed.toString("utf8")) as unknown,
+      JSON.parse(fresh.toString("utf8")) as unknown,
+    );
+    expect.fail(`${name} differs from a rerun at ${where ?? "its formatting"}`);
+  }
+}
+
 describe("populator recorder (needs OOLITE_SRC at the pinned tree)", () => {
   it.skipIf(NEEDS_TREE)(
     "reproduces every committed fixture byte for byte",
@@ -109,23 +133,74 @@ describe("populator recorder (needs OOLITE_SRC at the pinned tree)", () => {
             fixture.system,
             fixture.seed,
           );
-          const fresh = readFileSync(written);
-          const committed = readFileSync(join(FIXTURE_DIR, fixture.name));
-          if (!fresh.equals(committed)) {
-            const where = firstDifference(
-              JSON.parse(committed.toString("utf8")) as unknown,
-              JSON.parse(fresh.toString("utf8")) as unknown,
-            );
-            expect.fail(
-              `${fixture.name} differs from a rerun at ${where ?? "its formatting"}`,
-            );
-          }
+          expectSameBytes(
+            fixture.name,
+            readFileSync(join(FIXTURE_DIR, fixture.name)),
+            readFileSync(written),
+          );
         }
       } finally {
         rmSync(scratch, { recursive: true, force: true });
       }
     },
-    60_000,
+    300_000,
+  );
+
+  it.skipIf(NEEDS_TREE)(
+    "records exactly the fixtures of the committed sample, and no other",
+    () => {
+      const expected = POPULATION_SYSTEMS.flatMap((system) =>
+        system.seeds.map((seed) => `${system.id}-seed${String(seed)}.json`),
+      ).sort();
+      expect(committedFixtures().map((fixture) => fixture.name)).toEqual(
+        expected,
+      );
+    },
+  );
+
+  it.skipIf(NEEDS_TREE)(
+    "reproduces the neighbourhood table, the edge draws and the ship facts byte for byte",
+    () => {
+      const widened: readonly [string, () => unknown][] = [
+        [NEIGHBOURHOOD_FILE, () => recordNeighbourhoodTable(OOLITE_SRC)],
+        [EDGE_DRAWS_FILE, () => recordEdgeDraws(OOLITE_SRC)],
+        [SHIP_FACTS_FILE, () => recordShipFacts(OOLITE_SRC)],
+      ];
+      for (const [name, record] of widened) {
+        expectSameBytes(
+          name,
+          readFileSync(join(FIXTURE_DIR, name)),
+          Buffer.from(widenedText(record()), "utf8"),
+        );
+      }
+    },
+    300_000,
+  );
+
+  it.skipIf(NEEDS_TREE)(
+    "reproduces the committed sample from the pinned script (the selector is deterministic)",
+    () => {
+      const selection = recomputeSelection(OOLITE_SRC);
+      expect(
+        selection.systems.map((system) => ({
+          id: system.id,
+          reasons: system.reasons,
+        })),
+      ).toEqual(
+        POPULATION_SYSTEMS.map((system) => ({
+          id: system.id,
+          reasons: system.reasons,
+        })),
+      );
+      for (const system of POPULATION_SYSTEMS) {
+        expect(system.seeds).toEqual(recordedSeeds(system.id));
+        expect(
+          system.seeds.every((seed) => POPULATION_SEEDS.includes(seed)),
+        ).toBe(true);
+        expect(system.seeds).toContain(1);
+      }
+    },
+    300_000,
   );
 
   it.skipIf(NEEDS_TREE)(

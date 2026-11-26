@@ -41,7 +41,9 @@ import {
   POPULATION_STARTUP,
 } from "../../tests/oracles/population/codec.js";
 import {
+  EdgeDrawsSchema,
   NeighbourhoodTableSchema,
+  ShipFactsSchema,
   POPULATION_ENTRY_NAMES,
   POPULATION_GALAXIES,
   POPULATION_OOLITE_PIN,
@@ -49,6 +51,8 @@ import {
   POPULATION_SCRIPT_SHA256,
   POPULATION_SYSTEMS_PER_GALAXY,
   PopulationFixtureSchema,
+  type EdgeCase,
+  type EdgeDraws,
   type NeighbourhoodTable,
   type PopulationDrawTag,
   type PopulationEntry,
@@ -56,6 +60,8 @@ import {
   type PopulationFixture,
   type PopulationGroup,
   type PopulationNeighbour,
+  type PopulationShip,
+  type ShipFacts,
 } from "../../tests/oracles/population/schema.js";
 import { parseOpenStep } from "../oolite-ingest/openstep/parser.js";
 import type {
@@ -67,6 +73,7 @@ import { resolveAll } from "../oolite-ingest/like-ship.js";
 import { callInContext, ENTRY_TIMEOUT_MS, type AiContext } from "./load.js";
 import {
   createPopulatorHost,
+  type GroupCapture,
   type PopulatorCatalogueRecord,
   type PopulatorHost,
   type PopulatorShipFact,
@@ -808,6 +815,457 @@ export function recordNeighbourhoodTable(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Boundary draws (plan 22-02): crafted doubles at the comparison boundaries
+// of the script, run through the script's own code.
+// ---------------------------------------------------------------------------
+
+/** The largest double below 1. */
+const BELOW_ONE = 1 - 2 ** -53;
+
+const bitView = new DataView(new ArrayBuffer(8));
+
+function bitsOf(value: number): bigint {
+  bitView.setFloat64(0, value);
+  return bitView.getBigUint64(0);
+}
+
+function fromBits(bits: bigint): number {
+  bitView.setBigUint64(0, bits);
+  return bitView.getFloat64(0);
+}
+
+/** The next double above a finite non-negative `value`. */
+function nextUp(value: number): number {
+  return fromBits(bitsOf(value) + 1n);
+}
+
+/** The next double below a positive `value`. */
+function nextDown(value: number): number {
+  return fromBits(bitsOf(value) - 1n);
+}
+
+/** One draw slot of a case: the nth call to `Math.random` on a script line. */
+interface EdgeSlotSpec {
+  readonly label: string;
+  readonly line: number;
+  readonly occurrence: number;
+}
+
+/** What one crafted run observed. */
+interface CraftedRun {
+  readonly counts: readonly (number | null)[];
+  readonly capture: GroupCapture | null;
+}
+
+/** How one case is run and what it observes. */
+interface EdgeSpec {
+  readonly id: string;
+  readonly site: string;
+  readonly boundary: string;
+  readonly observes: string;
+  readonly system: string;
+  readonly entry: PopulationEntryName | null;
+  /** Seeds tried in order until the case's extreme probes differ. */
+  readonly seeds: readonly number[];
+  readonly slots: readonly EdgeSlotSpec[];
+  /** Values of the slots other than the one the search moves. */
+  readonly pinned: readonly number[];
+  /** The index of the slot the search moves. */
+  readonly moving: number;
+  readonly observe: (run: CraftedRun) => EdgeResult;
+  /** Extra facts to record from the observed boundary draw. */
+  readonly inputs?: (
+    boundary: number,
+    observe: (draw: number) => EdgeResult,
+  ) => Record<string, number | string>;
+}
+
+type EdgeResult = number | string | boolean | number[];
+
+const FIXED_DRAW = 0.5;
+
+/**
+ * Run the script with every `Math.random` call at `values[i]` when it is the
+ * `slots[i].occurrence`th call made from `slots[i].line` (counted from the
+ * start of the callback when an entry is run, else from the start of
+ * `systemWillPopulate`) and `FIXED_DRAW` otherwise. The engine's own draws
+ * (record pick, escort set-up, positions) stay the seeded stream.
+ */
+function runCrafted(
+  oolitesrc: string,
+  spec: EdgeSpec,
+  seed: number,
+  values: readonly number[],
+): CraftedRun {
+  const boot = loadPopulator(oolitesrc, spec.system, seed);
+  const counters = new Map<number, number>();
+  const random = (): number => {
+    const stack = new Error().stack ?? "";
+    const match = /oolite-populator\.js:(\d+):\d+/.exec(stack);
+    const line = match === null ? -1 : Number(match[1]);
+    const occurrence = counters.get(line) ?? 0;
+    counters.set(line, occurrence + 1);
+    const at = spec.slots.findIndex(
+      (slot) => slot.line === line && slot.occurrence === occurrence,
+    );
+    return at >= 0 ? (values[at] ?? FIXED_DRAW) : FIXED_DRAW;
+  };
+  Reflect.set(boot.ai.global.Math as object, "random", random);
+  callInContext(boot.ai, "this.startUp()");
+  callInContext(boot.ai, "this.systemWillPopulate()");
+  const counts = boot.host.registered.map(
+    (registered) => registered.groupCount,
+  );
+  if (spec.entry === null) {
+    return { counts, capture: null };
+  }
+  const ordinal = POPULATION_ENTRY_NAMES.indexOf(spec.entry);
+  const registered = boot.host.registered[ordinal];
+  if (registered === undefined) {
+    throw new Error(`no entry ${spec.entry}`);
+  }
+  counters.clear();
+  boot.host.beginGroup();
+  boot.harnessCall.definition = registered.definition;
+  boot.harnessCall.position = boot.host.makePosition(registered.location);
+  callInContext(
+    boot.ai,
+    "__harnessCall.definition.callback(__harnessCall.position)",
+  );
+  return { counts, capture: boot.host.endGroup() };
+}
+
+/** The observation is the same at both extremes: the seed does not exercise the branch. */
+class NoThresholdError extends Error {
+  public constructor() {
+    super("the observation does not change between the extremes");
+    this.name = "NoThresholdError";
+  }
+}
+
+function resultKey(result: EdgeResult): string {
+  return JSON.stringify(result);
+}
+
+/**
+ * The adjacent pair of doubles (below, at) in [lo, hi] where the observation
+ * changes from `observe(lo)` to `observe(hi)`; the observation must change
+ * once, at a threshold.
+ */
+function findThreshold(
+  observe: (draw: number) => EdgeResult,
+  lo: number,
+  hi: number,
+): { below: number; at: number } {
+  const first = resultKey(observe(lo));
+  if (first === resultKey(observe(hi))) {
+    throw new NoThresholdError();
+  }
+  let low = bitsOf(lo);
+  let high = bitsOf(hi);
+  while (high - low > 1n) {
+    const middle = (low + high) / 2n;
+    if (resultKey(observe(fromBits(middle))) === first) {
+      low = middle;
+    } else {
+      high = middle;
+    }
+  }
+  return { below: fromBits(low), at: fromBits(high) };
+}
+
+/** The ordinal of the freighters entry (the first `randomise` call). */
+const FREIGHTERS = POPULATION_ENTRY_NAMES.indexOf("oolite-freighters");
+
+function shipOne(run: CraftedRun): PopulationShip {
+  const ship = run.capture?.ships[0];
+  if (ship === undefined) {
+    throw new Error("the crafted run produced no ship");
+  }
+  return ship;
+}
+
+const EDGE_SPECS: readonly EdgeSpec[] = [
+  {
+    id: "randomise-third-draw",
+    site: `${POPULATOR_FILE}:648`,
+    boundary:
+      "randomise: `Math.random() < count - floor(count)` is strict; the first two draws are 0.5 so the count is the rate itself",
+    observes:
+      "the groupCount of oolite-freighters (the first randomise call), g0-s7",
+    system: "g0-s7",
+    entry: null,
+    seeds: [1],
+    slots: [
+      {
+        label: "randomise third draw of oolite-freighters",
+        line: 648,
+        occurrence: 0,
+      },
+    ],
+    pinned: [],
+    moving: 0,
+    observe: (run) => run.counts[FREIGHTERS] ?? -1,
+    inputs: (boundary, observe) => {
+      const floor = observe(boundary);
+      if (typeof floor !== "number") {
+        throw new Error("the freighters count is not a number");
+      }
+      return { floor, count: floor + boundary, pinnedDraws: "0.5, 0.5" };
+    },
+  },
+  {
+    id: "freighter-offender-test",
+    site: `${POPULATOR_FILE}:1418`,
+    boundary:
+      "_addFreighter: the offender test `Math.random() < 0.05` is strict; an offender's bounty is `ceil(Math.random() * 20)` (10 for the fixed 0.5)",
+    observes: "bounty of the first ship of oolite-freighters group 0, g0-s7",
+    system: "g0-s7",
+    entry: "oolite-freighters",
+    seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    slots: [{ label: "offender test", line: 1418, occurrence: 0 }],
+    pinned: [],
+    moving: 0,
+    observe: (run) => shipOne(run).bounty,
+  },
+  {
+    id: "freighter-opportunist-test",
+    site: `${POPULATOR_FILE}:1423`,
+    boundary:
+      "_addFreighter: the opportunist test `Math.random() < 0.5 && autoAI` is strict, with the offender test forced true",
+    observes:
+      "cargo kind of the first ship of oolite-freighters group 0 (pirate when it switches to the opportunist AI), g0-s7",
+    system: "g0-s7",
+    entry: "oolite-freighters",
+    seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    slots: [
+      { label: "offender test (forced true)", line: 1418, occurrence: 0 },
+      { label: "opportunist test", line: 1423, occurrence: 0 },
+    ],
+    pinned: [0],
+    moving: 1,
+    observe: (run) => shipOne(run).cargoKind,
+  },
+  {
+    id: "police-patrol-interceptor-role",
+    site: `${POPULATOR_FILE}:2055`,
+    boundary:
+      "_addPolicePatrol: `9 + Math.random() * 6 < techlevel` is strict (tech level 12: equality at 0.5 before rounding)",
+    observes:
+      "the role requested from the engine by oolite-police-route1 group 0, a tech level 12 system",
+    system: "TECH12",
+    entry: "oolite-police-route1",
+    seeds: [1],
+    slots: [{ label: "role draw", line: 2055, occurrence: 0 }],
+    pinned: [],
+    moving: 0,
+    observe: (run) => run.capture?.calls[0]?.role ?? "",
+  },
+  {
+    id: "station-patrol-interceptor-role",
+    site: `${POPULATOR_FILE}:2082`,
+    boundary:
+      "_addPoliceStationPatrol: `9 + Math.random() * 6 < techlevel` is strict (tech level 12)",
+    observes:
+      "the role requested from the engine by oolite-police-stationpatrol, a tech level 12 system",
+    system: "TECH12",
+    entry: "oolite-police-stationpatrol",
+    seeds: [1],
+    slots: [{ label: "role draw", line: 2082, occurrence: 0 }],
+    pinned: [],
+    moving: 0,
+    observe: (run) => run.capture?.calls[0]?.role ?? "",
+  },
+  {
+    id: "set-weapons-level-one-and-a-half",
+    site: `${POPULATOR_FILE}:2242`,
+    boundary:
+      "_setWeapons: `level - floor(level) > Math.random()` is strict; _addLightHunter calls it with level 1.5 (equality at 0.5)",
+    observes:
+      "forward and aft weapon of the first ship of oolite-hunters-route1 group 0, g0-s7",
+    system: "g0-s7",
+    entry: "oolite-hunters-route1",
+    seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    slots: [{ label: "_setWeapons draw of ship 0", line: 2242, occurrence: 0 }],
+    pinned: [],
+    moving: 0,
+    observe: (run) => `${shipOne(run).forwardWeapon}/${shipOne(run).aftWeapon}`,
+  },
+];
+
+/** `[r1, r2]` pairs probed for the pack class boundary `floor(k + 0.5 + r1 - r2)`. */
+const PACK_PROBES: readonly (readonly [number, number])[] = [
+  [0.75, 0.25],
+  [nextDown(0.75), 0.25],
+  [0.25, 0.75],
+  [0.25, nextUp(0.75)],
+  [0, 0],
+  [BELOW_ONE, 0],
+  [0, BELOW_ONE],
+  [BELOW_ONE, BELOW_ONE],
+];
+
+function packLightFighters(run: CraftedRun): number {
+  return (
+    run.capture?.ships.filter((ship) => ship.role === "pirate-light-fighter")
+      .length ?? -1
+  );
+}
+
+/** The first system of any galaxy whose plist tech level is 12 and government >= 2. */
+function techLevelTwelveSystem(): string {
+  for (let galaxy = 0; galaxy < POPULATION_GALAXIES; galaxy += 1) {
+    for (const system of galaxySystemsOf(galaxy)) {
+      if (system.techLevelRaw === 12 && system.government >= 2) {
+        return `g${String(galaxy)}-s${String(system.systemIndex)}`;
+      }
+    }
+  }
+  throw new Error("no system has tech level 12 and government 2 or more");
+}
+
+/**
+ * The boundary-draw cases, each run through the script's own functions with
+ * crafted doubles (`runCrafted`): the `randomise` third draw at
+ * `count - floor(count)`, the offender test at 0.05, the opportunist test at
+ * 0.5, `9 + r * 6 < TL` at its threshold, the pack class
+ * `floor(k + 0.5 + r1 - r2)` at +-0.5, `_setWeapons`' `level - floor(level) > r`
+ * at equality, and the draws 0 and the largest double below 1 in every case.
+ */
+export function recordEdgeDraws(oolitesrc: string): EdgeDraws {
+  const cases: EdgeCase[] = [];
+  for (const base of EDGE_SPECS) {
+    const system =
+      base.system === "TECH12" ? techLevelTwelveSystem() : base.system;
+    const spec: EdgeSpec = { ...base, system };
+    let chosen: { seed: number; below: number; at: number } | undefined;
+    for (const seed of spec.seeds) {
+      const observe = (draw: number): EdgeResult => {
+        const values = spec.slots.map((_slot, at) =>
+          at === spec.moving ? draw : (spec.pinned[at] ?? FIXED_DRAW),
+        );
+        return spec.observe(runCrafted(oolitesrc, spec, seed, values));
+      };
+      try {
+        const found = findThreshold(observe, 0, BELOW_ONE);
+        chosen = { seed, ...found };
+        break;
+      } catch (error: unknown) {
+        // This seed's ship does not exercise the branch; try the next.
+        if (!(error instanceof NoThresholdError)) {
+          throw error;
+        }
+      }
+    }
+    if (chosen === undefined) {
+      throw new Error(`edge case ${spec.id}: no seed exercises the boundary`);
+    }
+    const { seed, below, at } = chosen;
+    const observe = (draw: number): EdgeResult => {
+      const values = spec.slots.map((_slot, index) =>
+        index === spec.moving ? draw : (spec.pinned[index] ?? FIXED_DRAW),
+      );
+      return spec.observe(runCrafted(oolitesrc, spec, seed, values));
+    };
+    const draws = [...new Set([0, below, at, BELOW_ONE])].sort((a, b) => a - b);
+    cases.push({
+      id: spec.id,
+      site: spec.site,
+      boundary: spec.boundary,
+      observes: spec.observes,
+      system,
+      seed,
+      entry: spec.entry,
+      inputs: spec.inputs === undefined ? {} : spec.inputs(at, observe),
+      fixedDraw: FIXED_DRAW,
+      slots: spec.slots.map((slot) => ({ ...slot })),
+      probes: draws.map((draw) => ({
+        draws: spec.slots.map((_slot, index) =>
+          index === spec.moving ? draw : (spec.pinned[index] ?? FIXED_DRAW),
+        ),
+        result: observe(draw),
+      })),
+    });
+  }
+
+  const packSpec: EdgeSpec = {
+    id: "pirate-pack-class-count",
+    site: `${POPULATOR_FILE}:1813`,
+    boundary:
+      "_addPiratePack: the light fighter count is `floor(2 + (0.5 + r1 - r2))`; r1 - r2 = +-0.5 puts the argument on an integer",
+    observes:
+      "the number of pirate-light-fighter ships of oolite-pirate-light-route1 group 0, g0-s7",
+    system: "g0-s7",
+    entry: "oolite-pirate-light-route1",
+    seeds: [1],
+    slots: [
+      { label: "r1 of the light class", line: 1813, occurrence: 0 },
+      { label: "r2 of the light class", line: 1813, occurrence: 1 },
+    ],
+    pinned: [],
+    moving: 0,
+    observe: packLightFighters,
+  };
+  cases.push({
+    id: packSpec.id,
+    site: packSpec.site,
+    boundary: packSpec.boundary,
+    observes: packSpec.observes,
+    system: packSpec.system,
+    seed: 1,
+    entry: packSpec.entry,
+    inputs: { k: 2 },
+    fixedDraw: FIXED_DRAW,
+    slots: packSpec.slots.map((slot) => ({ ...slot })),
+    probes: PACK_PROBES.map(([r1, r2]) => ({
+      draws: [r1, r2],
+      result: packSpec.observe(runCrafted(oolitesrc, packSpec, 1, [r1, r2])),
+    })),
+  });
+
+  return EdgeDrawsSchema.parse({
+    header: widenedHeader(),
+    cases,
+    unreachable: [
+      {
+        id: "randomise-equality-on-the-port-stream",
+        site: `${POPULATOR_FILE}:648`,
+        boundary:
+          "randomise: the third draw equal to count - floor(count) for a count whose fraction is not a multiple of 2^-32",
+        reason:
+          "the recorded draws and the port's streams are u32 values over 2^32, so a fraction that is not a multiple of 2^-32 (for example 0.123) is never drawn exactly; the boundary is exercised on `randomise` itself with the recorded doubles above, not through a stream",
+      },
+    ],
+  });
+}
+
+/**
+ * Per catalogue key the ship facts `shipdata.plist` carries that
+ * `ships-npc.json` lacks (plan 22-05 compiles them): `hyperspace_motor`
+ * (`ShipEntity.m:382`, default YES), an authored `accuracy` and
+ * `cargo_carried`, resolved through `like_ship`.
+ */
+export function recordShipFacts(oolitesrc: string): ShipFacts {
+  loadPopulator(oolitesrc, "g0-s7", 1);
+  const facts = readShipFacts(oolitesrc);
+  const ships = sortedCodeUnits(npcCatalogue().map((record) => record.key)).map(
+    (key) => {
+      const fact = facts.get(key);
+      if (fact === undefined) {
+        throw new Error(`no ship facts for ${key}`);
+      }
+      return {
+        key,
+        hasHyperspaceMotor: fact.hyperspaceMotor,
+        accuracy: fact.accuracy,
+        cargoCarried: fact.cargoCarried,
+      };
+    },
+  );
+  return ShipFactsSchema.parse({ header: widenedHeader(), ships });
+}
+
 /**
  * The selector's proxy population of one system: the sum of the `groupCount`
  * values of every entry the script registers when every draw is 0.5 (so
@@ -881,6 +1339,8 @@ function widenedHeader(): {
 
 /** The file names of the widened files next to the fixtures. */
 export const NEIGHBOURHOOD_FILE = "neighbourhood-all.json";
+export const EDGE_DRAWS_FILE = "edge-draws.json";
+export const SHIP_FACTS_FILE = "ship-facts.json";
 
 /**
  * Record everything the widened oracle holds into `outDir`: every
@@ -898,6 +1358,12 @@ export function writeAll(oolitesrc: string, outDir: string): string[] {
   const tablePath = join(outDir, NEIGHBOURHOOD_FILE);
   writeFileSync(tablePath, widenedText(recordNeighbourhoodTable(oolitesrc)));
   written.push(tablePath);
+  const edgePath = join(outDir, EDGE_DRAWS_FILE);
+  writeFileSync(edgePath, widenedText(recordEdgeDraws(oolitesrc)));
+  written.push(edgePath);
+  const factsPath = join(outDir, SHIP_FACTS_FILE);
+  writeFileSync(factsPath, widenedText(recordShipFacts(oolitesrc)));
+  written.push(factsPath);
   return written;
 }
 

@@ -13,7 +13,7 @@
  * written by hand; nothing here reads Wegolite code or the Oolite tree.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -26,6 +26,7 @@ import {
   POPULATION_STARTUP,
 } from "./codec.js";
 import {
+  EdgeDrawsSchema,
   NeighbourhoodTableSchema,
   POPULATION_DRAW_TAGS,
   POPULATION_ENTRY_NAMES,
@@ -36,6 +37,8 @@ import {
   POPULATION_UNCOMPARED_DRAW_TAGS,
   PopulationFixtureSchema,
   ShipFactsSchema,
+  type EdgeCase,
+  type EdgeDraws,
   type NeighbourhoodTable,
   type PopulationFixture,
   type PopulationGroup,
@@ -774,5 +777,181 @@ describe("population oracle: the stratified sample (D-04)", () => {
         fixture.header.system,
       ).toEqual(row?.locals[at]);
     }
+  });
+});
+
+const bitView = new DataView(new ArrayBuffer(8));
+
+/** The next double above a finite non-negative `value`. */
+function nextUp(value: number): number {
+  bitView.setFloat64(0, value);
+  bitView.setBigUint64(0, bitView.getBigUint64(0) + 1n);
+  return bitView.getFloat64(0);
+}
+
+const BELOW_ONE = 1 - 2 ** -53;
+
+let edgeCache: EdgeDraws | undefined;
+function edge(): EdgeDraws {
+  edgeCache ??= EdgeDrawsSchema.parse(readJson("edge-draws.json"));
+  return edgeCache;
+}
+
+function edgeCase(id: string): EdgeCase {
+  const found = edge().cases.find((candidate) => candidate.id === id);
+  if (found === undefined) {
+    throw new Error(`no edge case ${id}`);
+  }
+  return found;
+}
+
+describe("population oracle: the boundary draws (edge-draws.json)", () => {
+  it("holds every boundary the plan names, each with its site and the script's result", () => {
+    expect(
+      edge()
+        .cases.map((c) => c.id)
+        .sort(),
+    ).toEqual(
+      [
+        "freighter-offender-test",
+        "freighter-opportunist-test",
+        "pirate-pack-class-count",
+        "police-patrol-interceptor-role",
+        "randomise-third-draw",
+        "set-weapons-level-one-and-a-half",
+        "station-patrol-interceptor-role",
+      ].sort(),
+    );
+    for (const c of edge().cases) {
+      expect(c.site, c.id).toMatch(/oolite-populator\.js:\d+$/);
+      expect(c.probes.length, c.id).toBeGreaterThanOrEqual(4);
+    }
+    expect(edge().unreachable.length).toBeGreaterThan(0);
+  });
+
+  it("probes the draws 0 and the largest double below 1 in every single-slot case", () => {
+    for (const c of edge().cases) {
+      if (c.slots.length !== 1) {
+        continue;
+      }
+      const draws = c.probes.map((probe) => probe.draws[0]);
+      expect(draws, c.id).toContain(0);
+      expect(draws, c.id).toContain(BELOW_ONE);
+    }
+  });
+
+  it("pins every threshold to the last bit: an adjacent pair of doubles with different results", () => {
+    for (const c of edge().cases) {
+      if (c.slots.length !== 1) {
+        continue;
+      }
+      const moving = c.probes.map((probe) => ({
+        draw: probe.draws[0] ?? -1,
+        result: JSON.stringify(probe.result),
+      }));
+      const adjacent = moving.some((low, at) => {
+        const high = moving[at + 1];
+        return (
+          high !== undefined &&
+          high.draw === nextUp(low.draw) &&
+          high.result !== low.result
+        );
+      });
+      expect(adjacent, c.id).toBe(true);
+    }
+  });
+
+  it("records the randomise boundary at count - floor(count): equality takes no increment", () => {
+    const c = edgeCase("randomise-third-draw");
+    const floor = Number(c.inputs.floor);
+    const count = Number(c.inputs.count);
+    const fraction = count - floor;
+    const at = c.probes.find((probe) => probe.draws[0] === fraction);
+    expect(at?.result).toBe(floor);
+    expect(c.probes.find((probe) => probe.draws[0] === 0)?.result).toBe(
+      floor + 1,
+    );
+  });
+
+  it("records the offender test at 0.05 and the opportunist test at 0.5 as strict comparisons", () => {
+    const offender = edgeCase("freighter-offender-test");
+    const bounty = (draw: number): unknown =>
+      offender.probes.find((probe) => probe.draws[0] === draw)?.result;
+    expect(bounty(0.05)).toBe(0);
+    expect(bounty(0.05 - 2 ** -57)).toBeGreaterThan(0);
+    const opportunist = edgeCase("freighter-opportunist-test");
+    const kind = (draw: number): unknown =>
+      opportunist.probes.find((probe) => probe.draws[1] === draw)?.result;
+    expect(kind(0.5)).toBe("scarce");
+    expect(kind(0.5 - 2 ** -54)).toBe("pirate");
+  });
+
+  it("records the pack class count at r1 - r2 of +0.5 and -0.5", () => {
+    const c = edgeCase("pirate-pack-class-count");
+    const count = (r1: number, r2: number): unknown =>
+      c.probes.find((p) => p.draws[0] === r1 && p.draws[1] === r2)?.result;
+    expect(count(0.75, 0.25)).toBe(3);
+    expect(count(0.25, 0.75)).toBe(2);
+    expect(count(0, BELOW_ONE)).toBe(1);
+  });
+
+  it("refuses a case whose probe has the wrong number of draws, and an unknown key", () => {
+    const first = edge().cases[0];
+    expect(first).toBeDefined();
+    const wrong = {
+      ...edge(),
+      cases: [
+        {
+          ...first,
+          probes: [{ draws: [0, 0], result: 1 }, ...(first?.probes ?? [])],
+        },
+      ],
+    };
+    expect(EdgeDrawsSchema.safeParse(wrong).success).toBe(false);
+    expect(EdgeDrawsSchema.safeParse({ ...edge(), extra: 1 }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("population oracle: the ship facts (ship-facts.json)", () => {
+  const facts = ShipFactsSchema.parse(readJson("ship-facts.json"));
+
+  it("has one row per catalogue key, with hasHyperspaceMotor first among the facts", () => {
+    expect(facts.ships.length).toBeGreaterThanOrEqual(20);
+    const without = facts.ships
+      .filter((ship) => !ship.hasHyperspaceMotor)
+      .map((ship) => ship.key);
+    expect(without).toEqual([
+      "gecko",
+      "krait",
+      "mamba",
+      "mamba-escort",
+      "shuttle",
+      "sidewinder",
+      "sidewinder-escort",
+      "viper",
+      "viper-pursuit",
+    ]);
+    expect(facts.ships.some((ship) => ship.hasHyperspaceMotor)).toBe(true);
+  });
+
+  it("refuses keys out of order and an unknown member", () => {
+    const reversed = { ...facts, ships: [...facts.ships].reverse() };
+    expect(ShipFactsSchema.safeParse(reversed).success).toBe(false);
+    expect(ShipFactsSchema.safeParse({ ...facts, extra: 1 }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("population oracle: the size ceiling (D-04, hundreds of KB)", () => {
+  it("keeps the fixture directory under 1,000,000 bytes (du -sb)", () => {
+    const directory = 4096;
+    const total = readdirSync(FIXTURE_DIR).reduce(
+      (sum, name) => sum + statSync(`${FIXTURE_DIR}${name}`).size,
+      directory,
+    );
+    expect(total).toBeLessThan(1_000_000);
   });
 });
