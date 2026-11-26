@@ -1,0 +1,23 @@
+# Population census spike (Phase 22, D-07): start in a quiet (government 7) system and
+# dump the ship census. Same probe OXP and the same route as census-anarchy.steps:
+#   run-remote.sh --steps tools/oolite-reference/steps/census-quiet.steps \
+#     --addons /home/opencode/oolite-probes/population-census --out DIR --timeout 300
+# The probe's scenarios.plist adds "Census anarchy (Qudira)" and "Census quiet
+# (Teanrebi)" after the four built-ins. One key press moves the selection two rows
+# (the 0.5 s hold repeats once; see census-anarchy.steps). The seven selectable rows
+# wrap and start on Normal, so one Up press goes Normal -> Return to Menu -> the last
+# row, "Census quiet (Teanrebi)".
+window 120
+sleep 10
+shot title
+key Return
+sleep 3
+shot scenarios
+sleep 2
+key Up
+sleep 4
+shot scenario-selected
+key Return
+waitlog 180 CENSUS-DONE
+sleep 3
+shot docked

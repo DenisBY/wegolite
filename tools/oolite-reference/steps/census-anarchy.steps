@@ -1,0 +1,29 @@
+# Population census spike (Phase 22, D-07): start in an anarchy system and dump the
+# ship census. Needs the throwaway probe OXP (not in the repository), passed with
+#   run-remote.sh --steps tools/oolite-reference/steps/census-anarchy.steps \
+#     --addons /home/opencode/oolite-probes/population-census --out DIR --timeout 300
+# The probe's scenarios.plist adds two scenarios after the four built-ins (standard,
+# easy, tutorial, strict). Loading a scenario populates the system, and the probe's
+# world script logs one CENSUS-SHIP line per ship, then CENSUS-DONE.
+# Menu arithmetic: the runner holds every key for 0.5 s, and Oolite repeats a held
+# arrow key about every 0.2 s, so ONE press moves the selection TWO rows (measured:
+# four Down presses landed on the second row in two runs). The selectable rows are
+# Return to Menu, Normal, Easy, Tutorial, Strict, Census anarchy, Census quiet (seven,
+# wrapping, starting on Normal), so two Down presses select "Census anarchy (Qudira)".
+# The probe logs the system name, so a wrong landing shows in Latest.log.
+window 120
+sleep 10
+shot title
+key Return
+sleep 3
+shot scenarios
+sleep 2
+key Down
+sleep 4
+key Down
+sleep 4
+shot scenario-selected
+key Return
+waitlog 180 CENSUS-DONE
+sleep 3
+shot docked
