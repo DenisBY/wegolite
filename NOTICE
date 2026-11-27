@@ -75,6 +75,21 @@ explosion particle textures `public/textures/oolite-particle-cloud2.png` and
 of the vendored originals, redistributed unmodified under the same licence. The
 unmodified source PNGs are kept under `third_party/oolite/Textures/`.
 
+The Dodecahedron and Icosahedron station models `public/models/dodecahedron.glb`
+and `public/models/icosahedron.glb` are converted from the vendored Oolite
+`oolite_dodo`, `oolite_dodo_faceplate` and `oolite_dodo_dock` models and from
+the vendored `oolite_ico`, `oolite_ico_hull` and `oolite_ico_dock` models. Their
+sixteen source textures, `third_party/oolite/Textures/oolite_dodo_*.png` and
+`third_party/oolite/Textures/oolite_ico_*.png`, are the unmodified Oolite
+originals; the files `public/textures/oolite_dodo_*.webp` and
+`public/textures/oolite_ico_*.webp` are those textures re-encoded to WebP, and
+`public/textures/oolite_dodo_*_emissive.png` and
+`public/textures/oolite_ico_*_emissive.png` are the greyscale emissive maps
+baked from their alpha channels. Each is a derivative work of the Oolite
+original it names in `ASSETS.md` and remains CC BY-NC-SA 3.0, never GPL, with
+attribution to the Oolite contributors, non-commercial use only and share-alike
+terms.
+
 The generated dock-port record `src/content/generated/dock-port.json` is
 measured at build time from the vendored Oolite `.dat` models (`oolite_coriolis`,
 `oolite_coriolis_tris`, `oolite_coriolis_faceplate`, `oolite_coriolis_dock` and

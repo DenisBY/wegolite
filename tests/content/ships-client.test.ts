@@ -104,12 +104,14 @@ describe("ships-client.json", () => {
     }
   });
 
-  it("keeps modelVendored false for the stations whose GLB plan 22.1-10 emits", () => {
-    const flag = (key: string): boolean | undefined =>
-      client.find((entry) => entry.key === key)?.modelVendored;
-    expect(flag("coriolis-station")).toBe(true);
-    expect(flag("dodecahedron-station")).toBe(false);
-    expect(flag("icosahedron-station")).toBe(false);
+  it("marks every main station's model as vendored (a GLB is emitted for each kind)", () => {
+    for (const kind of STATION_KINDS) {
+      const { shipKey } = STATION_RECORDS[kind];
+      expect(
+        client.find((entry) => entry.key === shipKey)?.modelVendored,
+        shipKey,
+      ).toBe(true);
+    }
   });
 
   it("marks every main station market-monitored, as Oolite's three templates do", () => {

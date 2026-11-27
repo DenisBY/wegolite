@@ -198,9 +198,11 @@ describe("shipdata catalogue", () => {
       "cobramk1-miner",
       "cobramk1-player",
       "coriolis-station",
+      "dodecahedron-station",
       "ferdelance",
       "ferdelance-player",
       "gecko",
+      "icosahedron-station",
       "krait",
       "mamba",
       "mamba-escort",
@@ -245,7 +247,9 @@ describe("shipdata catalogue", () => {
     ].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
     expect([...VENDORED_MODEL_FILES]).toEqual(expected);
-    expect(VENDORED_MODEL_FILES).toHaveLength(32);
+    // 32 NPC, buoy, debris and Coriolis meshes plus the six Dodecahedron and
+    // Icosahedron station meshes (Phase 22.1 plan 10).
+    expect(VENDORED_MODEL_FILES).toHaveLength(38);
   });
 
   it("keeps every remaining resolved key in extras", () => {
