@@ -53,6 +53,7 @@ import {
   createStationFlow,
 } from "./session/event-router.js";
 import { createHyperspaceController } from "./session/hyperspace-controller.js";
+import { prefetchStationFor } from "./session/station-install.js";
 import { createSimDriver } from "./session/sim-driver.js";
 import { createSessionLifecycle } from "./session/start-session.js";
 import { createStationController } from "./session/station-controller.js";
@@ -477,6 +478,9 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       messages,
       refusalCopy,
       handleHyperspaceJumped,
+      prefetchStation: (destinationId) => {
+        prefetchStationFor(ctx, galaxyById, destinationId);
+      },
     }),
     deathFlow: createDeathFlow(ctx, {
       closeChart: chartController.closeChart,

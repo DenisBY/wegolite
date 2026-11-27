@@ -102,16 +102,13 @@ export function loadStationDockPort(kind: StationKind): Promise<DockPort> {
 export async function loadDockPorts(): Promise<
   Readonly<Record<StationKind, DockPort>>
 > {
-  const loaded = await Promise.all(
-    STATION_KINDS.map((kind) => loadStationDockPort(kind)),
+  const entries = await Promise.all(
+    STATION_KINDS.map(
+      async (kind) => [kind, await loadStationDockPort(kind)] as const,
+    ),
   );
-  const [coriolis, dodecahedron, icosahedron] = loaded;
-  if (
-    coriolis === undefined ||
-    dodecahedron === undefined ||
-    icosahedron === undefined
-  ) {
-    throw new DockPortError("Wegolite: a station dock-port record is missing.");
-  }
-  return { coriolis, dodecahedron, icosahedron };
+  // STATION_KINDS is every key of the record, so the entries cover it (no kind
+  // is named here: the station-constants guard keeps the names in
+  // src/content/stations.ts).
+  return Object.fromEntries(entries) as Record<StationKind, DockPort>;
 }

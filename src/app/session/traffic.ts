@@ -419,19 +419,85 @@ export function hullTable(
         `Wegolite: the static hull "${hull.key}" repeats a key already in the hull table.`,
       );
     }
-    table.set(hull.key, {
-      collisionRadius: hull.collisionRadius,
-      octree: hull.octree,
-      subentities: hull.subentities.map((sub): SubentityHull => ({
-        key: sub.key,
-        position: vec(sub.position[0], sub.position[1], sub.position[2]),
-        mass: sub.mass,
-        octree: sub.octree,
-      })),
-      frangible: hull.frangible,
-    });
+    table.set(hull.key, staticHullData(hull));
   }
   return table;
+}
+
+/** One static hull record as the hit rule's hull data. */
+function staticHullData(hull: StaticHullRecord): HullData {
+  return {
+    collisionRadius: hull.collisionRadius,
+    octree: hull.octree,
+    subentities: hull.subentities.map((sub): SubentityHull => ({
+      key: sub.key,
+      position: vec(sub.position[0], sub.position[1], sub.position[2]),
+      mass: sub.mass,
+      octree: sub.octree,
+    })),
+    frangible: hull.frangible,
+  };
+}
+
+/** Whether two hull data describe the same hull (octrees by identity). */
+function sameHullData(a: HullData, b: HullData): boolean {
+  if (
+    a.collisionRadius !== b.collisionRadius ||
+    a.octree !== b.octree ||
+    a.frangible !== b.frangible
+  ) {
+    return false;
+  }
+  const left = a.subentities ?? [];
+  const right = b.subentities ?? [];
+  return (
+    left.length === right.length &&
+    left.every((sub, index) => {
+      const other = right[index];
+      return (
+        other !== undefined &&
+        sub.key === other.key &&
+        sub.mass === other.mass &&
+        sub.octree === other.octree &&
+        sub.position.x === other.position.x &&
+        sub.position.y === other.position.y &&
+        sub.position.z === other.position.z
+      );
+    })
+  );
+}
+
+/**
+ * The hull table with one station artifact's hulls added (Phase 22.1,
+ * WORLD-20): a Dodecahedron or Icosahedron station's octrees live in an
+ * artifact of their own and join the session's table once the player is at, or
+ * is about to arrive at, that kind of system. Returns a new table; the one it
+ * is given is not touched, so a step that already holds the old table is never
+ * changed under it.
+ *
+ * Merging an artifact whose key is already present with the same data is a
+ * no-op for that key (two merges of one artifact yield an equal table). A key
+ * that is present with different data, a ship key included, is a broken build
+ * and throws, naming the key, exactly as `hullTable` does for a repeated static
+ * key.
+ */
+export function mergeStationHulls(
+  table: HullTable,
+  artifact: { readonly hulls: readonly StaticHullRecord[] },
+): HullTable {
+  const merged = new Map(table);
+  for (const hull of artifact.hulls) {
+    const data = staticHullData(hull);
+    const present = merged.get(hull.key);
+    if (present === undefined) {
+      merged.set(hull.key, data);
+    } else if (!sameHullData(present, data)) {
+      throw new Error(
+        `Wegolite: the station hull "${hull.key}" is already in the hull table with different data.`,
+      );
+    }
+  }
+  return merged;
 }
 
 /**

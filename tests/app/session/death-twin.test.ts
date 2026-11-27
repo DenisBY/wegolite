@@ -286,6 +286,7 @@ function continueSeed(): Twin {
       messages,
       refusalCopy: controller.refusalCopy,
       handleHyperspaceJumped: controller.handleHyperspaceJumped,
+      prefetchStation: () => undefined,
     }),
     deathFlow: createDeathFlow(ctx),
   });

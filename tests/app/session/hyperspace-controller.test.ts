@@ -14,15 +14,18 @@
 
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type {
   NpcShip,
+  ShipHullCatalogue,
   StationSpec,
   System,
 } from "../../../src/content/types.js";
+import { StaticHullArtifactSchema } from "../../../src/content/schemas/ship-static-hull.js";
 import {
   createInertPopulate,
+  hullTable,
   trafficContent,
 } from "../../../src/app/session/traffic.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
@@ -658,5 +661,59 @@ describe("handleHyperspaceJumped, the station follows the system (Phase 22.1, WO
     expect(ctx.core.stationDef).toBe(before.stationDef);
     expect(ctx.core.layout).toBe(before.layout);
     expect(ctx.core.dockGeometry).toBe(before.dockGeometry);
+  });
+
+  describe("the destination's station hull (Phase 22.1, O3)", () => {
+    const ships = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../src/content/generated/ships-hulls.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as ShipHullCatalogue;
+    const shared = StaticHullArtifactSchema.parse(
+      JSON.parse(
+        readFileSync(
+          new URL(
+            "../../../src/content/generated/ships-static-hulls.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ),
+    );
+
+    it("an arrival at Zaonce completes synchronously without its artifact, which merges when it lands", async () => {
+      const { ctx, controller } = harness();
+      ctx.runtime.testFlags = { ...ctx.runtime.testFlags, traffic: true };
+      ctx.core.hulls = hullTable(ships, shared.hulls);
+
+      controller.handleHyperspaceJumped(toZaonce);
+
+      // The swap is complete and nothing waited on the network: the station is
+      // installed and, until the merge lands, simply has no hull to hit.
+      expect(ctx.runtime.paused).toBe(false);
+      expect(installedStation(ctx).specKey).toBe("icosahedron-station");
+      expect(ctx.core.hulls?.has("icosahedron-station")).toBe(false);
+
+      await vi.waitFor(() =>
+        expect(ctx.core.hulls?.has("icosahedron-station")).toBe(true),
+      );
+    });
+
+    it("an arrival at a Coriolis system and a traffic-off arrival leave the hull table as it was", () => {
+      const off = harness();
+      off.controller.handleHyperspaceJumped(toZaonce);
+      expect(off.ctx.core.hulls).toBeUndefined();
+
+      const on = harness();
+      on.ctx.runtime.testFlags = { ...on.ctx.runtime.testFlags, traffic: true };
+      const table = hullTable(ships, shared.hulls);
+      on.ctx.core.hulls = table;
+      on.controller.handleHyperspaceJumped(toLave);
+      expect(on.ctx.core.hulls).toBe(table);
+    });
   });
 });

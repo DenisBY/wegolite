@@ -41,7 +41,7 @@ import type { SystemLayout } from "../../sim/world/layout.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { SessionFaults } from "../game-session.js";
 import type { SessionState } from "./context.js";
-import { stationFor } from "./station-install.js";
+import { prefetchStationFor, stationFor } from "./station-install.js";
 
 /** The message the injected destination-build fault throws (WR-04). */
 export const DESTINATION_BUILD_FAULT_MESSAGE =
@@ -302,6 +302,12 @@ export function createHyperspaceController(
       `Arrived at ${destination.name}`,
       MESSAGE_DURATION_SECONDS,
     );
+    // The destination's station hull (Phase 22.1, decision O3): the countdown
+    // already asked for it, so this is a no-op when it has landed. When the
+    // artifact is still loading, the swap above is complete without it and the
+    // station is simply no laser candidate until the merge lands. Never
+    // awaited, never throws.
+    prefetchStationFor(ctx, galaxyById, destination.id);
     // The arrival anchor is a complete in-flight v2 snapshot.
     autosave();
     syncEconomyProbe();

@@ -32,9 +32,19 @@ import {
   targetNameMap,
 } from "../../../src/app/session/start-session.js";
 import { StaticHullArtifactSchema } from "../../../src/content/schemas/ship-static-hull.js";
+import { ensureStationHulls } from "../../../src/app/session/station-install.js";
+import { stationRecord } from "../../../src/content/stations.js";
+import type { StationKind } from "../../../src/content/stations.js";
+import type { System } from "../../../src/content/types.js";
 import type { SimEvent } from "../../../src/sim/events.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
+import {
+  STATIC_TARGETS,
+  staticIdentKey,
+} from "../../../src/sim/world/statics.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 
 const lave = laveFixture();
 
@@ -189,4 +199,68 @@ describe("startSession installs the target names (source fact)", () => {
     expect(source.indexOf(install)).toBeGreaterThan(load);
     expect(source).toContain("ctx.core.targetNames = undefined;");
   });
+
+  it("awaits the starting station's hulls after the content load and before the first scene", () => {
+    const source = readFileSync("src/app/session/start-session.ts", "utf8");
+    const ensure = "await ensureStationHulls(ctx, station.kind);";
+    const content = source.indexOf("const content = await loadSessionContent(");
+    const scene = source.indexOf(
+      "scenes.enterSystem(ctx.core.system, station)",
+    );
+    expect(source.split(ensure)).toHaveLength(2);
+    expect(source.indexOf(ensure)).toBeGreaterThan(content);
+    expect(scene).toBeGreaterThan(source.indexOf(ensure));
+  });
+});
+
+describe("the ident lock names the Dodecahedron and Icosahedron stations (Phase 22.1, WORLD-20)", () => {
+  const galaxy = JSON.parse(
+    readFileSync("src/content/generated/systems/g0.json", "utf8"),
+  ) as System[];
+  const stationRow = STATIC_TARGETS.find((row) => row.layoutKey === "station");
+
+  /** The compiled name of a kind's station, read from its own artifact. */
+  function artifactName(kind: StationKind): string {
+    const key = stationRecord(kind).shipKey;
+    const artifact = StaticHullArtifactSchema.parse(
+      JSON.parse(
+        readFileSync(
+          `src/content/generated/${stationRecord(kind).hullsFile}`,
+          "utf8",
+        ),
+      ),
+    );
+    const named = artifact.names.find((entry) => entry.key === key);
+    if (named === undefined) throw new Error(`no compiled name for ${key}`);
+    return named.name;
+  }
+
+  it.each(["dodecahedron", "icosahedron"] as const)(
+    "%s: the key the lock emits comes from the layout, the name from the merged names",
+    async (kind) => {
+      const h = await booted(true);
+      const key = stationRecord(kind).shipKey;
+      const system = galaxy.find((entry) => entry.station === kind);
+      if (system === undefined || stationRow === undefined) {
+        throw new Error("no system or station row");
+      }
+
+      // The key is the layout's, whatever the table holds.
+      const emitted = staticIdentKey(
+        stationRow,
+        deriveSystemLayout(system, stationSpecOf(kind)),
+      );
+      expect(emitted).toBe(key);
+
+      // Before the station's artifact is merged the HUD prints the key; after
+      // it, the compiled name, looked up in the same map as the Coriolis name.
+      h.dispatch(locked(emitted));
+      await ensureStationHulls(h.ctx, kind);
+      h.dispatch(locked(emitted));
+      expect(h.log).toEqual([
+        `Ident system locked onto ${key}. for 4.5`,
+        `Ident system locked onto ${artifactName(kind)}. for 4.5`,
+      ]);
+    },
+  );
 });

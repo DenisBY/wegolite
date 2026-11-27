@@ -679,6 +679,9 @@ describe("boot-path isolation", () => {
   const LOADER = "src/content/ships-static-hulls.ts";
   const STATION_TABLE = "src/content/stations.ts";
   const START_SESSION = "src/app/session/start-session.ts";
+  // The per-kind station hull artifacts (Phase 22.1, plan 22.1-09) load from
+  // here, behind the same traffic gate.
+  const STATION_INSTALL = "src/app/session/station-install.ts";
   const flat = (text: string): string => text.replace(/\s+/g, " ");
 
   it("lets the loader name its own generated files and no other", () => {
@@ -692,7 +695,7 @@ describe("boot-path isolation", () => {
     }
   });
 
-  it("is imported by no source file but the session start-up, and no file under src/sim names it", () => {
+  it("is imported by no source file but the session start-up and the station install, and no file under src/sim names it", () => {
     // A quoted specifier naming the module or the file (an import, a dynamic
     // import or a glob); a doc comment naming them is not an importer.
     const importsIt = /["'][^"'\s]*ships-static-hulls(?:\.js|\.json)?["']/;
@@ -704,11 +707,24 @@ describe("boot-path isolation", () => {
         file !== STATION_TABLE &&
         importsIt.test(readText(file)),
     );
-    expect(importers).toEqual([START_SESSION]);
+    expect(importers).toEqual([START_SESSION, STATION_INSTALL]);
     const names = /ships-static-hulls|loadStaticHulls/;
     expect(
       sourceFiles("src/sim").filter((file) => names.test(readText(file))),
     ).toEqual([]);
+  });
+
+  it("loads a station kind's artifact only with traffic on, and never from the cold start", () => {
+    const source = readText(STATION_INSTALL);
+    // The one call of the per-kind loader sits after the traffic gate of
+    // ensureStationHulls, so a traffic-off session never fetches the chunk.
+    expect(source.match(/\bload\(kind\)/g)).toHaveLength(1);
+    const gate = source.indexOf("!ctx.runtime.testFlags.traffic");
+    expect(gate).toBeGreaterThan(0);
+    expect(source.indexOf("load(kind)")).toBeGreaterThan(gate);
+    // The default loader is the per-kind one, never the shared artifact's.
+    expect(source).toContain("load: StationHullLoader = loadStationHulls");
+    expect(source).not.toMatch(/\bloadStaticHulls\b/);
   });
 
   it("is called once, from start-up, behind the same traffic gate as the ship hulls", () => {

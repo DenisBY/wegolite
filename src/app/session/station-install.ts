@@ -22,15 +22,20 @@ import { loadDockPorts } from "../../content/dock-port.js";
 import type { DockPort } from "../../content/schemas/dock-port.js";
 import type { CatalogEntry } from "../../content/schemas/ship.js";
 import { StationSpecSchema } from "../../content/schemas/station.js";
+import { loadStationHulls } from "../../content/ships-static-hulls.js";
+import type { StaticHullArtifact } from "../../content/ships-static-hulls.js";
 import {
   STATION_KINDS,
   StationRecordError,
+  stationRecord,
   stationSpecFor,
 } from "../../content/stations.js";
 import type { StationKind } from "../../content/stations.js";
 import type { StationSpec, System } from "../../content/types.js";
 import { createDockGeometry } from "../../sim/dock/geometry.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
+import type { SessionState } from "./context.js";
+import { mergeStationHulls } from "./traffic.js";
 
 /** Every station kind's spec and dock-port record, loaded once at boot. */
 export interface StationRecords {
@@ -110,4 +115,99 @@ export function stationFor(
     );
   }
   return { spec, dockGeometry: createDockGeometry(dockPort, spec.dockOffset) };
+}
+
+/** The loader of a station kind's hull artifact; a test injects a double. */
+export type StationHullLoader = (
+  kind: StationKind,
+) => Promise<StaticHullArtifact>;
+
+/** The loads in flight, per session and kind: one request per kind. */
+const hullLoadsInFlight = new WeakMap<
+  SessionState,
+  Map<StationKind, Promise<void>>
+>();
+
+/**
+ * Make the hull and ident name of one station kind part of a traffic-on
+ * session (Phase 22.1, WORLD-20, decision O3). The Coriolis lives in the shared
+ * static artifact the boot already merged, so it is a no-op; a Dodecahedron or
+ * Icosahedron station has an artifact of its own, which is loaded and merged
+ * into `ctx.core.hulls` (through `mergeStationHulls`, a new table) with its
+ * display names added to `ctx.core.targetNames`. The ident lock names a station
+ * from that map and the hit rule finds its octrees in that table.
+ *
+ * With traffic off nothing is loaded (WORLD-16): the table does not exist. A
+ * kind whose hull is already present loads nothing; concurrent asks for one
+ * kind share one request. Nothing is written once `ctx.runtime.disposed` is set
+ * (the signal the save controller's G-8 checks use), so a load that lands after
+ * a dispose changes nothing.
+ *
+ * The boot and an F2 Load await it before the first step; a hyperspace arrival
+ * does not (`prefetchStationFor`).
+ *
+ * @throws the loader's error (a missing, invalid or incomplete artifact), after
+ * which the session is exactly as it was and a later call loads again.
+ */
+export function ensureStationHulls(
+  ctx: SessionState,
+  kind: StationKind,
+  load: StationHullLoader = loadStationHulls,
+): Promise<void> {
+  const table = ctx.core.hulls;
+  if (!ctx.runtime.testFlags.traffic || table === undefined) {
+    return Promise.resolve();
+  }
+  if (table.has(stationRecord(kind).shipKey)) return Promise.resolve();
+  let loads = hullLoadsInFlight.get(ctx);
+  if (loads === undefined) {
+    loads = new Map();
+    hullLoadsInFlight.set(ctx, loads);
+  }
+  const inFlight = loads.get(kind);
+  if (inFlight !== undefined) return inFlight;
+  const started = load(kind)
+    .then((artifact) => {
+      if (ctx.runtime.disposed) return;
+      const current = ctx.core.hulls;
+      if (current === undefined) return;
+      const merged = mergeStationHulls(current, artifact);
+      const names = new Map(ctx.core.targetNames);
+      for (const entry of artifact.names) names.set(entry.key, entry.name);
+      ctx.core.hulls = merged;
+      ctx.core.targetNames = names;
+    })
+    .finally(() => {
+      loads.delete(kind);
+    });
+  loads.set(kind, started);
+  return started;
+}
+
+/**
+ * Start loading the hull artifact of a destination system's station without
+ * waiting for it (decision O3): the hyperspace countdown calls it 15 s before
+ * the arrival, the arrival calls it again (a no-op when the hull is present).
+ * The destination is resolved through the session's validated galaxy, never a
+ * fixture. The arrival swap never awaits this: an arrival that beats the load
+ * simply has no hull for the station until the merge lands, so the station is
+ * no laser candidate for that moment (the no-hull rule of the combat step). A
+ * rejection is logged once, with the file name, and leaves the session as it
+ * is. A countdown the player cancels may leave a completed prefetch, which is
+ * harmless: one small artifact, reused at a later visit.
+ */
+export function prefetchStationFor(
+  ctx: SessionState,
+  galaxyById: ReadonlyMap<string, Pick<System, "station">>,
+  systemId: string,
+  load: StationHullLoader = loadStationHulls,
+): void {
+  const system = galaxyById.get(systemId);
+  if (system === undefined) return;
+  ensureStationHulls(ctx, system.station, load).catch((error: unknown) => {
+    console.error(
+      `Wegolite: the ${stationRecord(system.station).hullsFile} station hull artifact could not be loaded`,
+      error,
+    );
+  });
 }

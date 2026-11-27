@@ -162,7 +162,7 @@ describe("the pinned subscriber order and routing table", () => {
       bounce: ["dockFeedback"],
       scrape: ["dockFeedback"],
       compassTargetChanged: ["hudMessages"],
-      hyperspaceCountdownStarted: ["hudMessages"],
+      hyperspaceCountdownStarted: ["hudMessages", "hyperspaceFlow"],
       hyperspaceCountdownCancelled: ["hudMessages"],
       hyperspaceRefused: ["hyperspaceFlow"],
       hyperspaceJumped: ["hyperspaceFlow"],
@@ -181,15 +181,19 @@ describe("the pinned subscriber order and routing table", () => {
     expect(Object.keys(EVENT_KIND_SUBSCRIBER).sort()).toEqual(
       [...ROUTED_EVENT_KINDS].sort(),
     );
-    // Twenty-three kinds have one subscriber; launched and docked have the ordered
-    // pair (plan 08-15), so the world lifecycle runs after the station flow.
-    const pair = ["launched", "docked"];
+    // Twenty-two kinds have one subscriber. launched and docked have the
+    // ordered pair (plan 08-15), so the world lifecycle runs after the station
+    // flow; the countdown start has the HUD message first and then the
+    // hyperspace subscriber's station prefetch (plan 22.1-09).
+    const pairs: Readonly<Record<string, readonly string[]>> = {
+      launched: ["stationFlow", "worldLifecycle"],
+      docked: ["stationFlow", "worldLifecycle"],
+      hyperspaceCountdownStarted: ["hudMessages", "hyperspaceFlow"],
+    };
     for (const kind of ROUTED_EVENT_KINDS) {
-      if (pair.includes(kind)) {
-        expect(EVENT_KIND_SUBSCRIBER[kind]).toEqual([
-          "stationFlow",
-          "worldLifecycle",
-        ]);
+      const pair = pairs[kind];
+      if (pair !== undefined) {
+        expect(EVENT_KIND_SUBSCRIBER[kind]).toEqual(pair);
       } else {
         expect(EVENT_KIND_SUBSCRIBER[kind]).toHaveLength(1);
       }
@@ -374,6 +378,9 @@ function harness(): Harness {
       },
       handleHyperspaceJumped: (event) => {
         log.push(`handleHyperspaceJumped ${event.destinationId}`);
+      },
+      prefetchStation: (destinationId) => {
+        log.push(`prefetchStation ${destinationId}`);
       },
     }),
   };
@@ -607,8 +614,13 @@ describe("event arm sequences (the pre-move side-effect order)", () => {
       // PlayerEntityControls.m:834-839: the countdown start clears the last
       // message and scrolls nothing; the countdown text is drawn in place
       // over the bottom row (Universe.m:6258-6267), known destination or not.
+      // The hyperspace subscriber then asks for the destination's station
+      // hull artifact (Phase 22.1, O3), whatever the destination is: the
+      // lookup that may find nothing is the injected collaborator's.
       "messages.clearPrevious",
+      `prefetchStation ${lave.system.id}`,
       "messages.clearPrevious",
+      "prefetchStation no-such-system",
       // PlayerEntityControls.m:853-861 and 1520-1528: the cancel clears the
       // last message, then posts witch-user-abort for 3 s.
       "messages.clearPrevious",

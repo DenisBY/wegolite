@@ -86,7 +86,11 @@ import type { ProbePublisher } from "./probe-publisher.js";
 import type { RenderDriver } from "./render-driver.js";
 import type { SaveController } from "./save-controller.js";
 import type { SettingsController } from "./settings-controller.js";
-import { loadStationRecords, stationFor } from "./station-install.js";
+import {
+  ensureStationHulls,
+  loadStationRecords,
+  stationFor,
+} from "./station-install.js";
 import type { StationRecords } from "./station-install.js";
 import type { StationController } from "./station-controller.js";
 
@@ -594,6 +598,12 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
         records,
         ctx.core.system,
       ));
+      // With traffic on, the starting system's station hull and ident name
+      // join the hull table before the first step (decision O3): the Coriolis
+      // is already in the shared artifact, a Dodecahedron or Icosahedron loads
+      // its own. A failure is on this same boot failure surface, as a failed
+      // static hull load is.
+      await ensureStationHulls(ctx, station.kind);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       showBootFailure(reason);
