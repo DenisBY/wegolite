@@ -31,11 +31,12 @@
  * `convert/static-hulls.ts` and `DOCK_PORT_PATH` in `convert/dock-port.ts`, so
  * that artifact stays byte-identical; the guard does not see them.
  *
- * `PENDING_PRESENTATION` lists the four presentation files that still carry a
- * Coriolis constant until the half-(b) plans land: plan 22.1-11 (the render
- * files) and plan 22.1-12 (the station screen model). An allowance cannot
- * outlive its reason: a pending file with no violation left fails the guard
- * and must be removed from the list. Those two plans empty it.
+ * `PENDING_PRESENTATION` lists the presentation file that still carries a
+ * Coriolis constant until the last half-(b) plan lands: plan 22.1-12 (the
+ * station screen model). Plan 22.1-11 removed the three `src/render` entries:
+ * the render has no allowance. An allowance cannot outlive its reason: a
+ * pending file with no violation left fails the guard and must be removed from
+ * the list. Plan 22.1-12 empties it.
  *
  * It keys on text, so it is a tripwire and not a proof: a constant spelled
  * without these words or numbers is not seen. Each rule has a synthetic source
@@ -65,22 +66,10 @@ interface PendingAllowance {
 
 /**
  * The half-(b) presentation files, each naming the plan that ends its
- * allowance. Plan 22.1-11 draws each kind's model; plan 22.1-12 builds the
- * station screen's model from the system's station.
+ * allowance. Plan 22.1-12 builds the station screen's model from the system's
+ * station; the render files (plan 22.1-11) have no entry left.
  */
 const PENDING_PRESENTATION: Readonly<Record<string, PendingAllowance>> = {
-  "src/render/asset-cache.ts": {
-    plan: "22.1-11",
-    reason: "loads and names the Coriolis model (loadCoriolis)",
-  },
-  "src/render/system-scene.ts": {
-    plan: "22.1-11",
-    reason: "attaches the Coriolis model to every station",
-  },
-  "src/render/bodies/station.ts": {
-    plan: "22.1-11",
-    reason: "sizes and orders the Coriolis model's nodes",
-  },
   "src/ui/station-model.ts": {
     plan: "22.1-12",
     reason: "the station screen names the Coriolis and its dock",
@@ -253,19 +242,28 @@ describe("station constants live in the station record only (tripwire)", () => {
     const stale = staleAllowances(tree);
     expect(stale, stale.join("\n")).toEqual([]);
     for (const allowance of Object.values(PENDING_PRESENTATION)) {
-      expect(allowance.plan).toMatch(/^22\.1-1[12]$/);
+      expect(allowance.plan).toBe("22.1-12");
       expect(allowance.reason.length).toBeGreaterThan(0);
     }
   });
 
-  it("allows nothing beyond the station record and the four pending files", () => {
+  it("allows nothing beyond the station record and the one pending presentation file, and no src/render file", () => {
     expect(ALLOWED).toEqual(["src/content/stations.ts"]);
-    expect(Object.keys(PENDING_PRESENTATION).sort()).toEqual([
-      "src/render/asset-cache.ts",
-      "src/render/bodies/station.ts",
-      "src/render/system-scene.ts",
+    expect(Object.keys(PENDING_PRESENTATION)).toEqual([
       "src/ui/station-model.ts",
     ]);
+    for (const path of [...ALLOWED, ...Object.keys(PENDING_PRESENTATION)]) {
+      expect(path.startsWith("src/render/"), path).toBe(false);
+    }
+  });
+
+  it("finds no station constant in any src/render file", () => {
+    const render = tree.filter((file) => file.path.startsWith("src/render/"));
+    expect(render.length).toBeGreaterThan(20);
+    const inRender = found.filter((violation) =>
+      pathOf(violation).startsWith("src/render/"),
+    );
+    expect(inRender, inRender.join("\n")).toEqual([]);
   });
 
   it("holds the three kinds in the allowed file, and STATION_KINDS lists them in order", () => {
@@ -398,7 +396,7 @@ describe("a comment is not a violation", () => {
 
 describe("a pending allowance cannot outlive its reason", () => {
   it("reports a pending file with no violation left as 'remove the allowance'", () => {
-    const path = "src/render/asset-cache.ts";
+    const path = "src/ui/station-model.ts";
     const cleaned = srcTree().map((file) =>
       file.path === path ? { path, source: "export const A = 1;\n" } : file,
     );
