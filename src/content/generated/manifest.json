@@ -861,6 +861,16 @@
       "sha256": "3401ece3f7f15e3cd2cde03c993c0d3f1c87ca6b377407d38d7c7dbad2aa2e43"
     },
     {
+      "bytes": 534,
+      "path": "src/content/generated/dock-port-dodecahedron.json",
+      "sha256": "5f1d76b47f528d8e9a23463c395c29ab36e7e05c53b4a38a680e74e2141fcc3e"
+    },
+    {
+      "bytes": 540,
+      "path": "src/content/generated/dock-port-icosahedron.json",
+      "sha256": "723da763047705f158a32b356c1783d2435ca6d5fd06b1cad858516293001d4f"
+    },
+    {
       "bytes": 514,
       "path": "src/content/generated/dock-port.json",
       "sha256": "eb14630651ad32563cf621c1c427c5f93cb568f255a7a2dd95cb7ab81eb35abf"

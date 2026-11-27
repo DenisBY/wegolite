@@ -92,12 +92,19 @@ export const DockPortSchema = z
       ww: halfExtent,
       hh: halfExtent,
     }),
-    /** The Coriolis hull as a collision box, station-local Wegolite z. */
+    /**
+     * The station hull as a collision box, station-local Wegolite z: the union
+     * of the station's hull meshes, for every kind (Phase 22.1). The
+     * Icosahedron's includes its main-hull subentity (`oolite_ico_hull.dat`), so
+     * its box is far larger than its front section and is a conservative proxy,
+     * not the visible outline.
+     */
     hull: BoxSchema,
     /**
-     * The contact proxy: the union of the hull, triangle and faceplate bounds.
-     * It is a conservative box, not the mesh, and it may only grow past the
-     * hull — never shrink inside it.
+     * The contact proxy: the union of the hull and the parts that protrude past
+     * it (the Coriolis triangles and faceplate, the Dodecahedron faceplate). It
+     * is a conservative box, not the mesh, and it may only grow past the hull
+     * — never shrink inside it.
      */
     contact: BoxSchema,
     /** The committed Cobra Mk III bbox in the Wegolite frame (nose at -Z). */

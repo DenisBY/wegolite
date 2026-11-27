@@ -25,6 +25,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { STATION_RECORDS } from "../../src/content/stations.js";
 import { isWitchspaceBlocked } from "../../src/sim/hyperspace/countdown.js";
 
 /** Oolite's scanner range, `SCANNER_MAX_RANGE` (m): the blockage outer gate. */
@@ -39,12 +40,6 @@ const ORACLE_KINDS: readonly string[] = [
 
 /** Stations measured but not compiled yet: none. */
 const PENDING_KINDS: readonly string[] = [];
-
-/**
- * Stations whose dock port is compiled today (`dock-port.json` holds the
- * Coriolis port only; plan 22.1-03 emits the other two).
- */
-const DOCK_PORT_KINDS: readonly string[] = ["coriolis-station"];
 
 type Verdict = "EQUAL" | "ROUNDING" | "DIFFERS";
 
@@ -130,6 +125,17 @@ interface DockPort {
   port: { width: number; height: number; depth: number };
 }
 
+/** One dock-port record per station, by ship key, from its own generated file. */
+function dockPortOf(key: string): DockPort {
+  const record = Object.values(STATION_RECORDS).find(
+    (entry) => entry.shipKey === key,
+  );
+  if (record === undefined) throw new Error(`no station record for ${key}`);
+  return readJson<DockPort>(
+    `../../src/content/generated/${record.dockPortFile}`,
+  );
+}
+
 function readJson<T>(relative: string): T {
   return JSON.parse(
     readFileSync(new URL(relative, import.meta.url), "utf8"),
@@ -139,9 +145,6 @@ function readJson<T>(relative: string): T {
 const fixture = readJson<Fixture>("../fixtures/oolite-reference/stations.json");
 const clientShips = readJson<ClientShip[]>(
   "../../src/content/generated/ships-client.json",
-);
-const dockPort = readJson<DockPort>(
-  "../../src/content/generated/dock-port.json",
 );
 const galaxy0 = readJson<CompiledSystem[]>(
   "../../src/content/generated/systems/g0.json",
@@ -283,17 +286,16 @@ describe("the compiled stations against the measured Oolite values", () => {
         );
       });
 
-      if (DOCK_PORT_KINDS.includes(key)) {
-        it("has the dock subentity's bounding box as its port", () => {
-          const [x, y, z] = station(key).dock.boundingBox;
-          if (x === undefined || y === undefined || z === undefined) {
-            throw new Error(`${key}: the dock bounding box is incomplete`);
-          }
-          expectNotDiffers(`${key} port width`, x, dockPort.port.width);
-          expectNotDiffers(`${key} port height`, y, dockPort.port.height);
-          expectNotDiffers(`${key} port depth`, z, dockPort.port.depth);
-        });
-      }
+      it("has the dock subentity's bounding box as its port", () => {
+        const [x, y, z] = station(key).dock.boundingBox;
+        if (x === undefined || y === undefined || z === undefined) {
+          throw new Error(`${key}: the dock bounding box is incomplete`);
+        }
+        const { port } = dockPortOf(key);
+        expectNotDiffers(`${key} port width`, x, port.width);
+        expectNotDiffers(`${key} port height`, y, port.height);
+        expectNotDiffers(`${key} port depth`, z, port.depth);
+      });
 
       it("has the authored station_roll", () => {
         expect(

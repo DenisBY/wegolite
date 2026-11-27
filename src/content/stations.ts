@@ -40,6 +40,19 @@ export interface StationRecord {
   readonly kind: StationKind;
   /** The shipdata key, and the `ships-client.json` entry, of the station. */
   readonly shipKey: string;
+  /**
+   * The generated dock-port record of this kind, a file name under
+   * `src/content/generated/` (Phase 22.1 plan 03). The Coriolis keeps the file
+   * it had before the phase.
+   */
+  readonly dockPortFile: string;
+  /**
+   * The generated static hull artifact holding this kind's octrees and name.
+   * The Coriolis shares `ships-static-hulls.json` with the buoys and the barrel;
+   * the other kinds have their own lazily loaded files, so the shared file (and
+   * its byte cap) does not grow.
+   */
+  readonly hullsFile: string;
 }
 
 /** Every kind's record, frozen. */
@@ -48,14 +61,20 @@ export const STATION_RECORDS: Readonly<Record<StationKind, StationRecord>> =
     coriolis: Object.freeze({
       kind: "coriolis",
       shipKey: "coriolis-station",
+      dockPortFile: "dock-port.json",
+      hullsFile: "ships-static-hulls.json",
     }),
     dodecahedron: Object.freeze({
       kind: "dodecahedron",
       shipKey: "dodecahedron-station",
+      dockPortFile: "dock-port-dodecahedron.json",
+      hullsFile: "ships-static-hulls-dodecahedron.json",
     }),
     icosahedron: Object.freeze({
       kind: "icosahedron",
       shipKey: "icosahedron-station",
+      dockPortFile: "dock-port-icosahedron.json",
+      hullsFile: "ships-static-hulls-icosahedron.json",
     }),
   });
 

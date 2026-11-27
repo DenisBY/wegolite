@@ -21,7 +21,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { DockPortSchema } from "./schemas/dock-port.js";
-import { loadDockPort } from "./dock-port.js";
+import {
+  DockPortError,
+  loadDockPort,
+  loadDockPorts,
+  loadStationDockPort,
+  readDockPortFile,
+} from "./dock-port.js";
+import { STATION_KINDS, STATION_RECORDS } from "./stations.js";
+import { createDockGeometry } from "../sim/dock/geometry.js";
 
 /** The aperture/corridor pin tolerance used by every measured assertion. */
 const TOLERANCE = 1e-4;
@@ -115,6 +123,100 @@ describe("committed dock-port geometry", () => {
     expectClose(loaded.port.depth, 250);
     expectClose(loaded.corridor.ww, 51.70615);
     expectClose(loaded.corridor.hh, 120.944);
+  });
+});
+
+interface ClientShipFile {
+  readonly key: string;
+  readonly shipDef: {
+    readonly subentities?: readonly {
+      readonly isDock?: boolean;
+      readonly position: readonly number[];
+    }[];
+  };
+}
+
+describe("per-kind dock-port records (Phase 22.1)", () => {
+  it("resolves all three kinds, each in its own manifest row", async () => {
+    const ports = await loadDockPorts();
+    expect(Object.keys(ports).sort()).toEqual([...STATION_KINDS].sort());
+    for (const kind of STATION_KINDS) {
+      const row = manifest.files.find(
+        (file) =>
+          file.path ===
+          `src/content/generated/${STATION_RECORDS[kind].dockPortFile}`,
+      );
+      expect(row, kind).toBeDefined();
+    }
+  });
+
+  it("returns the Coriolis record from loadDockPort and loadStationDockPort alike", async () => {
+    const [legacy, perKind] = await Promise.all([
+      loadDockPort(),
+      loadStationDockPort("coriolis"),
+    ]);
+    expect(legacy).toEqual(perKind);
+    expectClose(perKind.port.width, 103.4123);
+  });
+
+  it("measures a landscape Dodecahedron port and a portrait Icosahedron port", async () => {
+    const dodecahedron = await loadStationDockPort("dodecahedron");
+    const icosahedron = await loadStationDockPort("icosahedron");
+    expectClose(dodecahedron.port.width, 210.362);
+    expectClose(dodecahedron.port.height, 81.0268);
+    expectClose(icosahedron.port.width, 82.1076);
+    expectClose(icosahedron.port.height, 238.546);
+    expectClose(icosahedron.port.depth, 273.278);
+  });
+
+  it("is accepted by createDockGeometry with each kind's own dock offset", async () => {
+    const ships = JSON.parse(
+      readFileSync(
+        new URL("./generated/ships-client.json", import.meta.url),
+        "utf8",
+      ),
+    ) as readonly ClientShipFile[];
+    for (const kind of STATION_KINDS) {
+      const ship = ships.find(
+        (entry) => entry.key === STATION_RECORDS[kind].shipKey,
+      );
+      const dock = ship?.shipDef.subentities?.find(
+        (sub) => sub.isDock === true,
+      );
+      const z = dock?.position[2];
+      // The layout derives dockOffset as the absolute authored z (layout.ts).
+      if (z === undefined) throw new Error(`${kind}: no dock subentity offset`);
+      const port = await loadStationDockPort(kind);
+      expect(() => createDockGeometry(port, Math.abs(z)), kind).not.toThrow();
+    }
+  });
+
+  it("rejects a missing record with a DockPortError naming the file", async () => {
+    const error = await readDockPortFile("dock-port-nowhere.json", {}).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(DockPortError);
+    expect((error as Error).message).toContain("dock-port-nowhere.json");
+  });
+
+  it("rejects an invalid record with a DockPortError naming the file", async () => {
+    const broken = candidateCopy();
+    portOf(broken).width = -1;
+    const error = await readDockPortFile("dock-port-broken.json", {
+      "./generated/dock-port-broken.json": () =>
+        Promise.resolve(JSON.stringify(broken)),
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(DockPortError);
+    expect((error as Error).message).toContain("dock-port-broken.json");
+    expect((error as Error).message).toContain("port.width");
+  });
+
+  it("rejects text that is not JSON with a DockPortError", async () => {
+    const error = await readDockPortFile("dock-port-text.json", {
+      "./generated/dock-port-text.json": () => Promise.resolve("{not json"),
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(DockPortError);
+    expect((error as Error).message).toContain("dock-port-text.json");
   });
 });
 

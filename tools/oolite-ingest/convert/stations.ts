@@ -30,28 +30,54 @@ export interface StationBuild {
   readonly solidModels: readonly string[];
   /** The mesh of the `is_dock = true` subentity. */
   readonly dockModel: string;
+  /**
+   * The meshes whose union is the hull box of the dock record (Pitfall P6): the
+   * whole body of the station, so the Icosahedron lists its main-hull subentity
+   * beside its front section. The Coriolis lists its hull mesh only, so its
+   * record does not move.
+   */
+  readonly hullModels: readonly string[];
+  /**
+   * The meshes whose union is the contact box: the hull meshes plus the parts
+   * that protrude past them (the Coriolis triangles and faceplate, the
+   * Dodecahedron faceplate).
+   */
+  readonly contactModels: readonly string[];
 }
 
 const MODELS: Readonly<
   Record<
     StationKind,
-    Pick<StationBuild, "mainModel" | "solidModels" | "dockModel">
+    Pick<
+      StationBuild,
+      "mainModel" | "solidModels" | "dockModel" | "hullModels" | "contactModels"
+    >
   >
 > = {
   coriolis: {
     mainModel: "oolite_coriolis.dat",
     solidModels: ["oolite_coriolis_faceplate.dat", "oolite_coriolis_tris.dat"],
     dockModel: "oolite_coriolis_dock.dat",
+    hullModels: ["oolite_coriolis.dat"],
+    contactModels: [
+      "oolite_coriolis.dat",
+      "oolite_coriolis_tris.dat",
+      "oolite_coriolis_faceplate.dat",
+    ],
   },
   dodecahedron: {
     mainModel: "oolite_dodo.dat",
     solidModels: ["oolite_dodo_faceplate.dat"],
     dockModel: "oolite_dodo_dock.dat",
+    hullModels: ["oolite_dodo.dat"],
+    contactModels: ["oolite_dodo.dat", "oolite_dodo_faceplate.dat"],
   },
   icosahedron: {
     mainModel: "oolite_ico.dat",
     solidModels: ["oolite_ico_hull.dat"],
     dockModel: "oolite_ico_dock.dat",
+    hullModels: ["oolite_ico.dat", "oolite_ico_hull.dat"],
+    contactModels: ["oolite_ico.dat", "oolite_ico_hull.dat"],
   },
 };
 

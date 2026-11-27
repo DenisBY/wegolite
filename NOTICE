@@ -78,9 +78,14 @@ unmodified source PNGs are kept under `third_party/oolite/Textures/`.
 The generated dock-port record `src/content/generated/dock-port.json` is
 measured at build time from the vendored Oolite `.dat` models (`oolite_coriolis`,
 `oolite_coriolis_tris`, `oolite_coriolis_faceplate`, `oolite_coriolis_dock` and
-`oolite_cobra3`). It is a derivative work of those models and remains
-CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
-non-commercial use only and share-alike terms.
+`oolite_cobra3`). The generated dock-port records
+`src/content/generated/dock-port-dodecahedron.json` and
+`src/content/generated/dock-port-icosahedron.json` are measured the same way
+from the vendored `oolite_dodo`, `oolite_dodo_faceplate`, `oolite_dodo_dock`,
+`oolite_ico`, `oolite_ico_hull`, `oolite_ico_dock` and `oolite_cobra3` models.
+Each is a derivative work of those models and remains CC BY-NC-SA 3.0, never
+GPL, with attribution to the Oolite contributors, non-commercial use only and
+share-alike terms.
 
 The generated NPC ship record file `src/content/generated/ships-npc.json` is
 compiled at build time from the vendored Oolite `shipdata.plist` (with
