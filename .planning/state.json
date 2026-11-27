@@ -84,6 +84,11 @@
       "status": "pending"
     },
     {
+      "number": "22.2",
+      "name": "Station as a collider for NPC ships (E-135)",
+      "status": "pending"
+    },
+    {
       "number": "23",
       "name": "Priority AI, Traders and Pirates",
       "status": "pending"
@@ -107,7 +112,7 @@
   "next": {
     "command": "/gsd-progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 3 of 8 · 29% · executing"
+    "reason": "Phase 3 of 8 · 25% · executing"
   },
-  "updated_at": "2026-11-27T10:53:39.121Z"
+  "updated_at": "2026-11-27T12:05:55.820Z"
 }
