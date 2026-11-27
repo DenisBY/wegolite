@@ -6,16 +6,16 @@ current_phase: "22.1"
 current_phase_name: Per-system main stations
 status: executing
 stopped_at: Phase 22.1 defined, ready to plan
-last_updated: "2026-11-27T10:52:47.618Z"
+last_updated: "2026-11-27T10:54:25.155Z"
 last_activity: 2026-11-27
 last_activity_desc: Phase 22.1 inserted and defined (WORLD-20), owner answers D14-D17 recorded
-state_head: 6b99fe771cb0eb33bd1631fa639c474afd5e032f
+state_head: edc6cdc0903a2b87044a58ce0d80483afdf3a68d
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 2
   total_plans: 48
   completed_plans: 35
-  percent: 29
+  percent: 25
 ---
 
 # Project State
@@ -751,6 +751,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 ### Roadmap Evolution
 
 - Phase 22.1 inserted after Phase 22: Per-system main stations: build each system's main station from its planetinfo station key (Coriolis, Dodecahedron, Icosahedron) as Oolite does, before Phase 23 NPC traffic docks (todo 2026-11-18-per-system-main-station-types.md; owner request 2026-11-26) (URGENT)
+- Phase 22.2 inserted after Phase 22.1: Station as a collider for NPC ships (E-135); moved out of 22.1 by owner decision D-B, 2026-11-27
 
 ## Deferred Items
 

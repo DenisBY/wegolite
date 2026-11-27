@@ -103,6 +103,7 @@ Total: 78 of 78 plans complete. Requirements 16/16. Phase directories now live i
 - [x] **Phase 21: Roster, State Shape and Seams** - The NPC catalogue grows to the about 28 records the populator's roles resolve to, with aft weapons, fuel injection and their vendored models; every new hashed field of the milestone arrives in one snapshot v5 bump; the inert world stays byte-identical, and a render spike measures the draw calls of a full anarchy before any populator ships (completed 2026-11-26)
 - [x] **Phase 22: Initial Population** - Each system is populated with traders, pirates, police and light bounty hunters by Oolite's populator rules, matching recorded oracle fixtures of Oolite's own script, placed as whole groups and drawn within the draw-call budget; the ships are still inert (completed 2026-11-26)
 - [ ] **Phase 22.1: Per-system main stations** (INSERTED) - Each system's main station is the type Oolite gives it in `planetinfo.plist` (`station`: Coriolis, Dodecahedron or Icosahedron), with its own model, mass, collision radius, dock port and launch view, before Phase 23 traffic docks
+- [ ] **Phase 22.2: Station as a collider for NPC ships (E-135)** (INSERTED) - The main station collides with NPC ships and pods as Oolite's does, or the divergence E-135 is kept with a recorded owner reason (moved out of 22.1 by owner decision D-B, 2026-11-27)
 - [ ] **Phase 23: Priority AI, Traders and Pirates** - Oolite's priority AI, hand-ported as plain hashable data and matched against traces of the original JavaScript, flies traders, escorts and pirates in ordinary play: NPCs fire fore and aft lasers, use fuel injectors, launch from the station and leave by docking, jumping out or landing without dying
 - [ ] **Phase 24: Loot, Scooping and Jettison** - The player buys Fuel Scoops and scoops pods that carry a commodity, jettisons cargo to satisfy a pirate, pirates collect loot, and scooped pods are held until docking and saved in schema v6
 - [ ] **Phase 25: Police, Legal Status, Bounty and Rating** - Attacks seen by the law make the player an Offender or a Fugitive by Oolite's bit-flag rules; police, light bounty hunters and the main station respond; kills pay their bounty at the kill and build the combat rating; offenders are fined, fugitives are refused docking clearance, and standing survives save and load
@@ -166,6 +167,7 @@ The phases run in order, one at a time. Each consumes the one before it, and the
 | 21. Roster, State Shape and Seams | Phase 20 (shipped in v2.3) | none | Everything else in the milestone |
 | 22. Initial Population | 21 | none | 23 (the AI runs on real populated ships) |
 | 22.1 Per-system main stations | 22 | none | 23 (traffic docks at and launches from the system's own station; the sim and content half at least) |
+| 22.2 Station as a collider for NPC ships (E-135) | 22.1 | none | Runs right after 22.1 (owner decision 2026-11-27) |
 | 23. Priority AI, Traders and Pirates | 21, 22, 22.1 | none | 24 (pirates that demand and collect), 25 (the engine and the launch stand-in), 26 |
 | 24. Loot, Scooping and Jettison | 21, 23 | none | 25 (save v6, `CollectSalvage` for the hunters), 26 |
 | 25. Police, Legal Status, Bounty and Rating | 21, 23, 24 | none | 26 (the police half of the acceptance; every role has its AI before repopulation spawns it) |
@@ -398,6 +400,16 @@ Plans:
 - QUAL-12 standing gate: the frozen 20-seed run is 21 of 21 on the remote machine after 22.1-04 and 22.1-06 (they touch `src/sim/world/**`) and at the phase gate
 - Success Criterion 1: no Coriolis artifact, twin hash, census golden or frozen acceptance file changes, and no `tests/golden` file changes except the new stations' `vendoredModelEntries` in `tests/golden/content/ships.json` (plan 22.1-10; the Coriolis entry unchanged); the census golden stays byte-identical (D-A: measured first in plan 22.1-08; its owner-recorded fallback re-pin applies only to a measured non-Coriolis move); a moved Coriolis value is a seam bug, never a re-pin
 
+### Phase 22.2: Station as a collider for NPC ships (E-135) (INSERTED)
+
+**Goal:** The main station takes part in collisions with NPC ships and pods as Oolite's does (`CollisionRegion.m:327-343`: the station is the prime whenever it is in a pair), and a contact found through a subentity is resolved as Oolite resolves it, closing the recorded divergence E-135 (todo `2026-11-20-divergence-e135-station-collider-and-subentity-twice.md`), or the owner keeps the divergence with a recorded reason. Decide port-or-keep with the owner first; the player's damage-free dock hull contact (DOCK-09) is out of scope unless that decision says otherwise
+**Requirements**: TBD (from the E-135 todo; owner decision 2026-11-27 moved it out of Phase 22.1, decision D-B)
+**Depends on:** Phase 22.1
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 22.2 to break down)
+
 ### Phase 23: Priority AI, Traders and Pirates
 
 **Goal**: Traffic comes alive in ordinary play: Oolite's priority AI, hand-ported to TypeScript as plain hashable data and matched against traces of the original JavaScript, flies traders, escorts and pirates; ships fire fore and aft lasers at the player and at each other, use fuel injectors as Oolite's AIs do, launch from the main station, and leave by docking, jumping out or landing without dying
@@ -555,6 +567,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
 | 22. Initial Population | v2.4 | 16/16 | Complete    | 2026-11-26 |
 | 22.1 Per-system main stations | v2.4 | 0/TBD | Not started | - |
+| 22.2 Station as a collider for NPC ships (E-135) | v2.4 | 0/TBD | Not started | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
 | 25. Police, Legal Status, Bounty and Rating | v2.4 | 0/TBD | Not started | - |
@@ -575,6 +588,21 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 Constraints and notes:
 - The stack decision (Three.js, WebGL2) stays in force; adopting `WebGPURenderer` needs an explicit Key Decisions row in `.planning/PROJECT.md` first.
 - Three.js is at 0.187.0. `WebGLRenderer` is WebGL2 only; only `WebGPURenderer` selects a backend (WebGPU, else WebGL2, or `forceWebGL: true`).
+
+Plans:
+- [ ] TBD (promote with /gsd-review-backlog when ready)
+
+### Phase 999.2: Visual fidelity: tone mapping, sun-coloured lighting and station flashers (BACKLOG)
+
+**Goal:** Bring the rendered image closer to what Oolite shows, in one place, because the three items move the same visual calibration. (1) Tone mapping: Oolite tone-maps the whole frame with ACES in `oolite-final.fragment` (`:187-215`, `:817-819`; SDR default `OOSDR_TONEMAPPER_ACES`, `MyOpenGLView.m:257`), while Wegolite uses the calibrated-LDR contract of `src/render/exposure.ts` (`NoToneMapping`, one point calibrated). Measure several points against the reference Oolite container and decide (todo `2026-11-27-tone-mapping-vs-oolite-aces.md`). (2) Lighting from the system sun's colour: ships and stations are lit pure white today (todo `2026-11-27-lighting-from-sun-colour`, created by plan 22.1-13). (3) Station flashers: the 14 `flasher` subentities of each station template, absent for every station (todo `2026-11-27-station-flashers`, created by plan 22.1-11).
+
+**Requirements:** TBD
+**Plans:** 0 plans
+
+Constraints and notes:
+- Deferred out of Phase 22.1 by owner decision D-C (2026-11-27); placed in the backlog for the next milestone by owner decision the same day.
+- Each change is a fidelity decision: record it in PROJECT.md Key Decisions and FIDELITY.md, and re-pin only the visual pins it moves with the cause measured (Node = browser).
+- Probe evidence only, no screenshot or pixel-diff evidence (PROJECT.md D-08); the reference container's screenshots stay out of the repository and only the numbers are committed.
 
 Plans:
 - [ ] TBD (promote with /gsd-review-backlog when ready)
