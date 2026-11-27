@@ -33,15 +33,25 @@ import type { PlayerCombatState } from "./state.js";
 /**
  * The cause of the death the lethal `record` brings (D-04): its damage kind and
  * the culprit key of its source, the spec key of a live or just-killed NPC in
- * the store, else the ident key of a static, else none.
+ * the store, else the ident key of a buoy, else none.
+ *
+ * The main station never names a culprit: its row has no key of its own (the
+ * layout names it, Phase 22.1), and it can never be the source of a lethal
+ * record, because the station neither shoots nor collides (`collide.ts` skips
+ * its row, FIDELITY E-135). If E-135 is taken up and the station can kill the
+ * player, this function needs the layout threaded in to name it (the E-135
+ * todo lists this file for that).
  */
 export function playerDeathCause(
   world: World | undefined,
   record: HitRecord,
 ): PlayerDeathCause {
+  const staticRow = staticTargetById(record.source);
   const culprit =
     world?.store.get(record.source)?.specKey ??
-    staticTargetById(record.source)?.identKey;
+    (staticRow !== undefined && staticRow.layoutKey !== "station"
+      ? staticRow.identKey
+      : undefined);
   return culprit === undefined
     ? { damage: record.kind }
     : { damage: record.kind, culprit };

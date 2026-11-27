@@ -16,6 +16,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { STATION_KINDS } from "../../../src/content/stations.js";
+
 import {
   COBRA_VIEW_OFFSETS,
   COBRA_WEAPON_OFFSETS,
@@ -53,6 +55,7 @@ import {
 import type { Quat, Vec3 } from "../../../src/sim/math.js";
 import { stepSim } from "../../../src/sim/sim.js";
 import { DT } from "../../../src/sim/time.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import type { SpawnInit } from "../../../src/sim/world/entity.js";
 import {
   MAIN_STATION_ID,
@@ -67,8 +70,9 @@ import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 
-const { layout, config } = laveFixture();
+const { layout, config, system: laveSystem } = laveFixture();
 
 /** Far from the station and the planet, so nothing mass-locks the player. */
 const FAR = vec(1e7, 0, 0);
@@ -806,4 +810,42 @@ describe("a static lock is lost as a ship's is (D-05)", () => {
     expect(combat.identTarget).toBe(MAIN_STATION_ID);
     expect(identTargetSnapshot(combat, world, undefined)).toBeUndefined();
   });
+});
+
+describe("R locks the system's own main station (Phase 22.1, WORLD-20, D-B)", () => {
+  it.each(STATION_KINDS)(
+    "emits identLocked with the %s station's key and frames it at its own radius",
+    (kind) => {
+      // A copy of Lave whose station is this kind (the kind does not move the
+      // station), so the spec and the system agree.
+      const spec = stationSpecOf(kind);
+      const own = deriveSystemLayout({ ...laveSystem, station: kind }, spec);
+      const player = flyingPlayer();
+      const station = own.station.position;
+      player.position = vec(station.x, station.y, station.z + 3000);
+      const combat = createPlayerCombatState();
+      const world = createWorld(7);
+
+      const events = stepSim(
+        player,
+        world,
+        own,
+        config,
+        ZERO_INTENT,
+        [IDENT],
+        DT,
+        OPTIONS,
+        combat,
+      );
+
+      expect(combat.identTarget).toBe(MAIN_STATION_ID);
+      expect(ofKind(events, "identLocked")).toEqual([
+        { kind: "identLocked", specKey: `${kind}-station` },
+      ]);
+      expect(identTargetSnapshot(combat, world, own)).toEqual({
+        position: station,
+        radius: spec.collisionRadius,
+      });
+    },
+  );
 });

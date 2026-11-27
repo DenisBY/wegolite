@@ -13,10 +13,37 @@
  * closed-form tumble of `performBuoyTumble`) and `isBuoyDestroyed`.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
-import { axisAngle, mul, rotate, vec } from "../../../src/sim/math.js";
+import { stationRecord, STATION_KINDS } from "../../../src/content/stations.js";
+import type { StationKind } from "../../../src/content/stations.js";
+import { playerLaserRay } from "../../../src/sim/combat/aim.js";
+import type { HullData, HullTable } from "../../../src/sim/combat/hit.js";
+import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
+import { createPlayerCombatState } from "../../../src/sim/combat/state.js";
+import { resolveShots } from "../../../src/sim/combat/step.js";
+import type { ShotRequest } from "../../../src/sim/combat/step.js";
+import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
+import { initFlightState } from "../../../src/sim/flight/state.js";
+import type { FlightState } from "../../../src/sim/flight/state.js";
+import { stepFlight } from "../../../src/sim/flight/step.js";
+import {
+  add,
+  axisAngle,
+  dot,
+  mul,
+  quatFromUnitVectors,
+  rotate,
+  scale,
+  sub,
+  vec,
+} from "../../../src/sim/math.js";
 import type { Quat } from "../../../src/sim/math.js";
+import { DT } from "../../../src/sim/time.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
+import type { SystemLayout } from "../../../src/sim/world/layout.js";
 import {
   MAIN_STATION_ID,
   PLAYER_ID,
@@ -33,6 +60,8 @@ import {
   isBuoyDestroyed,
   isBuoySubentityAttached,
   stationPose,
+  staticHullKey,
+  staticIdentKey,
   staticPose,
   staticTargetById,
 } from "../../../src/sim/world/statics.js";
@@ -42,9 +71,12 @@ import {
   createWorld,
   isPristineBuoyStates,
 } from "../../../src/sim/world/world.js";
+import { fullHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 
-const { layout } = laveFixture();
+const lave = laveFixture();
+const { layout } = lave;
 
 /** The renderer's station orientation, composed by hand. */
 function handStationQuat(angle: number): Quat {
@@ -66,15 +98,18 @@ describe("STATIC_TARGETS (the static laser targets, CBT-17)", () => {
     }
   });
 
-  it("names the Coriolis hull, the station layout body and the station health", () => {
+  it("names the station layout body and the station health, and no hull or ident key (the layout decides)", () => {
     const station = STATIC_TARGETS.find((row) => row.id === MAIN_STATION_ID);
     expect(station).toEqual({
       id: MAIN_STATION_ID,
       layoutKey: "station",
-      hullKey: "coriolis-station",
-      identKey: "coriolis-station",
       healthKey: "station",
     });
+    expect(station).not.toHaveProperty("hullKey");
+    expect(station).not.toHaveProperty("identKey");
+    // The table is one frozen module-level value (Pitfall P7, T-22.1-14).
+    expect(Object.isFrozen(STATIC_TARGETS)).toBe(true);
+    for (const row of STATIC_TARGETS) expect(Object.isFrozen(row)).toBe(true);
     const health = createStaticHealth();
     for (const row of STATIC_TARGETS) {
       expect(layout[row.layoutKey].position).toBeDefined();
@@ -239,7 +274,8 @@ describe("a new world restores both buoys (D-04, plan 18-08)", () => {
 
 describe("staticTargetById", () => {
   it("is total: the station row for 3, undefined for 0, -1, NaN, 100 and the reserved range", () => {
-    expect(staticTargetById(MAIN_STATION_ID)?.hullKey).toBe("coriolis-station");
+    const station = staticTargetById(MAIN_STATION_ID);
+    expect(station?.layoutKey).toBe("station");
     for (const id of [0, -1, Number.NaN, PLAYER_ID, 99, 1.5, Infinity]) {
       expect(staticTargetById(id)).toBeUndefined();
     }
@@ -264,5 +300,184 @@ describe("stationPose (PITFALLS 11: the docking and renderer pose)", () => {
       expect(out.y).toBeCloseTo(base.y, 12);
       expect(out.z).toBeCloseTo(base.z, 12);
     }
+  });
+});
+
+/**
+ * The main station is the system's own (Phase 22.1, WORLD-20, owner decision
+ * D-B): the station row carries no hull or ident key, and the layout names
+ * them. A copy of Lave whose `station` is the kind (the kind does not move the
+ * station) keeps spec and system in agreement, as the other per-kind tests do.
+ */
+describe("the station row resolves through the layout (Phase 22.1, WORLD-20)", () => {
+  function kindLayout(kind: StationKind): SystemLayout {
+    return deriveSystemLayout(
+      { ...lave.system, station: kind },
+      stationSpecOf(kind),
+    );
+  }
+
+  interface StationHullFile {
+    readonly hulls: readonly {
+      readonly key: string;
+      readonly collisionRadius: number;
+      readonly frangible: boolean;
+      readonly octree: HullData["octree"];
+      readonly subentities: readonly {
+        readonly key: string;
+        readonly position: readonly [number, number, number];
+        readonly mass: number;
+        readonly octree: HullData["octree"];
+      }[];
+    }[];
+  }
+
+  /** The traffic-on table plus the station artifact of `kind` (its own file). */
+  function tableWithStation(kind: StationKind): HullTable {
+    const table = new Map<string, HullData>(fullHullTable());
+    if (kind === "coriolis") return table;
+    const file = JSON.parse(
+      readFileSync(
+        new URL(
+          `../../../src/content/generated/${stationRecord(kind).hullsFile}`,
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as StationHullFile;
+    for (const record of file.hulls) {
+      table.set(record.key, {
+        collisionRadius: record.collisionRadius,
+        octree: record.octree,
+        frangible: record.frangible,
+        subentities: record.subentities.map((sub) => ({
+          key: sub.key,
+          position: {
+            x: sub.position[0],
+            y: sub.position[1],
+            z: sub.position[2],
+          },
+          mass: sub.mass,
+          octree: sub.octree,
+        })),
+      });
+    }
+    return table;
+  }
+
+  function stationRow(): StaticTarget {
+    const found = staticTargetById(MAIN_STATION_ID);
+    if (found === undefined) throw new Error("no station row");
+    return found;
+  }
+
+  it.each(STATION_KINDS)(
+    "names the %s station's own hull and ident key, and a buoy's its own at every system",
+    (kind) => {
+      const own = kindLayout(kind);
+      expect(staticHullKey(stationRow(), own)).toBe(`${kind}-station`);
+      expect(staticIdentKey(stationRow(), own)).toBe(`${kind}-station`);
+      const witchpoint = staticTargetById(WITCHPOINT_BUOY_ID);
+      const nav = staticTargetById(STATION_NAV_BUOY_ID);
+      if (witchpoint === undefined || nav === undefined) {
+        throw new Error("no buoy row");
+      }
+      expect(staticHullKey(witchpoint, own)).toBe("buoy");
+      expect(staticIdentKey(witchpoint, own)).toBe("buoy-witchpoint");
+      expect(staticHullKey(nav, own)).toBe("buoy");
+      expect(staticIdentKey(nav, own)).toBe("buoy");
+    },
+  );
+
+  /** A player `distance` m behind the station centre, nose at it. */
+  function playerBehind(own: SystemLayout, distance: number): FlightState {
+    const state = initFlightState(own);
+    stepFlight(state, own, lave.config, ZERO_INTENT, [{ kind: "launch" }], DT);
+    stepFlight(
+      state,
+      own,
+      lave.config,
+      ZERO_INTENT,
+      [{ kind: "skipLaunch" }],
+      DT,
+    );
+    const pose = stationPose(own, state.stationAngle);
+    const back = rotate(pose.orientation, vec(0, 0, 1));
+    state.position = add(pose.position, scale(back, distance));
+    state.orientation = quatFromUnitVectors(vec(0, 0, -1), scale(back, -1));
+    state.speed = 0;
+    return state;
+  }
+
+  /** The outcome of one pulse shot at the station centre from behind it. */
+  function shootStation(kind: StationKind, hulls: HullTable) {
+    const own = kindLayout(kind);
+    const player = playerBehind(own, 2 * own.station.radius);
+    const shot: ShotRequest = {
+      shooter: PLAYER_ID,
+      ray: playerLaserRay(
+        player.position,
+        player.orientation,
+        "fore",
+        "EQ_WEAPON_PULSE_LASER",
+      ),
+      laser: "EQ_WEAPON_PULSE_LASER",
+    };
+    const events = resolveShots(
+      createWorld(7),
+      true,
+      player,
+      createPlayerCombatState(),
+      [shot],
+      { combat: { mounts: DEFAULT_LASER_MOUNTS, hulls } },
+      DT,
+      own,
+    );
+    const hits = events.flatMap((event) =>
+      event.kind === "shipHit" ? [event.target] : [],
+    );
+    const beam = events.find((event) => event.kind === "laserFired");
+    if (beam === undefined || beam.kind !== "laserFired") {
+      throw new Error("no laserFired");
+    }
+    return {
+      hits,
+      length: dot(sub(beam.to, beam.from), shot.ray.forward),
+      toCentre: dot(sub(own.station.position, beam.from), shot.ray.forward),
+      radius: own.station.radius,
+    };
+  }
+
+  it.each(STATION_KINDS)(
+    "a shot at the %s station's centre hits it, on that kind's own octree (D-B)",
+    (kind) => {
+      const result = shootStation(kind, tableWithStation(kind));
+      expect(result.hits).toEqual([MAIN_STATION_ID]);
+      // The beam ends on the near (back) shell, short of the centre by less
+      // than the station's collision radius.
+      expect(result.length).toBeLessThan(result.toCentre);
+      expect(result.toCentre - result.length).toBeLessThan(result.radius);
+    },
+  );
+
+  it.each(["dodecahedron", "icosahedron"] as const)(
+    "without the %s artifact the station is no candidate and the shot passes",
+    (kind) => {
+      // The traffic-on table holds the Coriolis hull and no other station's.
+      const result = shootStation(kind, fullHullTable());
+      expect(result.hits).not.toContain(MAIN_STATION_ID);
+      // The beam runs on past the station's centre (it meets the nav buoy
+      // behind it, which the table does hold).
+      expect(result.length).toBeGreaterThan(result.toCentre);
+    },
+  );
+
+  it("never tests the Dodecahedron against another station's octree", () => {
+    const result = shootStation(
+      "dodecahedron",
+      tableWithStation("icosahedron"),
+    );
+    expect(result.hits).not.toContain(MAIN_STATION_ID);
+    expect(result.length).toBeGreaterThan(result.toCentre);
   });
 });

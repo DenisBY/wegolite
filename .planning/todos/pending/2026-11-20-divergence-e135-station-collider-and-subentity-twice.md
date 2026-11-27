@@ -6,6 +6,7 @@ area: sim
 severity: minor
 files:
   - src/sim/combat/collide.ts
+  - src/sim/combat/death.ts
   - src/sim/world/sorted-lists.ts
   - src/sim/world/step.ts
 audit_acknowledged:
@@ -46,3 +47,7 @@ wider and taller than its faceplate (it spans the whole dodecahedron body), and 
 is about 62 % as tall as the box. This is the D-06 axis-aligned box simplification, not a new bug, and it is why the
 Coriolis (whose faceplate fills its box) never showed it. Phase 22.2 decides, with the E-135 collider question above,
 whether the contact proxy stays a box or becomes the octree.
+
+## Death cause (Phase 22.1)
+
+`src/sim/combat/death.ts` (`playerDeathCause`) cannot name the main station as a culprit since its static row carries no key (the layout names it, Phase 22.1 plan 06); that is harmless while the station is no collider and never shoots, and this todo lists the file because making the station a collider (E-135) is the change that needs the layout threaded there.
