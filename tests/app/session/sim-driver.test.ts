@@ -1707,9 +1707,10 @@ describe("buildStepOptions", () => {
     ctx.core.layout = layout;
     driver.advanceFrame(DT);
     expect(seen).toHaveLength(1);
-    const options = seen[0] as ReturnType<typeof buildStepOptions>;
-    expect(options.hyperspace?.stationMass).toBe(layout.stationMass);
-    expect(options.hyperspace?.stationMass).toBe(912_357_312);
+    expect(seen[0]).toMatchObject({
+      hyperspace: { stationMass: layout.stationMass },
+    });
+    expect(layout.stationMass).toBe(912_357_312);
   });
 
   it("always emits combat with the mounts, and the hull table and NPC weapons only when given (plan 13-11)", () => {
