@@ -25,11 +25,19 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { isWitchspaceBlocked } from "../../src/sim/hyperspace/countdown.js";
+
+/** Oolite's scanner range, `SCANNER_MAX_RANGE` (m): the blockage outer gate. */
+const SCANNER_RANGE = 25_600;
+
 /** Stations the content build compiles: the comparison is on. */
 const ORACLE_KINDS: readonly string[] = ["coriolis-station"];
 
 /** Stations measured but not compiled yet (plan 22.1-02 compiles them). */
-const PENDING_KINDS: readonly string[] = [];
+const PENDING_KINDS: readonly string[] = [
+  "dodecahedron-station",
+  "icosahedron-station",
+];
 
 type Verdict = "EQUAL" | "ROUNDING" | "DIFFERS";
 
@@ -71,7 +79,7 @@ interface FixtureStation {
     startAngle: string;
     aspectRatio: string;
   };
-  blockage?: {
+  blockage: {
     radius: string;
     inner: string;
     outer: string;
@@ -80,10 +88,22 @@ interface FixtureStation {
   };
 }
 
+interface FixtureSystem {
+  id: string;
+  name: string;
+  mainStation: {
+    dataKey: string;
+    name: string;
+    mass: string;
+    collisionRadius: string;
+    boundingBox: string[];
+  };
+}
+
 interface Fixture {
   source: Record<string, string>;
   stations: Record<string, FixtureStation>;
-  systems: unknown[];
+  systems: FixtureSystem[];
 }
 
 interface ClientShip {
@@ -91,6 +111,12 @@ interface ClientShip {
   mass: number;
   collisionRadius: number;
   shipDef: { stationRoll: number };
+}
+
+interface CompiledSystem {
+  id: string;
+  name: string;
+  station: string;
 }
 
 interface DockPort {
@@ -109,6 +135,9 @@ const clientShips = readJson<ClientShip[]>(
 );
 const dockPort = readJson<DockPort>(
   "../../src/content/generated/dock-port.json",
+);
+const galaxy0 = readJson<CompiledSystem[]>(
+  "../../src/content/generated/systems/g0.json",
 );
 
 function station(key: string): FixtureStation {
@@ -159,13 +188,11 @@ function measuredNumbers(entry: FixtureStation): string[] {
       ...sub.boundingBox,
     );
   }
-  if (entry.blockage !== undefined) {
-    numbers.push(
-      entry.blockage.radius,
-      entry.blockage.inner,
-      entry.blockage.outer,
-    );
-  }
+  numbers.push(
+    entry.blockage.radius,
+    entry.blockage.inner,
+    entry.blockage.outer,
+  );
   return numbers;
 }
 
@@ -212,6 +239,8 @@ describe("the fixture's shape", () => {
       expect(entry.subEntities.length).toBeGreaterThan(0);
       expect(entry.subEntities.filter((sub) => sub.isDock)).toHaveLength(1);
       expect(typeof entry.tunnel.authored).toBe("boolean");
+      expect(typeof entry.blockage.blockedInner).toBe("boolean");
+      expect(typeof entry.blockage.blockedOuter).toBe("boolean");
       for (const number of measuredNumbers(entry)) {
         expect(Number.isFinite(Number(number)), `not numeric: ${number}`).toBe(
           true,
@@ -265,6 +294,54 @@ describe("the compiled stations against the measured Oolite values", () => {
           ),
         ).toBe("EQUAL");
       });
+    });
+  }
+});
+
+describe("the witchspace blockage trials", () => {
+  for (const key of [...ORACLE_KINDS, ...PENDING_KINDS]) {
+    it(`${key} blocks 1 m inside sqrt(0.1 x mass) and not 1 m outside (measured)`, () => {
+      const { mass, blockage } = station(key);
+      expect(blockage.blockedInner).toBe(true);
+      expect(blockage.blockedOuter).toBe(false);
+      const radius = Math.sqrt(0.1 * Number(mass));
+      expect(compareMeasured(blockage.radius, radius)).not.toBe("DIFFERS");
+      expect(Number(blockage.inner)).toBeCloseTo(radius - 1, 6);
+      expect(Number(blockage.outer)).toBeCloseTo(radius + 1, 6);
+    });
+  }
+
+  for (const key of ORACLE_KINDS) {
+    it(`${key}: isWitchspaceBlocked with the compiled mass reproduces both trials`, () => {
+      const { blockage } = station(key);
+      const { mass } = compiled(key);
+      expect(
+        isWitchspaceBlocked(Number(blockage.inner) ** 2, mass, SCANNER_RANGE),
+      ).toBe(blockage.blockedInner);
+      expect(
+        isWitchspaceBlocked(Number(blockage.outer) ** 2, mass, SCANNER_RANGE),
+      ).toBe(blockage.blockedOuter);
+    });
+  }
+});
+
+describe("the two real main stations (Run B)", () => {
+  it("holds Zaonce (g0-s129) and Biarge (g0-s3)", () => {
+    expect(fixture.systems.map((row) => row.id)).toEqual(["g0-s129", "g0-s3"]);
+  });
+
+  for (const row of fixture.systems) {
+    it(`${row.name} builds the station its planetinfo key selects, with the spawned station's numbers`, () => {
+      const system = galaxy0.find((entry) => entry.id === row.id);
+      if (system === undefined) throw new Error(`no compiled system ${row.id}`);
+      expect(system.name).toBe(row.name);
+      // Universe.m:1550 selects the ship whose role is the planetinfo station key.
+      expect(row.mainStation.dataKey).toBe(`${system.station}-station`);
+      const spawned = station(row.mainStation.dataKey);
+      expect(row.mainStation.name).toBe(spawned.name);
+      expect(row.mainStation.mass).toBe(spawned.mass);
+      expect(row.mainStation.collisionRadius).toBe(spawned.collisionRadius);
+      expect(row.mainStation.boundingBox).toEqual(spawned.boundingBox);
     });
   }
 });
