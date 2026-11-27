@@ -25,6 +25,7 @@
  */
 
 import type * as THREE from "three";
+import type { StationKind } from "../content/stations.js";
 import type { SaveStatus } from "../persistence/store.js";
 import type { Facing } from "../sim/combat/mounts.js";
 import type { FlightMode } from "../sim/flight/state.js";
@@ -37,6 +38,25 @@ export interface WegoliteWorldProbe {
   planet: [number, number, number];
   sun: [number, number, number];
   station: [number, number, number];
+  /**
+   * The live system's station kind (`coriolis`, `dodecahedron` or
+   * `icosahedron`), read from the layout the session flies: the session's
+   * fact, not the render's.
+   */
+  stationKind: StationKind;
+  /**
+   * The kind of the model attached to the scene's station body
+   * (`StationBody.modelKind`); `null` while the body is meshless. The render's
+   * fact: a journey that proves a model is drawn waits on this, never on
+   * `stationKind`.
+   */
+  stationModel: StationKind | null;
+  /**
+   * The station's live orientation `[w, x, y, z]`: `layout.stationBaseQuat`
+   * rolled about local +Z by the sim's station angle, the pose the render draws
+   * (`portQuaternion`). A launch proof reads the slot's axes from it.
+   */
+  stationOrientation: [number, number, number, number];
   navBuoy: [number, number, number];
   witchpoint: [number, number, number];
   maxRelativeMagnitude: number;

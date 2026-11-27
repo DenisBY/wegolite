@@ -31,12 +31,13 @@
  * `convert/static-hulls.ts` and `DOCK_PORT_PATH` in `convert/dock-port.ts`, so
  * that artifact stays byte-identical; the guard does not see them.
  *
- * `PENDING_PRESENTATION` lists the presentation file that still carries a
- * Coriolis constant until the last half-(b) plan lands: plan 22.1-12 (the
- * station screen model). Plan 22.1-11 removed the three `src/render` entries:
- * the render has no allowance. An allowance cannot outlive its reason: a
- * pending file with no violation left fails the guard and must be removed from
- * the list. Plan 22.1-12 empties it.
+ * `PENDING_PRESENTATION` lists a presentation file that still carries a
+ * Coriolis constant until the plan that removes it lands. It is empty: plan
+ * 22.1-11 removed the three `src/render` entries and plan 22.1-12 the last one
+ * (the station screen model), so no file in `src` carries an allowance. The
+ * mechanism stays for a later phase, and an allowance cannot outlive its
+ * reason: a pending file with no violation left fails the guard and must be
+ * removed from the list.
  *
  * It keys on text, so it is a tripwire and not a proof: a constant spelled
  * without these words or numbers is not seen. Each rule has a synthetic source
@@ -65,16 +66,12 @@ interface PendingAllowance {
 }
 
 /**
- * The half-(b) presentation files, each naming the plan that ends its
- * allowance. Plan 22.1-12 builds the station screen's model from the system's
- * station; the render files (plan 22.1-11) have no entry left.
+ * The presentation files that may still name a station constant, each naming
+ * the plan that ends its allowance. Empty since plan 22.1-12: the station
+ * screen's model reads the system's own station, and the render files (plan
+ * 22.1-11) have no entry either.
  */
-const PENDING_PRESENTATION: Readonly<Record<string, PendingAllowance>> = {
-  "src/ui/station-model.ts": {
-    plan: "22.1-12",
-    reason: "the station screen names the Coriolis and its dock",
-  },
-};
+const PENDING_PRESENTATION: Readonly<Record<string, PendingAllowance>> = {};
 
 const GENERATED_CATALOGUE = "src/content/generated/ships-client.json";
 
@@ -195,9 +192,12 @@ function srcTree(): SourceFile[] {
  * The pending allowances that no longer have a reason: a listed file that is
  * not in `files` or has no violation left.
  */
-function staleAllowances(files: readonly SourceFile[]): string[] {
+function staleAllowances(
+  files: readonly SourceFile[],
+  allowances: Readonly<Record<string, PendingAllowance>> = PENDING_PRESENTATION,
+): string[] {
   const stale: string[] = [];
-  for (const [path, allowance] of Object.entries(PENDING_PRESENTATION)) {
+  for (const [path, allowance] of Object.entries(allowances)) {
     const file = files.find((candidate) => candidate.path === path);
     if (file === undefined || fileViolations(file, RULES).length === 0) {
       stale.push(
@@ -238,21 +238,15 @@ describe("station constants live in the station record only (tripwire)", () => {
     expect(unexpected, unexpected.join("\n")).toEqual([]);
   });
 
-  it("keeps every pending file a scanned file that still violates, and names its plan", () => {
+  it("keeps every pending file a scanned file that still violates", () => {
     const stale = staleAllowances(tree);
     expect(stale, stale.join("\n")).toEqual([]);
-    for (const allowance of Object.values(PENDING_PRESENTATION)) {
-      expect(allowance.plan).toBe("22.1-12");
-      expect(allowance.reason.length).toBeGreaterThan(0);
-    }
   });
 
-  it("allows nothing beyond the station record and the one pending presentation file, and no src/render file", () => {
+  it("allows nothing beyond the station record: no pending presentation file is left (plan 22.1-12)", () => {
     expect(ALLOWED).toEqual(["src/content/stations.ts"]);
-    expect(Object.keys(PENDING_PRESENTATION)).toEqual([
-      "src/ui/station-model.ts",
-    ]);
-    for (const path of [...ALLOWED, ...Object.keys(PENDING_PRESENTATION)]) {
+    expect(Object.keys(PENDING_PRESENTATION)).toEqual([]);
+    for (const path of ALLOWED) {
       expect(path.startsWith("src/render/"), path).toBe(false);
     }
   });
@@ -395,21 +389,28 @@ describe("a comment is not a violation", () => {
 });
 
 describe("a pending allowance cannot outlive its reason", () => {
+  const path = "src/ui/station-model.ts";
+  /** A sample allowance, since the real list is empty. */
+  const sample: Readonly<Record<string, PendingAllowance>> = {
+    [path]: { plan: "sample", reason: "a sample allowance" },
+  };
+
   it("reports a pending file with no violation left as 'remove the allowance'", () => {
-    const path = "src/ui/station-model.ts";
-    const cleaned = srcTree().map((file) =>
-      file.path === path ? { path, source: "export const A = 1;\n" } : file,
-    );
-    const stale = staleAllowances(cleaned);
+    const violating: SourceFile[] = [
+      { path, source: 'export const K = "coriolis";\n' },
+    ];
+    expect(staleAllowances(violating, sample)).toEqual([]);
+    const cleaned: SourceFile[] = [{ path, source: "export const A = 1;\n" }];
+    const stale = staleAllowances(cleaned, sample);
     expect(stale).toHaveLength(1);
     expect(stale[0]).toContain(path);
     expect(stale[0]).toContain("remove the allowance");
   });
 
   it("reports a pending file that no longer exists", () => {
-    const path = "src/ui/station-model.ts";
     const stale = staleAllowances(
       srcTree().filter((file) => file.path !== path),
+      sample,
     );
     expect(stale).toHaveLength(1);
     expect(stale[0]).toContain(path);
