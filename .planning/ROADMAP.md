@@ -359,11 +359,11 @@ Plans:
 **Standing gate**: QUAL-12 (the frozen 20-seed run after every plan touching `src/sim/world/**`)
 **Decisions to settle** (both resolved in plan 22.1-01, PROJECT.md row "Each system's main station is its own Oolite type"): whether the new station masses come from the compiled models (as the Coriolis since Phase 10) or from the container reading when they differ (O1: compiled at build time and pinned to the container fixture; a DIFFERS is investigated, and the measured value ships only as a last resort); how the fly-out view adapts to a six-sided slot (O2: no hexagonal slot exists for these three stations, each slot's orientation comes from its dock record)
 **Todos**: `2026-11-18-per-system-main-station-types.md`
-**Plans:** 13 plans (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
+**Plans:** 1/13 plans executed (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
 
 Plans:
 **Wave 1**
-- [ ] 22.1-01-PLAN.md — Wave 1: the three stations and two real main stations measured in the reference Oolite container, committed as a numbers-only fixture with the oracle test; the `tunnel_*` premise corrected; owner decisions D-A, D-B and D-C recorded (WORLD-20)
+- [x] 22.1-01-PLAN.md — Wave 1: the three stations and two real main stations measured in the reference Oolite container, committed as a numbers-only fixture with the oracle test; the `tunnel_*` premise corrected; owner decisions D-A, D-B and D-C recorded (WORLD-20)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 22.1-02-PLAN.md — Wave 2: six station meshes vendored; one station record; the two new masses and radii compiled and pinned to the fixture; `system.station` a checked enum (WORLD-20)
@@ -566,7 +566,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
 | 22. Initial Population | v2.4 | 16/16 | Complete    | 2026-11-26 |
-| 22.1 Per-system main stations | v2.4 | 0/TBD | Not started | - |
+| 22.1 Per-system main stations | v2.4 | 1/13 | In Progress | - |
 | 22.2 Station as a collider for NPC ships (E-135) | v2.4 | 0/TBD | Not started | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
