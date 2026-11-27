@@ -15,11 +15,11 @@
  * investigated (decision O1, PROJECT.md row "Each system's main station is its
  * own Oolite type").
  *
- * `ORACLE_KINDS` are the stations the content build compiles today. The two
- * kinds in `PENDING_KINDS` are measured but not compiled yet; while they are
- * pending this test asserts that `ships-client.json` has NO entry for them, so
- * plan 22.1-02 (which compiles them) fails here on the first consumer and has to
- * move each kind into `ORACLE_KINDS`, which turns the comparison on.
+ * `ORACLE_KINDS` are the stations the content build compiles: all three (plan
+ * 22.1-02 compiled the Dodecahedron and Icosahedron from their vendored meshes).
+ * `PENDING_KINDS` is empty and stays as the place a future measured-but-not-yet-
+ * compiled kind would go; the test "no measured station is pending" fails when a
+ * fixture station is in neither list.
  */
 
 import { readFileSync } from "node:fs";
@@ -31,13 +31,20 @@ import { isWitchspaceBlocked } from "../../src/sim/hyperspace/countdown.js";
 const SCANNER_RANGE = 25_600;
 
 /** Stations the content build compiles: the comparison is on. */
-const ORACLE_KINDS: readonly string[] = ["coriolis-station"];
-
-/** Stations measured but not compiled yet (plan 22.1-02 compiles them). */
-const PENDING_KINDS: readonly string[] = [
+const ORACLE_KINDS: readonly string[] = [
+  "coriolis-station",
   "dodecahedron-station",
   "icosahedron-station",
 ];
+
+/** Stations measured but not compiled yet: none. */
+const PENDING_KINDS: readonly string[] = [];
+
+/**
+ * Stations whose dock port is compiled today (`dock-port.json` holds the
+ * Coriolis port only; plan 22.1-03 emits the other two).
+ */
+const DOCK_PORT_KINDS: readonly string[] = ["coriolis-station"];
 
 type Verdict = "EQUAL" | "ROUNDING" | "DIFFERS";
 
@@ -276,15 +283,17 @@ describe("the compiled stations against the measured Oolite values", () => {
         );
       });
 
-      it("has the dock subentity's bounding box as its port", () => {
-        const [x, y, z] = station(key).dock.boundingBox;
-        if (x === undefined || y === undefined || z === undefined) {
-          throw new Error(`${key}: the dock bounding box is incomplete`);
-        }
-        expectNotDiffers(`${key} port width`, x, dockPort.port.width);
-        expectNotDiffers(`${key} port height`, y, dockPort.port.height);
-        expectNotDiffers(`${key} port depth`, z, dockPort.port.depth);
-      });
+      if (DOCK_PORT_KINDS.includes(key)) {
+        it("has the dock subentity's bounding box as its port", () => {
+          const [x, y, z] = station(key).dock.boundingBox;
+          if (x === undefined || y === undefined || z === undefined) {
+            throw new Error(`${key}: the dock bounding box is incomplete`);
+          }
+          expectNotDiffers(`${key} port width`, x, dockPort.port.width);
+          expectNotDiffers(`${key} port height`, y, dockPort.port.height);
+          expectNotDiffers(`${key} port depth`, z, dockPort.port.depth);
+        });
+      }
 
       it("has the authored station_roll", () => {
         expect(
@@ -346,19 +355,17 @@ describe("the two real main stations (Run B)", () => {
   }
 });
 
-describe.skipIf(PENDING_KINDS.length === 0)(
-  "the pending kinds (the tripwire for plan 22.1-02)",
-  () => {
-    for (const key of PENDING_KINDS) {
-      it(`${key} is measured and not compiled yet`, () => {
-        expect(station(key).mass.length).toBeGreaterThan(0);
-        expect(
-          clientShips.some((ship) => ship.key === key),
-          `${key} is compiled now: move it from PENDING_KINDS to ORACLE_KINDS ` +
-            "in tests/content/stations-oracle.test.ts (plan 22.1-02) so its " +
-            "comparison with the fixture turns on.",
-        ).toBe(false);
-      });
+describe("no measured station is pending", () => {
+  it("compiles every station of the fixture", () => {
+    expect(PENDING_KINDS).toEqual([]);
+    expect(Object.keys(fixture.stations).sort()).toEqual(
+      [...ORACLE_KINDS].sort(),
+    );
+    for (const key of ORACLE_KINDS) {
+      expect(
+        clientShips.some((ship) => ship.key === key),
+        `${key} has no ships-client.json entry`,
+      ).toBe(true);
     }
-  },
-);
+  });
+});

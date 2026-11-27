@@ -715,6 +715,966 @@
     "usable": true
   },
   {
+    "collisionRadius": 832.2093505859375,
+    "extras": {
+      "ai_type": "oolite-stationAI.js",
+      "allegiance": "galcop",
+      "cargo_type": "CARGO_NOT_CARGO",
+      "energy_recharge_rate": 100,
+      "forward_weapon_type": "WEAPON_NONE",
+      "frangible": 0,
+      "has_ecm": true,
+      "has_escape_pod": false,
+      "has_scoop": false,
+      "market_monitored": true,
+      "max_energy": 25000,
+      "max_flight_pitch": 8,
+      "max_flight_roll": 8,
+      "max_flight_speed": 0,
+      "missiles": 0,
+      "name": "Dodecahedron Station",
+      "roles": "dodo dodec dodecahedron station",
+      "rotating": true,
+      "station_roll": "0.08",
+      "subentities": [
+        {
+          "is_dock": "false",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_dodo_faceplate"
+        },
+        {
+          "is_dock": "true",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            560.3216
+          ],
+          "subentity_key": "oolite_dodo_dock"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": "101 0 535",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": "101 0 485",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": "101 0 435",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": "101 0 385",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": "101 0 335",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": "-101 0 535",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": "-101 0 485",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": "-101 0 435",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": "-101 0 385",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": "-101 0 335",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": "0 -16 319.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": "0 16 319.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": "-16 0 319.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": "16 0 319.0",
+          "size": 10,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100,
+      "weapon_energy": 0
+    },
+    "isTemplate": false,
+    "key": "dodecahedron-station",
+    "marketDefinition": {
+      "kind": "empty"
+    },
+    "mass": 912357312,
+    "model": "oolite_dodo.dat",
+    "modelVendored": false,
+    "roles": [
+      "dodo",
+      "dodec",
+      "dodecahedron",
+      "station"
+    ],
+    "shipDef": {
+      "energyRecharge": 100,
+      "materials": {
+        "oolite_dodo_diffuse.png": {
+          "emission_map": {
+            "extract_channel": "a",
+            "name": "oolite_dodo_diffuse.png"
+          },
+          "emission_modulate_color": {
+            "blue": 3280.8824,
+            "green": 6780.963,
+            "red": 6750.952
+          },
+          "gloss": 1,
+          "normal_map": "oolite_dodo_normal.png",
+          "shininess": 42,
+          "specular_color": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "specular_map": "oolite_dodo_specular.png"
+        }
+      },
+      "maxFlightPitch": 8,
+      "maxFlightRoll": 8,
+      "maxFlightSpeed": 0,
+      "model": "oolite_dodo.dat",
+      "roles": [
+        "dodo",
+        "dodec",
+        "dodecahedron",
+        "station"
+      ],
+      "rotating": true,
+      "smooth": false,
+      "stationRoll": 0.08,
+      "subentities": [
+        {
+          "isDock": false,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_dodo_faceplate"
+        },
+        {
+          "isDock": true,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            560.3216
+          ],
+          "subentity_key": "oolite_dodo_dock"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": [
+            101,
+            0,
+            535
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": [
+            101,
+            0,
+            485
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": [
+            101,
+            0,
+            435
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": [
+            101,
+            0,
+            385
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": [
+            101,
+            0,
+            335
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": [
+            -101,
+            0,
+            535
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": [
+            -101,
+            0,
+            485
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": [
+            -101,
+            0,
+            435
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": [
+            -101,
+            0,
+            385
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": [
+            -101,
+            0,
+            335
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": [
+            0,
+            -16,
+            319
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": [
+            0,
+            16,
+            319
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": [
+            -16,
+            0,
+            319
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": [
+            16,
+            0,
+            319
+          ],
+          "size": 10,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100
+    },
+    "usable": true
+  },
+  {
+    "collisionRadius": 940.7927856445312,
+    "extras": {
+      "ai_type": "oolite-stationAI.js",
+      "allegiance": "galcop",
+      "cargo_type": "CARGO_NOT_CARGO",
+      "energy_recharge_rate": 100,
+      "forward_weapon_type": "WEAPON_NONE",
+      "frangible": 0,
+      "has_ecm": true,
+      "has_escape_pod": false,
+      "has_scoop": false,
+      "market_monitored": true,
+      "max_energy": 25000,
+      "max_flight_pitch": 8,
+      "max_flight_roll": 8,
+      "max_flight_speed": 0,
+      "missiles": 0,
+      "name": "Icosahedron Station",
+      "roles": "ico icosa icosahedron station",
+      "rotating": true,
+      "station_roll": "0.08",
+      "subentities": [
+        {
+          "is_dock": "false",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_ico_mainhull"
+        },
+        {
+          "is_dock": "true",
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            642.8881
+          ],
+          "subentity_key": "oolite_ico_dock"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": "0 110 615",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": "0 110 565",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": "0 110 515",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": "0 110 465",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": "0 110 415",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": "0 -110 615",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": "0 -110 565",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": "0 -110 515",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": "0 -110 465",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": "0 -110 415",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": "0 -16 400.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": "0 16 400.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": "-16 0 400.0",
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": "16 0 400.0",
+          "size": 10,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100,
+      "weapon_energy": 0
+    },
+    "isTemplate": false,
+    "key": "icosahedron-station",
+    "marketDefinition": {
+      "kind": "empty"
+    },
+    "mass": 826313024,
+    "model": "oolite_ico.dat",
+    "modelVendored": false,
+    "roles": [
+      "ico",
+      "icosa",
+      "icosahedron",
+      "station"
+    ],
+    "shipDef": {
+      "energyRecharge": 100,
+      "materials": {
+        "oolite_ico_diffuse.png": {
+          "emission_map": {
+            "extract_channel": "a",
+            "name": "oolite_ico_diffuse.png"
+          },
+          "emission_modulate_color": {
+            "blue": 3280.8824,
+            "green": 6780.963,
+            "red": 6750.952
+          },
+          "gloss": 1,
+          "normal_map": "oolite_ico_normal.png",
+          "shininess": 42,
+          "specular_color": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "specular_map": "oolite_ico_specular.png"
+        }
+      },
+      "maxFlightPitch": 8,
+      "maxFlightRoll": 8,
+      "maxFlightSpeed": 0,
+      "model": "oolite_ico.dat",
+      "roles": [
+        "ico",
+        "icosa",
+        "icosahedron",
+        "station"
+      ],
+      "rotating": true,
+      "smooth": false,
+      "stationRoll": 0.08,
+      "subentities": [
+        {
+          "isDock": false,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "subentity_key": "oolite_ico_mainhull"
+        },
+        {
+          "isDock": true,
+          "orientation": [
+            1,
+            0,
+            0,
+            0
+          ],
+          "position": [
+            0,
+            0,
+            642.8881
+          ],
+          "subentity_key": "oolite_ico_dock"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": [
+            0,
+            110,
+            615
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": [
+            0,
+            110,
+            565
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": [
+            0,
+            110,
+            515
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": [
+            0,
+            110,
+            465
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": [
+            0,
+            110,
+            415
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": -0.5,
+          "position": [
+            0,
+            -110,
+            615
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 75
+          },
+          "frequency": 1,
+          "phase": -0.6,
+          "position": [
+            0,
+            -110,
+            565
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 90
+          },
+          "frequency": 1,
+          "phase": -0.7,
+          "position": [
+            0,
+            -110,
+            515
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 105
+          },
+          "frequency": 1,
+          "phase": -0.8,
+          "position": [
+            0,
+            -110,
+            465
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 120
+          },
+          "frequency": 1,
+          "phase": -0.9,
+          "position": [
+            0,
+            -110,
+            415
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": [
+            0,
+            -16,
+            400
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0.5,
+          "position": [
+            0,
+            16,
+            400
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": [
+            -16,
+            0,
+            400
+          ],
+          "size": 10,
+          "type": "flasher"
+        },
+        {
+          "color": {
+            "hue": 60
+          },
+          "frequency": 1,
+          "phase": 0,
+          "position": [
+            16,
+            0,
+            400
+          ],
+          "size": 10,
+          "type": "flasher"
+        }
+      ],
+      "thrust": 100
+    },
+    "usable": true
+  },
+  {
     "collisionRadius": 72.69734954833984,
     "extras": {
       "aft_eject_position": "0.0 -13.25 -23.8",

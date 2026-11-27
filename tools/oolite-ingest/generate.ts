@@ -60,6 +60,7 @@ import {
   emitClientShips,
   emitShipsFromCatalogue,
 } from "./convert/ships.js";
+import { STATION_MODEL_FILES } from "./convert/stations.js";
 import { emitSystems } from "./convert/systems.js";
 import {
   copyParticleTextures,
@@ -321,7 +322,9 @@ export async function generateContent({
 async function readModels(
   inputRoot: string,
 ): Promise<Record<string, ParsedMesh>> {
-  const wanted = new Set<string>();
+  // The GLB sources and the station meshes: the latter are read for the
+  // stations' mass and collision radius only (no GLB is emitted from them yet).
+  const wanted = new Set<string>(STATION_MODEL_FILES);
   for (const files of Object.values(MODEL_SOURCE_FILES)) {
     for (const file of files) wanted.add(file);
   }

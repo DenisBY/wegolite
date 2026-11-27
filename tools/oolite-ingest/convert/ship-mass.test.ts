@@ -38,6 +38,7 @@ import { parseDat } from "./dat.js";
 import type { ParsedMesh } from "./dat.js";
 import { MODEL_SOURCE_FILES } from "./glb.js";
 import { NPC_SHIP_KEYS } from "./npc-ships.js";
+import { STATION_BUILDS, STATION_MODEL_FILES } from "./stations.js";
 import { buildOctree, octreeDepthFor } from "./octree.js";
 import type { OctreeNode } from "./octree.js";
 import { computeShipMasses, hullMass, shipMass } from "./ship-mass.js";
@@ -74,6 +75,22 @@ function loadMeshes(): Record<string, ParsedMesh> {
 }
 
 const meshes = loadMeshes();
+
+/**
+ * The station meshes vendored for mass and collision radius only (Phase 22.1):
+ * kept apart from `meshes` so the 32-mesh table below keeps pinning the GLB
+ * sources.
+ */
+function loadStationMeshes(): Record<string, ParsedMesh> {
+  const loaded: Record<string, ParsedMesh> = {};
+  for (const name of STATION_MODEL_FILES) {
+    const file = `${MODELS_DIR}/${name}`;
+    loaded[name] = parseDat(readText(file), file);
+  }
+  return loaded;
+}
+
+const stationMeshes = { ...meshes, ...loadStationMeshes() };
 
 function mesh(name: string): ParsedMesh {
   const found = meshes[name];
@@ -168,6 +185,34 @@ describe("the 32 vendored meshes", () => {
       DEPTH_SIX.has(name) ? 6 : DEPTH_FOUR.has(name) ? 4 : 5,
     );
   });
+});
+
+describe("the station masses (Phase 22.1, ShipEntity.m:417-419, 2034-2041)", () => {
+  const FIXTURE = JSON.parse(
+    readText("tests/fixtures/oolite-reference/stations.json"),
+  ) as { stations: Record<string, { mass: string }> };
+  const hull = (name: string): number => {
+    const found = stationMeshes[name];
+    if (found === undefined) throw new Error(`mesh "${name}" is not loaded`);
+    return hullMass(found, 1, `${MODELS_DIR}/${name}`);
+  };
+
+  it.each(STATION_BUILDS.map((build) => [build.shipKey, build] as const))(
+    "%s is the hull plus every solid subentity and the dock, flashers excluded",
+    (key, build) => {
+      const mass = shipMass(key, catalogue, stationMeshes);
+      // Hull first, then every solid subentity and the dock. A float32 running
+      // sum is order sensitive in its last bits, so the exact value is the
+      // measured one and the independent sum is compared to 1e-6.
+      let expected = hull(build.mainModel);
+      for (const name of [...build.solidModels, build.dockModel]) {
+        expected = Math.fround(expected + hull(name));
+      }
+      expect(mass).toBeGreaterThan(hull(build.mainModel));
+      expect(String(mass)).toBe(FIXTURE.stations[key]?.mass);
+      expect(Math.abs(mass - expected) / mass).toBeLessThan(1e-6);
+    },
+  );
 });
 
 describe("shipMass composition (ShipEntity.m:417-419, 2034-2041)", () => {

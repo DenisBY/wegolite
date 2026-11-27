@@ -109,7 +109,13 @@ Models/oolite_coriolis.dat
 Models/oolite_coriolis_dock.dat
 Models/oolite_coriolis_faceplate.dat
 Models/oolite_coriolis_tris.dat
+Models/oolite_dodo.dat
+Models/oolite_dodo_dock.dat
+Models/oolite_dodo_faceplate.dat
 Models/oolite_gecko.dat
+Models/oolite_ico.dat
+Models/oolite_ico_dock.dat
+Models/oolite_ico_hull.dat
 Models/oolite_krait.dat
 Models/oolite_mamba.dat
 Models/oolite_moray.dat
