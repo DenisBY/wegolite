@@ -4,9 +4,10 @@
 /**
  * The client's trimmed ship catalogue.
  *
- * The game reads two entries of the 194 the compiler emits. `ships-client.json`
- * carries those two plus the navigation buoy, which is carried for its mass
- * only (owner decision in plan 10-03; Phase 12 reads it). Each entry appears as
+ * The game reads the three main stations and the player ship of the 194 entries
+ * the compiler emits. `ships-client.json` carries those four plus the navigation
+ * buoy, which is carried for its mass only (owner decision in plan 10-03; Phase
+ * 12 reads it). Each entry appears as
  * in the complete `ships.json` plus its Oolite `mass` (DATA-11) and its Oolite
  * `collisionRadius` (quick task 261117-k1l), and the client source imports only
  * the trimmed file. `ships.json` itself carries neither.
@@ -16,10 +17,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  findShip,
   loadShipCatalogue,
   playerShip,
-  stationShip,
 } from "../../src/content/ships.js";
+import { STATION_KINDS, STATION_RECORDS } from "../../src/content/stations.js";
 import {
   CLIENT_SHIP_KEYS,
   CLIENT_SHIPS_PATH,
@@ -32,6 +34,14 @@ interface Entry {
   readonly key: string;
   readonly mass?: number;
   readonly collisionRadius?: number;
+  readonly modelVendored?: boolean;
+  readonly extras?: Readonly<Record<string, unknown>>;
+}
+
+interface StationFixture {
+  readonly stations: Readonly<
+    Record<string, { readonly mass: string; readonly collisionRadius: string }>
+  >;
 }
 
 function readJson(relative: string): Entry[] {
@@ -42,6 +52,12 @@ function readJson(relative: string): Entry[] {
 
 const full = readJson("src/content/generated/ships.json");
 const client = readJson(CLIENT_SHIPS_PATH);
+const measured = JSON.parse(
+  readFileSync(
+    new URL("../fixtures/oolite-reference/stations.json", import.meta.url),
+    "utf8",
+  ),
+) as StationFixture;
 
 describe("ships-client.json", () => {
   it("holds exactly the client's entries, in catalogue order", () => {
@@ -75,6 +91,39 @@ describe("ships-client.json", () => {
     expect(radius("oolite_template_cobra3-player")).toBe(72.69734954833984);
   });
 
+  it("carries the measured Oolite mass and collision radius of the two new stations", () => {
+    for (const key of ["dodecahedron-station", "icosahedron-station"]) {
+      const entry = client.find((other) => other.key === key);
+      const oolite = measured.stations[key];
+      if (entry === undefined || oolite === undefined) {
+        throw new Error(`no ${key} in ships-client.json or the fixture`);
+      }
+      // The probe logs each float32 as a string; EQUAL is the same string.
+      expect(String(entry.mass)).toBe(oolite.mass);
+      expect(String(entry.collisionRadius)).toBe(oolite.collisionRadius);
+    }
+  });
+
+  it("keeps modelVendored false for the stations whose GLB plan 22.1-10 emits", () => {
+    const flag = (key: string): boolean | undefined =>
+      client.find((entry) => entry.key === key)?.modelVendored;
+    expect(flag("coriolis-station")).toBe(true);
+    expect(flag("dodecahedron-station")).toBe(false);
+    expect(flag("icosahedron-station")).toBe(false);
+  });
+
+  it("marks every main station market-monitored, as Oolite's three templates do", () => {
+    // Oolite authors `"market_monitored" = yes;` on all three station
+    // templates (shipdata.plist lines 1706, 1895 and 2352); the content build
+    // compiles it to the boolean. LAW-07 (Phase 25) relies on it.
+    for (const kind of STATION_KINDS) {
+      const { shipKey } = STATION_RECORDS[kind];
+      const entry = client.find((other) => other.key === shipKey);
+      expect(entry, `ships-client.json has no ${shipKey}`).toBeDefined();
+      expect(entry?.extras?.["market_monitored"], shipKey).toBe(true);
+    }
+  });
+
   it("validates against the strict catalogue schema", () => {
     expect(ShipCatalogueSchema.safeParse(client).success).toBe(true);
   });
@@ -97,18 +146,21 @@ describe("ships-client.json", () => {
 });
 
 describe("the client loader", () => {
-  it("resolves the player ship and the station from the trimmed file", async () => {
+  it("resolves the player ship and every main station from the trimmed file", async () => {
     const catalogue = await loadShipCatalogue();
     expect(catalogue.map((entry) => entry.key)).toEqual([...CLIENT_SHIP_KEYS]);
     expect(CLIENT_SHIP_KEYS).toContain(playerShip(catalogue).key);
-    expect(CLIENT_SHIP_KEYS).toContain(stationShip(catalogue).key);
-    // The station still carries the dock the layout and the save allow-list
+    // Every station still carries the dock the layout and the save allow-list
     // are derived from.
-    expect(
-      stationShip(catalogue).shipDef.subentities.some(
-        (subentity) => subentity.isDock === true,
-      ),
-    ).toBe(true);
+    for (const kind of STATION_KINDS) {
+      const { shipKey } = STATION_RECORDS[kind];
+      expect(CLIENT_SHIP_KEYS).toContain(shipKey);
+      const ship = findShip(catalogue, shipKey);
+      expect(
+        ship.shipDef.subentities.some((subentity) => subentity.isDock === true),
+        `${shipKey} has no dock subentity`,
+      ).toBe(true);
+    }
   });
 
   it("does not import the complete catalogue", () => {

@@ -11,9 +11,13 @@
  *
  * The catalogue records Oolite's facts; it does not repeat its prune. Oolite
  * deletes any entry whose `.dat` is missing, which would delete most of the
- * usable entries because only the models of `MODEL_SOURCE_FILES` are vendored.
- * Instead every entry is kept, `usable` mirrors Oolite's predicate without
- * pruning, and `modelVendored` makes the difference explicit (DATA-07).
+ * usable entries because few models are vendored. Instead every entry is kept,
+ * `usable` mirrors Oolite's predicate without pruning, and `modelVendored`
+ * makes the difference explicit (DATA-07). `modelVendored` follows the meshes
+ * an emitted GLB is built from (`MODEL_SOURCE_FILES`): the Dodecahedron and
+ * Icosahedron meshes are vendored and read for mass and collision radius
+ * (`STATION_MODEL_FILES`), but until plan 22.1-10 emits their GLBs those two
+ * entries stay `modelVendored: false`. Nothing in `src/` reads the flag.
  *
  * `extras` carries every resolved key that the typed projection does not
  * consume, verbatim. Nothing is interpreted: a value that looks like a condition
@@ -529,21 +533,26 @@ export function emitShipsFromCatalogue(catalogue: ShipCatalogue): EmittedShips {
 export const CLIENT_SHIPS_PATH = "src/content/generated/ships-client.json";
 
 /**
- * The entries the game client carries: the navigation buoy, the station and
- * the player ship.
+ * The entries the game client carries: the navigation buoy, the three main
+ * stations and the player ship.
  *
- * The full catalogue is 194 entries and about 700 KB; the client reads two of
- * these (`src/content/ships.ts`): the station and the player ship. The buoy
- * entry is carried for its computed mass only, which Phase 12 reads for both
- * buoys (they share the model and the core subentity); the owner chose this
- * home in plan 10-03, which amends D-05. All three entries carry their
- * computed Oolite `mass` (DATA-11) and their Oolite `collisionRadius`, the hull
- * radius extended by solid subentities (quick task 261117-k1l); the complete
- * catalogue carries neither. Sorted by code unit, like the catalogue.
+ * The full catalogue is 194 entries and about 700 KB; the client reads these
+ * (`src/content/ships.ts`): the stations and the player ship. The buoy entry is
+ * carried for its computed mass only, which Phase 12 reads for both buoys (they
+ * share the model and the core subentity); the owner chose this home in plan
+ * 10-03, which amends D-05. Every entry carries its computed Oolite `mass`
+ * (DATA-11) and its Oolite `collisionRadius`, the hull radius extended by solid
+ * subentities (quick task 261117-k1l); the complete catalogue carries neither.
+ *
+ * Written in catalogue order (the order of `ships.json`): `emitClientShips`
+ * filters the catalogue, so the output follows it whatever the order here, and
+ * the client-loader test asserts the loaded keys equal this array.
  */
 export const CLIENT_SHIP_KEYS: readonly string[] = [
   "buoy",
   "coriolis-station",
+  "dodecahedron-station",
+  "icosahedron-station",
   "oolite_template_cobra3-player",
 ];
 

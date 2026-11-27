@@ -26,6 +26,7 @@ import { parseDat } from "./dat.js";
 import type { ParsedMesh } from "./dat.js";
 import { MODEL_SOURCE_FILES } from "./glb.js";
 import { NPC_SHIP_KEYS } from "./npc-ships.js";
+import { STATION_BUILDS, STATION_MODEL_FILES } from "./stations.js";
 import {
   collisionRadius,
   computeCollisionRadii,
@@ -51,7 +52,7 @@ const catalogue: ShipCatalogue = compileShips(
 );
 
 function loadMeshes(): Record<string, ParsedMesh> {
-  const names = new Set<string>();
+  const names = new Set<string>(STATION_MODEL_FILES);
   for (const files of Object.values(MODEL_SOURCE_FILES)) {
     for (const file of files) names.add(file);
   }
@@ -297,6 +298,22 @@ describe("collisionRadius (quick task 261117-k1l)", () => {
     ]);
     expect(f32[0]).toBe(779.3702392578125);
     expect(radii.get("coriolis-station")).toBe(f32[0]);
+  });
+
+  it("gives the Dodecahedron and Icosahedron the dock term, as measured in Oolite", () => {
+    const measured = JSON.parse(
+      readText("tests/fixtures/oolite-reference/stations.json"),
+    ) as { stations: Record<string, { collisionRadius: string }> };
+    const keys = STATION_BUILDS.map((build) => build.shipKey);
+    const both = computeCollisionRadii(keys, catalogue, meshes);
+    for (const build of STATION_BUILDS) {
+      const radius = both.get(build.shipKey);
+      expect(String(radius)).toBe(
+        measured.stations[build.shipKey]?.collisionRadius,
+      );
+      // The dock subentity sits far out, so the radius exceeds the hull's own.
+      expect(radius).toBeGreaterThan(independentRadius(build.mainModel));
+    }
   });
 
   it("ignores a flasher placed far out", () => {

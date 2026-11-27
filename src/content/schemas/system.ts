@@ -18,11 +18,14 @@
  *
  * Raw values are stored as authored: `radiusKm` is the plist `radius` (km, no
  * ×10 game-unit scaling), `techLevelRaw` is the plist `techlevel` (no +1
- * display adjustment), and `station` keeps the role fragment (`coriolis`)
- * rather than being resolved to a ship key.
+ * display adjustment), and `station` is the role fragment (`coriolis`) Oolite
+ * feeds `newShipWithRole:` (`Universe.m:1550`), checked against `STATION_KINDS`
+ * and not resolved to a ship key (`STATION_RECORDS` does that).
  */
 
 import { z } from "zod";
+
+import { STATION_KINDS } from "../stations.js";
 
 export const SystemVectorSchema = z.tuple([z.number(), z.number(), z.number()]);
 
@@ -49,7 +52,7 @@ export const SystemSchema = z.looseObject({
   planetDistance: z.number(),
   sunDistance: z.number(),
   sunRadius: z.number(),
-  station: z.string(),
+  station: z.enum(STATION_KINDS),
   stationVector: SystemVectorSchema,
   sunVector: SystemVectorSchema,
   terminatorThresholdVector: SystemVectorSchema,

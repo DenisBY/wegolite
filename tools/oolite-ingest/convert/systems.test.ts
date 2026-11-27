@@ -26,6 +26,11 @@ import type { System } from "../../../src/content/schemas/system.js";
 import { isContentError } from "../content-error.js";
 import type { ContentError } from "../content-error.js";
 import { parseOpenStep } from "../openstep/parser.js";
+import type { PlistValue } from "../openstep/plist-value.js";
+import {
+  DEFAULT_STATION_KIND,
+  STATION_KINDS,
+} from "../../../src/content/stations.js";
 import { compileSystems } from "./systems.js";
 
 const PLIST = "third_party/oolite/Config/planetinfo.plist";
@@ -247,5 +252,49 @@ describe("Lave golden fixture", () => {
     expect(lave.radiusKm).toBe(4116);
     // `station` stays the role fragment, not the resolved shipdata key.
     expect(lave.station).toBe("coriolis");
+  });
+});
+
+describe("the station kind (Phase 22.1, decision O8)", () => {
+  /** The pinned plist with g0-s0's authored station line replaced by `line`. */
+  function withStationLine(line: string): PlistValue {
+    const authored = 'station = "coriolis";';
+    expect(source).toContain(authored);
+    return parseOpenStep(source.replace(authored, line), "synthetic.plist");
+  }
+
+  it("compiles every authored station to one of the three kinds", () => {
+    for (const system of allSystems) {
+      expect(STATION_KINDS, system.id).toContain(system.station);
+    }
+  });
+
+  it("builds Lave a Coriolis, Zaonce an Icosahedron and Biarge a Dodecahedron", () => {
+    expect(find("g0-s7").station).toBe("coriolis");
+    expect(find("g0-s129").station).toBe("icosahedron");
+    expect(find("g0-s3").station).toBe("dodecahedron");
+  });
+
+  it("gives a system without a station key Oolite's default kind", () => {
+    const withoutKey = compileSystems(withStationLine(""));
+    expect(withoutKey[0]?.[0]?.station).toBe(DEFAULT_STATION_KIND);
+  });
+
+  it("fails the content build for a station outside the three kinds", () => {
+    const error = capture(() =>
+      compileSystems(withStationLine('station = "rockhermit";')),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.file).toBe(PLIST);
+    expect(error.construct).toBe("systems.g0-s0.station");
+  });
+
+  it("fails the content build for a station that is not a string", () => {
+    const error = capture(() =>
+      compileSystems(withStationLine("station = 7;")),
+    );
+    expect(error.code).toBe("SCHEMA");
+    expect(error.construct).toBe("systems.g0-s0.station");
+    expect(error.message).toMatch(/quoted string/);
   });
 });
