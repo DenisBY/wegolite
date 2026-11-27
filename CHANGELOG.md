@@ -16,6 +16,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- A hyperspace jump or a loaded save now puts you at the main station of the
+  system you arrive in, with that station's size, mass and dock opening, where
+  before every system after the first kept the Coriolis. The refusal when a
+  jump is too close to a station now names the station type of the system you
+  are leaving ("Dodecahedron Station" or "Icosahedron Station" there, as
+  Oolite's own name for it) instead of always "Coriolis Station". The station
+  models of the two other types are still drawn as the Coriolis for now.
 - In Dodecahedron and Icosahedron systems the main station now blocks a
   completing witchspace jump inside its own mass radius (about 9.6 km and
   9.1 km), as Oolite does; until now only a Coriolis station blocked.

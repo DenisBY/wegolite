@@ -64,6 +64,7 @@ import {
   laveInertRecords,
 } from "../../helpers/inert-world.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 
 const { layout } = laveFixture();
 const records = laveInertRecords();
@@ -852,12 +853,16 @@ describe("every galaxy-0 system populates without a fallback (T-12-16)", () => {
       "utf8",
     ),
   ) as System[];
-  const { stationDef } = laveFixture();
 
   it("spawns 12 ships per system at epoch 1 and takes no capped last candidate", () => {
     expect(systems).toHaveLength(256);
     for (const system of systems) {
-      const systemLayout = deriveSystemLayout(system, stationDef);
+      // Each system's own station: `deriveSystemLayout` refuses another kind's
+      // spec (Phase 22.1, Pitfall P2).
+      const systemLayout = deriveSystemLayout(
+        system,
+        stationSpecOf(system.station),
+      );
       const seed = worldSeedFor(marketSeedForSystem(system.id), 1);
       const probe = createWorld(seed);
       const plan = planInertPopulation(
@@ -883,7 +888,10 @@ describe("every galaxy-0 system populates without a fallback (T-12-16)", () => {
     ) as System[];
     const tight = galaxy1.find((system) => system.id === "g1-s45");
     expect(tight).toBeDefined();
-    const tightLayout = deriveSystemLayout(tight as System, stationDef);
+    const tightLayout = deriveSystemLayout(
+      tight as System,
+      stationSpecOf((tight as System).station),
+    );
     for (let epoch = 1; epoch <= 32; epoch++) {
       const rng = createWorld(
         worldSeedFor(marketSeedForSystem("g1-s45"), epoch),

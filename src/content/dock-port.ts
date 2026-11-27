@@ -115,11 +115,3 @@ export async function loadDockPorts(): Promise<
   }
   return { coriolis, dodecahedron, icosahedron };
 }
-
-/**
- * Load and validate the Coriolis dock-port geometry once. Kept for its one
- * caller until the per-kind station install replaces it (plan 22.1-07).
- */
-export function loadDockPort(): Promise<DockPort> {
-  return loadStationDockPort("coriolis");
-}

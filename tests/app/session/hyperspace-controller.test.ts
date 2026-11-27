@@ -16,7 +16,11 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import type { NpcShip, System } from "../../../src/content/types.js";
+import type {
+  NpcShip,
+  StationSpec,
+  System,
+} from "../../../src/content/types.js";
 import {
   createInertPopulate,
   trafficContent,
@@ -31,6 +35,7 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
+import type { StationKind } from "../../../src/content/stations.js";
 import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
@@ -46,6 +51,11 @@ import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import {
+  dockGeometryOf,
+  stationRecordsOf,
+  stationSpecOf,
+} from "../../helpers/stations.js";
 
 const lave = laveFixture();
 const catalogue = commoditiesFixture();
@@ -93,6 +103,9 @@ function harness(
   ctx.core.layout = lave.layout;
   ctx.core.config = lave.config;
   ctx.core.stationDef = lave.stationDef;
+  ctx.core.stationKey = lave.stationDef.key;
+  ctx.core.dockGeometry = dockGeometryOf("coriolis");
+  ctx.core.stationRecords = stationRecordsOf();
   ctx.core.commodities = catalogue;
   ctx.core.marketSeed = marketSeedForSystem(lave.system.id);
   ctx.core.market = generateMarket(lave.system, catalogue, ctx.core.marketSeed);
@@ -114,17 +127,22 @@ function harness(
   }
 
   const galaxyById = new Map(galaxy.map((entry) => [entry.id, entry]));
+  // The scene manager double derives the layout of what it was last asked to
+  // enter, with the spec it was handed, as the real manager does.
+  let entered: { system: System; stationDef: StationSpec } | undefined;
   const deps: HyperspaceControllerDeps = {
     scenes: {
       enterSystem: (system, stationDef) => {
         calls.push(`enterSystem ${system.id}`);
-        void stationDef;
+        entered = { system, stationDef };
         return {} as ReturnType<
           HyperspaceControllerDeps["scenes"]["enterSystem"]
         >;
       },
       layout: () =>
-        deriveSystemLayout(destination ?? lave.system, lave.stationDef),
+        entered === undefined
+          ? undefined
+          : deriveSystemLayout(entered.system, entered.stationDef),
     },
     galaxyById,
     messages: {
@@ -473,5 +491,172 @@ describe("refusalCopy and targetSystem", () => {
     expect(() => {
       controller.syncStatusOverlay();
     }).not.toThrow();
+  });
+});
+
+describe("refusalCopy names the origin system's station (Phase 22.1, WORLD-20, F7)", () => {
+  /** The three galaxy-0 systems that author one station kind each. */
+  const BY_KIND: readonly [StationKind, string, number][] = [
+    ["coriolis", "Lave", 54],
+    ["dodecahedron", "Biarge", 58],
+    ["icosahedron", "Zaonce", 57],
+  ];
+
+  function originNamed(name: string): System {
+    const found = galaxy.find((entry) => entry.name === name);
+    if (found === undefined) throw new Error(`no system named ${name}`);
+    return found;
+  }
+
+  it.each(BY_KIND)(
+    "a refusal with a station blocker at the %s system %s prints that station's line (%i characters)",
+    (kind, name, length) => {
+      const { ctx, controller } = harness();
+      ctx.core.system = originNamed(name);
+      const line = controller.refusalCopy("blocked", "station");
+      expect(line).toBe(
+        `Witchspace jump aborted: too close to ${stationSpecOf(kind).name}`,
+      );
+      expect(line).toHaveLength(length);
+      expect(line.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+    },
+  );
+
+  it.each(BY_KIND)(
+    "an undefined blocker at the %s system %s names the same station",
+    (_kind, name) => {
+      const { ctx, controller } = harness();
+      ctx.core.system = originNamed(name);
+      expect(controller.refusalCopy("blocked")).toBe(
+        controller.refusalCopy("blocked", "station"),
+      );
+    },
+  );
+
+  it("names the station of the system being left, never the target's", () => {
+    const { ctx, controller } = harness();
+    ctx.core.hyperspaceTargetId = originNamed("Zaonce").id;
+    expect(ctx.core.system.id).toBe(lave.system.id);
+    expect(controller.refusalCopy("blocked", "station")).toBe(
+      "Witchspace jump aborted: too close to Coriolis Station",
+    );
+  });
+
+  it("keeps the ship and buoy lines whatever the origin's station", () => {
+    const { ctx, controller } = harness();
+    ctx.core.system = originNamed("Zaonce");
+    expect(controller.refusalCopy("blocked", "ship")).toBe(
+      "Witchspace jump aborted: too close to a ship",
+    );
+    expect(controller.refusalCopy("blocked", "navBuoy")).toBe(
+      "Witchspace jump aborted: too close to Navigation Buoy",
+    );
+  });
+});
+
+const zaonce = galaxy.find((entry) => entry.name === "Zaonce");
+if (zaonce === undefined) throw new Error("the galaxy has no Zaonce");
+const toZaonce = { ...jumped, destinationId: zaonce.id };
+const toLave = { ...jumped, destinationId: lave.system.id };
+
+/** The things that must always be the station of `ctx.core.system`. */
+function installedStation(ctx: SessionState): {
+  readonly system: string | undefined;
+  readonly specKey: string | undefined;
+  readonly stationKey: string | undefined;
+  readonly layoutKey: string | undefined;
+  readonly port: unknown;
+} {
+  return {
+    system: ctx.core.system.id,
+    specKey: ctx.core.stationDef?.key,
+    stationKey: ctx.core.stationKey,
+    layoutKey: ctx.core.layout?.stationKey,
+    port: ctx.core.dockGeometry?.port,
+  };
+}
+
+describe("handleHyperspaceJumped, the station follows the system (Phase 22.1, WORLD-20)", () => {
+  it("a Lave to Zaonce arrival installs the Icosahedron spec, key, layout and dock geometry", () => {
+    const { ctx, controller } = harness();
+
+    controller.handleHyperspaceJumped(toZaonce);
+
+    expect(installedStation(ctx)).toEqual({
+      system: "g0-s129",
+      specKey: "icosahedron-station",
+      stationKey: "icosahedron-station",
+      layoutKey: "icosahedron-station",
+      port: dockGeometryOf("icosahedron").port,
+    });
+    expect(ctx.core.stationDef).toEqual(stationSpecOf("icosahedron"));
+    expect(ctx.core.layout?.stationKind).toBe("icosahedron");
+    expect(ctx.core.dockGeometry).toEqual(dockGeometryOf("icosahedron"));
+    expect(ctx.runtime.paused).toBe(false);
+  });
+
+  it("a jump back to Lave restores the Coriolis in all four", () => {
+    const { ctx, controller } = harness();
+    controller.handleHyperspaceJumped(toZaonce);
+
+    controller.handleHyperspaceJumped(toLave);
+
+    expect(installedStation(ctx)).toEqual({
+      system: lave.system.id,
+      specKey: "coriolis-station",
+      stationKey: "coriolis-station",
+      layoutKey: "coriolis-station",
+      port: dockGeometryOf("coriolis").port,
+    });
+    expect(ctx.core.dockGeometry).toEqual(dockGeometryOf("coriolis"));
+  });
+
+  it("a failed Zaonce destination build leaves the Lave Coriolis, its layout and its dock geometry in place and pauses the session", () => {
+    const { ctx, controller } = harness({ failDestinationBuild: true });
+    const before = {
+      system: ctx.core.system,
+      stationDef: ctx.core.stationDef,
+      stationKey: ctx.core.stationKey,
+      layout: ctx.core.layout,
+      dockGeometry: ctx.core.dockGeometry,
+    };
+
+    controller.handleHyperspaceJumped(toZaonce);
+
+    expect(ctx.runtime.paused).toBe(true);
+    expect(ctx.core.system).toBe(before.system);
+    expect(ctx.core.stationDef).toBe(before.stationDef);
+    expect(ctx.core.stationKey).toBe(before.stationKey);
+    expect(ctx.core.layout).toBe(before.layout);
+    expect(ctx.core.dockGeometry).toBe(before.dockGeometry);
+    expect(installedStation(ctx).specKey).toBe("coriolis-station");
+  });
+
+  it("a destination whose station record is missing fails before the commit point and leaves the origin installed (G-7)", () => {
+    const { ctx, controller, calls, failures } = harness();
+    const records = stationRecordsOf();
+    ctx.core.stationRecords = {
+      specs: new Map(
+        [...records.specs].filter(([kind]) => kind !== "icosahedron"),
+      ),
+      dockPorts: records.dockPorts,
+    };
+    const before = {
+      system: ctx.core.system,
+      stationDef: ctx.core.stationDef,
+      layout: ctx.core.layout,
+      dockGeometry: ctx.core.dockGeometry,
+    };
+
+    controller.handleHyperspaceJumped(toZaonce);
+
+    expect(ctx.runtime.paused).toBe(true);
+    expect(failures).toHaveLength(1);
+    // The scene manager was never asked to switch.
+    expect(calls).toEqual(["showBootFailure", "publishFailure"]);
+    expect(ctx.core.system).toBe(before.system);
+    expect(ctx.core.stationDef).toBe(before.stationDef);
+    expect(ctx.core.layout).toBe(before.layout);
+    expect(ctx.core.dockGeometry).toBe(before.dockGeometry);
   });
 });

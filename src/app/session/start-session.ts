@@ -24,9 +24,6 @@
  */
 
 import { loadShipCatalogue, playerShip } from "../../content/ships.js";
-import { loadStationDockPort } from "../../content/dock-port.js";
-import type { DockPort } from "../../content/schemas/dock-port.js";
-import { stationSpecFor } from "../../content/stations.js";
 import { loadEquipment } from "../../content/equipment.js";
 import { loadCommodities } from "../../content/commodities.js";
 import { loadLabels } from "../../content/labels.js";
@@ -55,7 +52,7 @@ import {
 import { createHud } from "../../render/hud/hud.js";
 import type { Command } from "../../sim/commands.js";
 import { createPlayerCombatState } from "../../sim/combat/state.js";
-import { createDockGeometry } from "../../sim/dock/geometry.js";
+import type { DockGeometry } from "../../sim/dock/geometry.js";
 import { deriveFlightConfig } from "../../sim/flight/config.js";
 import { initFlightState, poseOf } from "../../sim/flight/state.js";
 import type { FlightState } from "../../sim/flight/state.js";
@@ -89,6 +86,8 @@ import type { ProbePublisher } from "./probe-publisher.js";
 import type { RenderDriver } from "./render-driver.js";
 import type { SaveController } from "./save-controller.js";
 import type { SettingsController } from "./settings-controller.js";
+import { loadStationRecords, stationFor } from "./station-install.js";
+import type { StationRecords } from "./station-install.js";
 import type { StationController } from "./station-controller.js";
 
 /**
@@ -578,18 +577,23 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       if (savedSystem !== undefined) ctx.core.system = savedSystem;
     }
 
-    // Phase 22.1: the session boots with the main station of the system it
-    // starts in (Universe.m:1550). The spec and the dock record are both
-    // resolved before any station state is installed (T-22.1-10), so a
-    // missing record leaves no half-installed session; both failures go to the
-    // boot failure surface. Until plan 22.1-07 a hyperspace arrival or an F2
-    // Load keeps this boot station.
-    const stationKind = ctx.core.system.station;
+    // Phase 22.1: the three station specs and dock records load once, here, and
+    // the session boots with the main station of the system it starts in
+    // (Universe.m:1550). Every record and the starting station's dock geometry
+    // are resolved before any station state is installed (T-22.1-10, O8), so a
+    // missing record leaves no half-installed session and never a Coriolis in
+    // its place; each failure goes to the boot failure surface. A hyperspace
+    // arrival and an F2 Load install the station of their system through the
+    // same `stationFor` (hyperspace-controller.ts, save-controller.ts).
+    let records: StationRecords;
     let station: StationSpec;
-    let dockPort: DockPort;
+    let bootDockGeometry: DockGeometry;
     try {
-      station = stationSpecFor(catalogue, stationKind);
-      dockPort = await loadStationDockPort(stationKind);
+      records = await loadStationRecords(catalogue);
+      ({ spec: station, dockGeometry: bootDockGeometry } = stationFor(
+        records,
+        ctx.core.system,
+      ));
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       showBootFailure(reason);
@@ -597,6 +601,7 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       return;
     }
     if (ctx.runtime.disposed) return;
+    ctx.core.stationRecords = records;
     ctx.core.stationDef = station;
     ctx.core.stationKey = station.key;
     // The graphics quality selects the planet's shader variant and the
@@ -612,19 +617,10 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       );
     }
 
-    // D-01/DOCK-01: the generated aperture is validated and converted into the
-    // port frame once, here, and injected into every fixed step as plain data.
-    try {
-      ctx.core.dockGeometry = createDockGeometry(
-        dockPort,
-        systemLayout.dockOffset,
-      );
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      showBootFailure(reason);
-      publishFailure(reason);
-      return;
-    }
+    // D-01/DOCK-01: the generated aperture was validated and converted into the
+    // port frame by `stationFor` above (with the spec's dock offset, the value
+    // the layout carries) and is injected into every fixed step as plain data.
+    ctx.core.dockGeometry = bootDockGeometry;
 
     if (!restoring) {
       // New game: the clear must commit before this promise resolves, so a

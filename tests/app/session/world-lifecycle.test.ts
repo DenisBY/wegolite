@@ -99,6 +99,7 @@ import {
   commodityUnits,
 } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationRecordsOf } from "../../helpers/stations.js";
 
 const lave = laveFixture();
 const MARKET_SEED = 0x12345678;
@@ -996,6 +997,7 @@ describe("arrival", () => {
     ctx.core.layout = lave.layout;
     ctx.core.config = lave.config;
     ctx.core.stationDef = lave.stationDef;
+    ctx.core.stationRecords = stationRecordsOf();
     ctx.core.commodities = catalogue;
     ctx.core.marketSeed = marketSeedForSystem(lave.system.id);
     ctx.core.market = generateMarket(
@@ -1331,6 +1333,7 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
     ctx.core.layout = lave.layout;
     ctx.core.config = lave.config;
     ctx.core.stationDef = lave.stationDef;
+    ctx.core.stationRecords = stationRecordsOf();
     ctx.core.commodities = catalogue;
     ctx.core.marketSeed = marketSeedForSystem(lave.system.id);
     ctx.core.market = generateMarket(
@@ -1593,6 +1596,7 @@ function loadHarness(
   const read = { current: { kind: "absent" } as SaveReadResult };
   ctx.core.state = initFlightState(lave.layout);
   ctx.core.stationDef = lave.stationDef;
+  ctx.core.stationRecords = stationRecordsOf();
   ctx.core.stationKey = "coriolis-station";
   ctx.core.commodities = catalogue;
   ctx.core.commodityUnits = commodityUnits(catalogue);

@@ -48,6 +48,7 @@ import type {
 import type { RedrawGate } from "../redraw-gate.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { TestFlags } from "./test-flags.js";
+import type { StationRecords } from "./station-install.js";
 import type { TrafficContent } from "./traffic.js";
 import type { WorldLifecycle } from "./world-lifecycle.js";
 import type { KeyboardInputSource } from "../../input/keyboard.js";
@@ -129,8 +130,15 @@ export interface SessionCore {
   config: FlightConfig | undefined;
   dockGeometry: DockGeometry | undefined;
   scene: SystemScene | undefined;
+  /**
+   * The station of `system` (Phase 22.1): `stationDef`, `stationKey` and
+   * `dockGeometry` are always the station of the system in this same struct,
+   * assigned in the same commit block as `system`, `scene` and `layout`.
+   */
   stationDef: StationSpec | undefined;
   stationKey: string | undefined;
+  /** Every kind's spec and dock record, loaded once at boot. */
+  stationRecords: StationRecords | undefined;
   equipmentCatalogue: readonly Equipment[] | undefined;
   commodities: readonly Commodity[] | undefined;
   labels: Labels | undefined;
@@ -416,6 +424,7 @@ export function createSessionState(init: SessionStateInit): SessionState {
       scene: undefined,
       stationDef: undefined,
       stationKey: undefined,
+      stationRecords: undefined,
       equipmentCatalogue: undefined,
       commodities: undefined,
       labels: undefined,

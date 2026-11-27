@@ -23,7 +23,6 @@ import { describe, expect, it } from "vitest";
 import { DockPortSchema } from "./schemas/dock-port.js";
 import {
   DockPortError,
-  loadDockPort,
   loadDockPorts,
   loadStationDockPort,
   readDockPortFile,
@@ -117,7 +116,7 @@ describe("committed dock-port geometry", () => {
   });
 
   it("loads through the typed loader with the same numbers", async () => {
-    const loaded = await loadDockPort();
+    const loaded = await loadStationDockPort("coriolis");
     expectClose(loaded.port.width, 103.4123);
     expectClose(loaded.port.height, 241.888);
     expectClose(loaded.port.depth, 250);
@@ -150,13 +149,13 @@ describe("per-kind dock-port records (Phase 22.1)", () => {
     }
   });
 
-  it("returns the Coriolis record from loadDockPort and loadStationDockPort alike", async () => {
-    const [legacy, perKind] = await Promise.all([
-      loadDockPort(),
+  it("returns the Coriolis record from loadStationDockPort and loadDockPorts alike", async () => {
+    const [single, all] = await Promise.all([
       loadStationDockPort("coriolis"),
+      loadDockPorts(),
     ]);
-    expect(legacy).toEqual(perKind);
-    expectClose(perKind.port.width, 103.4123);
+    expect(all.coriolis).toEqual(single);
+    expectClose(single.port.width, 103.4123);
   });
 
   it("measures a landscape Dodecahedron port and a portrait Icosahedron port", async () => {

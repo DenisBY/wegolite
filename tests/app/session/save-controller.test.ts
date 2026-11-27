@@ -11,8 +11,12 @@
  * sequence of `loadFromSave`, never by running the code under test twice.
  */
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
+import type { StationSpec, System } from "../../../src/content/types.js";
+import { STATION_KINDS } from "../../../src/content/stations.js";
 import { createSessionState } from "../../../src/app/session/context.js";
 import type { SessionState } from "../../../src/app/session/context.js";
 import { latchGameOver } from "../../../src/app/session/event-router.js";
@@ -24,6 +28,9 @@ import {
 } from "../../../src/app/session/save-controller.js";
 import type { SaveController } from "../../../src/app/session/save-controller.js";
 import { createWorldLifecycle } from "../../../src/app/session/world-lifecycle.js";
+import { createHyperspaceController } from "../../../src/app/session/hyperspace-controller.js";
+import type { HyperspaceControllerDeps } from "../../../src/app/session/hyperspace-controller.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { snapshotForSave } from "../../../src/persistence/autosave.js";
 import { encodeSave } from "../../../src/persistence/save.js";
 import type { SaveInputs } from "../../../src/persistence/save.js";
@@ -54,6 +61,12 @@ import {
   commodityUnits,
 } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import {
+  clientCatalogue,
+  dockGeometryOf,
+  stationRecordsOf,
+  stationSpecOf,
+} from "../../helpers/stations.js";
 import { saveAllowLists, saveInputs } from "../../helpers/save-builders.js";
 
 const lave = laveFixture();
@@ -183,6 +196,7 @@ function harness(options: HarnessOptions = {}): Harness {
   ctx.core.worldLifecycle = createWorldLifecycle({ traffic: false });
   ctx.core.state = initFlightState(layout);
   ctx.core.stationDef = stationDef;
+  ctx.core.stationRecords = stationRecordsOf();
   ctx.core.stationKey = "coriolis-station";
   ctx.core.commodities = catalogue;
   ctx.core.commodityUnits = commodityUnits(catalogue);
@@ -1069,5 +1083,263 @@ describe("loadFromSave order", () => {
     expect(future.ctx.save.saveSkipReason).toBe("future");
     expect(future.log).toEqual(["syncSaveProbe"]);
     expect(future.ctx.save.saveRevision).toBe(0);
+  });
+});
+
+describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
+  const galaxy = JSON.parse(
+    readFileSync(
+      new URL(
+        "../../../src/content/generated/systems/g0.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as System[];
+  const galaxyById = new Map(galaxy.map((entry) => [entry.id, entry]));
+
+  function systemNamed(name: string): System {
+    const found = galaxy.find((entry) => entry.name === name);
+    if (found === undefined) throw new Error(`no system named ${name}`);
+    return found;
+  }
+
+  const allowEveryStation = saveAllowLists({
+    equipment: new Set(["EQ_DOCK_COMP"]),
+    systems: new Set(galaxy.map((entry) => entry.id)),
+    stations: new Set(STATION_KINDS.map((kind) => stationSpecOf(kind).key)),
+    commodities: new Map(
+      catalogue
+        .filter((commodity) => commodity.tradeable)
+        .map((commodity) => [commodity.key, commodity.unit]),
+    ),
+  });
+
+  interface RealHarness {
+    readonly ctx: SessionState;
+    readonly controller: SaveController;
+    readonly read: { current: SaveReadResult };
+    readonly entered: string[];
+  }
+
+  /**
+   * A session at Lave whose Load goes through the real hyperspace controller's
+   * `enterSystemById`, the one that installs the station, over a scene manager
+   * double that derives the layout of what it was last asked to enter.
+   */
+  function realHarness(failEnter = false): RealHarness {
+    const ctx = createSessionState({
+      system,
+      saveStatus: "valid",
+      saveSkipReason: "",
+    });
+    const entered: string[] = [];
+    let last: { system: System; spec: StationSpec } | undefined;
+    ctx.core.worldLifecycle = createWorldLifecycle({ traffic: false });
+    ctx.core.state = initFlightState(layout);
+    ctx.core.stationDef = stationDef;
+    ctx.core.stationKey = stationDef.key;
+    ctx.core.dockGeometry = dockGeometryOf("coriolis");
+    ctx.core.stationRecords = stationRecordsOf();
+    ctx.core.commodities = catalogue;
+    ctx.core.commodityUnits = commodityUnits(catalogue);
+    ctx.core.market = market;
+    ctx.core.marketSeed = market.seed;
+    ctx.core.layout = layout;
+    ctx.runtime.input = {
+      getContext: () => "dockScreen",
+      setContext: () => undefined,
+    } as unknown as KeyboardInputSource;
+    ctx.runtime.loop = { reset: () => undefined } as unknown as GameLoop;
+    ctx.save.saveLoad = {
+      show: () => undefined,
+      hide: () => undefined,
+      setSlot: () => undefined,
+      setNotice: () => undefined,
+      cancelOverwrite: () => undefined,
+      isConfirming: () => false,
+    } as unknown as SaveLoadScreen;
+    ctx.save.saveScreenOpen = true;
+    ctx.save.contextBeforeSaveScreen = "dockHome";
+
+    const quiet = (): void => undefined;
+    const hyperspace = createHyperspaceController(ctx, {
+      scenes: {
+        enterSystem: (target, spec) => {
+          if (failEnter) throw new Error("scene build failed");
+          entered.push(target.id);
+          last = { system: target, spec };
+          return {} as ReturnType<
+            HyperspaceControllerDeps["scenes"]["enterSystem"]
+          >;
+        },
+        layout: () =>
+          last === undefined
+            ? undefined
+            : deriveSystemLayout(last.system, last.spec),
+      },
+      galaxyById,
+      messages: { enqueue: quiet, clearPrevious: quiet },
+      faults: undefined,
+      showBootFailure: quiet,
+      publishFailure: quiet,
+      autosave: quiet,
+      syncEconomyProbe: quiet,
+      closeChart: quiet,
+    });
+    const read: { current: SaveReadResult } = {
+      current: { kind: "absent" },
+    };
+    const store: SaveStore = {
+      read: () => Promise.resolve(read.current),
+      write: () => Promise.resolve({ committed: true, revision: 1 }),
+      clear: () => Promise.resolve({ committed: true, revision: 1 }),
+      backupCorrupt: () => Promise.resolve(),
+      dispose: () => undefined,
+    };
+    const controller = createSaveController(ctx, {
+      saveBoot: { store, status: "valid", allow: allowEveryStation },
+      galaxyById,
+      docked: { show: quiet, hide: quiet },
+      hudCanvas: { hidden: false },
+      probe: {},
+      messages: { clear: quiet },
+      enterSystemById: hyperspace.enterSystemById,
+      syncStatusOverlay: quiet,
+      renderFrame: quiet,
+      renderStation: quiet,
+      syncStationNav: quiet,
+      ensureSelection: quiet,
+      updateProbe: quiet,
+      syncSaveProbe: quiet,
+      syncEconomyProbe: quiet,
+      bindTestHook: quiet,
+    });
+    return { ctx, controller, read, entered };
+  }
+
+  /** A docked save at `target`, naming `stationKey` (the saved label). */
+  function dockedSaveAt(target: System, stationKey: string): SaveReadResult {
+    const spec = stationSpecOf(target.station);
+    const state = initFlightState(deriveSystemLayout(target, spec));
+    const targetMarket = generateMarket(target, catalogue, MARKET_SEED);
+    const inputs = snapshotForSave(
+      state,
+      { ...newProfile(), credits: 4321 },
+      target,
+      { key: stationKey },
+      targetMarket,
+      catalogue,
+      { epoch: 0, anchorNextEntityId: undefined },
+      undefined,
+    );
+    return { kind: "ok", raw: encodeSave(inputs) };
+  }
+
+  it("an F2 Load of a docked save at Zaonce from a Lave session installs the Icosahedron spec, layout and dock geometry", async () => {
+    const h = realHarness();
+    const zaonce = systemNamed("Zaonce");
+    h.read.current = dockedSaveAt(zaonce, "icosahedron-station");
+
+    await h.controller.loadFromSave();
+
+    expect(h.ctx.core.system).toBe(zaonce);
+    expect(h.ctx.core.stationDef).toEqual(stationSpecOf("icosahedron"));
+    expect(h.ctx.core.stationKey).toBe("icosahedron-station");
+    expect(h.ctx.core.layout?.stationKey).toBe("icosahedron-station");
+    expect(h.ctx.core.dockGeometry).toEqual(dockGeometryOf("icosahedron"));
+  });
+
+  it("the layout the Load derived for the saved pose equals the layout the install derives for the same system (review L240)", async () => {
+    const h = realHarness();
+    const zaonce = systemNamed("Zaonce");
+    h.read.current = dockedSaveAt(zaonce, "icosahedron-station");
+
+    await h.controller.loadFromSave();
+
+    const installed = h.ctx.core.layout;
+    if (installed === undefined)
+      throw new Error("expected an installed layout");
+    expect(installed).toEqual(
+      deriveSystemLayout(zaonce, stationSpecOf("icosahedron")),
+    );
+    // A docked restore rebuilds the dock pose from the layout the Load
+    // pre-derived; it is that of the installed layout only if the two agree.
+    expect(h.ctx.core.state?.position).toEqual(
+      initFlightState(installed).position,
+    );
+    expect(h.ctx.core.state?.orientation).toEqual(
+      initFlightState(installed).orientation,
+    );
+  });
+
+  it("a failed Load leaves the Lave station, layout and dock geometry in place", async () => {
+    const h = realHarness(true);
+    const before = {
+      system: h.ctx.core.system,
+      stationDef: h.ctx.core.stationDef,
+      stationKey: h.ctx.core.stationKey,
+      layout: h.ctx.core.layout,
+      dockGeometry: h.ctx.core.dockGeometry,
+    };
+    h.read.current = dockedSaveAt(systemNamed("Zaonce"), "icosahedron-station");
+
+    await h.controller.loadFromSave();
+
+    expect(h.ctx.core.system).toBe(before.system);
+    expect(h.ctx.core.stationDef).toBe(before.stationDef);
+    expect(h.ctx.core.stationKey).toBe(before.stationKey);
+    expect(h.ctx.core.layout).toBe(before.layout);
+    expect(h.ctx.core.dockGeometry).toBe(before.dockGeometry);
+  });
+
+  it("an old save at a Dodecahedron system that carries coriolis-station loads the Dodecahedron, and the next save writes dodecahedron-station (the key is only a label)", async () => {
+    const h = realHarness();
+    const biarge = systemNamed("Biarge");
+    h.read.current = dockedSaveAt(biarge, "coriolis-station");
+
+    await h.controller.loadFromSave();
+
+    expect(h.ctx.core.system).toBe(biarge);
+    expect(h.ctx.core.stationDef?.kind).toBe("dodecahedron");
+    expect(h.ctx.core.stationKey).toBe("dodecahedron-station");
+    expect(h.ctx.core.layout?.stationKey).toBe("dodecahedron-station");
+    expect(h.ctx.core.dockGeometry).toEqual(dockGeometryOf("dodecahedron"));
+    expect(h.controller.buildSnapshotInputs()?.stationKey).toBe(
+      "dodecahedron-station",
+    );
+  });
+
+  it("a Save at Zaonce writes icosahedron-station", async () => {
+    const h = realHarness();
+    h.read.current = dockedSaveAt(systemNamed("Zaonce"), "icosahedron-station");
+    await h.controller.loadFromSave();
+
+    const inputs = h.controller.buildSnapshotInputs();
+
+    expect(inputs?.systemId).toBe("g0-s129");
+    expect(inputs?.stationKey).toBe("icosahedron-station");
+  });
+
+  it("the allow-list built from the catalogue (main.ts) holds the three station keys", () => {
+    // The rule main.ts applies: every client catalogue entry with a dock
+    // subentity. The catalogue grew in plan 22.1-02; the logic did not move.
+    const keys = clientCatalogue()
+      .filter((entry) =>
+        entry.shipDef.subentities.some(
+          (subentity) => subentity.isDock === true,
+        ),
+      )
+      .map((entry) => entry.key);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        "coriolis-station",
+        "dodecahedron-station",
+        "icosahedron-station",
+      ]),
+    );
+    expect(readFileSync("src/main.ts", "utf8")).toContain(
+      "subentity.isDock === true",
+    );
   });
 });

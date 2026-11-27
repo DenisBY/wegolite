@@ -46,6 +46,7 @@ import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { laveDockGeometry } from "../helpers/dock-pose.js";
 import { LAVE_SYSTEM_ID, laveFixture } from "../helpers/lave.js";
+import { stationSpecOf } from "../helpers/stations.js";
 
 const fixture = laveFixture();
 const { layout, config } = fixture;
@@ -72,7 +73,8 @@ interface DirectedRoute {
 
 /**
  * The 256 galaxy-0 systems, read with `readFileSync` as `lave.ts` does, each
- * with its layout derived once from the fixture's station and reused.
+ * with its layout derived once from the system's own station (Phase 22.1:
+ * `deriveSystemLayout` refuses another kind's spec) and reused.
  */
 const ROUTE_SYSTEMS: readonly RouteSystem[] = (
   JSON.parse(
@@ -83,7 +85,7 @@ const ROUTE_SYSTEMS: readonly RouteSystem[] = (
   ) as System[]
 ).map((system) => ({
   system,
-  layout: deriveSystemLayout(system, fixture.stationDef),
+  layout: deriveSystemLayout(system, stationSpecOf(system.station)),
 }));
 
 /** Every ordered pair of distinct systems whose chart distance is in range. */
