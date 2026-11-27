@@ -9,17 +9,14 @@
  * when it changes a ledger value deliberately.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
 import { TICKS_PER_SECOND } from "../../../src/sim/ai/time.js";
 import { SCANNER_MAX_RANGE as COMBAT_SCANNER_MAX_RANGE } from "../../../src/sim/combat/constants.js";
 import * as ledger from "../../../src/sim/npc/constants.js";
-
-const SRC_SIM = fileURLToPath(new URL("../../../src/sim/", import.meta.url));
+import { listSrcFiles } from "../../guards/source-scan.js";
 
 describe("the flight model constants", () => {
   it.each([
@@ -116,24 +113,18 @@ describe("the combat AI tiers (ShipEntity.h:123-137)", () => {
 
   it("no other file under src/sim defines a COMBAT_AI_ constant", () => {
     const definitions = new Map<string, string[]>();
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const path = join(dir, entry.name);
-        if (entry.isDirectory()) {
-          walk(path);
-        } else if (entry.name.endsWith(".ts")) {
-          const text = readFileSync(path, "utf8");
-          for (const match of text.matchAll(
-            /^\s*(?:export\s+)?const\s+(COMBAT_AI_[A-Z0-9_]+)\b/gm,
-          )) {
-            const name = match[1];
-            if (name === undefined) continue;
-            definitions.set(name, [...(definitions.get(name) ?? []), path]);
-          }
-        }
+    for (const path of listSrcFiles().filter((file) =>
+      file.startsWith("src/sim/"),
+    )) {
+      const text = readFileSync(path, "utf8");
+      for (const match of text.matchAll(
+        /^\s*(?:export\s+)?const\s+(COMBAT_AI_[A-Z0-9_]+)\b/gm,
+      )) {
+        const name = match[1];
+        if (name === undefined) continue;
+        definitions.set(name, [...(definitions.get(name) ?? []), path]);
       }
-    };
-    walk(SRC_SIM);
+    }
     for (const [name, files] of definitions) {
       expect(files, name).toHaveLength(1);
     }

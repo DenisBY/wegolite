@@ -11,7 +11,7 @@
  * and the refusals are asserted on what reaches the store, not on a flag.
  */
 
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -66,6 +66,7 @@ import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { realHullTable } from "../../helpers/hull-table.js";
+import { listSrcFiles } from "../../guards/source-scan.js";
 import { laveFixture } from "../../helpers/lave.js";
 import { saveAllowLists } from "../../helpers/save-builders.js";
 
@@ -838,18 +839,13 @@ describe("the game-over view does not depend on the save (D-13)", () => {
 
 describe("the reload is the only way forward (D-12)", () => {
   it("no in-session load function exists and only the overlay reloads the page", () => {
-    const sources = readdirSync("src", {
-      recursive: true,
-      encoding: "utf8",
-    }).filter((path) => path.endsWith(".ts"));
+    const sources = listSrcFiles();
     const reloaders = sources.filter((path) =>
-      readFileSync(`src/${path}`, "utf8").includes("location.reload"),
+      readFileSync(path, "utf8").includes("location.reload"),
     );
-    expect(reloaders).toEqual(["ui/game-over.ts"]);
+    expect(reloaders).toEqual(["src/ui/game-over.ts"]);
     for (const path of sources) {
-      expect(readFileSync(`src/${path}`, "utf8")).not.toContain(
-        "loadSavedGame",
-      );
+      expect(readFileSync(path, "utf8")).not.toContain("loadSavedGame");
     }
   });
 });

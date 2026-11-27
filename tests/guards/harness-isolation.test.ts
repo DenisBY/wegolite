@@ -15,15 +15,18 @@
  *   the harness puts on every vm global, which a bundle that included the
  *   harness would carry).
  *
+ * The `__purity_*` probes the purity guards write under `src/` are skipped.
+ *
  * A later plan adds the same check on the built `dist/`. The scanner has a
  * non-vacuity case: a synthetic source that imports the harness must be refused.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, posix, relative, sep } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, posix } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { AI_HARNESS_SENTINEL } from "../../tools/ai-harness/host.js";
+import { listFilesUnder } from "./source-scan.js";
 
 const REPO_ROOT = process.cwd();
 
@@ -48,21 +51,6 @@ interface Violation {
   readonly reason: string;
 }
 
-function toPosix(path: string): string {
-  return path.split(sep).join("/");
-}
-
-function walk(dir: string, found: string[]): void {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      walk(full, found);
-    } else if (entry.isFile()) {
-      found.push(full);
-    }
-  }
-}
-
 function rootViteConfigs(): string[] {
   return readdirSync(REPO_ROOT)
     .filter((name) => /^vite.*\.config\.ts$/.test(name))
@@ -70,22 +58,15 @@ function rootViteConfigs(): string[] {
 }
 
 function shippedSources(): Source[] {
-  const files: string[] = [];
-  for (const dir of ["src", "public"]) {
-    if (
-      existsSync(join(REPO_ROOT, dir)) &&
-      statSync(join(REPO_ROOT, dir)).isDirectory()
-    ) {
-      walk(join(REPO_ROOT, dir), files);
-    }
-  }
-  files.push(join(REPO_ROOT, "index.html"));
-  for (const name of rootViteConfigs()) {
-    files.push(join(REPO_ROOT, name));
-  }
-  return files.map((file) => ({
-    path: toPosix(relative(REPO_ROOT, file)),
-    bytes: readFileSync(file),
+  const paths = [
+    ...listFilesUnder("src"),
+    ...listFilesUnder("public"),
+    "index.html",
+    ...rootViteConfigs(),
+  ];
+  return paths.map((path) => ({
+    path,
+    bytes: readFileSync(join(REPO_ROOT, path)),
   }));
 }
 
