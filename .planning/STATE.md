@@ -746,6 +746,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 70 | Record the market [Y/N] trade confirmation as a divergence (FIDELITY E-193) | 2026-11-25 | 8f9e81a5 | — |
 | 261125-gmc | Digit aliases 2 and 6 open Save/Load and the chart, as F2 and F6 (Oolite keyconfig2) | 2026-11-25 | 5687c784 | .planning/quick/261125-gmc-digit-aliases-2-and-6-for-save-load-and- |
 | 261125-oyp | Harden GitHub Actions workflows: persist-credentials false, Pages permissions scoped to deploy job, SHA-pin all actions | 2026-11-25 | 1f64ef8a | [261125-oyp-harden-github-actions-workflows-persist-](./quick/261125-oyp-harden-github-actions-workflows-persist-/) |
+| 261127-dbj | Skip purity probe files and vanished probe dirs in the src/ scanners (dist-check, harness-isolation, two more) | 2026-11-27 | 3b5577b3 | .planning/quick/261127-dbj-fix-the-scanner-probe-file-enoent-race-tools-ai-harness-dist |
 
 ### Roadmap Evolution
 
