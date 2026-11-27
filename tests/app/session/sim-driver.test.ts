@@ -59,6 +59,7 @@ import { flightTableFrom } from "../../../src/sim/npc/stats.js";
 import { applyEquipmentDamaged } from "../../../src/sim/player/damage.js";
 import { newProfile } from "../../../src/sim/player/profile.js";
 import type { FlightRecord } from "../../../src/sim/npc/stats.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { spawnEntity } from "../../../src/sim/world/world.js";
 import type { InputFrame } from "../../../src/sim/state.js";
 import { MAX_STEPS_PER_FRAME } from "../../../src/sim/step.js";
@@ -67,6 +68,7 @@ import { commoditiesFixture } from "../../helpers/commodities.js";
 import { sessionSources } from "../../helpers/session-source.js";
 import { debrisFixture } from "../../helpers/debris-fixture.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { realNpcWeapons } from "../../helpers/npc-weapons.js";
@@ -1516,9 +1518,11 @@ describe("buildStepOptions", () => {
     ),
   ) as System[];
   const target = systems.find((entry) => entry.id !== lave.system.id);
-  const noMassSystem = systems.find((entry) => entry.station !== "coriolis");
-  if (target === undefined || noMassSystem === undefined) {
-    throw new Error("the galaxy lacks a target or a non-Coriolis system");
+  const dodecahedronSystem = systems.find(
+    (entry) => entry.station === "dodecahedron",
+  );
+  if (target === undefined || dodecahedronSystem === undefined) {
+    throw new Error("the galaxy lacks a target or a Dodecahedron system");
   }
   const equipment = new Set<string>(["EQ_FUEL_SCOOPS"]);
   const dock = {
@@ -1530,6 +1534,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock,
       laserMounts: DEFAULT_LASER_MOUNTS,
@@ -1557,6 +1562,7 @@ describe("buildStepOptions", () => {
       fuel: 35,
       system: lave.system,
       target,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock,
       laserMounts: DEFAULT_LASER_MOUNTS,
@@ -1576,6 +1582,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock,
       shipMasses,
@@ -1586,6 +1593,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock,
       laserMounts: DEFAULT_LASER_MOUNTS,
@@ -1600,6 +1608,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock,
       laserMounts: DEFAULT_LASER_MOUNTS,
@@ -1610,6 +1619,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock,
       laserMounts: DEFAULT_LASER_MOUNTS,
@@ -1619,6 +1629,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock: undefined,
       laserMounts: DEFAULT_LASER_MOUNTS,
@@ -1633,6 +1644,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock: undefined,
       laserMounts: DEFAULT_LASER_MOUNTS,
@@ -1645,17 +1657,60 @@ describe("buildStepOptions", () => {
     expect(options).not.toHaveProperty("dock");
   });
 
-  it("has no stationMass key for a station kind without a recorded mass", () => {
+  it("supplies the origin system's own station mass for a Dodecahedron system", () => {
+    // Built directly from the kind's spec (the interim rule of plan 22.1-04: no
+    // app-level arrival before plan 22.1-07).
+    const layout = deriveSystemLayout(
+      dodecahedronSystem,
+      stationSpecOf("dodecahedron"),
+    );
     const options = buildStepOptions({
       fuel: 70,
-      system: noMassSystem,
+      system: dodecahedronSystem,
       target: undefined,
+      stationMass: layout.stationMass,
       equipment,
       dock: undefined,
       laserMounts: DEFAULT_LASER_MOUNTS,
     });
-    expect(options.hyperspace).not.toHaveProperty("stationMass");
-    expect(options.hyperspace?.origin.id).toBe(noMassSystem.id);
+    expect(options.hyperspace?.stationMass).toBe(layout.stationMass);
+    expect(options.hyperspace?.stationMass).toBe(912_357_312);
+    expect(options.hyperspace?.stationMass).not.toBe(lave.layout.stationMass);
+    expect(options.hyperspace?.origin.id).toBe(dodecahedronSystem.id);
+  });
+
+  it("always places the given station mass on hyperspace, whatever the system's kind", () => {
+    const options = buildStepOptions({
+      fuel: 70,
+      system: lave.system,
+      target: undefined,
+      stationMass: 123,
+      equipment,
+      dock: undefined,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+    });
+    expect(options.hyperspace?.stationMass).toBe(123);
+  });
+
+  it("steps with the origin layout's station mass, never a default (the sim driver)", () => {
+    // The live layout is the system being left: the countdown completes there.
+    const seen: unknown[] = [];
+    hooks.onOptions = (options) => {
+      seen.push(options);
+    };
+    const { ctx, driver } = harness({ mode: "inFlight" });
+    const layout = deriveSystemLayout(
+      dodecahedronSystem,
+      stationSpecOf("dodecahedron"),
+    );
+    ctx.core.system = dodecahedronSystem;
+    ctx.core.layout = layout;
+    driver.advanceFrame(DT);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      hyperspace: { stationMass: layout.stationMass },
+    });
+    expect(layout.stationMass).toBe(912_357_312);
   });
 
   it("always emits combat with the mounts, and the hull table and NPC weapons only when given (plan 13-11)", () => {
@@ -1665,6 +1720,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock: undefined,
     };
@@ -1697,6 +1753,7 @@ describe("buildStepOptions", () => {
       fuel: 70,
       system: lave.system,
       target: undefined,
+      stationMass: lave.layout.stationMass,
       equipment,
       dock: undefined,
       laserMounts: DEFAULT_LASER_MOUNTS,

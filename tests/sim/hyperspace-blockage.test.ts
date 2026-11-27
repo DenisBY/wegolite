@@ -15,12 +15,21 @@
  * source comment at ShipEntity.m line 12504 (owner decision, plan 10-03, see the
  * PROJECT.md Key Decisions row "Coriolis blockage mass:"); the blockage radius
  * is about 7,179.7 m.
+ *
+ * Since Phase 22.1 (WORLD-20, plan 22.1-05) every station kind blocks with its
+ * own compiled mass, read from the system's layout: the Dodecahedron (about
+ * 9,551.7 m) and the Icosahedron (about 9,090.2 m) too. Their masses are pinned
+ * to the measured Oolite fixture, tests/fixtures/oolite-reference/stations.json.
  */
 
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { buildStepOptions } from "../../src/app/session/step-options.js";
+import type { System } from "../../src/content/types.js";
+import type { StationKind } from "../../src/content/stations.js";
+import { DEFAULT_LASER_MOUNTS } from "../../src/sim/combat/mounts.js";
 import type { SimEvent } from "../../src/sim/events.js";
 import type { Command } from "../../src/sim/commands.js";
 import { ZERO_INTENT } from "../../src/sim/flight/controller.js";
@@ -30,20 +39,21 @@ import { stepFlight } from "../../src/sim/flight/step.js";
 import type { StepOptions } from "../../src/sim/flight/step.js";
 import {
   BUOY_SUBENTITY_MASS,
-  CORIOLIS_STATION_MASS,
   HYPERSPACE_COUNTDOWN_STEPS,
   isWitchspaceBlocked,
   NAV_BUOY_HULL_MASS,
   NAV_BUOY_MASS,
   witchspaceBlockedAt,
-  witchspaceStationMass,
   WITCH_BLOCK_K,
 } from "../../src/sim/hyperspace/countdown.js";
+import { chartDistance } from "../../src/sim/hyperspace/jump.js";
 import { add, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import type { ShipField } from "../../src/sim/world/ship-field.js";
 import { DT } from "../../src/sim/time.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "../helpers/lave.js";
+import { clientCatalogue, stationSpecOf } from "../helpers/stations.js";
 
 interface ChartSystem {
   readonly id: string;
@@ -112,41 +122,26 @@ describe("witchspace mass blockage (NAV-04)", () => {
 
   const begin: readonly Command[] = [{ kind: "beginHyperspace" }];
 
-  it("maps the Coriolis station kind to its recorded mass and no other kind", () => {
-    expect(witchspaceStationMass("coriolis")).toBe(515_483_904);
-    expect(witchspaceStationMass("coriolis")).toBe(CORIOLIS_STATION_MASS);
-    expect(witchspaceStationMass("dodecahedron")).toBeUndefined();
-    expect(witchspaceStationMass("icosahedron")).toBeUndefined();
-  });
-
-  it("pins the constant to the compiled Coriolis mass", () => {
-    const catalogue = JSON.parse(
-      readFileSync(
-        new URL(
-          "../../src/content/generated/ships-client.json",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    ) as { key: string; mass: number }[];
-    const coriolis = catalogue.find(
+  it("carries the compiled Coriolis mass on the layout", () => {
+    const coriolis = clientCatalogue().find(
       (entry) => entry.key === "coriolis-station",
     );
     if (coriolis === undefined) throw new Error("no coriolis-station entry");
-    expect(coriolis.mass).toBe(CORIOLIS_STATION_MASS);
+    expect(layout.stationMass).toBe(coriolis.mass);
+    expect(layout.stationMass).toBe(515_483_904);
   });
 
   it("pins the strict mass threshold on both sides", () => {
-    const threshold = WITCH_BLOCK_K * CORIOLIS_STATION_MASS;
+    const threshold = WITCH_BLOCK_K * layout.stationMass;
     expect(
-      isWitchspaceBlocked(threshold - 1, CORIOLIS_STATION_MASS, scannerRange),
+      isWitchspaceBlocked(threshold - 1, layout.stationMass, scannerRange),
     ).toBe(true);
     expect(
-      isWitchspaceBlocked(threshold + 1, CORIOLIS_STATION_MASS, scannerRange),
+      isWitchspaceBlocked(threshold + 1, layout.stationMass, scannerRange),
     ).toBe(false);
     // Exactly at the threshold is not strictly greater, so it does not block.
     expect(
-      isWitchspaceBlocked(threshold, CORIOLIS_STATION_MASS, scannerRange),
+      isWitchspaceBlocked(threshold, layout.stationMass, scannerRange),
     ).toBe(false);
   });
 
@@ -164,7 +159,7 @@ describe("witchspace mass blockage (NAV-04)", () => {
       witchspaceBlockedAt(
         inside,
         stationPosition,
-        CORIOLIS_STATION_MASS,
+        layout.stationMass,
         scannerRange,
       ),
     ).toBe(true);
@@ -172,7 +167,7 @@ describe("witchspace mass blockage (NAV-04)", () => {
       witchspaceBlockedAt(
         outside,
         stationPosition,
-        CORIOLIS_STATION_MASS,
+        layout.stationMass,
         scannerRange,
       ),
     ).toBe(false);
@@ -181,7 +176,7 @@ describe("witchspace mass blockage (NAV-04)", () => {
   it("keeps a docked ship's begin inert: no countdown is started", () => {
     const state = initFlightState(layout);
     expect(state.mode).toBe("docked");
-    const events = step(state, begin, optionsWith(CORIOLIS_STATION_MASS));
+    const events = step(state, begin, optionsWith(layout.stationMass));
     expect(state.hyperspaceCountdown).toBe(0);
     expect(state.hyperspaceTarget).toBeNull();
     expect(
@@ -194,7 +189,7 @@ describe("witchspace mass blockage (NAV-04)", () => {
 
   it("does not refuse a begin at 7,100 m for blockage", () => {
     const state = shipAt(7_100);
-    const events = step(state, begin, optionsWith(CORIOLIS_STATION_MASS));
+    const events = step(state, begin, optionsWith(layout.stationMass));
     expect(state.hyperspaceCountdown).toBe(HYPERSPACE_COUNTDOWN_STEPS);
     const kinds = events.map((event) => event.kind);
     expect(kinds).toContain("hyperspaceCountdownStarted");
@@ -203,13 +198,13 @@ describe("witchspace mass blockage (NAV-04)", () => {
 
   it("refuses a completion at 7,100 m as blocked, with no fuel or jump time spent", () => {
     const state = shipAt(7_100);
-    step(state, begin, optionsWith(CORIOLIS_STATION_MASS));
+    step(state, begin, optionsWith(layout.stationMass));
     const clockBefore = state.clockSeconds;
     let lastEvents: SimEvent[] = [];
     let jumpedCount = 0;
     let refusedCount = 0;
     for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS; i += 1) {
-      const events = step(state, [], optionsWith(CORIOLIS_STATION_MASS));
+      const events = step(state, [], optionsWith(layout.stationMass));
       jumpedCount += events.filter(
         (event) => event.kind === "hyperspaceJumped",
       ).length;
@@ -234,12 +229,12 @@ describe("witchspace mass blockage (NAV-04)", () => {
 
   it("commits the jump when the ship has left the radius before completion", () => {
     const state = shipAt(7_100);
-    step(state, begin, optionsWith(CORIOLIS_STATION_MASS));
+    step(state, begin, optionsWith(layout.stationMass));
     for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS - 1; i += 1) {
-      step(state, [], optionsWith(CORIOLIS_STATION_MASS));
+      step(state, [], optionsWith(layout.stationMass));
     }
     state.position = add(stationPosition, vec(7_300, 0, 0));
-    const events = step(state, [], optionsWith(CORIOLIS_STATION_MASS));
+    const events = step(state, [], optionsWith(layout.stationMass));
     const jumped = events.find((event) => event.kind === "hyperspaceJumped");
     expect(jumped).toBeDefined();
     if (jumped?.kind !== "hyperspaceJumped") throw new Error("expected a jump");
@@ -448,7 +443,7 @@ describe("witchspace buoy blockage (D-09)", () => {
     atStation.position = add(layout.station.position, vec(100, 0, 0));
     const both = optionsWith({
       buoyMass: NAV_BUOY_MASS,
-      stationMass: CORIOLIS_STATION_MASS,
+      stationMass: layout.stationMass,
     });
     stepFlight(
       atStation,
@@ -483,6 +478,241 @@ describe("witchspace buoy blockage (D-09)", () => {
       everyShipBlocks,
     );
     expect(result.last).toEqual([
+      { kind: "hyperspaceRefused", reason: "blocked", blocker: "navBuoy" },
+    ]);
+  });
+});
+
+/**
+ * The per-kind blockage (Phase 22.1, WORLD-20, Success Criterion 2). Every
+ * main-station kind blocks a completing jump inside `sqrt(0.1 x mass)` of its
+ * own centre, with the mass the system's layout carries (the compiled record,
+ * pinned to the measured Oolite fixture). The 2026-11-07 decision that left the
+ * Dodecahedron and Icosahedron non-blocking for lack of a mass is superseded.
+ * Each case builds its layout directly from the kind's spec and a real system of
+ * that kind (the interim rule of plan 22.1-04: no app-level arrival).
+ */
+describe("witchspace station blockage per station kind (WORLD-20)", () => {
+  interface MeasuredBlockage {
+    readonly radius: string;
+    readonly inner: string;
+    readonly outer: string;
+    readonly blockedInner: boolean;
+    readonly blockedOuter: boolean;
+  }
+  interface MeasuredStation {
+    readonly mass: string;
+    readonly blockage: MeasuredBlockage;
+  }
+
+  const measured = (
+    JSON.parse(
+      readFileSync(
+        new URL("../fixtures/oolite-reference/stations.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { stations: Record<string, MeasuredStation> }
+  ).stations;
+
+  const galaxy = JSON.parse(
+    readFileSync(
+      new URL("../../src/content/generated/systems/g0.json", import.meta.url),
+      "utf8",
+    ),
+  ) as System[];
+
+  /** The kind's measured blockage radius to one decimal (Oolite 1.93.1-255). */
+  const CASES: readonly {
+    readonly kind: StationKind;
+    readonly systemName: string;
+    readonly radiusToOneDecimal: string;
+  }[] = [
+    { kind: "coriolis", systemName: "Lave", radiusToOneDecimal: "7179.7" },
+    {
+      kind: "dodecahedron",
+      systemName: "Biarge",
+      radiusToOneDecimal: "9551.7",
+    },
+    { kind: "icosahedron", systemName: "Zaonce", radiusToOneDecimal: "9090.2" },
+  ];
+
+  const { config } = laveFixture();
+
+  function origin(name: string, kind: StationKind): System {
+    const found = galaxy.find((system) => system.name === name);
+    if (found === undefined)
+      throw new Error(`galaxy 0 has no system "${name}"`);
+    // Named explicitly: a case never picks its system by "not a Coriolis".
+    expect(found.station).toBe(kind);
+    return found;
+  }
+
+  /** The nearest other system, so the fuel (7.0 light years) always covers it. */
+  function nearestTo(from: System): System {
+    let best: System | undefined;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of galaxy) {
+      if (candidate.id === from.id) continue;
+      const distance = chartDistance(
+        { x: from.chartX, y: from.chartY },
+        { x: candidate.chartX, y: candidate.chartY },
+      );
+      if (distance < bestDistance) {
+        best = candidate;
+        bestDistance = distance;
+      }
+    }
+    if (best === undefined || bestDistance > 17) {
+      throw new Error(`no jump target within reach of ${from.name}`);
+    }
+    return best;
+  }
+
+  /** A countdown run to completion `distance` metres from the station. */
+  function completeAt(kind: StationKind, systemName: string, distance: number) {
+    const system = origin(systemName, kind);
+    const target = nearestTo(system);
+    const layout = deriveSystemLayout(system, stationSpecOf(kind));
+    const options: StepOptions = {
+      hyperspace: {
+        fuel: 70,
+        origin: { id: system.id, x: system.chartX, y: system.chartY },
+        target: { id: target.id, x: target.chartX, y: target.chartY },
+        stationMass: layout.stationMass,
+      },
+    };
+    const state = initFlightState(layout);
+    state.mode = "inFlight";
+    state.dockArmed = false;
+    state.position = add(layout.station.position, vec(distance, 0, 0));
+    stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      [{ kind: "beginHyperspace" }],
+      DT,
+      options,
+    );
+    let last: SimEvent[] = [];
+    for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS; i += 1) {
+      last = stepFlight(state, layout, config, ZERO_INTENT, [], DT, options);
+    }
+    return last;
+  }
+
+  for (const { kind, systemName, radiusToOneDecimal } of CASES) {
+    describe(`${kind} (${systemName})`, () => {
+      const system = origin(systemName, kind);
+      const layout = deriveSystemLayout(system, stationSpecOf(kind));
+      const radius = Math.sqrt(WITCH_BLOCK_K * layout.stationMass);
+      const fixtureStation = measured[layout.stationKey];
+
+      it("carries the compiled mass and the measured Oolite mass and radius", () => {
+        if (fixtureStation === undefined) {
+          throw new Error(`the fixture has no station "${layout.stationKey}"`);
+        }
+        expect(String(layout.stationMass)).toBe(fixtureStation.mass);
+        expect(radius.toFixed(1)).toBe(radiusToOneDecimal);
+        expect(radius).toBeCloseTo(Number(fixtureStation.blockage.radius), 6);
+      });
+
+      it("matches the measured blocked and clear trials one metre inside and outside", () => {
+        if (fixtureStation === undefined) {
+          throw new Error(`the fixture has no station "${layout.stationKey}"`);
+        }
+        const { blockage } = fixtureStation;
+        const inner = Number(blockage.inner);
+        const outer = Number(blockage.outer);
+        expect(
+          isWitchspaceBlocked(
+            inner * inner,
+            layout.stationMass,
+            layout.scannerRange,
+          ),
+        ).toBe(blockage.blockedInner);
+        expect(
+          isWitchspaceBlocked(
+            outer * outer,
+            layout.stationMass,
+            layout.scannerRange,
+          ),
+        ).toBe(blockage.blockedOuter);
+      });
+
+      it("is strict at a squared distance of exactly 0.1 x mass", () => {
+        const threshold = WITCH_BLOCK_K * layout.stationMass;
+        expect(
+          isWitchspaceBlocked(
+            threshold,
+            layout.stationMass,
+            layout.scannerRange,
+          ),
+        ).toBe(false);
+        expect(
+          isWitchspaceBlocked(
+            (radius - 1) * (radius - 1),
+            layout.stationMass,
+            layout.scannerRange,
+          ),
+        ).toBe(true);
+        expect(
+          isWitchspaceBlocked(
+            (radius + 1) * (radius + 1),
+            layout.stationMass,
+            layout.scannerRange,
+          ),
+        ).toBe(false);
+      });
+
+      it("refuses a completing jump one metre inside the radius, naming the station", () => {
+        expect(completeAt(kind, systemName, radius - 1)).toEqual([
+          { kind: "hyperspaceRefused", reason: "blocked", blocker: "station" },
+        ]);
+      });
+
+      it("completes the jump one metre outside the radius", () => {
+        const last = completeAt(kind, systemName, radius + 1);
+        expect(last.map((event) => event.kind)).toContain("hyperspaceJumped");
+        expect(last.map((event) => event.kind)).not.toContain(
+          "hyperspaceRefused",
+        );
+      });
+    });
+  }
+
+  it("still blocks a completing jump at a nav buoy with the buoy's own mass, through the app's step options", () => {
+    const system = origin("Biarge", "dodecahedron");
+    const target = nearestTo(system);
+    const layout = deriveSystemLayout(system, stationSpecOf("dodecahedron"));
+    const options = buildStepOptions({
+      fuel: 70,
+      system,
+      target,
+      stationMass: layout.stationMass,
+      equipment: new Set<string>(),
+      dock: undefined,
+      laserMounts: DEFAULT_LASER_MOUNTS,
+    });
+    expect(options.hyperspace?.buoyMass).toBe(NAV_BUOY_MASS);
+    const state = initFlightState(layout);
+    state.mode = "inFlight";
+    state.dockArmed = false;
+    state.position = add(layout.navBuoy.position, vec(263.3, 0, 0));
+    stepFlight(
+      state,
+      layout,
+      config,
+      ZERO_INTENT,
+      [{ kind: "beginHyperspace" }],
+      DT,
+      options,
+    );
+    let last: SimEvent[] = [];
+    for (let i = 0; i < HYPERSPACE_COUNTDOWN_STEPS; i += 1) {
+      last = stepFlight(state, layout, config, ZERO_INTENT, [], DT, options);
+    }
+    expect(last).toEqual([
       { kind: "hyperspaceRefused", reason: "blocked", blocker: "navBuoy" },
     ]);
   });

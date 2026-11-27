@@ -117,6 +117,7 @@ function optionsOf(variant: Variant) {
     fuel: 70,
     system: lave.system,
     target: undefined,
+    stationMass: lave.layout.stationMass,
     equipment: variant.equipment,
     dock: geometry,
     laserMounts: DEFAULT_LASER_MOUNTS,

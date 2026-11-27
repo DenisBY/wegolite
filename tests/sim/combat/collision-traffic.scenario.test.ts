@@ -228,6 +228,7 @@ function runSeed(epoch: number, build: "parked" | "beacon"): SeedReport {
     fuel: 7,
     system,
     target: undefined,
+    stationMass: layout.stationMass,
     equipment: new Set<string>(),
     dock: laveDockGeometry(),
     shipMasses: traffic.masses,

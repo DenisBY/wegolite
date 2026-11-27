@@ -31,10 +31,7 @@ import type { DockGeometry } from "../../sim/dock/geometry.js";
 import { capacityPodsFor, holdPods } from "../../sim/economy/cargo.js";
 import { firstGenerationMarket } from "../../sim/economy/market.js";
 import type { StepOptions } from "../../sim/flight/step.js";
-import {
-  NAV_BUOY_MASS,
-  witchspaceStationMass,
-} from "../../sim/hyperspace/countdown.js";
+import { NAV_BUOY_MASS } from "../../sim/hyperspace/countdown.js";
 import type { NpcFlightStats } from "../../sim/npc/stats.js";
 import type { PlayerProfile } from "../../sim/player/profile.js";
 import type { DebrisContent, PodMarketEntry } from "../../sim/world/debris.js";
@@ -47,6 +44,14 @@ export interface StepOptionsInput {
   readonly system: System;
   /** The committed target record, when one is committed. */
   readonly target: System | undefined;
+  /**
+   * The witchspace blockage mass of the live system's main station, the live
+   * layout's `stationMass` (Phase 22.1, WORLD-20). Required, so a caller that
+   * leaves it out fails to compile instead of silently disabling the blockage
+   * (T-22.1-11). It is the origin system's: the blockage is evaluated where the
+   * countdown completes, in the system being left.
+   */
+  readonly stationMass: number;
   /** One read-only set per step, derived from the profile (T-04-19). */
   readonly equipment: ReadonlySet<string>;
   /** The validated dock geometry; absent before the boot install. */
@@ -175,11 +180,11 @@ function debrisWithMarket(
 }
 
 /**
- * Build one step's options. `hyperspace.buoyMass` is always `NAV_BUOY_MASS`.
+ * Build one step's options. `hyperspace.stationMass` is always the input's
+ * `stationMass` and `hyperspace.buoyMass` is always `NAV_BUOY_MASS`.
  * Optional keys are omitted rather than set to
  * `undefined` (`exactOptionalPropertyTypes`): `target` only when a target is
- * committed, `stationMass` only when the origin's station kind has a recorded
- * mass, `shipMasses` only when the caller has them, `dock` only when the
+ * committed, `shipMasses` only when the caller has them, `dock` only when the
  * geometry exists, `npcFlight` only when the caller has the table, and
  * `combat.hulls`, `combat.npcWeapons`, `combat.debris` and
  * `combat.internalDamage` only when the caller has them. `combat.debris`
@@ -191,6 +196,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     fuel,
     system,
     target,
+    stationMass,
     equipment,
     dock,
     shipMasses,
@@ -201,9 +207,6 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
     debris,
     internalDamage,
   } = input;
-  // The read-only station mass of the live system's station kind. Only a
-  // Coriolis station has a recorded mass; the others omit the fact.
-  const stationMass = witchspaceStationMass(system.station);
   const hyperspace = {
     fuel,
     origin: {
@@ -220,7 +223,7 @@ export function buildStepOptions(input: StepOptionsInput): StepOptions {
             y: target.chartY,
           },
         }),
-    ...(stationMass === undefined ? {} : { stationMass }),
+    stationMass,
     // Every system has both buoys, so the buoy mass is always supplied (D-09).
     buoyMass: NAV_BUOY_MASS,
     ...(shipMasses === undefined ? {} : { shipMasses }),

@@ -83,9 +83,10 @@ export interface StepOptions {
       readonly y: number;
     };
     /**
-     * The read-only mass of the origin system's station kind (NAV-04, plan
-     * 06-16), supplied by the app each step. Absent means no blockage check, and
-     * the app omits it for station kinds with no recorded mass.
+     * The read-only mass of the origin system's main station (NAV-04, plan
+     * 06-16), supplied by the app each step from the live layout's
+     * `stationMass` (Phase 22.1, WORLD-20). Absent means no blockage check; the
+     * app always supplies it, and only the frozen acceptance harness omits it.
      */
     readonly stationMass?: number;
     /**
