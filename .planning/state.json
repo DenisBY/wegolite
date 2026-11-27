@@ -81,7 +81,7 @@
     {
       "number": "22.1",
       "name": "Per-system main stations",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "22.2",
@@ -111,8 +111,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 3 of 8 · 25% · executing"
+    "label": "Advance to the next step (plan phase 22.2)",
+    "reason": "Phase 4 of 8 — needs a plan"
   },
-  "updated_at": "2026-11-27T12:09:48.689Z"
+  "updated_at": "2026-11-27T21:17:50.956Z"
 }

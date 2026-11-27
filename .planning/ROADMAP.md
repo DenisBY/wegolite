@@ -102,7 +102,7 @@ Total: 78 of 78 plans complete. Requirements 16/16. Phase directories now live i
 
 - [x] **Phase 21: Roster, State Shape and Seams** - The NPC catalogue grows to the about 28 records the populator's roles resolve to, with aft weapons, fuel injection and their vendored models; every new hashed field of the milestone arrives in one snapshot v5 bump; the inert world stays byte-identical, and a render spike measures the draw calls of a full anarchy before any populator ships (completed 2026-11-26)
 - [x] **Phase 22: Initial Population** - Each system is populated with traders, pirates, police and light bounty hunters by Oolite's populator rules, matching recorded oracle fixtures of Oolite's own script, placed as whole groups and drawn within the draw-call budget; the ships are still inert (completed 2026-11-26)
-- [ ] **Phase 22.1: Per-system main stations** (INSERTED) - Each system's main station is the type Oolite gives it in `planetinfo.plist` (`station`: Coriolis, Dodecahedron or Icosahedron), with its own model, mass, collision radius, dock port and launch view, before Phase 23 traffic docks
+- [x] **Phase 22.1: Per-system main stations** (INSERTED) - Each system's main station is the type Oolite gives it in `planetinfo.plist` (`station`: Coriolis, Dodecahedron or Icosahedron), with its own model, mass, collision radius, dock port and launch view, before Phase 23 traffic docks (completed 2026-11-27)
 - [ ] **Phase 22.2: Station as a collider for NPC ships (E-135)** (INSERTED) - The main station collides with NPC ships and pods as Oolite's does, or the divergence E-135 is kept with a recorded owner reason (moved out of 22.1 by owner decision D-B, 2026-11-27)
 - [ ] **Phase 23: Priority AI, Traders and Pirates** - Oolite's priority AI, hand-ported as plain hashable data and matched against traces of the original JavaScript, flies traders, escorts and pirates in ordinary play: NPCs fire fore and aft lasers, use fuel injectors, launch from the station and leave by docking, jumping out or landing without dying
 - [ ] **Phase 24: Loot, Scooping and Jettison** - The player buys Fuel Scoops and scoops pods that carry a commodity, jettisons cargo to satisfy a pirate, pirates collect loot, and scooped pods are held until docking and saved in schema v6
@@ -359,7 +359,7 @@ Plans:
 **Standing gate**: QUAL-12 (the frozen 20-seed run after every plan touching `src/sim/world/**`)
 **Decisions to settle** (both resolved in plan 22.1-01, PROJECT.md row "Each system's main station is its own Oolite type"): whether the new station masses come from the compiled models (as the Coriolis since Phase 10) or from the container reading when they differ (O1: compiled at build time and pinned to the container fixture; a DIFFERS is investigated, and the measured value ships only as a last resort); how the fly-out view adapts to a six-sided slot (O2: no hexagonal slot exists for these three stations, each slot's orientation comes from its dock record)
 **Todos**: `2026-11-18-per-system-main-station-types.md`
-**Plans:** 13/13 plans executed (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
+**Plans:** 13/13 plans complete (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
 
 Plans:
 **Wave 1**
@@ -566,7 +566,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
 | 22. Initial Population | v2.4 | 16/16 | Complete    | 2026-11-26 |
-| 22.1 Per-system main stations | v2.4 | 13/13 | In Progress | - |
+| 22.1 Per-system main stations | v2.4 | 13/13 | Complete    | 2026-11-27 |
 | 22.2 Station as a collider for NPC ships (E-135) | v2.4 | 0/TBD | Not started | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |

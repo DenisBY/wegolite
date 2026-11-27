@@ -2,43 +2,43 @@
 gsd_state_version: "1.0"
 milestone: v2.4
 milestone_name: Pirates and Police
-current_phase: "22.1"
-current_phase_name: Per-system main stations
-status: executing
-stopped_at: Phase 22.1 defined, ready to plan
-last_updated: "2026-11-27T13:52:25.526Z"
+current_phase: "22.2"
+current_phase_name: Station as a collider for NPC ships (E-135)
+status: planning
+stopped_at: Phase 22.1 complete, ready to plan Phase 22.2
+last_updated: "2026-11-27T21:17:50.896Z"
 last_activity: 2026-11-27
-last_activity_desc: Phase 22.1 execution started
-state_head: ac80a4944702d8a060499201f82206c14b4c0a44
+last_activity_desc: Phase 22.1 complete, transitioned to Phase 22.2
+state_head: aa629c75bbc14f123cf586e8eee23d8a801b5e1c
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 48
-  completed_plans: 35
-  percent: 25
+  completed_plans: 48
+  percent: 38
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-25)
+See: .planning/PROJECT.md (updated 2026-11-27)
 
 **Core value:** A player can launch, fly, dock, and complete a profitable trade run between two star systems entirely in the browser — faithful to Oolite's rules, data, and feel.
-**Current focus:** Phase 22.1 — Per-system main stations
+**Current focus:** Phase 22.2 — Station as a collider for NPC ships (E-135)
 
 ## Current Position
 
-Phase: 22.1 (Per-system main stations) — EXECUTING
-Plan: 1 of 13
-Status: Executing Phase 22.1
-Last activity: 2026-11-27 — Phase 22.1 execution started
+Phase: 22.2 — Station as a collider for NPC ships (E-135)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-11-27 — Phase 22.1 complete, transitioned to Phase 22.2
 
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 252
+- Total plans completed: 265
 - Average duration: 5.3 min
 - Total execution time: 3.9 hours
 
@@ -67,6 +67,7 @@ Last activity: 2026-11-27 — Phase 22.1 execution started
 | 20 | 13 | - | - |
 | 21 | 19 | - | - |
 | 22 | 16 | - | - |
+| 22.1 | 13 | - | - |
 
 **Recent Trend:**
 - Last 5 plans: 01-03 3 min, 01-04 5 min, 01-05 9 min, 01-06 2 min, 01-07 6 min
@@ -826,9 +827,9 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-11-26T10:10:09.027Z
-Stopped at: Phase 22 complete, ready to plan Phase 23
-Resume file: .planning/phases/22-initial-population/22-CONTEXT.md
+Last session: 2026-11-27T21:20:00Z
+Stopped at: Phase 22.1 complete, ready to plan Phase 22.2
+Resume file: None
 
 ## Operator Next Steps
 
