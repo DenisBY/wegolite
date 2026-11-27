@@ -6,10 +6,10 @@ current_phase: "22.1"
 current_phase_name: Per-system main stations
 status: executing
 stopped_at: Phase 22.1 defined, ready to plan
-last_updated: "2026-11-27T12:09:48.656Z"
+last_updated: "2026-11-27T13:52:25.526Z"
 last_activity: 2026-11-27
 last_activity_desc: Phase 22.1 execution started
-state_head: ebefaa12275ae6da7aa44f6bdd5d5d3d6276d578
+state_head: ac80a4944702d8a060499201f82206c14b4c0a44
 progress:
   total_phases: 8
   completed_phases: 2
@@ -747,6 +747,7 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 261125-gmc | Digit aliases 2 and 6 open Save/Load and the chart, as F2 and F6 (Oolite keyconfig2) | 2026-11-25 | 5687c784 | .planning/quick/261125-gmc-digit-aliases-2-and-6-for-save-load-and- |
 | 261125-oyp | Harden GitHub Actions workflows: persist-credentials false, Pages permissions scoped to deploy job, SHA-pin all actions | 2026-11-25 | 1f64ef8a | [261125-oyp-harden-github-actions-workflows-persist-](./quick/261125-oyp-harden-github-actions-workflows-persist-/) |
 | 261127-dbj | Skip purity probe files and vanished probe dirs in the src/ scanners (dist-check, harness-isolation, two more) | 2026-11-27 | 3b5577b3 | .planning/quick/261127-dbj-fix-the-scanner-probe-file-enoent-race-tools-ai-harness-dist |
+| 74 | Keep agent skills in .claude/skills (ignored) and copy them into worktrees via .worktreeinclude; agent_skills paths moved | 2026-11-27 | ac80a494 | — |
 
 ### Roadmap Evolution
 
