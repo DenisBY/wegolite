@@ -129,13 +129,24 @@ function assertPositiveFinite(label: string, value: number): void {
  * record plus the spec of its main station (compiled radius, mass, dock offset
  * and roll; `stationSpecFor` builds it from the content catalogue).
  *
- * @throws {LayoutError} when a station number is not positive and finite or a
- * derived number is not finite — never a silently zeroed value (T-3-01).
+ * The spec must be the system's own station (Pitfall P2): a Coriolis spec over
+ * an Icosahedron system would give a valid-looking layout with the wrong
+ * radius, dock offset and mass, so a mismatch is a named error and every
+ * caller passes the spec of `system.station`.
+ *
+ * @throws {LayoutError} when the spec is not the kind `system.station` names,
+ * when a station number is not positive and finite or a derived number is not
+ * finite — never a silently zeroed value (T-3-01).
  */
 export function deriveSystemLayout(
   system: System,
   stationDef: StationSpec,
 ): SystemLayout {
+  if (stationDef.kind !== system.station) {
+    throw new LayoutError(
+      `Wegolite: system ${system.id} has a ${system.station} station but the spec is the ${stationDef.kind} one; the layout cannot be derived.`,
+    );
+  }
   const planetRadius = system.radiusKm * 10;
   const planet = vec(0, 0, -system.planetDistance);
 

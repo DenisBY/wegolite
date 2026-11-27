@@ -49,6 +49,8 @@ import { laveFixture } from "../../helpers/lave.js";
 import { saveAllowLists, saveInputs } from "../../helpers/save-builders.js";
 import { sessionSourceFiles } from "../../helpers/session-source.js";
 import { dockGeometryOf, stationSpecOf } from "../../helpers/stations.js";
+import { loadStationRecords } from "../../../src/app/session/station-install.js";
+import { STATION_KINDS } from "../../../src/content/stations.js";
 
 // The boot cannot run to its end in Node (it builds the HUD and the input
 // source), so the Continue case below cuts it right after the station install
@@ -61,7 +63,30 @@ vi.mock("../../../src/persistence/autosave.js", async (importOriginal) => {
   return { ...actual, restoreFromSave: vi.fn(actual.restoreFromSave) };
 });
 
+// The O8 case makes the station records fail to load once; every other test
+// passes straight through to the real loader.
+vi.mock(
+  "../../../src/app/session/station-install.js",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../../src/app/session/station-install.js")
+      >();
+    return { ...actual, loadStationRecords: vi.fn(actual.loadStationRecords) };
+  },
+);
+
 const lave = laveFixture();
+
+/** A galaxy-0 system by name (the committed content, read once). */
+const galaxyZero = JSON.parse(
+  readFileSync("src/content/generated/systems/g0.json", "utf8"),
+) as System[];
+function systemNamed(name: string): System {
+  const found = galaxyZero.find((entry) => entry.name === name);
+  if (found === undefined) throw new Error(`no system named ${name}`);
+  return found;
+}
 
 interface Harness {
   readonly ctx: SessionState;
@@ -200,6 +225,28 @@ describe("performSwap", () => {
     expect(ctx.core.layout).toBe(next.layout);
     expect(ctx.core.layout).not.toBe(previousLayout);
     expect(ctx.core.previousCameraWorld).toBeUndefined();
+  });
+
+  it("rebuilds the scene with the current system's station: the Icosahedron spec at Zaonce (Phase 22.1)", () => {
+    const { ctx, lifecycle, deps } = harness();
+    const zaonceSystem = systemNamed("Zaonce");
+    ctx.core.system = zaonceSystem;
+    ctx.core.stationDef = stationSpecOf("icosahedron");
+    const seen: { system: System; spec: StationSpec }[] = [];
+    (
+      deps.scenes as {
+        enterSystem: (system: System, spec: StationSpec) => SystemScene;
+      }
+    ).enterSystem = (system, spec) => {
+      seen.push({ system, spec });
+      return { name: "scene" } as unknown as SystemScene;
+    };
+
+    lifecycle.performSwap();
+
+    expect(seen).toEqual([
+      { system: zaonceSystem, spec: stationSpecOf("icosahedron") },
+    ]);
   });
 
   it("keeps the current layout when the scene manager reports none", () => {
@@ -963,6 +1010,61 @@ describe("the station of the starting system (Phase 22.1, WORLD-20)", () => {
     expect(entered).toEqual([icosahedron]);
     expect(ctx.core.layout).toBeUndefined();
     expect(ctx.core.dockGeometry).toEqual(dockGeometryOf("icosahedron"));
+  });
+
+  it("boots a Continue at Biarge that carries the old key coriolis-station with the Dodecahedron derived from the system", async () => {
+    const parsed = parseSave(
+      encodeSave(
+        saveInputs({
+          systemId: "g0-s3",
+          stationKey: "coriolis-station",
+          marketSeed: marketSeedForSystem("g0-s3"),
+        }),
+      ),
+      saveAllowLists({
+        systems: new Set(["g0-s7", "g0-s3"]),
+        stations: new Set(["coriolis-station", "dodecahedron-station"]),
+      }),
+    );
+    if (!parsed.ok) throw new Error("the Biarge save did not parse");
+    expect(parsed.save.station.key).toBe("coriolis-station");
+
+    const { ctx, entered, failures } = await boot({ restore: parsed.save });
+
+    expect(failures).toEqual([STOP]);
+    const dodecahedron = stationSpecOf("dodecahedron");
+    expect(ctx.core.system.id).toBe("g0-s3");
+    expect(ctx.core.stationDef).toEqual(dodecahedron);
+    // The key the next save writes is the live station's, not the saved label.
+    expect(ctx.core.stationKey).toBe("dodecahedron-station");
+    expect(entered).toEqual([dodecahedron]);
+    expect(ctx.core.dockGeometry).toEqual(dockGeometryOf("dodecahedron"));
+  });
+
+  it("loads the records of every station kind once at boot", async () => {
+    const { ctx } = await boot({});
+
+    expect([...(ctx.core.stationRecords?.specs.keys() ?? [])]).toEqual([
+      ...STATION_KINDS,
+    ]);
+    expect([...(ctx.core.stationRecords?.dockPorts.keys() ?? [])]).toEqual([
+      ...STATION_KINDS,
+    ]);
+  });
+
+  it("stops the boot on the failure surface when a station record fails to load, never falling back to a Coriolis (O8)", async () => {
+    vi.mocked(loadStationRecords).mockRejectedValueOnce(
+      new Error("the icosahedron dock record is missing"),
+    );
+
+    const { ctx, entered, failures } = await boot({});
+
+    expect(failures).toEqual(["the icosahedron dock record is missing"]);
+    expect(ctx.core.stationRecords).toBeUndefined();
+    expect(ctx.core.stationDef).toBeUndefined();
+    expect(ctx.core.stationKey).toBeUndefined();
+    expect(ctx.core.dockGeometry).toBeUndefined();
+    expect(entered).toEqual([]);
   });
 
   it("boots a New game at the Lave Coriolis", async () => {

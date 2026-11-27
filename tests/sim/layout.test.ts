@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { STATION_KINDS } from "../../src/content/stations.js";
 import type { StationKind } from "../../src/content/stations.js";
 import type { System } from "../../src/content/types.js";
 import {
@@ -36,7 +37,7 @@ import {
   vec,
 } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
-import { deriveSystemLayout } from "../../src/sim/world/layout.js";
+import { LayoutError, deriveSystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "../helpers/lave.js";
 import { clientCatalogue, stationSpecOf } from "../helpers/stations.js";
 
@@ -302,6 +303,31 @@ describe("the per-kind station layout (Phase 22.1, WORLD-20)", () => {
       expect(own.station.position).toEqual(asCoriolis.station.position);
       expect(own.stationToPlanet).toEqual(asCoriolis.stationToPlanet);
       expect(own.navBuoy).toEqual(asCoriolis.navBuoy);
+    },
+  );
+
+  it("refuses a spec of another kind than the system's station, naming both kinds (Pitfall P2)", () => {
+    const zaonce = systemOf("g0-s129");
+    expect(() => deriveSystemLayout(zaonce, stationSpecOf("coriolis"))).toThrow(
+      LayoutError,
+    );
+    expect(() => deriveSystemLayout(zaonce, stationSpecOf("coriolis"))).toThrow(
+      /icosahedron.*coriolis/,
+    );
+    expect(() =>
+      deriveSystemLayout(zaonce, stationSpecOf("icosahedron")),
+    ).not.toThrow();
+  });
+
+  it.each(KIND_SYSTEMS)(
+    "refuses every other kind's spec at the %s system %s and accepts its own",
+    (kind, id) => {
+      const system = systemOf(id);
+      for (const other of STATION_KINDS) {
+        const attempt = () => deriveSystemLayout(system, stationSpecOf(other));
+        if (other === kind) expect(attempt).not.toThrow();
+        else expect(attempt).toThrow(LayoutError);
+      }
     },
   );
 
