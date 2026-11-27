@@ -27,10 +27,12 @@ import {
   randomSpatial,
 } from "../../../src/sim/world/placement.js";
 import type { LocationCode } from "../../../src/sim/world/placement.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import type { SystemLayout } from "../../../src/sim/world/layout.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 
-const { layout } = laveFixture();
+const { layout, system: laveSystem } = laveFixture();
 const ORIGIN = vec(0, 0, 0);
 
 function dist(a: Vec3, b: Vec3): number {
@@ -303,6 +305,62 @@ describe("locationByCode", () => {
     expect(dist(sample.position, layout.station.position)).toBeLessThanOrEqual(
       layout.scannerRange * 2 + 1e-6,
     );
+  });
+
+  describe("STATION_AEGIS per station kind (owner decision D-B)", () => {
+    // A narrowed scanner range makes the shell thin: its inner edge is 1.2
+    // station radii and its outer edge twice the range. With twice the range at
+    // 1.5 Icosahedron radii, the Icosahedron shell is [1.2, 1.5] radii wide and
+    // the Coriolis shell reaches below the Icosahedron's inner edge.
+    const icosahedronRadius = stationSpecOf("icosahedron").collisionRadius;
+    const narrowedRange = 0.75 * icosahedronRadius;
+
+    function kindLayout(kind: "coriolis" | "dodecahedron" | "icosahedron") {
+      // A copy of Lave whose station is this kind, so spec and system agree.
+      const own = deriveSystemLayout(
+        { ...laveSystem, station: kind },
+        stationSpecOf(kind),
+      );
+      return { ...own, scannerRange: narrowedRange };
+    }
+
+    function distances(
+      shellLayout: SystemLayout,
+      seed: number,
+    ): { distance: number; fallback: boolean }[] {
+      const rng = createRngState(seed);
+      const out: { distance: number; fallback: boolean }[] = [];
+      for (let i = 0; i < 400; i++) {
+        const sample = locationByCode(rng, "STATION_AEGIS", shellLayout);
+        out.push({
+          distance: dist(sample.position, shellLayout.station.position),
+          fallback: sample.fallback,
+        });
+      }
+      return out;
+    }
+
+    it.each(["coriolis", "dodecahedron", "icosahedron"] as const)(
+      "keeps every %s sample between 1.2 of that kind's radii and twice the range",
+      (kind) => {
+        const shellLayout = kindLayout(kind);
+        const radius = stationSpecOf(kind).collisionRadius;
+        expect(shellLayout.station.radius).toBe(radius);
+        for (const sample of distances(shellLayout, 300)) {
+          expect(sample.fallback).toBe(false);
+          expect(sample.distance).toBeGreaterThanOrEqual(1.2 * radius - 1e-6);
+          expect(sample.distance).toBeLessThanOrEqual(2 * narrowedRange + 1e-6);
+        }
+      },
+    );
+
+    it("lets the Coriolis shell reach inside the Icosahedron's inner edge and the Icosahedron's never", () => {
+      const inner = 1.2 * icosahedronRadius;
+      const coriolis = distances(kindLayout("coriolis"), 300);
+      const icosahedron = distances(kindLayout("icosahedron"), 300);
+      expect(coriolis.some((sample) => sample.distance < inner)).toBe(true);
+      expect(icosahedron.some((sample) => sample.distance < inner)).toBe(false);
+    });
   });
 
   it("keeps every existing code's samples and final stream state (WITCHPOINT must not move them)", () => {

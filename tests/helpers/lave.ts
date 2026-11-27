@@ -12,12 +12,13 @@
 
 import { readFileSync } from "node:fs";
 
-import type { ShipDef, System } from "../../src/content/types.js";
+import type { ShipDef, StationSpec, System } from "../../src/content/types.js";
 import { deriveFlightConfig } from "../../src/sim/flight/config.js";
 import type { FlightConfig } from "../../src/sim/flight/config.js";
 import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import type { InputFrame } from "../../src/sim/state.js";
+import { stationSpecOf } from "./stations.js";
 
 interface CatalogueEntry {
   key: string;
@@ -32,7 +33,7 @@ function readJson<T>(relativePath: string): T {
 export interface LaveFixture {
   readonly system: System;
   readonly playerDef: ShipDef;
-  readonly stationDef: ShipDef;
+  readonly stationDef: StationSpec;
   readonly layout: SystemLayout;
   readonly config: FlightConfig;
 }
@@ -57,16 +58,15 @@ export function laveFixture(): LaveFixture {
   if (player === undefined) {
     throw new Error(`the fixture has no ship "${PLAYER_SHIP_KEY}"`);
   }
-  const station = catalogue.find((entry) => entry.key === STATION_SHIP_KEY);
-  if (station === undefined) {
-    throw new Error(`the fixture has no ship "${STATION_SHIP_KEY}"`);
-  }
+  // The station is the Lave system's own (the Coriolis), from the compiled
+  // client catalogue: `ships.json` carries no mass or collision radius.
+  const stationDef = stationSpecOf(system.station);
 
   return {
     system,
     playerDef: player.shipDef,
-    stationDef: station.shipDef,
-    layout: deriveSystemLayout(system, station.shipDef),
+    stationDef,
+    layout: deriveSystemLayout(system, stationDef),
     config: deriveFlightConfig(player.shipDef),
   };
 }

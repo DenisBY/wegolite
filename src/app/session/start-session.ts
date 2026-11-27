@@ -23,12 +23,10 @@
  * after the await, and `dispose()` cancels that frame beside `rafId`.
  */
 
-import {
-  loadShipCatalogue,
-  playerShip,
-  stationShip,
-} from "../../content/ships.js";
-import { loadDockPort } from "../../content/dock-port.js";
+import { loadShipCatalogue, playerShip } from "../../content/ships.js";
+import { loadStationDockPort } from "../../content/dock-port.js";
+import type { DockPort } from "../../content/schemas/dock-port.js";
+import { stationSpecFor } from "../../content/stations.js";
 import { loadEquipment } from "../../content/equipment.js";
 import { loadCommodities } from "../../content/commodities.js";
 import { loadLabels } from "../../content/labels.js";
@@ -38,7 +36,7 @@ import type { StaticName } from "../../content/ships-static-hulls.js";
 import { loadNpcCatalogue } from "../../content/ships-npc.js";
 import { loadDebrisCatalogue } from "../../content/ships-debris.js";
 import { loadExplosionCatalogue } from "../../content/explosions.js";
-import type { System } from "../../content/types.js";
+import type { StationSpec, System } from "../../content/types.js";
 import { createGameLoop } from "../game-loop.js";
 import { createHintController } from "../hints.js";
 import type { LaunchSequence } from "../launch-sequence.js";
@@ -571,10 +569,6 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     ctx.core.targetNames = targetNameMap(content.staticNames);
 
     const playerDef = playerShip(catalogue).shipDef;
-    const stationEntry = stationShip(catalogue);
-    const station = stationEntry.shipDef;
-    ctx.core.stationDef = station;
-    ctx.core.stationKey = stationEntry.key;
 
     const flightConfig = deriveFlightConfig(playerDef);
     // SAVE-03/D-18: resolve the saved system before the first scene is built,
@@ -583,6 +577,28 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       const savedSystem = galaxyById.get(restore.system.id);
       if (savedSystem !== undefined) ctx.core.system = savedSystem;
     }
+
+    // Phase 22.1: the session boots with the main station of the system it
+    // starts in (Universe.m:1550). The spec and the dock record are both
+    // resolved before any station state is installed (T-22.1-10), so a
+    // missing record leaves no half-installed session; both failures go to the
+    // boot failure surface. Until plan 22.1-07 a hyperspace arrival or an F2
+    // Load keeps this boot station.
+    const stationKind = ctx.core.system.station;
+    let station: StationSpec;
+    let dockPort: DockPort;
+    try {
+      station = stationSpecFor(catalogue, stationKind);
+      dockPort = await loadStationDockPort(stationKind);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      showBootFailure(reason);
+      publishFailure(reason);
+      return;
+    }
+    if (ctx.runtime.disposed) return;
+    ctx.core.stationDef = station;
+    ctx.core.stationKey = station.key;
     // The graphics quality selects the planet's shader variant and the
     // atmosphere shell, so the settings are read before the first scene is
     // built; a Continue at High never flashes the Standard planet.
@@ -599,10 +615,8 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
     // D-01/DOCK-01: the generated aperture is validated and converted into the
     // port frame once, here, and injected into every fixed step as plain data.
     try {
-      const rawDockPort = await loadDockPort();
-      if (ctx.runtime.disposed) return;
       ctx.core.dockGeometry = createDockGeometry(
-        rawDockPort,
+        dockPort,
         systemLayout.dockOffset,
       );
     } catch (error) {

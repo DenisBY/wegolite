@@ -26,7 +26,7 @@ import type {
   CommodityUnit,
   Equipment,
   Labels,
-  ShipDef,
+  StationSpec,
   System,
 } from "../../content/types.js";
 import type { DockFeedback } from "../dock-feedback.js";
@@ -129,7 +129,7 @@ export interface SessionCore {
   config: FlightConfig | undefined;
   dockGeometry: DockGeometry | undefined;
   scene: SystemScene | undefined;
-  stationDef: ShipDef | undefined;
+  stationDef: StationSpec | undefined;
   stationKey: string | undefined;
   equipmentCatalogue: readonly Equipment[] | undefined;
   commodities: readonly Commodity[] | undefined;

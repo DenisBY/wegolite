@@ -14,10 +14,13 @@
  * `coriolis-station` (shipdata.plist line 1739), `dodecahedron-station` (line
  * 1920) and `icosahedron-station` (line 2377).
  *
- * This module imports nothing at runtime: the Node content tool
+ * This module imports nothing at runtime (types only): the Node content tool
  * (`tools/oolite-ingest/convert/stations.ts`, the system schema) and the game
  * both read it, so the kinds and ship keys are stated exactly once.
  */
+
+import type { CatalogEntry } from "./schemas/ship.js";
+import type { StationSpec } from "./schemas/station.js";
 
 /** The station kinds, in the fixed order every consumer iterates them. */
 export const STATION_KINDS = [
@@ -81,4 +84,65 @@ export const STATION_RECORDS: Readonly<Record<StationKind, StationRecord>> =
 /** The record of one kind. */
 export function stationRecord(kind: StationKind): StationRecord {
   return STATION_RECORDS[kind];
+}
+
+/** A station record that cannot become a spec: a missing entry or datum (O8). */
+export class StationRecordError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StationRecordError";
+  }
+}
+
+/**
+ * Build the spec the simulation reads from the compiled catalogue entry of one
+ * station kind (`ships-client.json`): the collision radius and mass compiled at
+ * build time, the display name, the roll and the dock offset (the absolute
+ * value of the `is_dock` subentity's `z`, the arithmetic `deriveSystemLayout`
+ * used before the spec existed).
+ *
+ * There is no Coriolis fallback (decision O8): an absent entry or datum is a
+ * content build defect, named here, never a silently wrong station.
+ *
+ * @throws {StationRecordError} naming the ship key and the missing datum.
+ */
+export function stationSpecFor(
+  entries: readonly CatalogEntry[],
+  kind: StationKind,
+): StationSpec {
+  const key = stationRecord(kind).shipKey;
+  const entry = entries.find((candidate) => candidate.key === key);
+  if (entry === undefined) {
+    throw new StationRecordError(
+      `Wegolite: the ship catalogue has no entry "${key}" for the ${kind} station.`,
+    );
+  }
+  const missing = (datum: string): StationRecordError =>
+    new StationRecordError(
+      `Wegolite: the catalogue entry "${key}" has no ${datum}; the ${kind} station spec cannot be built.`,
+    );
+
+  const dock = entry.shipDef.subentities.find(
+    (subentity) => subentity.isDock === true,
+  );
+  if (dock === undefined) throw missing("dock subentity (is_dock)");
+  const dockPosition = dock.position;
+  if (dockPosition === undefined) throw missing("dock subentity position");
+  const { mass, collisionRadius } = entry;
+  if (mass === undefined) throw missing("mass");
+  if (collisionRadius === undefined) throw missing("collisionRadius");
+  const name = entry.extras["name"];
+  if (typeof name !== "string") throw missing("name (extras.name)");
+  const { stationRoll } = entry.shipDef;
+  if (stationRoll === undefined) throw missing("station_roll");
+
+  return {
+    kind,
+    key,
+    name,
+    collisionRadius,
+    mass,
+    dockOffset: Math.abs(dockPosition[2]),
+    stationRoll,
+  };
 }

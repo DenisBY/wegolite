@@ -27,9 +27,11 @@ import type { FlightState } from "../../src/sim/flight/state.js";
 import { ADVANCED_COMPASS_KEY, stepFlight } from "../../src/sim/flight/step.js";
 import type { StepOptions } from "../../src/sim/flight/step.js";
 import { add, scale, vec } from "../../src/sim/math.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import { DT } from "../../src/sim/time.js";
 import { laveFixture } from "../helpers/lave.js";
+import { stationSpecOf } from "../helpers/stations.js";
 
 const fixture = laveFixture();
 const { layout, config } = fixture;
@@ -94,6 +96,30 @@ describe("aegisStatus", () => {
       "none",
     );
   });
+});
+
+describe("aegisStatus per station kind (F3: the station aegis is station-independent)", () => {
+  it.each(["coriolis", "dodecahedron", "icosahedron"] as const)(
+    "pins the %s station aegis at 51,199 / 51,200 / 51,201 m",
+    (kind) => {
+      // The kind does not move the station: a copy of Lave whose station is
+      // this kind, with that kind's own spec, so spec and system agree.
+      const kindLayout = deriveSystemLayout(
+        { ...fixture.system, station: kind },
+        stationSpecOf(kind),
+      );
+      const at = (distance: number): Vec3 =>
+        add(
+          kindLayout.station.position,
+          scale(scale(kindLayout.stationToPlanet, -1), distance),
+        );
+      expect(kindLayout.stationAegisRange).toBe(51_200);
+      expect(aegisStatus(at(51_199), kindLayout)).toBe("dockingRange");
+      // The boundary itself is inside (ShipEntity.m:6699, `<=`).
+      expect(aegisStatus(at(51_200), kindLayout)).toBe("dockingRange");
+      expect(aegisStatus(at(51_201), kindLayout)).toBe("none");
+    },
+  );
 });
 
 describe("compass target", () => {
