@@ -359,7 +359,7 @@ Plans:
 **Standing gate**: QUAL-12 (the frozen 20-seed run after every plan touching `src/sim/world/**`)
 **Decisions to settle** (both resolved in plan 22.1-01, PROJECT.md row "Each system's main station is its own Oolite type"): whether the new station masses come from the compiled models (as the Coriolis since Phase 10) or from the container reading when they differ (O1: compiled at build time and pinned to the container fixture; a DIFFERS is investigated, and the measured value ships only as a last resort); how the fly-out view adapts to a six-sided slot (O2: no hexagonal slot exists for these three stations, each slot's orientation comes from its dock record)
 **Todos**: `2026-11-18-per-system-main-station-types.md`
-**Plans:** 4/13 plans executed (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
+**Plans:** 7/13 plans executed (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
 
 Plans:
 **Wave 1**
@@ -375,9 +375,9 @@ Plans:
 - [x] 22.1-04-PLAN.md — Wave 4: the layout takes the station's compiled record (StationSpec); the boot station follows the starting system (WORLD-20)
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 22.1-05-PLAN.md — Wave 5: the witchspace blockage uses each station's own mass; the 2026-11-07 decision superseded (WORLD-20)
-- [ ] 22.1-06-PLAN.md — Wave 5: the station laser target and ident through the layout; docking and the launch twist per slot (WORLD-20)
-- [ ] 22.1-08-PLAN.md — Wave 5: the census and the launch corridor over each system's own station, measured first (digest and ship positions, at the measured radii); the census golden stays byte-identical (D-A) (WORLD-20)
+- [x] 22.1-05-PLAN.md — Wave 5: the witchspace blockage uses each station's own mass; the 2026-11-07 decision superseded (WORLD-20)
+- [x] 22.1-06-PLAN.md — Wave 5: the station laser target and ident through the layout; docking and the launch twist per slot (WORLD-20)
+- [x] 22.1-08-PLAN.md — Wave 5: the census and the launch corridor over each system's own station, measured first (digest and ship positions, at the measured radii); the census golden stays byte-identical (D-A) (WORLD-20)
 
 **Wave 6** *(blocked on Wave 5 completion)*
 - [ ] 22.1-07-PLAN.md — Wave 6: the station and its dock geometry follow the system at boot, Continue, F2 Load and every arrival; the refusal names the station (WORLD-20)
@@ -566,7 +566,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
 | 22. Initial Population | v2.4 | 16/16 | Complete    | 2026-11-26 |
-| 22.1 Per-system main stations | v2.4 | 4/13 | In Progress | - |
+| 22.1 Per-system main stations | v2.4 | 7/13 | In Progress | - |
 | 22.2 Station as a collider for NPC ships (E-135) | v2.4 | 0/TBD | Not started | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
