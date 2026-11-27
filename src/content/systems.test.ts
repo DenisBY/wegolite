@@ -15,12 +15,14 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import type { AnyGalaxyIndex } from "./systems.js";
 import {
   GALAXY_CHUNK_PATHS,
   galaxy0,
   loadAnyGalaxy,
   loadGalaxy,
 } from "./systems.js";
+import { STATION_KINDS, STATION_RECORDS } from "./stations.js";
 
 const source = readFileSync(new URL("./systems.ts", import.meta.url), "utf8");
 
@@ -75,5 +77,73 @@ describe("per-galaxy loader", () => {
     ].map((match) => match[1]);
     expect(lazyPaths).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
     expect(lazyBlock).not.toContain("g0.json");
+  });
+});
+
+describe("each system's main station kind (Phase 22.1)", () => {
+  const COUNTS: readonly (readonly [number, number, number])[] = [
+    [225, 22, 9],
+    [232, 17, 7],
+    [228, 22, 6],
+    [238, 14, 4],
+    [226, 23, 7],
+    [228, 22, 6],
+    [220, 28, 8],
+    [227, 19, 10],
+  ];
+
+  const GALAXIES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+
+  async function countKinds(galaxy: AnyGalaxyIndex): Promise<number[]> {
+    const chunk = await loadAnyGalaxy(galaxy);
+    return STATION_KINDS.map(
+      (kind) => chunk.filter((system) => system.station === kind).length,
+    );
+  }
+
+  it("counts 1,824 coriolis, 167 dodecahedron and 57 icosahedron overall", async () => {
+    const totals = [0, 0, 0];
+    for (const galaxy of GALAXIES) {
+      (await countKinds(galaxy)).forEach((count, index) => {
+        totals[index] = (totals[index] ?? 0) + count;
+      });
+    }
+    // STATION_KINDS order: coriolis, dodecahedron, icosahedron.
+    expect(totals).toEqual([1824, 167, 57]);
+  });
+
+  it("counts each galaxy's kinds", async () => {
+    for (const galaxy of GALAXIES) {
+      expect(await countKinds(galaxy), `galaxy ${String(galaxy)}`).toEqual(
+        COUNTS[galaxy],
+      );
+    }
+  });
+
+  it("maps every system's kind to a ships-client.json entry", async () => {
+    const shipKeys = new Set(
+      (
+        JSON.parse(
+          readFileSync(
+            new URL("./generated/ships-client.json", import.meta.url),
+            "utf8",
+          ),
+        ) as { key: string }[]
+      ).map((entry) => entry.key),
+    );
+    for (const galaxy of GALAXIES) {
+      for (const system of await loadAnyGalaxy(galaxy)) {
+        const record = STATION_RECORDS[system.station];
+        expect(shipKeys.has(record.shipKey), system.id).toBe(true);
+      }
+    }
+  });
+
+  it("builds Lave a Coriolis, Zaonce an Icosahedron and Biarge a Dodecahedron", () => {
+    const stationOf = (id: string): string | undefined =>
+      galaxy0().find((system) => system.id === id)?.station;
+    expect(stationOf("g0-s7")).toBe("coriolis");
+    expect(stationOf("g0-s129")).toBe("icosahedron");
+    expect(stationOf("g0-s3")).toBe("dodecahedron");
   });
 });

@@ -16,7 +16,8 @@
  *
  * Raw values stay raw: `radius` becomes `radiusKm` with no ×10 scaling,
  * `techlevel` becomes `techLevelRaw` with no +1 display adjustment, `station`
- * keeps its role fragment, and every string is emitted as the exact authored
+ * keeps its role fragment (checked against `STATION_KINDS`; a missing key takes
+ * Oolite's default, `Universe.m:1550`), and every string is emitted as the exact authored
  * code points with no Unicode normalisation.
  *
  * `"universal"` and `"interstellar space"` are the only non-system top-level
@@ -35,6 +36,7 @@ import type {
 } from "../openstep/plist-value.js";
 import { SystemSchema } from "../../../src/content/schemas/system.js";
 import type { System } from "../../../src/content/schemas/system.js";
+import { DEFAULT_STATION_KIND } from "../../../src/content/stations.js";
 
 export const SYSTEMS_DIR = "src/content/generated/systems";
 export const GALAXY_COUNT = 8;
@@ -121,6 +123,22 @@ function readString(dict: PlistDict, key: string, construct: string): string {
     });
   }
   return entry.value.value;
+}
+
+/**
+ * A string key that may be absent: `fallback` stands in for a missing key
+ * (Oolite's own default, so a missing key is not an error), while a present
+ * value that is not a quoted string is still a `SCHEMA` failure.
+ */
+function readOptionalString(
+  dict: PlistDict,
+  key: string,
+  construct: string,
+  fallback: string,
+): string {
+  return getEntry(dict, key) === undefined
+    ? fallback
+    : readString(dict, key, construct);
 }
 
 function readNumber(dict: PlistDict, key: string, construct: string): number {
@@ -239,7 +257,15 @@ function projectSystem(
     ),
     sunDistance: readNumber(dict, "sun_distance", `${construct}.sun_distance`),
     sunRadius: readNumber(dict, "sun_radius", `${construct}.sun_radius`),
-    station: readString(dict, "station", `${construct}.station`),
+    // Universe.m:1550: a system without a `station` key builds Oolite's
+    // default station. The schema refuses any value outside STATION_KINDS
+    // (decision O8), so a typo fails the build instead of becoming a Coriolis.
+    station: readOptionalString(
+      dict,
+      "station",
+      `${construct}.station`,
+      DEFAULT_STATION_KIND,
+    ),
     stationVector: readComponents(
       dict,
       "station_vector",
