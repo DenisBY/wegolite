@@ -48,6 +48,7 @@ import { computeShipMasses } from "./convert/ship-mass.js";
 import { emitShipHulls } from "./convert/ship-hulls.js";
 import {
   emitStaticHulls,
+  emitStationHulls,
   staticSubentityKeys,
 } from "./convert/static-hulls.js";
 import {
@@ -253,6 +254,7 @@ export async function generateContent({
     emitComms(descriptions),
     emitShipHulls(catalogue, models),
     emitStaticHulls(catalogue, models, staticMasses),
+    ...emitStationHulls(catalogue, models, staticMasses),
     ...emitDockPorts(models),
   ];
 

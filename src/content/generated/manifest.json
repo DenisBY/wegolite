@@ -916,6 +916,16 @@
       "sha256": "8c0ddc724d0a843246b2b5873f13f6bdcb83a072a953c41515044e2b552fd369"
     },
     {
+      "bytes": 107319,
+      "path": "src/content/generated/ships-static-hulls-dodecahedron.json",
+      "sha256": "5a11598753afb3e46dc48a9ac07903f06946d7895ca4dcd5ff7f0d2c3dbba954"
+    },
+    {
+      "bytes": 131323,
+      "path": "src/content/generated/ships-static-hulls-icosahedron.json",
+      "sha256": "255dd6eb15afb97a227e8eb94d47f7cee11b37c364e515ef1da8f97294072cb7"
+    },
+    {
       "bytes": 205542,
       "path": "src/content/generated/ships-static-hulls.json",
       "sha256": "0360456d36a260ba8befe35a263888f493bb28329b7a0b7716f71f0ce8a81c3a"
