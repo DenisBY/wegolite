@@ -359,7 +359,7 @@ Plans:
 **Standing gate**: QUAL-12 (the frozen 20-seed run after every plan touching `src/sim/world/**`)
 **Decisions to settle** (both resolved in plan 22.1-01, PROJECT.md row "Each system's main station is its own Oolite type"): whether the new station masses come from the compiled models (as the Coriolis since Phase 10) or from the container reading when they differ (O1: compiled at build time and pinned to the container fixture; a DIFFERS is investigated, and the measured value ships only as a last resort); how the fly-out view adapts to a six-sided slot (O2: no hexagonal slot exists for these three stations, each slot's orientation comes from its dock record)
 **Todos**: `2026-11-18-per-system-main-station-types.md`
-**Plans:** 12/13 plans executed (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
+**Plans:** 13/13 plans executed (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
 
 Plans:
 **Wave 1**
@@ -395,7 +395,7 @@ Plans:
 - [x] 22.1-12-PLAN.md — Wave 10: the docked screen names the station; launch and dock at all three types proven in the browser (WORLD-20)
 
 **Wave 11** *(blocked on Wave 10 completion)*
-- [ ] 22.1-13-PLAN.md — Wave 11: the phase gate on the remote, the deferred sun-colour lighting recorded (D-C), and the close-out (WORLD-20)
+- [x] 22.1-13-PLAN.md — Wave 11: the phase gate on the remote, the deferred sun-colour lighting recorded (D-C), and the close-out (WORLD-20)
 
 - QUAL-12 standing gate: the frozen 20-seed run is 21 of 21 on the remote machine after 22.1-04 and 22.1-06 (they touch `src/sim/world/**`) and at the phase gate
 - Success Criterion 1: no Coriolis artifact, twin hash, census golden or frozen acceptance file changes, and no `tests/golden` file changes except the new stations' `vendoredModelEntries` in `tests/golden/content/ships.json` (plan 22.1-10; the Coriolis entry unchanged); the census golden stays byte-identical (D-A: measured first in plan 22.1-08; its owner-recorded fallback re-pin applies only to a measured non-Coriolis move); a moved Coriolis value is a seam bug, never a re-pin
@@ -566,7 +566,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
 | 22. Initial Population | v2.4 | 16/16 | Complete    | 2026-11-26 |
-| 22.1 Per-system main stations | v2.4 | 12/13 | In Progress | - |
+| 22.1 Per-system main stations | v2.4 | 13/13 | In Progress | - |
 | 22.2 Station as a collider for NPC ships (E-135) | v2.4 | 0/TBD | Not started | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
