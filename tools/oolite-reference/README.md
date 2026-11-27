@@ -145,6 +145,9 @@ Shipped files:
 - `steps/census-anarchy.steps`, `steps/census-quiet.steps`: the population
   census spike (see the section on the population census spike below). They
   need a probe OXP that is not in the repository.
+- `steps/stations-lave.steps`, `steps/stations-zaonce.steps`,
+  `steps/stations-biarge.steps`: the Phase 22.1 station measurement (see the
+  station section below). They need a probe OXP that is not in the repository.
 
 ## Writing a measurement OXP
 
@@ -311,6 +314,110 @@ anarchy's NPC count alone spread from 64 to 99 in three runs, so QUAL-13 should
 plan on at least 20 runs per system (about 15 minutes) and compare
 distributions, not single runs. The probe must be rebuilt outside the
 repository, as described above.
+
+## Station measurement (Phase 22.1)
+
+**What and why.** Phase 22.1 (WORLD-20) gives each system the main station Oolite
+builds from `planetinfo.plist`'s `station` key (`Universe.m:1550`): Coriolis,
+Dodecahedron or Icosahedron. Plan 22.1-01 measured the three stations in this
+container before any station code changed, so the content build is pinned to
+Oolite's own numbers. The numbers are committed as
+`tests/fixtures/oolite-reference/stations.json` (numbers only, every one the string
+`String(value)` exactly as the probe logged it), and
+`tests/content/stations-oracle.test.ts` compares them with the compiled records.
+
+**Mismatch rule MS-2** (quick task 261117-jji): EQUAL is the same float32
+string, ROUNDING a relative difference of at most 1e-6, anything else DIFFERS. A
+DIFFERS stops the work and is investigated (decision O1); it is never committed
+as a pass.
+
+### The probe (not committed)
+
+`/home/opencode/oolite-probes/station-measure/station-measure.oxp/` holds:
+
+- `Config/script.js`: a world script (`wegolite-station-measure` 0.0.1). In Run A
+  (Normal Start at Lave) it spawns each station 100 km or more from the player
+  with `system.addShips("[<key>]", 1, position)` and logs, with the two-argument
+  `log(this.name, ...)`, one `STATION` line (`name`, `mass`, `collisionRadius`,
+  `boundingBox` and `station_roll` read from `Ship.shipDataForKey(key)`, not the
+  live `ship.roll`), one `SUB` line per solid subentity (`dataKey`, `isDock`,
+  `mass`, `collisionRadius`, `position`, `boundingBox`; the dock's bounding box is
+  the port, `DockEntity.m:1044-1045`) and one `TUNNEL` line. It then launches the
+  player and runs two blockage trials per station as quick task 261117-lka ran
+  them: the station frozen with `oolite-nullAI.js`, the player 1 m inside and 1 m
+  outside r = sqrt(0.1 x mass), `beginHyperspaceCountdown(5)`, and the
+  `playerJumpFailed` reason logged as `BLOCK`. Last it holds the player on each
+  station's dock axis 3 collision radii in front of the dock for 15 s and logs
+  `POSE`, the cue for the exterior picture. `STATIONS-DONE` ends the session. In
+  Run B (any other system) it logs `MAIN` for `system.mainStation` and
+  `STATIONS-DONE`.
+- `Config/scenarios.plist`: two scenarios, "Station measure (Zaonce)" and
+  "Station measure (Biarge)", appended after the four built-ins.
+- `Scenarios/station-zaonce.oolite-save` (galaxy 0, system id 129, an Icosahedron
+  system) and `Scenarios/station-biarge.oolite-save` (system id 3, a Dodecahedron
+  system): copies of the population census save with `system_id`,
+  `current_system_name`, `galaxy_coordinates` and the `target_*` keys rewritten.
+- `reference/`: the reference pictures (below).
+
+No file of the probe, no scenario save, no log and no picture is committed. The
+floats are copied from `Latest.log` by a scratch script, never retyped.
+
+### Repeat the runs
+
+```sh
+tools/oolite-reference/run-remote.sh --steps tools/oolite-reference/steps/stations-lave.steps \
+  --addons /home/opencode/oolite-probes/station-measure --out /tmp/oolite-stations-lave --timeout 300
+tools/oolite-reference/run-remote.sh --steps tools/oolite-reference/steps/stations-zaonce.steps \
+  --addons /home/opencode/oolite-probes/station-measure --out /tmp/oolite-stations-zaonce --timeout 300
+tools/oolite-reference/run-remote.sh --steps tools/oolite-reference/steps/stations-biarge.steps \
+  --addons /home/opencode/oolite-probes/station-measure --out /tmp/oolite-stations-biarge --timeout 300
+```
+
+Run A takes about two minutes, each Run B about 40 s. Add `--no-build` after the
+first run. The Run B menu arithmetic is the census one (one key press moves the
+selection two rows; the seven selectable rows start on Normal, so two Down
+presses select Zaonce and one Up wraps to Biarge), and the logged system name
+proves the landing: `MAIN system=Zaonce` and `MAIN system=Biarge`.
+
+### Result (Oolite 1.93.1-255, measured 2026-11-27)
+
+| Station                | Mass        | Collision radius  | Dock port (x, y, z, m)      | Blockage radius (m) | Verdict                                                                 |
+| ---------------------- | ----------- | ----------------- | --------------------------- | ------------------- | ----------------------------------------------------------------------- |
+| `coriolis-station`     | 515,483,904 | 779.3702392578125 | 103.412 x 241.888 x 250     | 7,179.72            | EQUAL to the compiled record (port ROUNDING)                            |
+| `dodecahedron-station` | 912,357,312 | 832.2093505859375 | 210.362 x 81.0268 x 250     | 9,551.74            | EQUAL to the research preview (dock numbers ROUNDING); not compiled yet |
+| `icosahedron-station`  | 826,313,024 | 940.7927856445312 | 82.1076 x 238.546 x 273.278 | 9,090.18            | EQUAL to the research preview (dock numbers ROUNDING); not compiled yet |
+
+Every station blocked a jump 1 m inside its radius and not 1 m outside. The main
+stations Oolite builds in Zaonce (g0-s129, `icosahedron`) and Biarge (g0-s3,
+`dodecahedron`) have the spawned stations' name, mass, collision radius and
+bounding box: the planetinfo key selects the same shipdata entry. Oolite builds
+both from one template, so the run cannot reveal a separate "built" mass.
+
+`tunnel_corners`, `tunnel_start_angle` and `tunnel_aspect_ratio` are recorded as
+Oolite's defaults (4, 45, 2.67, `Universe.m:2897-2899`) because none of the three
+stations authors them. They only shape the docking break pattern, which Wegolite
+does not draw (D17); the dock port is the dock subentity's bounding box.
+
+### Reference pictures
+
+`/home/opencode/oolite-probes/station-measure/reference/` holds five pictures,
+outside the repository and never committed (CC BY-NC-SA Oolite output), for plan
+22.1-13's manual look:
+
+- `exterior-coriolis.png`, `exterior-dodecahedron.png`,
+  `exterior-icosahedron.png`: the player 3 collision radii in front of each
+  station's dock, facing it (the pose of Run A).
+- `launch-zaonce.png`, `launch-biarge.png`: the first moment of a launch from the
+  main station of Zaonce (Icosahedron) and Biarge (Dodecahedron), looking out of
+  the dock slot. The picture shows Oolite's launch tunnel, the break pattern that
+  Wegolite does not draw (D17); the shot has to come right after the `F1` key
+  (one 1.5 s later is a black tunnel, one 3 s later already shows the planet).
+
+If the directory is gone, run the three commands above and copy the shots again
+from the `screenshots/` of each `--out` directory (`exterior-*` from Run A,
+`launch-*` from the two Run B directories). A shot under 100 KB is a probable
+black frame and is retaken. If the reference container cannot run, plan 22.1-13
+records its manual look as made without reference pictures.
 
 ## Headless notes and troubleshooting
 
