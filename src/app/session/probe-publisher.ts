@@ -43,6 +43,7 @@ import {
   spawnTestShooter,
 } from "../../sim/ai/test-spawn.js";
 import { identTargetSnapshot } from "../../sim/combat/ident.js";
+import { portQuaternion } from "../../sim/dock/port-frame.js";
 import { hashWorld } from "../../sim/world/serialize.js";
 import { liveEntityCount } from "../../sim/world/world.js";
 import { maxRelativeMagnitude } from "../../render/sync.js";
@@ -547,10 +548,24 @@ export function createProbePublisher(
         active: currentScene.dust.active,
         count: currentScene.dust.count,
       };
+      const stationQuat = portQuaternion(
+        currentLayout,
+        currentState?.stationAngle ?? 0,
+      );
       probe.world = {
         planet: toTuple(currentLayout.planet.position),
         sun: toTuple(currentLayout.sun.position),
         station: toTuple(currentLayout.station.position),
+        stationKind: currentLayout.stationKind,
+        // The render's own fact (null while the body is meshless), never the
+        // session's: the browser proof of "the model is drawn" waits on it.
+        stationModel: currentScene.station.modelKind ?? null,
+        stationOrientation: [
+          stationQuat.w,
+          stationQuat.x,
+          stationQuat.y,
+          stationQuat.z,
+        ],
         navBuoy: toTuple(currentLayout.navBuoy.position),
         witchpoint: toTuple(currentLayout.witchpoint.position),
         maxRelativeMagnitude: maxRelativeMagnitude(currentScene),

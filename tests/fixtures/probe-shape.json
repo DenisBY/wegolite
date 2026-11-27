@@ -310,6 +310,11 @@
       "station": {
         "[]": ["number"]
       },
+      "stationKind": "string",
+      "stationModel": "string",
+      "stationOrientation": {
+        "[]": ["number"]
+      },
       "sun": {
         "[]": ["number"]
       },
@@ -528,6 +533,11 @@
         "[]": ["number"]
       },
       "station": {
+        "[]": ["number"]
+      },
+      "stationKind": "string",
+      "stationModel": "string",
+      "stationOrientation": {
         "[]": ["number"]
       },
       "sun": {
@@ -750,6 +760,11 @@
       "station": {
         "[]": ["number"]
       },
+      "stationKind": "string",
+      "stationModel": "string",
+      "stationOrientation": {
+        "[]": ["number"]
+      },
       "sun": {
         "[]": ["number"]
       },
@@ -968,6 +983,11 @@
         "[]": ["number"]
       },
       "station": {
+        "[]": ["number"]
+      },
+      "stationKind": "string",
+      "stationModel": "string",
+      "stationOrientation": {
         "[]": ["number"]
       },
       "sun": {
@@ -1207,6 +1227,11 @@
       "station": {
         "[]": ["number"]
       },
+      "stationKind": "string",
+      "stationModel": "string",
+      "stationOrientation": {
+        "[]": ["number"]
+      },
       "sun": {
         "[]": ["number"]
       },
@@ -1442,6 +1467,11 @@
         "[]": ["number"]
       },
       "station": {
+        "[]": ["number"]
+      },
+      "stationKind": "string",
+      "stationModel": "string",
+      "stationOrientation": {
         "[]": ["number"]
       },
       "sun": {

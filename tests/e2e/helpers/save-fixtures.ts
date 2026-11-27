@@ -15,6 +15,8 @@
  * The fixtures are new-game anchors: epoch 0 and the fresh-world counter.
  */
 
+import { STATION_RECORDS } from "../../../src/content/stations.js";
+import type { System } from "../../../src/content/types.js";
 import { encodeSave } from "../../../src/persistence/save.js";
 import type { SaveFlightPose } from "../../../src/persistence/save.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
@@ -23,11 +25,15 @@ import { saveInputs } from "../../helpers/save-builders.js";
 import { systemByName } from "./chart.js";
 
 /**
- * The station key the session itself saves (`stationShip(catalogue).key` in
- * src/content/ships.ts). The system record's `station` field holds only the
- * role fragment, so it is not used here.
+ * The station key the session itself saves for a system: the ship key of the
+ * station record of the system's own kind (`STATION_RECORDS[kind].shipKey`, the
+ * `stationDef.key` of `deriveSystemLayout`). The boot reader rejects a Continue
+ * whose key is not the system's own station, so a Zaonce or Biarge fixture
+ * carries its own key, never the Coriolis one.
  */
-const STATION_KEY = "coriolis-station";
+function stationKeyOf(system: System): string {
+  return STATION_RECORDS[system.station].shipKey;
+}
 
 /** The pose an in-flight fixture starts from. The blob orientation is `[w, x, y, z]`. */
 export interface FixturePose {
@@ -66,7 +72,7 @@ export function dockedSaveAt(
         : { damagedEquipment: options.damagedEquipment }),
       marketSeed: marketSeedForSystem(system.id),
       systemId: system.id,
-      stationKey: STATION_KEY,
+      stationKey: stationKeyOf(system),
     }),
   );
 }
@@ -115,7 +121,7 @@ export function inFlightSaveAt(
       marketSeed: marketSeedForSystem(system.id),
       flight,
       systemId: system.id,
-      stationKey: STATION_KEY,
+      stationKey: stationKeyOf(system),
     }),
   );
 }

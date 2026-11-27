@@ -1349,6 +1349,13 @@ export interface BuildHomeModelInput {
   readonly system: System;
   readonly targetSystem: System | undefined;
   readonly labels: Labels;
+  /**
+   * The display name of the system's own main station, from its compiled
+   * record (`StationSpec.name`): the docked line names it. Oolite prints no
+   * main station name on a docked screen (PlayerEntity.m:7022-7024), so this
+   * line is Wegolite's own (FIDELITY.md, "Docked home screen subtitle").
+   */
+  readonly stationName: string;
   readonly equipment: readonly Equipment[];
   readonly commodities: readonly Commodity[];
   readonly market: Market;
@@ -1367,6 +1374,7 @@ export function buildHomeModel(input: BuildHomeModelInput): HomeModel {
     system,
     targetSystem,
     labels,
+    stationName,
     equipment,
     commodities,
     market,
@@ -1514,7 +1522,7 @@ export function buildHomeModel(input: BuildHomeModelInput): HomeModel {
 
   return {
     systemName: system.name,
-    stationSubtitle: "Coriolis Station · Docked",
+    stationSubtitle: `${stationName} · ${DOCKED_CONDITION}`,
     economy: sysData.fields[0]?.value ?? "",
     government: sysData.fields[1]?.value ?? "",
     techLevel: sysData.fields[2]?.value ?? "",

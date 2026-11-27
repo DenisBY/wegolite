@@ -491,6 +491,7 @@ describe("buildHomeModel", () => {
       system,
       targetSystem: undefined,
       labels,
+      stationName: "Coriolis Station",
       equipment: catalogue,
       commodities,
       market,
@@ -506,7 +507,26 @@ describe("buildHomeModel", () => {
     expect(model.refuelCostText).toBe("FULL");
     expect(model.jumpStatusKind).toBe("none");
     expect(model.marketHighlights.length).toBeGreaterThan(0);
+    expect(model.stationSubtitle).toBe("Coriolis Station · Docked");
   });
+
+  it.each(["Dodecahedron Station", "Icosahedron Station"])(
+    "names the system's own station on the docked line: %s",
+    (stationName) => {
+      const model = buildHomeModel({
+        profile: newProfile(),
+        system,
+        targetSystem: undefined,
+        labels,
+        stationName,
+        equipment: catalogue,
+        commodities,
+        market,
+      });
+
+      expect(model.stationSubtitle).toBe(`${stationName} · Docked`);
+    },
+  );
 
   it("computes refuel label/cost, jump readiness, and cargo price diff vs Galactic Average", () => {
     const foodAvg = commodities.find((c) => c.key === "food")!.priceAverage;
@@ -542,6 +562,7 @@ describe("buildHomeModel", () => {
       system,
       targetSystem: diso,
       labels,
+      stationName: "Coriolis Station",
       equipment: catalogue,
       commodities,
       market: customMarket,
@@ -580,6 +601,7 @@ describe("buildHomeModel", () => {
       system,
       targetSystem: diso,
       labels,
+      stationName: "Coriolis Station",
       equipment: catalogue,
       commodities,
       market,
@@ -592,6 +614,7 @@ describe("buildHomeModel", () => {
       system,
       targetSystem: farSystem,
       labels,
+      stationName: "Coriolis Station",
       equipment: catalogue,
       commodities,
       market,

@@ -762,14 +762,18 @@ export function createStationController(
             ctx.station.stationPage,
             targetSystem()?.name,
           );
+    const stationDef = ctx.core.stationDef;
     const homeModel =
-      ctx.core.labels === undefined || equipment === undefined
+      ctx.core.labels === undefined ||
+      equipment === undefined ||
+      stationDef === undefined
         ? undefined
         : buildHomeModel({
             profile: ctx.core.profile,
             system: ctx.core.system,
             targetSystem: targetSystem(),
             labels: ctx.core.labels,
+            stationName: stationDef.name,
             equipment,
             commodities: catalogue,
             market: currentMarket,

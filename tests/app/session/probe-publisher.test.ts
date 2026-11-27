@@ -152,6 +152,96 @@ describe("launch pre-roll fields (quick 261118-os8)", () => {
   });
 });
 
+/**
+ * A scene as far as the world probe reads it: names, the station body's
+ * attached model and a root whose traverse visits one object at the origin.
+ */
+function sceneWithStationModel(
+  modelKind: "coriolis" | "dodecahedron" | "icosahedron" | undefined,
+): SessionState["core"]["scene"] {
+  const named = (name: string): { name: string; visible: boolean } => ({
+    name,
+    visible: true,
+  });
+  return {
+    scene: {
+      traverse: (
+        visit: (object: { position: Record<string, number> }) => void,
+      ) => {
+        visit({ position: { x: 0, y: 0, z: 0 } });
+      },
+    },
+    planet: { mesh: named("planet") },
+    sun: { sun: named("sun") },
+    starfield: named("starfield"),
+    station: { root: named("station"), modelKind },
+    ship: named("ship"),
+    navBuoy: named("navBuoy"),
+    witchpoint: named("witchpoint"),
+    dust: { active: false, count: 0 },
+  } as unknown as SessionState["core"]["scene"];
+}
+
+describe("probe.world station facts (plan 22.1-12)", () => {
+  it("publishes the live system's kind and the render's attached model, null while meshless", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.layout = layout;
+    ctx.core.state = initFlightState(layout);
+
+    ctx.core.scene = sceneWithStationModel(undefined);
+    publisher.updateProbe();
+    expect(probe.world?.stationKind).toBe("coriolis");
+    expect(probe.world?.stationModel).toBeNull();
+
+    ctx.core.scene = sceneWithStationModel("coriolis");
+    publisher.updateProbe();
+    expect(probe.world?.stationModel).toBe("coriolis");
+  });
+
+  it("reads the model from the scene, not the layout: another kind's model is reported as that kind", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.layout = layout;
+    ctx.core.state = initFlightState(layout);
+    ctx.core.scene = sceneWithStationModel("icosahedron");
+
+    publisher.updateProbe();
+
+    expect(probe.world?.stationKind).toBe("coriolis");
+    expect(probe.world?.stationModel).toBe("icosahedron");
+  });
+
+  it("publishes the station's base orientation at angle 0 and a rolled one at a later angle", () => {
+    const { ctx, probe, publisher } = harness();
+    ctx.core.layout = layout;
+    const state = initFlightState(layout);
+    ctx.core.state = state;
+    ctx.core.scene = sceneWithStationModel("coriolis");
+
+    publisher.updateProbe();
+    const base = probe.world?.stationOrientation;
+    const expectedBase = [
+      layout.stationBaseQuat.w,
+      layout.stationBaseQuat.x,
+      layout.stationBaseQuat.y,
+      layout.stationBaseQuat.z,
+    ];
+    expect(base).toHaveLength(4);
+    // Component-wise: the product with the identity roll may print -0 for 0.
+    expectedBase.forEach((part, index) => {
+      expect(base?.[index]).toBeCloseTo(part, 12);
+    });
+
+    state.stationAngle = Math.PI / 2;
+    publisher.updateProbe();
+    const rolled = probe.world?.stationOrientation;
+    expect(rolled).toHaveLength(4);
+    expect(rolled).not.toEqual(base);
+    // A unit quaternion, however the roll composes.
+    const norm = (rolled ?? []).reduce((sum, part) => sum + part * part, 0);
+    expect(norm).toBeCloseTo(1, 9);
+  });
+});
+
 describe("updateProbe", () => {
   it("publishes paused, the system id, the chart camera and the message depth", () => {
     const { ctx, probe, messages, publisher } = harness();
