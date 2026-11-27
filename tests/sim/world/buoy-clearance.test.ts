@@ -17,8 +17,8 @@
  * hull and the blockage at once.
  *
  * The sweep covers all 2,048 layouts of the eight galaxy files, each derived
- * with the Coriolis station as the session derives it (every system builds a
- * Coriolis station until the per-station todo lands). The buoys may move
+ * with the station of its own system (`system.station`, the compiled spec of
+ * that kind). The buoys may move
  * (PD-02), but only within one world: every arrival, launch and Load creates a
  * new world, and a new world's buoys sit at their layout positions, which the
  * pristine-world clause pins. An immediate re-jump after arrival is therefore
@@ -29,7 +29,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import type { ShipDef, System } from "../../../src/content/types.js";
+import type { System } from "../../../src/content/types.js";
 import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
 import { dockMouthPosition } from "../../../src/sim/flight/state.js";
 import {
@@ -47,17 +47,11 @@ import {
   createWorld,
   isPristineBuoyStates,
 } from "../../../src/sim/world/world.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8")) as T;
 }
-
-const catalogue = readJson<{ key: string; shipDef: ShipDef }[]>(
-  "../../../src/content/generated/ships.json",
-);
-const coriolis = catalogue.find((entry) => entry.key === "coriolis-station");
-if (coriolis === undefined) throw new Error("no coriolis-station entry");
-const stationDef = coriolis.shipDef;
 
 const systems: readonly System[] = [0, 1, 2, 3, 4, 5, 6, 7].flatMap((galaxy) =>
   readJson<System[]>(`../../../src/content/generated/systems/g${galaxy}.json`),
@@ -66,7 +60,7 @@ const systems: readonly System[] = [0, 1, 2, 3, 4, 5, 6, 7].flatMap((galaxy) =>
 const layouts: readonly { system: System; layout: SystemLayout }[] =
   systems.map((system) => ({
     system,
-    layout: deriveSystemLayout(system, stationDef),
+    layout: deriveSystemLayout(system, stationSpecOf(system.station)),
   }));
 
 /** `MIN_DISTANCE_TO_BUOY` (Universe.h line 162). */

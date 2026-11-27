@@ -19,7 +19,7 @@
  */
 
 import * as THREE from "three";
-import type { ShipDef, System } from "../content/types.js";
+import type { StationSpec, System } from "../content/types.js";
 import type { GraphicsQuality } from "../settings/schema.js";
 import { deriveSystemLayout } from "../sim/world/layout.js";
 import type { SystemLayout } from "../sim/world/layout.js";
@@ -39,7 +39,7 @@ export interface ActiveScene {
 
 export interface SceneManager {
   enterMenu(): void;
-  enterSystem(system: System, stationDef: ShipDef): SystemScene;
+  enterSystem(system: System, stationDef: StationSpec): SystemScene;
   /**
    * Set the graphics quality used by the next `enterSystem`. It does not
    * rebuild the installed scene; the caller re-enters the system to apply it.

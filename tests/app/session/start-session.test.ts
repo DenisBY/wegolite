@@ -30,6 +30,7 @@ import type {
   LifecycleDeps,
   SessionContentLoaders,
 } from "../../../src/app/session/start-session.js";
+import type { StartOptions } from "../../../src/app/game-session.js";
 import type { SystemScene } from "../../../src/render/system-scene.js";
 import {
   createPlayerCombatState,
@@ -39,8 +40,26 @@ import type { Command } from "../../../src/sim/commands.js";
 import { initFlightState } from "../../../src/sim/flight/state.js";
 import { vec } from "../../../src/sim/math.js";
 import type { SystemLayout } from "../../../src/sim/world/layout.js";
+import type { StationSpec, System } from "../../../src/content/types.js";
+import { restoreFromSave } from "../../../src/persistence/autosave.js";
+import { encodeSave, parseSave } from "../../../src/persistence/save.js";
+import { marketSeedForSystem } from "../../../src/sim/economy/market.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { saveAllowLists, saveInputs } from "../../helpers/save-builders.js";
 import { sessionSourceFiles } from "../../helpers/session-source.js";
+import { dockGeometryOf, stationSpecOf } from "../../helpers/stations.js";
+
+// The boot cannot run to its end in Node (it builds the HUD and the input
+// source), so the Continue case below cuts it right after the station install
+// by making the restore throw. Every other test passes straight through.
+vi.mock("../../../src/persistence/autosave.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("../../../src/persistence/autosave.js")
+    >();
+  return { ...actual, restoreFromSave: vi.fn(actual.restoreFromSave) };
+});
 
 const lave = laveFixture();
 
@@ -840,5 +859,121 @@ describe("resolveStartTarget (quick task 261117-pij)", () => {
     expect(
       resolveStartTarget(true, "no-such-system", lave.system.id, galaxyById),
     ).toBeUndefined();
+  });
+});
+
+describe("the station of the starting system (Phase 22.1, WORLD-20)", () => {
+  const ZAONCE = "g0-s129";
+  const STOP = "stop after the station install";
+
+  /** Every system of the first galaxy, as the session's galaxy list. */
+  const galaxyOne = JSON.parse(
+    readFileSync("src/content/generated/systems/g0.json", "utf8"),
+  ) as System[];
+
+  function zaonceSave(): ReturnType<typeof parseSave> {
+    return parseSave(
+      encodeSave(
+        saveInputs({
+          systemId: ZAONCE,
+          stationKey: "icosahedron-station",
+          marketSeed: marketSeedForSystem(ZAONCE),
+        }),
+      ),
+      saveAllowLists({
+        systems: new Set(["g0-s7", ZAONCE]),
+        stations: new Set(["coriolis-station", "icosahedron-station"]),
+      }),
+    );
+  }
+
+  /**
+   * Boot a Continue (or a New game) through the real `start`, with the scene
+   * manager a recording double that derives the layout from the spec it is
+   * given, and stop right after the station install.
+   */
+  async function boot(restore: StartOptions): Promise<{
+    readonly ctx: SessionState;
+    readonly entered: StationSpec[];
+    readonly failures: string[];
+  }> {
+    vi.stubGlobal("window", {
+      location: { search: "" },
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    });
+    vi.stubGlobal("localStorage", {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(restoreFromSave).mockImplementationOnce(() => {
+      throw new Error(STOP);
+    });
+    const failures: string[] = [];
+    const entered: StationSpec[] = [];
+    let layout: SystemLayout | undefined;
+    const ctx = createSessionState({
+      system: lave.system,
+      saveStatus: "absent",
+      saveSkipReason: "",
+    });
+    const galaxyById = new Map<string, System>();
+    const deps = {
+      assets: { preload: () => Promise.resolve(), dispose: () => undefined },
+      scenes: {
+        setQuality: () => undefined,
+        enterSystem: (system: System, spec: StationSpec) => {
+          entered.push(spec);
+          layout = deriveSystemLayout(system, spec);
+          return { name: "scene" } as unknown as SystemScene;
+        },
+        layout: () => layout,
+        disposeSystem: () => undefined,
+        dispose: () => undefined,
+      },
+      galaxy: galaxyOne,
+      galaxyById,
+      showBootFailure: (reason: string) => failures.push(reason),
+      publishFailure: () => undefined,
+      clearSaveForNewGame: () => Promise.resolve(),
+      uiController: new AbortController(),
+      pending: [],
+      launchSequence: {},
+      title: { hide: () => undefined, dispose: () => undefined },
+    } as unknown as LifecycleDeps;
+    const lifecycle = createSessionLifecycle(ctx, deps);
+    await lifecycle.start(restore);
+    return { ctx, entered, failures };
+  }
+
+  it("boots a Continue at Zaonce with the Icosahedron spec, key and dock geometry", async () => {
+    const parsed = zaonceSave();
+    if (!parsed.ok) throw new Error("the Zaonce save did not parse");
+
+    const { ctx, entered, failures } = await boot({ restore: parsed.save });
+
+    // The cut: the only failure is the one the test injected.
+    expect(failures).toEqual([STOP]);
+    const icosahedron = stationSpecOf("icosahedron");
+    expect(ctx.core.system.id).toBe(ZAONCE);
+    expect(ctx.core.stationDef).toEqual(icosahedron);
+    expect(ctx.core.stationKey).toBe("icosahedron-station");
+    expect(entered).toEqual([icosahedron]);
+    expect(ctx.core.layout).toBeUndefined();
+    expect(ctx.core.dockGeometry).toEqual(dockGeometryOf("icosahedron"));
+  });
+
+  it("boots a New game at the Lave Coriolis", async () => {
+    const { ctx, entered, failures } = await boot({});
+
+    // A new game never restores, so the injected stop is not reached: it
+    // fails later, on the first thing the Node run cannot build (the HUD).
+    expect(failures).not.toContain(STOP);
+    expect(ctx.core.stationDef).toEqual(stationSpecOf("coriolis"));
+    expect(ctx.core.stationKey).toBe("coriolis-station");
+    expect(entered).toEqual([stationSpecOf("coriolis")]);
+    expect(ctx.core.dockGeometry).toEqual(dockGeometryOf("coriolis"));
   });
 });

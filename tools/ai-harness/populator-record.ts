@@ -33,7 +33,10 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createContext, runInContext } from "node:vm";
 
-import type { ShipDef, System } from "../../src/content/types.js";
+import type { CatalogEntry } from "../../src/content/schemas/ship.js";
+import { stationSpecFor } from "../../src/content/stations.js";
+import type { StationKind } from "../../src/content/stations.js";
+import type { StationSpec, System } from "../../src/content/types.js";
 import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import {
   decodePopulationFixture,
@@ -192,24 +195,25 @@ interface GalaxySystem extends System {
   readonly techLevelRaw: number;
 }
 
-interface CatalogueShip {
-  readonly key: string;
-  readonly shipDef: ShipDef;
-}
-
-let stationDefCache: ShipDef | undefined;
+let clientEntriesCache: readonly CatalogEntry[] | undefined;
+const stationSpecCache = new Map<StationKind, StationSpec>();
 let catalogueCache: readonly PopulatorCatalogueRecord[] | undefined;
 
-function stationDef(): ShipDef {
-  if (stationDefCache === undefined) {
-    const ships = readJson<CatalogueShip[]>("src/content/generated/ships.json");
-    const station = ships.find((ship) => ship.key === "coriolis-station");
-    if (station === undefined) {
-      throw new Error("ships.json has no coriolis-station record");
-    }
-    stationDefCache = station.shipDef;
+/**
+ * The spec of a system's own station, from the compiled client catalogue
+ * (`ships.json` carries no mass or collision radius). `stations.ts` has no
+ * runtime import, so Node loads it; this script cannot import test helpers.
+ */
+function stationSpec(kind: StationKind): StationSpec {
+  let spec = stationSpecCache.get(kind);
+  if (spec === undefined) {
+    clientEntriesCache ??= readJson<CatalogEntry[]>(
+      "src/content/generated/ships-client.json",
+    );
+    spec = stationSpecFor(clientEntriesCache, kind);
+    stationSpecCache.set(kind, spec);
   }
-  return stationDefCache;
+  return spec;
 }
 
 function npcCatalogue(): readonly PopulatorCatalogueRecord[] {
@@ -461,7 +465,7 @@ function loadPopulator(
   if (system === undefined) {
     throw new Error(`no system ${systemId}`);
   }
-  const layout = deriveSystemLayout(system, stationDef());
+  const layout = deriveSystemLayout(system, stationSpec(system.station));
   const planet = oolite(layout.planet.position);
   const sun = oolite(layout.sun.position);
   const station = oolite(layout.station.position);

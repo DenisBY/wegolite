@@ -8,7 +8,8 @@
  * whole phase: every later plan reads `layout.planet`/`sun`/`station`/
  * `navBuoy`/`witchpoint` rather than re-deriving a position. It is pure: no
  * Three, no DOM, no clock, and no runtime content import — it takes the typed
- * `System` record and the station's `ShipDef` and returns plain numbers.
+ * `System` record and the station's `StationSpec` (the compiled radius, mass,
+ * dock offset and roll of the system's main station) and returns plain numbers.
  *
  * Four fidelity rules are load-bearing and deliberately not "cleaned up":
  *
@@ -26,7 +27,7 @@
  *    least six sun radii from the origin.
  */
 
-import type { ShipDef, System } from "../../content/types.js";
+import type { StationSpec, System } from "../../content/types.js";
 import {
   add,
   lengthSquared,
@@ -48,6 +49,12 @@ export interface SystemLayout {
   readonly planet: Body;
   readonly sun: Body;
   readonly station: Body;
+  /** The kind of the main station (`system.station`); names its record. */
+  readonly stationKind: StationSpec["kind"];
+  /** The station's ship key; names its `ships-client.json` entry. */
+  readonly stationKey: string;
+  /** The station's compiled mass in kg, the witchspace blockage mass (plan 22.1-05). */
+  readonly stationMass: number;
   readonly navBuoy: Body;
   readonly witchpoint: Body;
   /** Unit direction from the station toward the planet (the dock faces this). */
@@ -67,8 +74,14 @@ export interface SystemLayout {
   readonly rotationSpeed: number;
 }
 
-/** Oolite's collision radii (hull plus solid subentities, ShipEntity.m:2028-2044), compiled into ships-client.json by tools/oolite-ingest/convert/ship-radius.ts, kept as literals because src/sim may not import the content catalogue, and pinned by tests/sim/layout.test.ts. */
-const STATION_RADIUS = 779.3702392578125;
+/**
+ * Oolite's collision radii of the two buoys (hull plus solid subentities,
+ * ShipEntity.m:2028-2044), compiled into ships-client.json by
+ * tools/oolite-ingest/convert/ship-radius.ts, kept as literals because
+ * src/sim may not import the content catalogue, and pinned by
+ * tests/sim/layout.test.ts. The station's radius is not here: it arrives in
+ * the `StationSpec`, compiled per station kind.
+ */
 const NAV_BUOY_RADIUS = 59.13554763793945;
 const WITCHPOINT_RADIUS = 59.13554763793945;
 const NAV_BUOY_OFFSET = 10_000;
@@ -103,25 +116,25 @@ function assertFiniteVec(label: string, value: Vec3): void {
   assertFinite(`${label}.z`, value.z);
 }
 
-function requireNumber(label: string, value: number | undefined): number {
-  if (value === undefined) {
+function assertPositiveFinite(label: string, value: number): void {
+  if (!Number.isFinite(value) || value <= 0) {
     throw new LayoutError(
-      `Wegolite: the station catalogue entry is missing "${label}"; the layout cannot be derived.`,
+      `Wegolite: the station spec has a non-positive or non-finite ${label} (${String(value)}); the layout cannot be derived.`,
     );
   }
-  return value;
 }
 
 /**
  * Derive every body, direction and range the phase needs from one `System`
- * record plus the station's catalogue entry.
+ * record plus the spec of its main station (compiled radius, mass, dock offset
+ * and roll; `stationSpecFor` builds it from the content catalogue).
  *
- * @throws {LayoutError} when a required station datum is missing or a derived
- * number is not finite — never a silently zeroed value (T-3-01).
+ * @throws {LayoutError} when a station number is not positive and finite or a
+ * derived number is not finite — never a silently zeroed value (T-3-01).
  */
 export function deriveSystemLayout(
   system: System,
-  stationDef: ShipDef,
+  stationDef: StationSpec,
 ): SystemLayout {
   const planetRadius = system.radiusKm * 10;
   const planet = vec(0, 0, -system.planetDistance);
@@ -148,28 +161,21 @@ export function deriveSystemLayout(
     sunDistance / 2,
   );
 
-  const dock = stationDef.subentities.find(
-    (subentity) => subentity.isDock === true,
-  );
-  if (dock === undefined) {
-    throw new LayoutError(
-      'Wegolite: the station catalogue entry has no dock subentity (is_dock); the layout cannot derive "dockOffset".',
-    );
-  }
-  const dockPosition = dock.position;
-  if (dockPosition === undefined) {
-    throw new LayoutError(
-      'Wegolite: the station dock subentity has no authored "position"; the layout cannot derive "dockOffset".',
-    );
-  }
-  const dockOffset = Math.abs(dockPosition[2]);
-
-  const stationRoll = requireNumber("stationRoll", stationDef.stationRoll);
+  // T-3-01: the spec is data from the content build; a number the layout
+  // cannot use is a named error, never a zeroed or Coriolis-shaped station.
+  const { collisionRadius, dockOffset, mass, stationRoll } = stationDef;
+  assertPositiveFinite("station collisionRadius", collisionRadius);
+  assertPositiveFinite("station dockOffset", dockOffset);
+  assertPositiveFinite("station mass", mass);
+  assertFinite("station stationRoll", stationRoll);
 
   const layout: SystemLayout = {
     planet: { position: planet, radius: planetRadius },
     sun: { position: sun, radius: sunRadius },
-    station: { position: station, radius: STATION_RADIUS },
+    station: { position: station, radius: collisionRadius },
+    stationKind: stationDef.kind,
+    stationKey: stationDef.key,
+    stationMass: mass,
     navBuoy: {
       position: add(station, scale(stationToPlanet, NAV_BUOY_OFFSET)),
       radius: NAV_BUOY_RADIUS,

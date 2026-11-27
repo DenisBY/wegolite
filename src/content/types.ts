@@ -18,6 +18,7 @@
 
 export type { Commodity, CommodityUnit } from "./schemas/commodity.js";
 export type { System, SystemChunk } from "./schemas/system.js";
+export type { StationSpec } from "./schemas/station.js";
 export type { Equipment } from "./schemas/equipment.js";
 export type { Labels } from "./schemas/labels.js";
 export type { CatalogEntry, ShipCatalogue } from "./schemas/ship.js";
