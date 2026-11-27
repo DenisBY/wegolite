@@ -341,26 +341,62 @@ Plans:
 **First plan**: the measurements: the Dodecahedron and Icosahedron masses, collision radii, dock-port geometry (`tunnel_corners`, `tunnel_start_angle`, `tunnel_aspect_ratio`) and witchspace blockage read from the reference Oolite container (`tools/oolite-reference/run-remote.sh`, as quick task 261117-jji did for the Coriolis) and the shipdata entries, committed as fixtures before any code
 **Split**: the phase lands in two halves. (a) The sim and content seam, which must land before Phase 23: the compiled per-station record (model key, mass, radius, dock port), `layout.ts` and `statics.ts` reading it, the dock corridor, collisions, aegis and the witchspace blockage per station. (b) The presentation, which may trail Phase 23: the vendored models and textures with provenance, the render loader in place of `loadCoriolis()`, the launch fly-out view through each slot shape, and the UI text.
 **Success Criteria** (what must be TRUE):
-  1. Every Coriolis system is byte-identical: no twin hash, debris golden, census golden or acceptance file moves, and the frozen `tests/acceptance` files (`STATION_RADIUS_M` included) are untouched; the frozen 20-seed run (Lave, a Coriolis) stays 21 of 21.
-  2. A Dodecahedron or Icosahedron system builds its own station from the compiled record: model, mass, collision radius and dock port equal the measured Oolite values, and docking (manual and the docking computer), the dock corridor, collisions with ships, the aegis and the witchspace mass blockage use that station's values. The 2026-11-07 "non-blocking for lack of mass" decision is superseded by the measured mass.
+  1. Every Coriolis system is byte-identical: no twin hash, debris golden, census golden or acceptance file moves, and the frozen `tests/acceptance` files (`STATION_RADIUS_M` included) are untouched; the frozen 20-seed run (Lave, a Coriolis) stays 21 of 21. The one admitted `tests/golden` change is `tests/golden/content/ships.json` gaining the Dodecahedron and Icosahedron station and subentity keys in `vendoredModelEntries` (their GLBs are vendored in this phase); its Coriolis entries and every other field stay byte-identical. (Ship positions in a Dodecahedron or Icosahedron system may legitimately differ from a Coriolis-for-all layout, because Oolite samples the aegis shell from `[[self station] collisionRadius] * 1.2`, `Universe.m:1813`; owner decision D-A of 2026-11-27.)
+  2. A Dodecahedron or Icosahedron system builds its own station from the compiled record: model, mass, collision radius and dock port equal the measured Oolite values, and docking (manual and the docking computer), the dock corridor, collisions with ships, the aegis and the witchspace mass blockage use that station's values. "Collisions with ships" means (owner decision D-B of 2026-11-27): the per-kind station radius drives NPC proximity, placement and the dock corridor, and the per-kind hull drives the player's dock hull contact and laser hits, each tested per kind; the station stays a non-collider for NPC ships in this phase (E-135 unchanged here, taken up by the follow-up phase for E-135). The 2026-11-07 "non-blocking for lack of mass" decision is superseded by the measured mass.
   3. The player can launch from and dock at each of the three station types in the browser, with the fly-out view leaving through that station's slot shape, the station's model drawn, and the docked and launch UI naming the station type as Oolite does, not "Coriolis".
   4. Every place that assumed Coriolis constants reads the per-station record, and a guard fails on a new Coriolis-only constant outside the station record and the frozen acceptance files.
 
 **Scope note**: the station stays static (D2): no station AI, no defence ships, no rotation change beyond each record's own spin. Rock hermits stay out (DEATH-04, AI-09, WORLD-12). Zaonce (Lave's neighbour, in `hyperspace.spec` and `routes.json`) becomes an Icosahedron; specs that fly there must follow.
 **Implied work** (found by the 2026-11-26 audit; no requirement text changed):
-  - Station flashers (`flasher` subentities, 14 on each station type in Oolite), absent today for every station.
+  - Station flashers (`flasher` subentities, 14 on each station type in Oolite), absent today for every station. Deferred out of this phase by owner decision D-C of 2026-11-27 (absent for the Coriolis too, so unrelated to the station kind).
   - The hard-coded "Coriolis" strings and art in the UI and `index.html`.
-  - Lighting from the sun's colour: ships and the station are lit pure white today and the dust has a fixed colour.
+  - Lighting from the sun's colour: ships and the station are lit pure white today and the dust has a fixed colour. Deferred out of this phase by owner decision D-C of 2026-11-27; it belongs with the tone-mapping todo `2026-11-27-tone-mapping-vs-oolite-aces.md`.
   - Whether the station becomes a collider for NPC ships (E-135), and `market_monitored` for the new types (LAW-07 relies on it).
   - The first-load headroom (about 535 KB below the 9 MiB ceiling): the two new station models must load lazily or fit.
 
 **Standing gate**: QUAL-12 (the frozen 20-seed run after every plan touching `src/sim/world/**`)
 **Decisions to settle**: whether the new station masses come from the compiled models (as the Coriolis since Phase 10) or from the container reading when they differ; how the fly-out view adapts to a six-sided slot
 **Todos**: `2026-11-18-per-system-main-station-types.md`
-**Plans:** 0 plans
+**Plans:** 13 plans (half (a), the sim and content seam: 22.1-01 to 22.1-09; half (b), the presentation: 22.1-10 to 22.1-13)
 
 Plans:
-- [ ] TBD (run /gsd-plan-phase 22.1 to break down)
+**Wave 1**
+- [ ] 22.1-01-PLAN.md — Wave 1: the three stations and two real main stations measured in the reference Oolite container, committed as a numbers-only fixture with the oracle test; the `tunnel_*` premise corrected; owner decisions D-A, D-B and D-C recorded (WORLD-20)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 22.1-02-PLAN.md — Wave 2: six station meshes vendored; one station record; the two new masses and radii compiled and pinned to the fixture; `system.station` a checked enum (WORLD-20)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 22.1-03-PLAN.md — Wave 3: per-kind dock-port records and station hull artifacts with their loaders; the Coriolis files byte-identical (WORLD-20)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 22.1-04-PLAN.md — Wave 4: the layout takes the station's compiled record (StationSpec); the boot station follows the starting system (WORLD-20)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 22.1-05-PLAN.md — Wave 5: the witchspace blockage uses each station's own mass; the 2026-11-07 decision superseded (WORLD-20)
+- [ ] 22.1-06-PLAN.md — Wave 5: the station laser target and ident through the layout; docking and the launch twist per slot (WORLD-20)
+- [ ] 22.1-08-PLAN.md — Wave 5: the census and the launch corridor over each system's own station, measured first (digest and ship positions, at the measured radii); the census golden stays byte-identical (D-A) (WORLD-20)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 22.1-07-PLAN.md — Wave 6: the station and its dock geometry follow the system at boot, Continue, F2 Load and every arrival; the refusal names the station (WORLD-20)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 22.1-09-PLAN.md — Wave 7: the current and destination station hulls in the traffic-on session; the station-constants guard; seam (a) complete (WORLD-20)
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 22.1-10-PLAN.md — Wave 8: the station textures vendored and the Dodecahedron and Icosahedron GLBs built (WORLD-20)
+
+**Wave 9** *(blocked on Wave 8 completion)*
+- [ ] 22.1-11-PLAN.md — Wave 9: each system draws its own station model, loaded lazily with prefetch and late attach (WORLD-20)
+
+**Wave 10** *(blocked on Wave 9 completion)*
+- [ ] 22.1-12-PLAN.md — Wave 10: the docked screen names the station; launch and dock at all three types proven in the browser (WORLD-20)
+
+**Wave 11** *(blocked on Wave 10 completion)*
+- [ ] 22.1-13-PLAN.md — Wave 11: the phase gate on the remote, the deferred sun-colour lighting recorded (D-C), and the close-out (WORLD-20)
+
+- QUAL-12 standing gate: the frozen 20-seed run is 21 of 21 on the remote machine after 22.1-04 and 22.1-06 (they touch `src/sim/world/**`) and at the phase gate
+- Success Criterion 1: no Coriolis artifact, twin hash, census golden or frozen acceptance file changes, and no `tests/golden` file changes except the new stations' `vendoredModelEntries` in `tests/golden/content/ships.json` (plan 22.1-10; the Coriolis entry unchanged); the census golden stays byte-identical (D-A: measured first in plan 22.1-08; its owner-recorded fallback re-pin applies only to a measured non-Coriolis move); a moved Coriolis value is a seam bug, never a re-pin
 
 ### Phase 23: Priority AI, Traders and Pirates
 
