@@ -21,8 +21,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   before every system after the first kept the Coriolis. The refusal when a
   jump is too close to a station now names the station type of the system you
   are leaving ("Dodecahedron Station" or "Icosahedron Station" there, as
-  Oolite's own name for it) instead of always "Coriolis Station". The station
-  models of the two other types are still drawn as the Coriolis for now.
+  Oolite's own name for it) instead of always "Coriolis Station".
+- Each system now draws its own main station: the Dodecahedron and Icosahedron
+  models (their own meshes and textures) replace the Coriolis there, and the
+  launch view leaves through each station's own slot. Their models load only
+  when the hyperspace countdown toward such a system starts (or when you start
+  or continue there), so a start at Lave downloads no more than before; an
+  arrival that beats the download shows the station a moment later. Station
+  flashers stay undrawn for every station, as before.
 - With NPC traffic on, the Dodecahedron and Icosahedron stations are now solid
   for laser fire and are named by the ident system ("Dodecahedron Station",
   "Icosahedron Station"), as the Coriolis already was. Their hull data loads

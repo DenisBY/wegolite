@@ -104,7 +104,7 @@ declare const __WEGOLITE_TRAFFIC_DEFAULT__: boolean;
 
 /** What the lifecycle calls outside the session context. */
 export interface LifecycleDeps {
-  readonly assets: Pick<AssetCache, "preload" | "dispose">;
+  readonly assets: Pick<AssetCache, "preload" | "loadStation" | "dispose">;
   readonly scenes: Pick<
     SceneManager,
     "setQuality" | "enterSystem" | "layout" | "disposeSystem" | "dispose"
@@ -604,6 +604,12 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
       // its own. A failure is on this same boot failure surface, as a failed
       // static hull load is.
       await ensureStationHulls(ctx, station.kind);
+      // The starting system's own station model, before its first scene
+      // (Phase 22.1, O3): the preload set already holds the default kind, so a
+      // Lave start requests nothing here; a Continue at a Dodecahedron or
+      // Icosahedron system waits for that kind's model. A failure is on the
+      // same boot failure surface.
+      await assets.loadStation(ctx.core.system.station);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       showBootFailure(reason);

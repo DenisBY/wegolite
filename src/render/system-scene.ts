@@ -126,6 +126,12 @@ export interface SystemScene {
   sun: SunBody;
   starfield: THREE.Points;
   station: StationBody;
+  /**
+   * Attach the model of this system's own station kind to a body that was built
+   * meshless because the model was still loading. Adds it exactly once and does
+   * nothing after `dispose()`.
+   */
+  attachStationModel(gltf: GLTF): void;
   navBuoy: THREE.Group;
   witchpoint: THREE.Group;
   /** Both buoys, for the per-frame tumble and flasher update. */
@@ -201,7 +207,7 @@ export interface SystemSceneFactories {
     seed: string,
     tint: readonly [number, number, number],
   ): THREE.Points;
-  station(layout: SystemLayout, gltf: GLTF): StationBody;
+  station(layout: SystemLayout, gltf: GLTF | undefined): StationBody;
   ship(gltf: GLTF): THREE.Group;
   buoy(gltf: GLTF, role: BuoyRole): BuoyBody;
   dust(): Dust;
@@ -345,6 +351,9 @@ export function assembleSystemScene(
     sun: parts.sun,
     starfield: parts.starfield,
     station: parts.station,
+    attachStationModel(gltf: GLTF): void {
+      parts.station.attachModel(gltf);
+    },
     navBuoy: parts.navBuoy.root,
     witchpoint: parts.witchpoint.root,
     buoys: [parts.navBuoy, parts.witchpoint],
@@ -382,6 +391,7 @@ export function createSystemScene(
   // Register each body as it is built, so a constructor that throws halfway
   // still releases everything created before it.
   const built = createDisposer();
+  let stationModel: GLTF | undefined;
 
   try {
     const planet = f.planet(
@@ -405,7 +415,10 @@ export function createSystemScene(
     ]);
     built.add(disposeStarfield(starfield));
 
-    const station = f.station(layout, assets.coriolis());
+    // This system's own station model (Phase 22.1): the cache holds it, or the
+    // body is built meshless and the model attaches when its load resolves.
+    stationModel = assets.station(system.station);
+    const station = f.station(layout, stationModel);
     built.add(station);
     const ship = f.ship(assets.cobra());
     built.add(disposeShipClone(ship));
@@ -436,7 +449,7 @@ export function createSystemScene(
         : undefined;
     if (nebulae !== undefined) built.add(nebulae);
 
-    return assembleSystemScene(
+    const assembled = assembleSystemScene(
       {
         planet,
         sun,
@@ -457,6 +470,25 @@ export function createSystemScene(
       scene,
       camera,
     );
+    if (stationModel === undefined) {
+      // The cache owns the loaded GLB; the scene only attaches a clone, and
+      // only while it is alive (`attachStationModel` is a no-op after dispose).
+      // A rejection (a failed load, or a GLB missing a node of the kind's
+      // record) is logged once and leaves the station undrawn; the session
+      // keeps running (T-22.1-25).
+      assets
+        .loadStation(system.station)
+        .then((gltf) => {
+          assembled.attachStationModel(gltf);
+        })
+        .catch((error: unknown) => {
+          console.error(
+            `Wegolite: the ${system.station} station model could not be drawn; the station stays undrawn`,
+            error,
+          );
+        });
+    }
+    return assembled;
   } catch (error) {
     built.dispose();
     scene.clear();

@@ -13,6 +13,8 @@
 
 import { readFileSync } from "node:fs";
 
+import * as THREE from "three";
+import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSessionState } from "../../../src/app/session/context.js";
@@ -40,6 +42,8 @@ import {
 import type { StationKind } from "../../../src/content/stations.js";
 import type { ShipHullCatalogue, System } from "../../../src/content/types.js";
 import { createDockGeometry } from "../../../src/sim/dock/geometry.js";
+import { createAssetCache } from "../../../src/render/asset-cache.js";
+import type { AssetCache } from "../../../src/render/asset-cache.js";
 import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
 import {
   clientCatalogue,
@@ -407,6 +411,124 @@ describe("the station hulls of the traffic-on session (Phase 22.1, WORLD-20)", (
         load,
       );
       expect(load).not.toHaveBeenCalled();
+    });
+
+    describe("the destination's station model (Phase 22.1, O3)", () => {
+      /** A cache over a recording loader; every model is an empty scene. */
+      function recordingCache(fail?: (url: string) => boolean): {
+        cache: AssetCache;
+        urls: string[];
+      } {
+        const urls: string[] = [];
+        const cache = createAssetCache("/", (url) => {
+          urls.push(url);
+          if (fail?.(url) === true) return Promise.reject(new Error("offline"));
+          return Promise.resolve({ scene: new THREE.Group() } as GLTF);
+        });
+        return { cache, urls };
+      }
+
+      const noHulls = () => Promise.resolve(shared);
+
+      it("starts exactly one request for the destination's model, also for a second countdown", async () => {
+        const { cache, urls } = recordingCache();
+        const ctx = sessionOf(systemOf("Lave"), false);
+        const zaonce = systemOf("Zaonce");
+        prefetchStationFor(ctx, galaxyById, zaonce.id, noHulls, cache);
+        prefetchStationFor(ctx, galaxyById, zaonce.id, noHulls, cache);
+        await vi.waitFor(() => {
+          expect(cache.station("icosahedron")).toBeDefined();
+        });
+        prefetchStationFor(ctx, galaxyById, zaonce.id, noHulls, cache);
+        expect(urls).toEqual([`/${stationRecord("icosahedron").glb}`]);
+      });
+
+      it("starts a model request without traffic, where no hull is loaded", async () => {
+        const { cache, urls } = recordingCache();
+        prefetchStationFor(
+          sessionOf(systemOf("Lave"), false),
+          galaxyById,
+          systemOf("Zaonce").id,
+          noHulls,
+          cache,
+        );
+        await vi.waitFor(() => {
+          expect(cache.station("icosahedron")).toBeDefined();
+        });
+        expect(urls).toHaveLength(1);
+      });
+
+      it("requests nothing when no model loader is given (the arrival's call)", () => {
+        const { cache, urls } = recordingCache();
+        prefetchStationFor(
+          sessionOf(systemOf("Lave")),
+          galaxyById,
+          systemOf("Zaonce").id,
+          noHulls,
+        );
+        expect(urls).toEqual([]);
+        expect(cache.station("icosahedron")).toBeUndefined();
+      });
+
+      it("never requests another kind's model", async () => {
+        const { cache, urls } = recordingCache();
+        prefetchStationFor(
+          sessionOf(systemOf("Lave")),
+          galaxyById,
+          systemOf("Zaonce").id,
+          noHulls,
+          cache,
+        );
+        await vi.waitFor(() => {
+          expect(cache.station("icosahedron")).toBeDefined();
+        });
+        for (const kind of ["coriolis", "dodecahedron"] as const) {
+          expect(urls).not.toContain(`/${stationRecord(kind).glb}`);
+        }
+      });
+
+      it("logs a rejected model load once and surfaces no error", async () => {
+        const { cache } = recordingCache((url) => url.includes("icosahedron"));
+        const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+        prefetchStationFor(
+          sessionOf(systemOf("Lave"), false),
+          galaxyById,
+          systemOf("Zaonce").id,
+          noHulls,
+          cache,
+        );
+        await vi.waitFor(() => {
+          expect(logged).toHaveBeenCalledTimes(1);
+        });
+        expect(String(logged.mock.calls[0]?.[0])).toContain(
+          stationRecord("icosahedron").glb,
+        );
+        expect(cache.station("icosahedron")).toBeUndefined();
+      });
+
+      it("logs nothing for a model load that fails after the session was disposed", async () => {
+        const ctx = sessionOf(systemOf("Lave"), false);
+        let fail: ((error: Error) => void) | undefined;
+        const cache = createAssetCache(
+          "/",
+          () =>
+            new Promise<GLTF>((_resolve, reject) => {
+              fail = reject;
+            }),
+        );
+        const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+        prefetchStationFor(
+          ctx,
+          galaxyById,
+          systemOf("Zaonce").id,
+          noHulls,
+          cache,
+        );
+        ctx.runtime.disposed = true;
+        fail?.(new Error("offline"));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(logged).not.toHaveBeenCalled();
+      });
     });
 
     it("logs a rejected load with the file name and leaves the session as it is", async () => {

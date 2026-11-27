@@ -479,7 +479,14 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       refusalCopy,
       handleHyperspaceJumped,
       prefetchStation: (destinationId) => {
-        prefetchStationFor(ctx, galaxyById, destinationId);
+        prefetchStationFor(
+          ctx,
+          galaxyById,
+          destinationId,
+          // The default hull loader; the model comes from the session's cache.
+          undefined,
+          assets,
+        );
       },
     }),
     deathFlow: createDeathFlow(ctx, {
@@ -544,6 +551,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // lifecycle's dispose): a late NPC model resolution is then dropped.
     assets: {
       preload: () => assets.preload(),
+      loadStation: assets.loadStation.bind(assets),
       dispose: () => {
         npcModels.dispose();
         assets.dispose();

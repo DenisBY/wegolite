@@ -2,22 +2,33 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * The Coriolis station (WORLD-02, Pitfall 2, Fidelity correction 3).
+ * A main station (WORLD-02, Pitfall 2, Fidelity correction 3; per-system
+ * models: Phase 22.1, WORLD-20).
  *
- * The Phase 2 GLB already separates the four coplanar layers (`hull`,
- * `faceplate`, `tris`, `dock`) and already carries the dock translation at local
- * `-500.2561`; re-adding either would double the offset. This module assembles
- * the clone without touching a node transform:
+ * Each station kind's GLB separates its coplanar layers into named nodes and
+ * already carries the dock translation (the Coriolis dock at local `-500.2561`);
+ * re-adding either would double the offset. The node list and the layer of each
+ * node are data in the station record (`stationRecord(kind).nodes`), never
+ * inferred from a name. This module assembles the clone without touching a node
+ * transform:
  *
- * - the hull is pushed back with `polygonOffset` 1/1 and the layers get an
- *   explicit `renderOrder` (hull -> faceplate -> tris -> dock), so the dock
- *   opening does not zipper at 500 m or at 100 km;
+ * - the `body` node is pushed back with `polygonOffset` 1/1 and drawn first;
+ *   the `detail` nodes get the next `renderOrder`s in record order and the
+ *   `dock` node the one after, so the dock opening does not zipper at 500 m or
+ *   at 100 km and a detail layer is drawn over the plain body;
  * - every opaque node keeps `depthWrite: true` and the dock keeps
  *   `depthTest: true` (never `depthTest: false` on the one node that must be
  *   visible through the slot);
  * - the baked textures are never modified; the only material tuning is the
  *   authored per-channel emissive read from the GLB extras (see
  *   `applyAuthoredEmissive`), which replaces the flat `emissiveIntensity 0.8`.
+ *
+ * **Late model.** A body built before its kind's GLB has loaded is meshless: it
+ * has the pose and the roll and an empty dock node, and `attachModel` adds the
+ * model exactly once when the load resolves (never another kind's model).
+ *
+ * Station flashers (Oolite draws 14 per station) are not drawn for any kind:
+ * owner decision D-C of 2026-11-27, todo `2026-11-27-station-flashers`.
  *
  * Orientation: `layout.stationBaseQuat` maps the model's local -Z (the dock)
  * onto `stationToPlanet`, then `update(stationAngle)` rolls about local +Z.
@@ -27,21 +38,28 @@
 
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { stationRecord } from "../../content/stations.js";
+import type { StationKind, StationNode } from "../../content/stations.js";
 import { axisAngle, mul } from "../../sim/math.js";
 import type { Quat } from "../../sim/math.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
 import { isMesh, meshMaterials } from "../mesh.js";
 
-/** Render order: hull, then the raised layers, then the dock. */
-const NODE_ORDER: Readonly<Record<string, number>> = {
-  hull: 0,
-  faceplate: 1,
-  tris: 2,
-  dock: 3,
-};
-
-/** The node names the pinned GLB contract guarantees (tests/e2e/models.spec). */
-const NODE_NAMES = ["hull", "faceplate", "tris", "dock"] as const;
+/**
+ * The render order of every node of one kind, from the layers in its record:
+ * the body first, the detail nodes next in record order, the dock last.
+ */
+function renderOrderOf(
+  nodes: readonly StationNode[],
+): ReadonlyMap<string, number> {
+  const order = new Map<string, number>();
+  for (const layer of ["body", "detail", "dock"] as const) {
+    for (const node of nodes) {
+      if (node.layer === layer) order.set(node.name, order.size);
+    }
+  }
+  return order;
+}
 
 /**
  * The GLB authoring contract for a Coriolis material.
@@ -62,7 +80,23 @@ interface OoliteMaterialExtras {
 /** The GPU-facing station: the root, the dock node and the roll step. */
 export interface StationBody {
   readonly root: THREE.Group;
+  /**
+   * The dock node: the model's own once a model is attached, until then an empty
+   * `THREE.Object3D` named `dock` at local (0, 0, -`layout.dockOffset`).
+   */
   readonly dock: THREE.Object3D;
+  /**
+   * The kind whose GLB is attached to the body, `undefined` while it is
+   * meshless. The render publishes what it draws through this.
+   */
+  readonly modelKind: StationKind | undefined;
+  /**
+   * Attach the model of this body's kind. Adds it exactly once; a second call
+   * and a call after `dispose()` do nothing (nothing is cloned, no material is
+   * allocated).
+   * @throws when the GLB lacks a node of the kind's record.
+   */
+  attachModel(gltf: GLTF): void;
   update(stationAngle: number): void;
   dispose(): void;
 }
@@ -152,25 +186,38 @@ export function applyAuthoredEmissive(
   material.emissiveIntensity = peak;
 }
 
-function requireNode(model: THREE.Object3D, name: string): THREE.Object3D {
+function requireNode(
+  model: THREE.Object3D,
+  kind: StationKind,
+  name: string,
+): THREE.Object3D {
   const node = model.getObjectByName(name);
   if (node === undefined) {
     throw new Error(
-      `Wegolite: the Coriolis model is missing its "${name}" node; the dock contract cannot be honoured.`,
+      `Wegolite: the ${kind} station model is missing its "${name}" node; the dock contract cannot be honoured.`,
     );
   }
   return node;
 }
 
-export function createStation(layout: SystemLayout, gltf: GLTF): StationBody {
-  const root = new THREE.Group();
-  root.name = "station";
-
+/** One kind's cloned model with its render settings applied, and its dock. */
+function assembleModel(
+  kind: StationKind,
+  gltf: GLTF,
+): { readonly model: THREE.Object3D; readonly dock: THREE.Object3D } {
+  const { nodes } = stationRecord(kind);
   const model = gltf.scene.clone(true);
 
   // Fail loudly on a silent asset change rather than moving the dock.
-  for (const name of NODE_NAMES) requireNode(model, name);
-  const dock = requireNode(model, "dock");
+  for (const node of nodes) requireNode(model, kind, node.name);
+  const dockNode = nodes.find((node) => node.layer === "dock");
+  if (dockNode === undefined) {
+    throw new Error(`Wegolite: the ${kind} station record has no dock node.`);
+  }
+  const dock = requireNode(model, kind, dockNode.name);
+
+  const orders = renderOrderOf(nodes);
+  const layers = new Map(nodes.map((node) => [node.name, node.layer]));
 
   // Clone first: every material tweak below must land on this scene's copy, not
   // on the cached GLB the menu scene still uses.
@@ -178,35 +225,70 @@ export function createStation(layout: SystemLayout, gltf: GLTF): StationBody {
 
   model.traverse((object) => {
     if (!isMesh(object)) return;
-    const order = NODE_ORDER[object.name];
+    const order = orders.get(object.name);
     if (order !== undefined) object.renderOrder = order;
+    const layer = layers.get(object.name);
 
     for (const material of meshMaterials(object)) {
       material.depthWrite = true;
-      if (object.name === "dock") material.depthTest = true;
+      if (layer === "dock") material.depthTest = true;
+      // Push the body back a hair; the dock sits only 0.2561 m outside it.
+      if (layer === "body") {
+        material.polygonOffset = true;
+        material.polygonOffsetFactor = 1;
+        material.polygonOffsetUnits = 1;
+      }
       if (material instanceof THREE.MeshStandardMaterial) {
         applyAuthoredEmissive(material);
       }
     }
   });
 
-  // Push the hull back a hair; the dock sits only 0.2561 m outside it.
-  model.traverse((object) => {
-    if (!isMesh(object) || object.name !== "hull") return;
-    for (const material of meshMaterials(object)) {
-      material.polygonOffset = true;
-      material.polygonOffsetFactor = 1;
-      material.polygonOffsetUnits = 1;
-    }
-  });
+  return { model, dock };
+}
+
+/**
+ * Build a station body for the kind of `layout`. Without a `gltf` the body is
+ * meshless (see `StationBody.attachModel`).
+ */
+export function createStation(layout: SystemLayout, gltf?: GLTF): StationBody {
+  const kind = layout.stationKind;
+  const root = new THREE.Group();
+  root.name = "station";
 
   const base: Quat = layout.stationBaseQuat;
   root.quaternion.set(base.x, base.y, base.z, base.w);
-  root.add(model);
+
+  let dock: THREE.Object3D | undefined;
+  let modelKind: StationKind | undefined;
+  let disposed = false;
+
+  // The empty stand-in for the model's dock, until the model replaces it.
+  const placeholder = new THREE.Object3D();
+  placeholder.name = "dock";
+  placeholder.position.set(0, 0, -layout.dockOffset);
+
+  function attachModel(next: GLTF): void {
+    if (disposed || modelKind !== undefined) return;
+    const assembled = assembleModel(kind, next);
+    root.remove(placeholder);
+    root.add(assembled.model);
+    dock = assembled.dock;
+    modelKind = kind;
+  }
+
+  if (gltf === undefined) root.add(placeholder);
+  else attachModel(gltf);
 
   return {
     root,
-    dock,
+    get dock(): THREE.Object3D {
+      return dock ?? placeholder;
+    },
+    get modelKind(): StationKind | undefined {
+      return modelKind;
+    },
+    attachModel,
     update(stationAngle: number): void {
       const rolled = mul(
         layout.stationBaseQuat,
@@ -215,6 +297,7 @@ export function createStation(layout: SystemLayout, gltf: GLTF): StationBody {
       root.quaternion.set(rolled.x, rolled.y, rolled.z, rolled.w);
     },
     dispose(): void {
+      disposed = true;
       disposeClonedMaterials(root);
     },
   };

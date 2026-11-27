@@ -12,22 +12,33 @@
  * keeps the menu Cobra textured after a system swap. Only `dispose()` below
  * frees the cached resources, and only on app teardown.
  *
- * `loadCobra()`/`loadCoriolis()` are memoised: repeated calls return the same
+ * `loadCobra()`/`loadBuoy()` are memoised: repeated calls return the same
  * promise, so a boot-time warm-up and the session's own `preload()` share one
  * download. A failed load rejects with a named error that includes the model
  * path; the caller must not start the render loop on that rejection, because an
  * empty scene over a live canvas is exactly the blank-canvas failure T-3-02
  * forbids.
+ *
+ * **Station models (Phase 22.1, WORLD-20).** Each system draws its own main
+ * station, so the station GLB is loaded per kind, on demand, through
+ * `loadStation(kind)`; the path comes from the station record. `preload()`
+ * loads only the default kind (Oolite's default station), so a cold start at
+ * the default system fetches no other station model. The other kinds load when
+ * a hyperspace countdown toward such a system starts, at the boot of a session
+ * that starts in one, or when a scene for that kind is built before its model
+ * is in the cache (the scene then attaches the model late). Nothing fetches
+ * every kind in the background.
  */
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { NPC_GLB_PATH_PATTERN } from "../content/npc-glb-path.js";
+import { DEFAULT_STATION_KIND, STATION_RECORDS } from "../content/stations.js";
+import type { StationKind, StationRecord } from "../content/stations.js";
 import { isMesh, meshMaterials } from "./mesh.js";
 
 const COBRA_PATH = "models/cobra3.glb";
-const CORIOLIS_PATH = "models/coriolis.glb";
 const BUOY_PATH = "models/buoy.glb";
 
 /** The one seam the Node disposal test injects; production uses `GLTFLoader`. */
@@ -36,8 +47,6 @@ export type ModelLoader = (url: string) => Promise<GLTF>;
 export interface AssetCache {
   /** Memoised Cobra load; the promise rejects with a path-named error. */
   loadCobra(): Promise<GLTF>;
-  /** Memoised Coriolis load; the promise rejects with a path-named error. */
-  loadCoriolis(): Promise<GLTF>;
   /** Memoised buoy load; the promise rejects with a path-named error. */
   loadBuoy(): Promise<GLTF>;
   /**
@@ -48,23 +57,38 @@ export interface AssetCache {
    * cached, so the cache never owns a model it can no longer free.
    */
   loadNpcModel(glb: string): Promise<GLTF>;
+  /**
+   * Load the model of one station kind on demand (Phase 22.1, O3). Memoised
+   * per kind; the path is the station record's, checked against the anchored
+   * `models/<name>.glb` pattern before any fetch. A failed load is forgotten so
+   * a later call fetches again; a load that settles after `dispose()` is handed
+   * to its caller and not cached, so the cache never owns a model it can no
+   * longer free.
+   */
+  loadStation(kind: StationKind): Promise<GLTF>;
+  /** The loaded model of one station kind, or undefined while it is not loaded. */
+  station(kind: StationKind): GLTF | undefined;
   /** The navigation buoy model; throws when called before the load resolved. */
   buoy(): GLTF;
   /** The Cobra model; throws when called before the load resolved. */
   cobra(): GLTF;
-  /** The Coriolis model; throws when called before the load resolved. */
-  coriolis(): GLTF;
-  /** Load both models; resolves once, and is safe to call repeatedly. */
+  /**
+   * Load the Cobra, the buoy and the default station kind's model; resolves
+   * once, and is safe to call repeatedly. No other station kind is loaded.
+   */
   preload(): Promise<void>;
   /**
-   * True once both GLBs are loaded and `cobra()`/`coriolis()` are safe.
+   * True once the preload set (the Cobra, the buoy and the default station
+   * kind) is loaded and `cobra()`/`buoy()` are safe. Another station kind that
+   * happens to be loaded does not count, and a kind that is not loaded does not
+   * hold it back.
    *
    * The scene manager uses this to decide whether the title scene can be built
    * yet: the menu needs the shared Cobra, and a swap must not throw merely
    * because the cache is still loading.
    */
   loaded(): boolean;
-  /** Free the shared GLBs exactly once. Idempotent; never called by a scene. */
+  /** Free every loaded model exactly once. Idempotent; never called by a scene. */
   dispose(): void;
 }
 
@@ -87,19 +111,28 @@ function collectTextures(
   }
 }
 
+/**
+ * The station records' model paths: the one seam a test injects to prove a
+ * path outside the anchored pattern is refused (production reads the record).
+ */
+export type StationModelPaths = Readonly<
+  Record<StationKind, Pick<StationRecord, "glb">>
+>;
+
 export function createAssetCache(
   baseUrl: string = import.meta.env.BASE_URL,
   loadModel: ModelLoader = defaultLoader(),
+  stationPaths: StationModelPaths = STATION_RECORDS,
 ): AssetCache {
   let cobraModel: GLTF | undefined;
-  let coriolisModel: GLTF | undefined;
   let buoyModel: GLTF | undefined;
   let buoyPromise: Promise<GLTF> | undefined;
   let cobraPromise: Promise<GLTF> | undefined;
-  let coriolisPromise: Promise<GLTF> | undefined;
   let pending: Promise<void> | undefined;
   const npcPromises = new Map<string, Promise<GLTF>>();
   const npcModels = new Map<string, GLTF>();
+  const stationPromises = new Map<StationKind, Promise<GLTF>>();
+  const stationModels = new Map<StationKind, GLTF>();
 
   const load = (path: string): Promise<GLTF> =>
     loadModel(`${baseUrl}${path}`).catch((cause: unknown) => {
@@ -116,12 +149,35 @@ export function createAssetCache(
     return cobraPromise;
   }
 
-  function loadCoriolis(): Promise<GLTF> {
-    coriolisPromise ??= load(CORIOLIS_PATH).then((gltf) => {
-      coriolisModel = gltf;
-      return gltf;
-    });
-    return coriolisPromise;
+  function loadStation(kind: StationKind): Promise<GLTF> {
+    const path = stationPaths[kind].glb;
+    if (!NPC_GLB_PATH_PATTERN.test(path)) {
+      return Promise.reject(
+        new Error(
+          `Wegolite: refused to load the ${kind} station model at ${path}; expected models/<name>.glb.`,
+        ),
+      );
+    }
+    const existing = stationPromises.get(kind);
+    if (existing !== undefined) return existing;
+    const promise: Promise<GLTF> = load(path).then(
+      (gltf) => {
+        // A dispose() that ran while the load was in flight cleared the map, so
+        // the entry no longer holds this promise and the model stays uncached.
+        if (stationPromises.get(kind) === promise) {
+          stationModels.set(kind, gltf);
+        }
+        return gltf;
+      },
+      (error: unknown) => {
+        if (stationPromises.get(kind) === promise) {
+          stationPromises.delete(kind);
+        }
+        throw error;
+      },
+    );
+    stationPromises.set(kind, promise);
+    return promise;
   }
 
   function loadBuoy(): Promise<GLTF> {
@@ -160,13 +216,18 @@ export function createAssetCache(
 
   return {
     loadCobra,
-    loadCoriolis,
     loadBuoy,
     loadNpcModel,
+    loadStation,
+    station(kind: StationKind): GLTF | undefined {
+      return stationModels.get(kind);
+    },
     preload(): Promise<void> {
-      pending ??= Promise.all([loadCobra(), loadCoriolis(), loadBuoy()]).then(
-        () => undefined,
-      );
+      pending ??= Promise.all([
+        loadCobra(),
+        loadStation(DEFAULT_STATION_KIND),
+        loadBuoy(),
+      ]).then(() => undefined);
       return pending;
     },
     buoy(): GLTF {
@@ -185,18 +246,10 @@ export function createAssetCache(
       }
       return cobraModel;
     },
-    coriolis(): GLTF {
-      if (coriolisModel === undefined) {
-        throw new Error(
-          "Wegolite: the Coriolis model was requested before AssetCache.preload() resolved.",
-        );
-      }
-      return coriolisModel;
-    },
     loaded(): boolean {
       return (
         cobraModel !== undefined &&
-        coriolisModel !== undefined &&
+        stationModels.has(DEFAULT_STATION_KIND) &&
         buoyModel !== undefined
       );
     },
@@ -210,8 +263,8 @@ export function createAssetCache(
 
       for (const model of [
         cobraModel,
-        coriolisModel,
         buoyModel,
+        ...stationModels.values(),
         ...npcModels.values(),
       ]) {
         if (model === undefined) continue;
@@ -232,14 +285,14 @@ export function createAssetCache(
       // Clearing the models is what makes a second call a no-op; a later
       // `preload()` re-loads from scratch.
       cobraModel = undefined;
-      coriolisModel = undefined;
       buoyModel = undefined;
       buoyPromise = undefined;
       cobraPromise = undefined;
-      coriolisPromise = undefined;
       pending = undefined;
       npcModels.clear();
       npcPromises.clear();
+      stationModels.clear();
+      stationPromises.clear();
     },
   };
 }
