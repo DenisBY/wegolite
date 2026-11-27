@@ -1,0 +1,3 @@
+# Gitignored paths Claude Code copies into new worktrees (subagent isolation included).
+# Agent skills are local tooling and never committed (QUAL-07); worktree agents still need them.
+.claude/skills/

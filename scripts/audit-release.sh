@@ -46,13 +46,14 @@ if [ "$MODE" = local ]; then
   # failing git cannot be mistaken for an empty, clean listing.
   TRACKED=$(git ls-files) || fail "git ls-files failed"
   FORBIDDEN=$(printf '%s\n' "$TRACKED" |
-    grep -E '^(\.env$|\.agents/|skills-lock\.json$|dist/|node_modules/|test-results/|playwright-report/|scratch/)' || true)
+    grep -E '^(\.env$|\.agents/|\.claude/skills/|skills-lock\.json$|dist/|node_modules/|test-results/|playwright-report/|scratch/)' || true)
   if [ -n "$FORBIDDEN" ]; then
     fail "tracked paths that must never be published: $(printf '%s' "$FORBIDDEN" | tr '\n' ' ')"
   fi
 
   # (2) Agent tooling must be ignored, so `git add` cannot pick it up.
   git check-ignore -q .agents/skills || fail ".agents/ is not ignored by .gitignore"
+  git check-ignore -q .claude/skills/x || fail ".claude/skills/ is not ignored by .gitignore"
   git check-ignore -q skills-lock.json || fail "skills-lock.json is not ignored by .gitignore"
 
   # (3) The licence documents exist, and NOTICE carries the source offer.

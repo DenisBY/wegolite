@@ -38,8 +38,11 @@ const SKIP_DIRECTORIES = new Set([
   ".git",
   ".planning",
   // Harness-provided agent skills are environment configuration, not repository
-  // source; their scripts carry their own headers.
+  // source; their scripts carry their own headers. The real skill directories
+  // live in `.claude/skills` (`.agents/skills` links to them), and `.claude`
+  // also holds the harness worktrees, which are copies of this repository.
   ".agents",
+  ".claude",
 ]);
 
 const SOURCE_EXTENSIONS = [".ts", ".js", ".sh"];

@@ -98,49 +98,52 @@
       "global:codebase-memory",
       "global:context7-mcp",
       "global:vitest",
-      ".agents/skills/javascript-testing-expert",
-      ".agents/skills/playwright-best-practices",
-      ".agents/skills/principle-test-behavior-not-implementation"
+      ".claude/skills/javascript-testing-expert",
+      ".claude/skills/playwright-best-practices",
+      ".claude/skills/principle-test-behavior-not-implementation"
     ],
     "gsd-plan-checker": [
       "global:codebase-memory",
       "global:vitest",
-      ".agents/skills/playwright-best-practices",
-      ".agents/skills/principle-test-behavior-not-implementation",
-      ".agents/skills/typescript-best-practices",
-      ".agents/skills/principle-type-system-discipline",
-      ".agents/skills/principle-boundary-discipline"
+      ".claude/skills/playwright-best-practices",
+      ".claude/skills/principle-test-behavior-not-implementation",
+      ".claude/skills/typescript-best-practices",
+      ".claude/skills/principle-type-system-discipline",
+      ".claude/skills/principle-boundary-discipline"
     ],
     "gsd-executor": [
       "global:codebase-memory",
       "global:context7-mcp",
       "global:vitest",
-      ".agents/skills/javascript-testing-expert",
-      ".agents/skills/playwright-best-practices",
-      ".agents/skills/typescript-best-practices",
-      ".agents/skills/principle-boundary-discipline",
-      ".agents/skills/principle-type-system-discipline",
-      ".agents/skills/principle-test-behavior-not-implementation"
+      ".claude/skills/javascript-testing-expert",
+      ".claude/skills/playwright-best-practices",
+      ".claude/skills/typescript-best-practices",
+      ".claude/skills/principle-boundary-discipline",
+      ".claude/skills/principle-type-system-discipline",
+      ".claude/skills/principle-test-behavior-not-implementation",
+      ".claude/skills/render-skills-pointer"
     ],
     "gsd-verifier": [
       "global:codebase-memory",
-      ".agents/skills/javascript-testing-expert",
-      ".agents/skills/principle-test-behavior-not-implementation",
-      ".agents/skills/playwright-best-practices"
+      ".claude/skills/javascript-testing-expert",
+      ".claude/skills/principle-test-behavior-not-implementation",
+      ".claude/skills/playwright-best-practices",
+      ".claude/skills/render-skills-pointer"
     ],
     "gsd-nyquist-auditor": [
       "global:codebase-memory",
       "global:vitest",
-      ".agents/skills/javascript-testing-expert",
-      ".agents/skills/principle-test-behavior-not-implementation"
+      ".claude/skills/javascript-testing-expert",
+      ".claude/skills/principle-test-behavior-not-implementation"
     ],
     "gsd-code-reviewer": [
       "global:codebase-memory",
-      ".agents/skills/typescript-best-practices",
-      ".agents/skills/principle-type-system-discipline",
-      ".agents/skills/principle-boundary-discipline",
-      ".agents/skills/javascript-testing-expert",
-      ".agents/skills/principle-test-behavior-not-implementation"
+      ".claude/skills/typescript-best-practices",
+      ".claude/skills/principle-type-system-discipline",
+      ".claude/skills/principle-boundary-discipline",
+      ".claude/skills/javascript-testing-expert",
+      ".claude/skills/principle-test-behavior-not-implementation",
+      ".claude/skills/render-skills-pointer"
     ],
     "gsd-debugger": [
       "global:codebase-memory",
