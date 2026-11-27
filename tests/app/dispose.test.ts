@@ -558,6 +558,18 @@ describe("SystemScene owns only what it created", () => {
     );
     expect(ambient[0]?.intensity).toBeCloseTo(Math.PI * 0.1, 12);
 
+    // A forward tripwire (owner decision D-C, 2026-11-27, plan 22.1-13): ships
+    // and every main station are lit by a white sun light, not by the sun's
+    // colour as Oolite's `setSunColor:` does. It passes at landing because
+    // nothing changed the light and is no evidence of anything in Phase 22.1;
+    // it fails the first change that lights from the sun's colour.
+    expect(
+      directional[0]?.color.getHex(),
+      "the scene's directional light is no longer white: lighting from the sun's colour is " +
+        "deferred by owner decision D-C; read the todo 2026-11-27-lighting-from-sun-colour " +
+        "(and 2026-11-27-tone-mapping-vs-oolite-aces) and FIDELITY.md before changing it",
+    ).toBe(0xffffff);
+
     scene.dispose();
   });
 
