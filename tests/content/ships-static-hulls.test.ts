@@ -498,8 +498,8 @@ describe("the per-station static hull files (Phase 22.1)", () => {
     }
   });
 
-  it("resolves the Coriolis to the very promise the shared loader returns", () => {
-    expect(loadStationHulls("coriolis")).toBe(loadStaticHulls());
+  it("resolves the Coriolis to the shared artifact, read once", async () => {
+    expect(await loadStationHulls("coriolis")).toBe(await loadStaticHulls());
   });
 
   it("caches a kind's promise", () => {

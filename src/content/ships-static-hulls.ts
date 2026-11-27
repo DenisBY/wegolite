@@ -116,21 +116,23 @@ export function assertStationHull(
 
 /**
  * The hull artifact holding one station kind's octrees and display name. The
- * Coriolis lives in the shared artifact, so it resolves to the very promise
- * {@link loadStaticHulls} returns; the other kinds load their own file, once.
- * An artifact that does not hold the kind's ship key is rejected: a station
- * without its hull would be silently immune to lasers.
+ * Coriolis lives in the shared artifact, so its read is the very one
+ * {@link loadStaticHulls} shares; the other kinds load their own file, once.
+ * Every kind goes through {@link assertStationHull}: an artifact that does not
+ * hold the kind's ship key is rejected, because a station without its hull
+ * would be silently immune to lasers.
  */
 export function loadStationHulls(
   kind: StationKind,
 ): Promise<StaticHullArtifact> {
-  const record = stationRecord(kind);
-  if (record.hullsFile === SHARED_HULLS_FILE) return loadStaticHulls();
   let cached = cachedStations.get(kind);
   if (cached === undefined) {
-    cached = readArtifact(record.hullsFile).then((artifact) =>
-      assertStationHull(artifact, kind),
-    );
+    const record = stationRecord(kind);
+    const read =
+      record.hullsFile === SHARED_HULLS_FILE
+        ? loadStaticHulls()
+        : readArtifact(record.hullsFile);
+    cached = read.then((artifact) => assertStationHull(artifact, kind));
     cachedStations.set(kind, cached);
   }
   return cached;
