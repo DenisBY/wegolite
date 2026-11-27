@@ -38,6 +38,8 @@ import { glbTriangleCount } from "../../../helpers/glb-triangles.js";
 import { galaxySystems } from "../../../helpers/population-fixtures.js";
 import {
   DOCKED_LAUNCH_EPOCH,
+  SCENE_CALLS,
+  SCENE_TRIANGLES_TRAFFIC_ON,
   callBound,
   catalogueHullTriangles,
   censusSystems,
@@ -273,6 +275,31 @@ describe("the recorded census is consistent", () => {
     expect(golden.peakNpcTriangles.total).toBeLessThanOrEqual(TRIANGLE_BUDGET);
     expect(golden.peakCalls.calls).toBeLessThanOrEqual(DRAW_CALL_BUDGET);
     expect(rows.flatMap(violations)).toEqual([]);
+  });
+});
+
+describe("the budget peaks rest on Coriolis worlds (owner decision D-A)", () => {
+  it("names only Coriolis systems for every peak, because the scene constants are measured on the Lave (Coriolis) scene", () => {
+    const stationOf = new Map<string, string>();
+    for (let galaxy = 0; galaxy < golden.galaxies; galaxy += 1) {
+      for (const system of galaxySystems(galaxy)) {
+        stationOf.set(system.id, system.station);
+      }
+    }
+    const peaks = {
+      peak: golden.peak.system,
+      peakGroups: golden.peakGroups.system,
+      peakNpcTriangles: golden.peakNpcTriangles.system,
+      peakCalls: golden.peakCalls.system,
+      peakKeys: golden.peakKeys.system,
+    };
+    const offenders = Object.entries(peaks)
+      .filter(([, id]) => stationOf.get(id) !== "coriolis")
+      .map(([name, id]) => `${name}: ${id} (${String(stationOf.get(id))})`);
+    expect(
+      offenders,
+      `a census peak moved to a system of another station kind; SCENE_TRIANGLES_TRAFFIC_ON (${String(SCENE_TRIANGLES_TRAFFIC_ON)}) and SCENE_CALLS (${String(SCENE_CALLS)}) are measured on the Lave (Coriolis) scene and must become per-kind before such a peak is accepted`,
+    ).toEqual([]);
   });
 });
 

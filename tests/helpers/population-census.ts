@@ -29,15 +29,19 @@ import { populateSystemWorld } from "../../src/sim/world/population/spawn.js";
 import type { PopulateSystemResult } from "../../src/sim/world/population/spawn.js";
 import { createWorld } from "../../src/sim/world/world.js";
 import type { World } from "../../src/sim/world/world.js";
-import { laveFixture } from "./lave.js";
 import { hullTriangles } from "./glb-triangles.js";
 import type { HullRecord } from "./glb-triangles.js";
 import {
   committedPopulationRecords,
   galaxySystems,
 } from "./population-fixtures.js";
+import { stationSpecOf } from "./stations.js";
 
-/** Triangles of the traffic-on scene with its models held (`docs/PERFORMANCE.md`). */
+/**
+ * Triangles of the traffic-on scene with its models held (`docs/PERFORMANCE.md`).
+ * Measured on the Lave scene, so on a Coriolis; a budget peak on a world of
+ * another station kind needs its own constant (see census.test.ts).
+ */
 export const SCENE_TRIANGLES_TRAFFIC_ON = 39_192;
 /** The 21-19 kill's triangle delta (78,598 after a kill minus 77,934 before). */
 export const FIGHT_TRIANGLE_DELTA = 664;
@@ -101,14 +105,24 @@ export function catalogueHullTriangles(): ReadonlyMap<string, number> {
   return hulls;
 }
 
-/** The galaxies the census covers, `0..galaxies-1`, with every system's facts. */
+/**
+ * The galaxies the census covers, `0..galaxies-1`, with every system's facts.
+ *
+ * Each system is laid out with its own station (`stationSpecOf(system.station)`,
+ * Phase 22.1, WORLD-20): the production path, for the 1,824 Coriolis systems and
+ * the 224 Dodecahedron and Icosahedron systems alike. The census golden did not
+ * move when this switched from the Coriolis for every system (owner decision D-A,
+ * measured on the digest and on every ship position over all 40,960 worlds). A
+ * non-Coriolis world may still place a ship differently from a Coriolis layout
+ * without moving its digest token, because Oolite samples the STATION_AEGIS shell
+ * from the station's own `collisionRadius * 1.2` (Universe.m:1813).
+ */
 export function censusSystems(galaxies: number): readonly CensusSystem[] {
-  const { stationDef } = laveFixture();
   const out: CensusSystem[] = [];
   for (let galaxy = 0; galaxy < galaxies; galaxy += 1) {
     const content = galaxySystems(galaxy);
     for (const system of content) {
-      const layout = deriveSystemLayout(system, stationDef);
+      const layout = deriveSystemLayout(system, stationSpecOf(system.station));
       const facts = systemFactsFrom(
         system,
         buildNeighbourhood(content, system.systemIndex),

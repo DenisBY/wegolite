@@ -65,9 +65,8 @@ import {
   galaxySystems,
   loadPopulationFixtures,
 } from "../../../helpers/population-fixtures.js";
-import { laveFixture } from "../../../helpers/lave.js";
+import { stationSpecOf } from "../../../helpers/stations.js";
 
-const { stationDef } = laveFixture();
 const RECORDS = committedPopulationRecords();
 
 /** A sample system: its fixture id, system id, facts and layout. */
@@ -94,7 +93,7 @@ function sampleSystems(): readonly SampleSystem[] {
       systemId: header.system,
       government: inputs.government,
       facts: factsFromFixture(loaded.fixture),
-      layout: deriveSystemLayout(system, stationDef),
+      layout: deriveSystemLayout(system, stationSpecOf(system.station)),
     });
   }
   return [...bySystem.values()];
