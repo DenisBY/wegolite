@@ -6,10 +6,10 @@ current_phase: "22.1"
 current_phase_name: Per-system main stations
 status: executing
 stopped_at: Phase 22.1 defined, ready to plan
-last_updated: "2026-11-27T10:54:25.155Z"
+last_updated: "2026-11-27T12:05:55.789Z"
 last_activity: 2026-11-27
 last_activity_desc: Phase 22.1 inserted and defined (WORLD-20), owner answers D14-D17 recorded
-state_head: edc6cdc0903a2b87044a58ce0d80483afdf3a68d
+state_head: 8d6b052af6e07191847c62408e6ed243afb69994
 progress:
   total_phases: 8
   completed_phases: 2
