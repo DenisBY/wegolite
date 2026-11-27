@@ -327,6 +327,7 @@ function session(
         messages,
         refusalCopy: controller.refusalCopy,
         handleHyperspaceJumped: controller.handleHyperspaceJumped,
+        prefetchStation: () => undefined,
       }),
     }),
     equipmentSet: () => new Set(ctx.core.profile.equipment),

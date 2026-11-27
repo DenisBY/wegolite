@@ -144,7 +144,7 @@ export const EVENT_KIND_SUBSCRIBER: Readonly<
   bounce: ["dockFeedback"],
   scrape: ["dockFeedback"],
   compassTargetChanged: ["hudMessages"],
-  hyperspaceCountdownStarted: ["hudMessages"],
+  hyperspaceCountdownStarted: ["hudMessages", "hyperspaceFlow"],
   hyperspaceCountdownCancelled: ["hudMessages"],
   hyperspaceRefused: ["hyperspaceFlow"],
   hyperspaceJumped: ["hyperspaceFlow"],
@@ -613,16 +613,33 @@ export interface HyperspaceFlowDeps {
     clockDeltaSeconds: number;
     fuelCost: number;
   }) => void;
+  /**
+   * Start loading the destination system's station hull artifact, without
+   * waiting for it (Phase 22.1, decision O3): the session wires
+   * `prefetchStationFor` (station-install.ts) here. Fire-and-forget: it never
+   * throws.
+   */
+  readonly prefetchStation: (destinationId: string) => void;
 }
 
-/** hyperspaceRefused and hyperspaceJumped: the refusal copy and the arrival. */
+/**
+ * hyperspaceCountdownStarted, hyperspaceRefused and hyperspaceJumped: the
+ * destination station's prefetch, the refusal copy and the arrival.
+ */
 export function createHyperspaceFlow(
   ctx: SessionState,
   deps: HyperspaceFlowDeps,
 ): EventSubscriber {
-  const { messages, refusalCopy, handleHyperspaceJumped } = deps;
+  const { messages, refusalCopy, handleHyperspaceJumped, prefetchStation } =
+    deps;
   return (event) => {
     switch (event.kind) {
+      case "hyperspaceCountdownStarted":
+        // The countdown runs 15 s before the arrival (Oolite's witchspace
+        // countdown): the destination's station artifact loads in that time,
+        // so the arrival rarely meets a load still in flight.
+        prefetchStation(event.destinationId);
+        break;
       case "hyperspaceRefused":
         ctx.core.lastRefusal = { reason: event.reason };
         // witchJumpChecklist clears the last message and posts every refusal

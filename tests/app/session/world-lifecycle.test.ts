@@ -1384,6 +1384,7 @@ describe("jump commit clears the world on the same tick (WORLD-14)", () => {
         messages: { enqueue: quiet, clearPrevious: quiet },
         refusalCopy: controller.refusalCopy,
         handleHyperspaceJumped: controller.handleHyperspaceJumped,
+        prefetchStation: () => undefined,
       }),
     });
     const driver = createSimDriver(ctx, {

@@ -23,6 +23,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are leaving ("Dodecahedron Station" or "Icosahedron Station" there, as
   Oolite's own name for it) instead of always "Coriolis Station". The station
   models of the two other types are still drawn as the Coriolis for now.
+- With NPC traffic on, the Dodecahedron and Icosahedron stations are now solid
+  for laser fire and are named by the ident system ("Dodecahedron Station",
+  "Icosahedron Station"), as the Coriolis already was. Their hull data loads
+  with the system you start in or load into, and during the hyperspace
+  countdown for the system you jump to, so an arrival never waits for it.
 - In Dodecahedron and Icosahedron systems the main station now blocks a
   completing witchspace jump inside its own mass radius (about 9.6 km and
   9.1 km), as Oolite does; until now only a Coriolis station blocked.
