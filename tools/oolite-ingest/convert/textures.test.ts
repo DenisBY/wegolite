@@ -11,7 +11,7 @@
  * `texture-encode.test.ts`.
  */
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -86,12 +86,48 @@ function caught(body: () => void): { message: string; code?: string } {
 }
 
 describe("texture reference closure", () => {
-  it("resolves exactly the 110 allowlisted names, in both directions", () => {
+  it("resolves exactly the 126 allowlisted names, in both directions", () => {
     const references = resolveReferencedTextures(catalogue());
 
     expect(nameList(references)).toEqual([...VENDORED_TEXTURES].sort());
     expect([...VENDORED_TEXTURES].sort()).toEqual(nameList(references));
-    expect(references.size).toBe(110);
+    expect(references.size).toBe(126);
+  });
+
+  it("holds the Dodecahedron and Icosahedron closure in both directions (Phase 22.1)", () => {
+    const stationPng = (name: string): boolean =>
+      name.startsWith("oolite_dodo_") || name.startsWith("oolite_ico_");
+    const vendored = VENDORED_TEXTURES.filter(stationPng);
+    expect(vendored).toHaveLength(16);
+
+    // Every image the two committed GLBs name is a file the content build
+    // serves, and the vendored station PNGs are exactly the sources of the
+    // WebP files among them: nothing referenced is unvendored, nothing vendored
+    // is unreferenced.
+    const images = ["dodecahedron.glb", "icosahedron.glb"].flatMap((file) =>
+      readGlbJson(`public/models/${file}`).images.map((image) =>
+        image.uri.replace("../textures/", ""),
+      ),
+    );
+    const served = [...new Set(images)].sort();
+    const missing = served.filter(
+      (name) => !existsSync(join(REPO_ROOT, "public/textures", name)),
+    );
+    expect(missing).toEqual([]);
+
+    const webp = served.filter((name) => name.endsWith(".webp"));
+    expect(webp.map((name) => name.replace(/\.webp$/, ".png"))).toEqual(
+      vendored,
+    );
+    // The baked emission masks are named by their emitted name.
+    expect(served.filter((name) => name.endsWith("_emissive.png"))).toEqual([
+      "oolite_dodo_diffuse_emissive.png",
+      "oolite_dodo_dock_diffuse_emissive.png",
+      "oolite_dodo_faceplate_diffuse_emissive.png",
+      "oolite_ico_diffuse_emissive.png",
+      "oolite_ico_dock_diffuse_emissive.png",
+      "oolite_ico_hull_diffuse_emissive.png",
+    ]);
   });
 
   it("adds the legacy wreck texture and the alloy plate's maps (DATA-16)", () => {
@@ -540,6 +576,8 @@ describe("emitTextures", () => {
 
       const cobra = readGlbJson("public/models/cobra3.glb");
       const coriolis = readGlbJson("public/models/coriolis.glb");
+      const dodecahedron = readGlbJson("public/models/dodecahedron.glb");
+      const icosahedron = readGlbJson("public/models/icosahedron.glb");
       const buoy = readGlbJson("public/models/buoy.glb");
       const npcImages = [...NPC_SHIP_GLBS, ...DEBRIS_GLBS].flatMap(
         (file) => readGlbJson(`public/models/${file}`).images,
@@ -548,7 +586,14 @@ describe("emitTextures", () => {
       // 21-08), so the same bake is named by several GLBs: compare the set.
       const glbEmissive = [
         ...new Set(
-          [...cobra.images, ...coriolis.images, ...buoy.images, ...npcImages]
+          [
+            ...cobra.images,
+            ...coriolis.images,
+            ...dodecahedron.images,
+            ...icosahedron.images,
+            ...buoy.images,
+            ...npcImages,
+          ]
             .map((image) => image.uri.replace("../textures/", ""))
             .filter((name) => name.endsWith("_emissive.png")),
         ),

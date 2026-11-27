@@ -337,8 +337,10 @@ describe("profiles and encoder arguments", () => {
     expect(alpha).toEqual(
       VENDORED_TEXTURES.filter((name) => name.includes("specular")),
     );
-    expect(lossless).toHaveLength(35);
-    expect(alpha).toHaveLength(28);
+    // The Dodecahedron and Icosahedron stations add six normal and four
+    // specular maps (Phase 22.1 plan 10).
+    expect(lossless).toHaveLength(41);
+    expect(alpha).toHaveLength(32);
   });
 });
 

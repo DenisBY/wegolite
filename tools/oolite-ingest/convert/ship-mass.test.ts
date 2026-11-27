@@ -60,11 +60,24 @@ const catalogue: ShipCatalogue = compileShips(
   load("third_party/oolite/Config/shipdata-overrides.plist"),
 );
 
-/** Every vendored model, parsed once: the union of `MODEL_SOURCE_FILES`. */
+/**
+ * The meshes only the Dodecahedron and Icosahedron own. They became GLB sources
+ * in plan 22.1-10, but their hull masses are pinned through the measured
+ * station masses below, so the 32-mesh table keeps its own membership.
+ */
+const NEW_STATION_MESHES: ReadonlySet<string> = new Set(
+  STATION_BUILDS.filter((build) => build.kind !== "coriolis").flatMap((build) =>
+    build.parts.map((part) => part.model),
+  ),
+);
+
+/** Every vendored model but the new stations', parsed once. */
 function loadMeshes(): Record<string, ParsedMesh> {
   const names = new Set<string>();
   for (const files of Object.values(MODEL_SOURCE_FILES)) {
-    for (const file of files) names.add(file);
+    for (const file of files) {
+      if (!NEW_STATION_MESHES.has(file)) names.add(file);
+    }
   }
   const meshes: Record<string, ParsedMesh> = {};
   for (const name of [...names].sort()) {
@@ -77,9 +90,8 @@ function loadMeshes(): Record<string, ParsedMesh> {
 const meshes = loadMeshes();
 
 /**
- * The station meshes vendored for mass and collision radius only (Phase 22.1):
- * kept apart from `meshes` so the 32-mesh table below keeps pinning the GLB
- * sources.
+ * The station meshes (Phase 22.1): kept apart from `meshes` so the 32-mesh
+ * table below keeps its membership.
  */
 function loadStationMeshes(): Record<string, ParsedMesh> {
   const loaded: Record<string, ParsedMesh> = {};

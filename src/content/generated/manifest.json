@@ -91,6 +91,11 @@
       "sha256": "8e18eff0955f2cd80cded32dd2c4568174a812d68f7c3b27d1cec7fb7793b4f1"
     },
     {
+      "bytes": 321044,
+      "path": "public/models/dodecahedron.glb",
+      "sha256": "656f4636ab38163977e3de4e80c65eb567130428f38dae23c0257ca0f7244cc3"
+    },
+    {
       "bytes": 67936,
       "path": "public/models/ferdelance.glb",
       "sha256": "cfaf878dae23adec174485d8389ece9ce51e3673c89a2b76e9fc822327b5b0b8"
@@ -99,6 +104,11 @@
       "bytes": 114504,
       "path": "public/models/gecko.glb",
       "sha256": "b793ac73c640a160e30a2e18b469546518b70e7888b555694e6d8b8c42c85255"
+    },
+    {
+      "bytes": 513876,
+      "path": "public/models/icosahedron.glb",
+      "sha256": "a531c3312e29f31af1ae970388016647d6621d1d0daf9aa05ff70bf446c1e02a"
     },
     {
       "bytes": 165380,
@@ -561,6 +571,61 @@
       "sha256": "23c371b4a9f56f3ee18586bcd2c453f03673b5ee7c9cfd667c872a1210751f64"
     },
     {
+      "bytes": 77476,
+      "path": "public/textures/oolite_dodo_diffuse.webp",
+      "sha256": "3eb47cb8f7022425f46a2ee1801096de78500487edb0352033b170c9056f6e28"
+    },
+    {
+      "bytes": 9111,
+      "path": "public/textures/oolite_dodo_diffuse_emissive.png",
+      "sha256": "1dc17e6c278684aacb9516ff7ceb274592ee8304c11b302a3220753d6bd763a2"
+    },
+    {
+      "bytes": 136064,
+      "path": "public/textures/oolite_dodo_dock_diffuse.webp",
+      "sha256": "a0305e7cbc7917024e23994ec054360e47e62ccf3d4f0c8857e7315ad69eb014"
+    },
+    {
+      "bytes": 473280,
+      "path": "public/textures/oolite_dodo_dock_diffuse_emissive.png",
+      "sha256": "f6307a34ba50d9ccf86f3b1348d6076060b6d88f50b613e276b802b1f77239c9"
+    },
+    {
+      "bytes": 1126032,
+      "path": "public/textures/oolite_dodo_dock_normal.webp",
+      "sha256": "af8e751352290656745c41d85c2c2723af28e0fa2c14471dee2339a997ef4af1"
+    },
+    {
+      "bytes": 339234,
+      "path": "public/textures/oolite_dodo_faceplate_diffuse.webp",
+      "sha256": "7a68b69a62e2c61f9a7f22efef38e93a08181d7c0ff6359efd56b269d9c01638"
+    },
+    {
+      "bytes": 19121,
+      "path": "public/textures/oolite_dodo_faceplate_diffuse_emissive.png",
+      "sha256": "08d7c3a455f641fe5d54e92a107a9c394618eef4bb5dc1336b3d8f8f00160a67"
+    },
+    {
+      "bytes": 2074936,
+      "path": "public/textures/oolite_dodo_faceplate_normal.webp",
+      "sha256": "987ba19613d6ac7ccce62d7eecdb1e8879e2cf99d0de523f1431136c4c4d8ecf"
+    },
+    {
+      "bytes": 1079258,
+      "path": "public/textures/oolite_dodo_faceplate_specular.webp",
+      "sha256": "4f1950f2e1cf0f38781cda9ac4e18cbe43d094f299cb40e0e8296cd940735a98"
+    },
+    {
+      "bytes": 518740,
+      "path": "public/textures/oolite_dodo_normal.webp",
+      "sha256": "62c1aef6b8554c61d607fbbe4cd3bd57df0776710f93d4ae4470868398d1f14e"
+    },
+    {
+      "bytes": 286232,
+      "path": "public/textures/oolite_dodo_specular.webp",
+      "sha256": "b72d61632e88dcf68aa6a97c77ab835744257ac83d7a2e38f34059621e0d29ee"
+    },
+    {
       "bytes": 265476,
       "path": "public/textures/oolite_ferdelance_diffuse_atlas_5c817b2c11d0.webp",
       "sha256": "2758e329e8dc728c86121a49cd8c2583f1b9b4cdcecfcaa96f3b3e1f4decc2aa"
@@ -604,6 +669,61 @@
       "bytes": 1261720,
       "path": "public/textures/oolite_gecko_specular_atlas_cb5adb5d8821.webp",
       "sha256": "f7f6be023ff825dad165e815ae435a96e6e19c11739055cf09b1be6eb41ec343"
+    },
+    {
+      "bytes": 103870,
+      "path": "public/textures/oolite_ico_diffuse.webp",
+      "sha256": "f89c8c13e922c404c1ea74a9dc9bfdcab8340db3dbfbee3db638c9dd5018ac1c"
+    },
+    {
+      "bytes": 25575,
+      "path": "public/textures/oolite_ico_diffuse_emissive.png",
+      "sha256": "27f03297cdbbddb0b67299eb77bec776af7311c41a489c9ec1ee6ff391d7c896"
+    },
+    {
+      "bytes": 115598,
+      "path": "public/textures/oolite_ico_dock_diffuse.webp",
+      "sha256": "3966cfdf35f40bce2de5822f161d15c0c8b8ced26e2c96ebc1d302ced7594687"
+    },
+    {
+      "bytes": 417346,
+      "path": "public/textures/oolite_ico_dock_diffuse_emissive.png",
+      "sha256": "a7fc72b86ecfb7c8522c64674e95a439cf0742418e7b2eee2462aba187085fd8"
+    },
+    {
+      "bytes": 877174,
+      "path": "public/textures/oolite_ico_dock_normal.webp",
+      "sha256": "93dec7f237ca796b431414e50d8ff47e6c2ec174693ec3ffff1fe649adf901bf"
+    },
+    {
+      "bytes": 201126,
+      "path": "public/textures/oolite_ico_hull_diffuse.webp",
+      "sha256": "47d2770b92200bfa8aae00e08858d8d7e936d4593100530127cf734746ce1228"
+    },
+    {
+      "bytes": 78223,
+      "path": "public/textures/oolite_ico_hull_diffuse_emissive.png",
+      "sha256": "de0a4d02572a6e7389a956620564063dcbf2bfa5dffb756133d795c80e79cb87"
+    },
+    {
+      "bytes": 1556062,
+      "path": "public/textures/oolite_ico_hull_normal.webp",
+      "sha256": "1a5c39eeb7f1676e5f79090a6b80461182428198d7b064efadb3b4cf855a86eb"
+    },
+    {
+      "bytes": 1093012,
+      "path": "public/textures/oolite_ico_hull_specular.webp",
+      "sha256": "4fcda94cdee8997c1cf97f7677582df4d9b32c918732d607e8519e48a71d7a2f"
+    },
+    {
+      "bytes": 955780,
+      "path": "public/textures/oolite_ico_normal.webp",
+      "sha256": "ff237c4b602b47f0a9fd5307ec10da49915352efe9655d639888b212f6dd9ad6"
+    },
+    {
+      "bytes": 533898,
+      "path": "public/textures/oolite_ico_specular.webp",
+      "sha256": "8f9e8b6febefa9efba4d8bba092ca5fedbf78943cd22c8621bc186090f4f1edd"
     },
     {
       "bytes": 230358,
@@ -896,9 +1016,9 @@
       "sha256": "2048f7b509ba8cc702c11b616c9bbd9e4b13d5c44ddb8514f2399cf89c6ed104"
     },
     {
-      "bytes": 39288,
+      "bytes": 39286,
       "path": "src/content/generated/ships-client.json",
-      "sha256": "6ae0f43d695413c735275b2ba2b5ba78034499c95a8ce03582e0e455165212fb"
+      "sha256": "856af36960bd5d904c8273d9970c04ad8a75c7e7f4905984523352b014c34961"
     },
     {
       "bytes": 1784,
@@ -931,9 +1051,9 @@
       "sha256": "0360456d36a260ba8befe35a263888f493bb28329b7a0b7716f71f0ce8a81c3a"
     },
     {
-      "bytes": 706513,
+      "bytes": 706505,
       "path": "src/content/generated/ships.json",
-      "sha256": "0a952c86fa9af71737c32a3c3eecc6ba9b8e630fc93ab04b4b602b0790ae7703"
+      "sha256": "217b3e575cdaf310b4e428a261488f0508a1e71799b2fe26274fbc132d58295e"
     },
     {
       "bytes": 694240,
@@ -976,9 +1096,9 @@
       "sha256": "40f906335a3a074acb0db3cae5cc034e9acb7554950a9f3cfd1b4aedff9af5b4"
     },
     {
-      "bytes": 58229,
+      "bytes": 66559,
       "path": "src/content/generated/texture-encodings.json",
-      "sha256": "ba601fd5c373254a8aff252187c663017aa93f43ac5457e36cac3fc27f2fde9d"
+      "sha256": "783284ef2816bddc2c14d9e4d8ba5955c48b40906d468bddd553c9b5df561e45"
     }
   ],
   "format": "wegolite-content-manifest",

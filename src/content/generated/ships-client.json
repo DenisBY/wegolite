@@ -918,7 +918,7 @@
     },
     "mass": 912357312,
     "model": "oolite_dodo.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "dodo",
       "dodec",
@@ -1398,7 +1398,7 @@
     },
     "mass": 826313024,
     "model": "oolite_ico.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "ico",
       "icosa",

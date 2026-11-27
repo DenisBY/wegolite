@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * Deterministic GLB writer for the Cobra Mk III and the Coriolis composite
- * (DATA-04, DATA-07, DATA-08, D-05, D-07, D-08, D-09, D-20, T-02-04, T-02-18).
+ * Deterministic GLB writer for the Cobra Mk III and the three station
+ * composites (DATA-04, DATA-07, DATA-08, D-05, D-07, D-08, D-09, D-20, T-02-04,
+ * T-02-18; Phase 22.1 plan 10 for the Dodecahedron and Icosahedron).
  *
  * The container is ours. The writer builds `{ asset, scenes, nodes, meshes,
  * materials, textures, images, accessors, bufferViews, buffers }` in a fixed
@@ -67,6 +68,7 @@ import {
 } from "./dat.js";
 import type { MeshBounds, NormalMode, ParsedMesh, Vec3 } from "./dat.js";
 import type { ShipDef } from "../../../src/content/schemas/ship.js";
+import { STATION_BUILDS } from "./stations.js";
 
 export type Coordinates = "oolite" | "gltf";
 
@@ -79,105 +81,136 @@ export const EMITTED_MODELS_DIR = "public/models";
 /** The single shipdata input every GLB's `extras.oolite` names. */
 export const SHIPDATA_SOURCE_FILE = "third_party/oolite/Config/shipdata.plist";
 
+/** The station GLB rows, from `STATION_BUILDS`: one owner per node, in order. */
+const STATION_OWNER_ROWS: ReadonlyMap<string, readonly string[]> = new Map(
+  STATION_BUILDS.map((build) => [
+    build.glbFile,
+    build.parts.map((part) => part.owner),
+  ]),
+);
+
+/** The station GLB rows: the `.dat` of each node, in the same order. */
+const STATION_SOURCE_ROWS: ReadonlyMap<string, readonly string[]> = new Map(
+  STATION_BUILDS.map((build) => [
+    build.glbFile,
+    build.parts.map((part) => part.model),
+  ]),
+);
+
+/**
+ * The listed rows plus the station rows, in code-unit key order (the order the
+ * literal tables were written in), so a station is never declared twice and the
+ * iteration order of every derived list stays the alphabetical one.
+ */
+function withStationRows(
+  stationRows: ReadonlyMap<string, readonly string[]>,
+  rows: Readonly<Record<string, readonly string[]>>,
+): Readonly<Record<string, readonly string[]>> {
+  const merged = new Map<string, readonly string[]>(Object.entries(rows));
+  for (const [file, row] of stationRows) {
+    if (merged.has(file)) {
+      throw new Error(
+        `Wegolite: "${file}" is declared by hand and as a station`,
+      );
+    }
+    merged.set(file, row);
+  }
+  return Object.fromEntries(
+    [...merged].sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0,
+    ),
+  );
+}
+
 /**
  * The one declaration of which shipdata entry owns each emitted mesh. Plan 07's
  * texture closure imports this constant rather than restating it, so a mesh can
  * never be retextured by an entry that does not own it.
  */
-export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> = {
-  "adder.glb": ["adder"],
-  "alloy.glb": ["alloy"],
-  "anaconda-pirate.glb": ["anaconda-pirate"],
-  "anaconda.glb": ["anaconda"],
-  "asp.glb": ["asp"],
-  "barrel.glb": ["barrel"],
-  "boa-mk2-pirate.glb": ["boa-mk2-pirate"],
-  "boa-mk2.glb": ["boa-mk2"],
-  "boa-pirate.glb": ["boa-pirate"],
-  "boa.glb": ["boa"],
-  "buoy.glb": ["buoy", "oolite_buoy_subentity"],
-  "cobra3-alternate.glb": ["cobra3-alternate"],
-  "cobra3-pirate.glb": ["cobra3-pirate"],
-  "cobra3-trader.glb": ["cobra3-trader"],
-  "cobra3.glb": ["cobra3-player"],
-  "cobramk1-alt.glb": ["cobramk1-alt"],
-  "cobramk1.glb": ["cobramk1"],
-  "coriolis.glb": [
-    "coriolis-station",
-    "oolite_coriolis_faceplate",
-    "oolite_coriolis_tris",
-    "oolite_coriolis_dock",
-  ],
-  "ferdelance.glb": ["ferdelance"],
-  "gecko.glb": ["gecko"],
-  "krait.glb": ["krait"],
-  "mamba-escort.glb": ["mamba-escort"],
-  "mamba.glb": ["mamba"],
-  "moray.glb": ["moray"],
-  "moraymed.glb": ["morayMED"],
-  "python-blackdog.glb": ["python-blackdog"],
-  "python-trader.glb": ["python-trader"],
-  "python.glb": ["python"],
-  "shuttle.glb": ["shuttle"],
-  "sidewinder-escort.glb": ["sidewinder-escort"],
-  "sidewinder.glb": ["sidewinder"],
-  "viper-interceptor.glb": ["viper-interceptor"],
-  "viper-pursuit.glb": ["viper-pursuit"],
-  "viper.glb": ["viper"],
-  "wreck1.glb": ["wreckage-component"],
-  "wreck2.glb": ["more-wreckage2"],
-  "wreck3.glb": ["more-wreckage3"],
-  "wreck4.glb": ["more-wreckage4"],
-  "wreck5.glb": ["more-wreckage5"],
-};
+export const EMITTED_ENTRIES: Readonly<Record<string, readonly string[]>> =
+  withStationRows(STATION_OWNER_ROWS, {
+    "adder.glb": ["adder"],
+    "alloy.glb": ["alloy"],
+    "anaconda-pirate.glb": ["anaconda-pirate"],
+    "anaconda.glb": ["anaconda"],
+    "asp.glb": ["asp"],
+    "barrel.glb": ["barrel"],
+    "boa-mk2-pirate.glb": ["boa-mk2-pirate"],
+    "boa-mk2.glb": ["boa-mk2"],
+    "boa-pirate.glb": ["boa-pirate"],
+    "boa.glb": ["boa"],
+    "buoy.glb": ["buoy", "oolite_buoy_subentity"],
+    "cobra3-alternate.glb": ["cobra3-alternate"],
+    "cobra3-pirate.glb": ["cobra3-pirate"],
+    "cobra3-trader.glb": ["cobra3-trader"],
+    "cobra3.glb": ["cobra3-player"],
+    "cobramk1-alt.glb": ["cobramk1-alt"],
+    "cobramk1.glb": ["cobramk1"],
+    "ferdelance.glb": ["ferdelance"],
+    "gecko.glb": ["gecko"],
+    "krait.glb": ["krait"],
+    "mamba-escort.glb": ["mamba-escort"],
+    "mamba.glb": ["mamba"],
+    "moray.glb": ["moray"],
+    "moraymed.glb": ["morayMED"],
+    "python-blackdog.glb": ["python-blackdog"],
+    "python-trader.glb": ["python-trader"],
+    "python.glb": ["python"],
+    "shuttle.glb": ["shuttle"],
+    "sidewinder-escort.glb": ["sidewinder-escort"],
+    "sidewinder.glb": ["sidewinder"],
+    "viper-interceptor.glb": ["viper-interceptor"],
+    "viper-pursuit.glb": ["viper-pursuit"],
+    "viper.glb": ["viper"],
+    "wreck1.glb": ["wreckage-component"],
+    "wreck2.glb": ["more-wreckage2"],
+    "wreck3.glb": ["more-wreckage3"],
+    "wreck4.glb": ["more-wreckage4"],
+    "wreck5.glb": ["more-wreckage5"],
+  });
 
 /** The vendored `.dat` files each emitted GLB is built from, in node order. */
-export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> = {
-  "adder.glb": ["oolite_adder.dat"],
-  "alloy.glb": ["oolite_alloy.dat"],
-  "anaconda-pirate.glb": ["oolite_anaconda.dat"],
-  "anaconda.glb": ["oolite_anaconda.dat"],
-  "asp.glb": ["oolite_asp.dat"],
-  "barrel.glb": ["oolite_barrel.dat"],
-  "boa-mk2-pirate.glb": ["oolite_boa-mk2.dat"],
-  "boa-mk2.glb": ["oolite_boa-mk2.dat"],
-  "boa-pirate.glb": ["oolite_boa.dat"],
-  "boa.glb": ["oolite_boa.dat"],
-  "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
-  "cobra3-alternate.glb": ["oolite_cobra3.dat"],
-  "cobra3-pirate.glb": ["oolite_cobra3.dat"],
-  "cobra3-trader.glb": ["oolite_cobra3.dat"],
-  "cobra3.glb": ["oolite_cobra3.dat"],
-  "cobramk1-alt.glb": ["oolite_cobramk1.dat"],
-  "cobramk1.glb": ["oolite_cobramk1.dat"],
-  "coriolis.glb": [
-    "oolite_coriolis.dat",
-    "oolite_coriolis_faceplate.dat",
-    "oolite_coriolis_tris.dat",
-    "oolite_coriolis_dock.dat",
-  ],
-  "ferdelance.glb": ["oolite_ferdelance.dat"],
-  "gecko.glb": ["oolite_gecko.dat"],
-  "krait.glb": ["oolite_krait.dat"],
-  "mamba-escort.glb": ["oolite_mamba.dat"],
-  "mamba.glb": ["oolite_mamba.dat"],
-  "moray.glb": ["oolite_moray.dat"],
-  "moraymed.glb": ["oolite_moray.dat"],
-  "python-blackdog.glb": ["oolite_python.dat"],
-  "python-trader.glb": ["oolite_python_trader.dat"],
-  "python.glb": ["oolite_python.dat"],
-  "shuttle.glb": ["oolite_shuttle.dat"],
-  "sidewinder-escort.glb": ["oolite_sidewinder_escort.dat"],
-  "sidewinder.glb": ["oolite_sidewinder.dat"],
-  "viper-interceptor.glb": ["oolite_viper_interceptor.dat"],
-  "viper-pursuit.glb": ["oolite_viper.dat"],
-  "viper.glb": ["oolite_viper.dat"],
-  "wreck1.glb": ["wreck1.dat"],
-  "wreck2.glb": ["wreck2.dat"],
-  "wreck3.glb": ["wreck3.dat"],
-  "wreck4.glb": ["wreck4.dat"],
-  "wreck5.glb": ["wreck5.dat"],
-};
+export const MODEL_SOURCE_FILES: Readonly<Record<string, readonly string[]>> =
+  withStationRows(STATION_SOURCE_ROWS, {
+    "adder.glb": ["oolite_adder.dat"],
+    "alloy.glb": ["oolite_alloy.dat"],
+    "anaconda-pirate.glb": ["oolite_anaconda.dat"],
+    "anaconda.glb": ["oolite_anaconda.dat"],
+    "asp.glb": ["oolite_asp.dat"],
+    "barrel.glb": ["oolite_barrel.dat"],
+    "boa-mk2-pirate.glb": ["oolite_boa-mk2.dat"],
+    "boa-mk2.glb": ["oolite_boa-mk2.dat"],
+    "boa-pirate.glb": ["oolite_boa.dat"],
+    "boa.glb": ["oolite_boa.dat"],
+    "buoy.glb": ["oolite_buoy.dat", "oolite_buoy_subents.dat"],
+    "cobra3-alternate.glb": ["oolite_cobra3.dat"],
+    "cobra3-pirate.glb": ["oolite_cobra3.dat"],
+    "cobra3-trader.glb": ["oolite_cobra3.dat"],
+    "cobra3.glb": ["oolite_cobra3.dat"],
+    "cobramk1-alt.glb": ["oolite_cobramk1.dat"],
+    "cobramk1.glb": ["oolite_cobramk1.dat"],
+    "ferdelance.glb": ["oolite_ferdelance.dat"],
+    "gecko.glb": ["oolite_gecko.dat"],
+    "krait.glb": ["oolite_krait.dat"],
+    "mamba-escort.glb": ["oolite_mamba.dat"],
+    "mamba.glb": ["oolite_mamba.dat"],
+    "moray.glb": ["oolite_moray.dat"],
+    "moraymed.glb": ["oolite_moray.dat"],
+    "python-blackdog.glb": ["oolite_python.dat"],
+    "python-trader.glb": ["oolite_python_trader.dat"],
+    "python.glb": ["oolite_python.dat"],
+    "shuttle.glb": ["oolite_shuttle.dat"],
+    "sidewinder-escort.glb": ["oolite_sidewinder_escort.dat"],
+    "sidewinder.glb": ["oolite_sidewinder.dat"],
+    "viper-interceptor.glb": ["oolite_viper_interceptor.dat"],
+    "viper-pursuit.glb": ["oolite_viper.dat"],
+    "viper.glb": ["oolite_viper.dat"],
+    "wreck1.glb": ["wreck1.dat"],
+    "wreck2.glb": ["wreck2.dat"],
+    "wreck3.glb": ["wreck3.dat"],
+    "wreck4.glb": ["wreck4.dat"],
+    "wreck5.glb": ["wreck5.dat"],
+  });
 
 /**
  * The single-mesh NPC role ships, each built by `buildShipGlb` from one `.dat`
@@ -538,18 +571,15 @@ export interface ShipEntry {
   readonly shipDef: ShipDef;
 }
 
-export interface CoriolisMeshes {
-  readonly hull: ParsedMesh;
-  readonly faceplate: ParsedMesh;
-  readonly tris: ParsedMesh;
-  readonly dock: ParsedMesh;
-}
-
-export interface CoriolisEntries {
-  readonly hull: ShipEntry;
-  readonly faceplate: ShipEntry;
-  readonly tris: ShipEntry;
-  readonly dock: ShipEntry;
+/** One node of a station composite: its mesh and the entry that textures it. */
+export interface StationGlbPart {
+  /** The glTF node name. */
+  readonly node: string;
+  /** The `.dat` file name; the mesh is named after it, without the suffix. */
+  readonly model: string;
+  readonly mesh: ParsedMesh;
+  /** The part's **own** shipdata entry, whose `materials` texture the mesh. */
+  readonly entry: ShipEntry;
 }
 
 export interface EmittedModel {
@@ -1369,43 +1399,37 @@ function subentityTranslation(
 }
 
 /**
- * The Coriolis composite: four nodes, four meshes, each with its own local
- * transform and its **own** owning shipdata entry's materials. Three of the four
- * parts carry their material set on their own entry, so a single `shipDef` would
- * silently texture only the hull.
+ * A station composite: one node and mesh per part, each with its own local
+ * transform and its **own** owning shipdata entry's materials. The first part is
+ * the root (the station's own mesh, translation zero); every other part keeps
+ * the transform its subentity declares in the root's entry, converted and never
+ * tidied (D-07). Most parts carry their material set on their own entry, so a
+ * single `shipDef` would silently texture only the root.
+ *
+ * One builder serves the Coriolis (four parts), the Dodecahedron and the
+ * Icosahedron (three each); the part lists come from `STATION_BUILDS`.
  */
-export function buildCoriolisGlb(
-  meshes: CoriolisMeshes,
-  entries: CoriolisEntries,
-): Uint8Array {
-  const parts: readonly [string, ParsedMesh, ShipEntry, string][] = [
-    ["hull", meshes.hull, entries.hull, "oolite_coriolis"],
-    [
-      "faceplate",
-      meshes.faceplate,
-      entries.faceplate,
-      "oolite_coriolis_faceplate",
-    ],
-    ["tris", meshes.tris, entries.tris, "oolite_coriolis_tris"],
-    ["dock", meshes.dock, entries.dock, "oolite_coriolis_dock"],
-  ];
+export function buildStationGlb(parts: readonly StationGlbPart[]): Uint8Array {
+  const root = parts[0];
+  if (root === undefined) {
+    return glbFailure("models", "a station composite needs at least one part");
+  }
 
   const materials: GlbMaterial[] = [];
   const nodes: GlbNode[] = [];
-  for (const [name, mesh, entry, meshName] of parts) {
-    const built = buildNodeMesh(meshName, mesh, entry);
+  for (const part of parts) {
+    const meshName = part.model.slice(0, -".dat".length);
+    const built = buildNodeMesh(meshName, part.mesh, part.entry);
     for (const primitive of built.primitives) {
       materials.push(
-        materialFor(primitive.materialName, entry.shipDef, entry.key),
+        materialFor(primitive.materialName, part.entry.shipDef, part.entry.key),
       );
     }
-    // The hull is the composite's root; the three parts keep the transforms
-    // their subentity declares, converted and never tidied (D-07).
     const translation: readonly [number, number, number] =
-      name === "hull"
+      part === root
         ? [0, 0, 0]
-        : subentityTranslation(entries.hull, entry.key, meshName);
-    nodes.push({ name, translation, mesh: built });
+        : subentityTranslation(root.entry, part.entry.key, meshName);
+    nodes.push({ name: part.node, translation, mesh: built });
   }
 
   return writeGlb({ nodes, materials });
@@ -1798,42 +1822,28 @@ export function emitModels(
     ),
   });
 
-  const coriolisFiles = MODEL_SOURCE_FILES["coriolis.glb"] ?? [];
-  const coriolisOwners = EMITTED_ENTRIES["coriolis.glb"] ?? [];
-  const [hullFile, faceplateFile, trisFile, dockFile] = coriolisFiles;
-  const [hullOwner, faceplateOwner, trisOwner, dockOwner] = coriolisOwners;
-  if (
-    hullFile === undefined ||
-    faceplateFile === undefined ||
-    trisFile === undefined ||
-    dockFile === undefined ||
-    hullOwner === undefined ||
-    faceplateOwner === undefined ||
-    trisOwner === undefined ||
-    dockOwner === undefined
-  ) {
-    glbFailure(
-      "coriolis.glb",
-      "the composite needs four source meshes and four owners",
-    );
+  for (const build of STATION_BUILDS) {
+    emitted.push({
+      path: `${EMITTED_MODELS_DIR}/${build.glbFile}`,
+      bytes: buildStationGlb(
+        build.parts.map((part): StationGlbPart => {
+          const entry = requireEntry(entries, part.owner);
+          if (entry.shipDef.model !== part.model) {
+            glbFailure(
+              build.glbFile,
+              `owner "${part.owner}" resolves model "${entry.shipDef.model ?? "none"}", expected "${part.model}"`,
+            );
+          }
+          return {
+            node: part.node,
+            model: part.model,
+            mesh: requireModel(models, part.model),
+            entry,
+          };
+        }),
+      ),
+    });
   }
-  emitted.push({
-    path: `${EMITTED_MODELS_DIR}/coriolis.glb`,
-    bytes: buildCoriolisGlb(
-      {
-        hull: requireModel(models, hullFile),
-        faceplate: requireModel(models, faceplateFile),
-        tris: requireModel(models, trisFile),
-        dock: requireModel(models, dockFile),
-      },
-      {
-        hull: requireEntry(entries, hullOwner),
-        faceplate: requireEntry(entries, faceplateOwner),
-        tris: requireEntry(entries, trisOwner),
-        dock: requireEntry(entries, dockOwner),
-      },
-    ),
-  });
 
   const buoyFiles = MODEL_SOURCE_FILES["buoy.glb"] ?? [];
   const buoyOwners = EMITTED_ENTRIES["buoy.glb"] ?? [];

@@ -38,11 +38,43 @@ export type StationKind = (typeof STATION_KINDS)[number];
  */
 export const DEFAULT_STATION_KIND: StationKind = STATION_KINDS[0];
 
+/**
+ * How the render draws one node of a station model (Phase 22.1, plan 10).
+ * The layer is data in the record, never inferred from the node's name:
+ *
+ * - `body`: the plain hull, drawn first and pushed back with `polygonOffset`
+ *   so the raised layers on top of it do not z-fight with it;
+ * - `detail`: a raised layer drawn over the body (a faceplate, the Coriolis
+ *   triangles, the Icosahedron's detailed front section);
+ * - `dock`: the dock mesh, drawn last.
+ */
+export type StationNodeLayer = "body" | "detail" | "dock";
+
+/** One node of a station's GLB, in the file's node order. */
+export interface StationNode {
+  /** The glTF node name, as the content build writes it. */
+  readonly name: string;
+  readonly layer: StationNodeLayer;
+}
+
 /** What the content build and the game know about one station kind. */
 export interface StationRecord {
   readonly kind: StationKind;
   /** The shipdata key, and the `ships-client.json` entry, of the station. */
   readonly shipKey: string;
+  /**
+   * The station's model, `models/<name>.glb` under `public/` (the anchored
+   * path rule of `NPC_GLB_PATH_PATTERN`). The content build derives the file
+   * name from it, so the path is stated once.
+   */
+  readonly glb: string;
+  /**
+   * The nodes of that GLB in file order, with the render layer of each. The
+   * content build builds one node per entry from the kind's own meshes
+   * (`STATION_BUILDS[].parts`), so the names here are the names in the file.
+   * Exactly one node is `body` and exactly one is `dock`.
+   */
+  readonly nodes: readonly StationNode[];
   /**
    * The generated dock-port record of this kind, a file name under
    * `src/content/generated/` (Phase 22.1 plan 03). The Coriolis keeps the file
@@ -78,6 +110,13 @@ export const STATION_RECORDS: Readonly<Record<StationKind, StationRecord>> =
     coriolis: Object.freeze({
       kind: "coriolis",
       shipKey: "coriolis-station",
+      glb: "models/coriolis.glb",
+      nodes: Object.freeze([
+        Object.freeze({ name: "hull", layer: "body" }),
+        Object.freeze({ name: "faceplate", layer: "detail" }),
+        Object.freeze({ name: "tris", layer: "detail" }),
+        Object.freeze({ name: "dock", layer: "dock" }),
+      ]),
       dockPortFile: "dock-port.json",
       hullsFile: "ships-static-hulls.json",
       witchBlockedLine:
@@ -86,6 +125,12 @@ export const STATION_RECORDS: Readonly<Record<StationKind, StationRecord>> =
     dodecahedron: Object.freeze({
       kind: "dodecahedron",
       shipKey: "dodecahedron-station",
+      glb: "models/dodecahedron.glb",
+      nodes: Object.freeze([
+        Object.freeze({ name: "hull", layer: "body" }),
+        Object.freeze({ name: "faceplate", layer: "detail" }),
+        Object.freeze({ name: "dock", layer: "dock" }),
+      ]),
       dockPortFile: "dock-port-dodecahedron.json",
       hullsFile: "ships-static-hulls-dodecahedron.json",
       witchBlockedLine:
@@ -94,6 +139,15 @@ export const STATION_RECORDS: Readonly<Record<StationKind, StationRecord>> =
     icosahedron: Object.freeze({
       kind: "icosahedron",
       shipKey: "icosahedron-station",
+      glb: "models/icosahedron.glb",
+      // The front section (`oolite_ico.dat`, the GLB root) is the detailed
+      // layer; the plain main hull (`oolite_ico_hull.dat`) is the body that is
+      // pushed back.
+      nodes: Object.freeze([
+        Object.freeze({ name: "hull", layer: "detail" }),
+        Object.freeze({ name: "mainhull", layer: "body" }),
+        Object.freeze({ name: "dock", layer: "dock" }),
+      ]),
       dockPortFile: "dock-port-icosahedron.json",
       hullsFile: "ships-static-hulls-icosahedron.json",
       witchBlockedLine:
