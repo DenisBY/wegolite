@@ -3,7 +3,8 @@
 
 /**
  * The shared source scanner of the source-text guards: strip comments, report a
- * line number and list the `.ts` files under `src`. One home, so a fix to the
+ * line number, list files under a repository directory and list the `.ts`
+ * files under `src`. One home, so a fix to the
  * comment lexer is one edit (the review of Phase 17, Sonnet WR-01).
  *
  * Known limit (Sonnet WR-03): a quote inside a regex literal opens a "string",
@@ -11,7 +12,7 @@
  * every guard that imports this module.
  */
 
-import { readdirSync } from "node:fs";
+import { type Dirent, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -68,20 +69,71 @@ export function lineOf(text: string, offset: number): number {
   return line;
 }
 
-/** Every `.ts` file under `src`, repo-relative posix, code-unit ordered. */
-export function listSrcFiles(): string[] {
+/**
+ * The basename prefix of the purity guards' transient probes. `sim-probe.ts`
+ * (`withSimProbe`) normalises every probe basename to it and
+ * `content-boundary.test.ts` uses it literally; the probes exist for a few
+ * milliseconds under `src/`, so a scanner must never read one.
+ */
+const PROBE_PREFIX = "__purity_";
+
+/**
+ * List a directory, or nothing when it vanished after its parent listed it.
+ * A parallel guard can remove a transient probe directory (src/sim/ai/nested/,
+ * src/sim/ai/pilots/roles/) between its parent's listing and its own. Every
+ * other failure, including ENOENT on a directory that still exists, is thrown.
+ */
+export function readdirIfPresent(directory: string): Dirent[] {
+  try {
+    return readdirSync(directory, { withFileTypes: true });
+  } catch (error) {
+    if (
+      (error as NodeJS.ErrnoException).code === "ENOENT" &&
+      !existsSync(directory)
+    ) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+/**
+ * Every regular file under `relativeDir` (relative to `root`), recursively, as
+ * repo-relative posix paths in code-unit order. Entries named `__purity_*`,
+ * files and directories alike, are skipped; a subdirectory that vanishes
+ * mid-walk contributes nothing; a missing `relativeDir` throws, so a mistyped
+ * scan root cannot pass vacuously.
+ */
+export function listFilesUnder(
+  relativeDir: string,
+  root: string = process.cwd(),
+): string[] {
   const found: string[] = [];
-  const walk = (directory: string, relative: string): void => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name.startsWith("__purity_")) continue;
+  const walk = (
+    entries: Dirent[],
+    directory: string,
+    relative: string,
+  ): void => {
+    for (const entry of entries) {
+      if (entry.name.startsWith(PROBE_PREFIX)) continue;
       const rel = `${relative}/${entry.name}`;
       if (entry.isDirectory()) {
-        walk(join(directory, entry.name), rel);
-      } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+        const sub = join(directory, entry.name);
+        walk(readdirIfPresent(sub), sub, rel);
+      } else if (entry.isFile()) {
         found.push(rel);
       }
     }
   };
-  walk(join(process.cwd(), "src"), "src");
+  const top = join(root, relativeDir);
+  walk(readdirSync(top, { withFileTypes: true }), top, relativeDir);
   return found.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/**
+ * Every `.ts` file under `src`, repo-relative posix, code-unit ordered. Skips
+ * `__purity_*` probes and tolerates a vanished subdirectory.
+ */
+export function listSrcFiles(): string[] {
+  return listFilesUnder("src").filter((path) => path.endsWith(".ts"));
 }

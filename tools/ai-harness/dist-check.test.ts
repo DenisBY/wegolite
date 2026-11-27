@@ -11,16 +11,15 @@
 import {
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { listFilesUnder } from "../../tests/guards/source-scan.js";
 import { checkDist, DIST_MARKERS, runCheckDist } from "./dist-check.js";
 import { AI_HARNESS_SENTINEL } from "./host.js";
 
@@ -44,20 +43,6 @@ function fixture(name: string, files: Record<string, string>): string {
     writeFileSync(path, content);
   }
   return dir;
-}
-
-/** Every file under a repository directory, relative to the repo root. */
-function walk(relativeDir: string): string[] {
-  const out: string[] = [];
-  for (const name of readdirSync(relativeDir)) {
-    const path = `${relativeDir}/${name}`;
-    if (statSync(path).isDirectory()) {
-      out.push(...walk(path));
-    } else {
-      out.push(path);
-    }
-  }
-  return out;
 }
 
 describe("DIST_MARKERS", () => {
@@ -177,7 +162,9 @@ describe("the committed tree holds no marker", () => {
   });
 
   it("has none in any file under src/ or public/, comments included", () => {
-    const files = [...walk("src"), ...walk("public")];
+    // The purity guards' `__purity_*` probes are skipped by the shared walker
+    // (todo 2026-11-20-dist-check-purity-probe-race).
+    const files = [...listFilesUnder("src"), ...listFilesUnder("public")];
     expect(files.length).toBeGreaterThan(100);
     const offenders: string[] = [];
     for (const file of files) {
