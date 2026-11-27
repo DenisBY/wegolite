@@ -1,0 +1,26 @@
+# Phase 22.1 plan 01 (Run A): measure the main stations of Oolite in the reference container.
+# Needs the throwaway probe OXP (outside the repository, never committed), passed with
+#   tools/oolite-reference/run-remote.sh --steps tools/oolite-reference/steps/stations-lave.steps \
+#     --addons /home/opencode/oolite-probes/station-measure --out /tmp/oolite-stations-lave --timeout 300
+# The probe is a world script (station-measure.oxp/Config/script.js, world script
+# wegolite-station-measure 0.0.1). Normal Start docks the player at Lave. The script spawns each
+# station 100 km or more away and logs STATION, SUB and TUNNEL lines, launches the player, runs two
+# witchspace blockage trials per station (BLOCK lines, as quick task 261117-lka), then holds the
+# player 3 collision radii in front of each station's dock for 15 s and logs a POSE line, which is
+# the cue for the exterior picture. STATIONS-DONE ends the session.
+window 120
+sleep 10
+key Return
+sleep 3
+key Return
+waitlog 240 POSE key=coriolis-station
+sleep 4
+shot exterior-coriolis
+waitlog 120 POSE key=dodecahedron-station
+sleep 4
+shot exterior-dodecahedron
+waitlog 120 POSE key=icosahedron-station
+sleep 4
+shot exterior-icosahedron
+waitlog 120 STATIONS-DONE
+sleep 3

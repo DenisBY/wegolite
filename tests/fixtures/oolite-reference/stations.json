@@ -1,0 +1,208 @@
+{
+  "source": {
+    "oolite": "1.93.1-255",
+    "appimageSha256": "4ec9ab5fc6743538c95b97b590674f5d386dd07c16565aa1389dc40f15bd66a8",
+    "wrapperGitSha": "12b8ba07",
+    "measured": "2026-11-27",
+    "probe": "wegolite-station-measure 0.0.1 (outside the repository)",
+    "note": "Numbers only, parsed from Latest.log by a scratch script; every measured number is the string String(value) exactly as logged. The probe, scenario saves, logs and pictures stay outside the repository (CC BY-NC-SA Oolite output)."
+  },
+  "stations": {
+    "coriolis-station": {
+      "dataKey": "coriolis-station",
+      "name": "Coriolis Station",
+      "mass": "515483904",
+      "collisionRadius": "779.3702392578125",
+      "boundingBox": ["1000", "1000", "1034.2979736328125"],
+      "stationRoll": "0.08",
+      "dock": {
+        "dataKey": "oolite_coriolis_dock",
+        "position": ["0", "0", "500.256103515625"],
+        "boundingBox": ["103.41230010986328", "241.88800048828125", "250"]
+      },
+      "subEntities": [
+        {
+          "dataKey": "oolite_coriolis_faceplate",
+          "isDock": false,
+          "mass": "58255096",
+          "collisionRadius": "702.1246337890625",
+          "position": ["0", "0", "0"],
+          "boundingBox": ["1000", "1000", "41.368988037109375"]
+        },
+        {
+          "dataKey": "oolite_coriolis_tris",
+          "isDock": false,
+          "mass": "220998576",
+          "collisionRadius": "702.1246337890625",
+          "position": ["0", "0", "0"],
+          "boundingBox": ["1000", "1000", "995.91796875"]
+        },
+        {
+          "dataKey": "oolite_coriolis_dock",
+          "isDock": true,
+          "mass": "7579321",
+          "collisionRadius": "279.1141662597656",
+          "position": ["0", "0", "500.256103515625"],
+          "boundingBox": ["103.41230010986328", "241.88800048828125", "250"]
+        }
+      ],
+      "tunnel": {
+        "authored": false,
+        "corners": "4",
+        "startAngle": "45",
+        "aspectRatio": "2.67"
+      },
+      "blockage": {
+        "radius": "7179.720774514843",
+        "inner": "7178.720774514843",
+        "outer": "7180.720774514843",
+        "blockedInner": true,
+        "blockedOuter": false
+      }
+    },
+    "dodecahedron-station": {
+      "dataKey": "dodecahedron-station",
+      "name": "Dodecahedron Station",
+      "mass": "912357312",
+      "collisionRadius": "832.2093505859375",
+      "boundingBox": [
+        "1336.7979736328125",
+        "1406.010009765625",
+        "1172.117919921875"
+      ],
+      "stationRoll": "0.08",
+      "dock": {
+        "dataKey": "oolite_dodo_dock",
+        "position": ["0", "0", "560.3215942382812"],
+        "boundingBox": ["210.36199951171875", "81.02680206298828", "250"]
+      },
+      "subEntities": [
+        {
+          "dataKey": "oolite_dodo_faceplate",
+          "isDock": false,
+          "mass": "55919928",
+          "collisionRadius": "704.9227294921875",
+          "position": ["0", "0", "0"],
+          "boundingBox": [
+            "808.1500244140625",
+            "767.6800537109375",
+            "41.00799560546875"
+          ]
+        },
+        {
+          "dataKey": "oolite_dodo_dock",
+          "isDock": true,
+          "mass": "5986705",
+          "collisionRadius": "271.8877258300781",
+          "position": ["0", "0", "560.3215942382812"],
+          "boundingBox": ["210.36199951171875", "81.02680206298828", "250"]
+        }
+      ],
+      "tunnel": {
+        "authored": false,
+        "corners": "4",
+        "startAngle": "45",
+        "aspectRatio": "2.67"
+      },
+      "blockage": {
+        "radius": "9551.739694945629",
+        "inner": "9550.739694945629",
+        "outer": "9552.739694945629",
+        "blockedInner": true,
+        "blockedOuter": false
+      }
+    },
+    "icosahedron-station": {
+      "dataKey": "icosahedron-station",
+      "name": "Icosahedron Station",
+      "mass": "826313024",
+      "collisionRadius": "940.7927856445312",
+      "boundingBox": [
+        "1286.0059814453125",
+        "1286.0059814453125",
+        "1291.1300048828125"
+      ],
+      "stationRoll": "0.08",
+      "dock": {
+        "dataKey": "oolite_ico_dock",
+        "position": ["0", "0", "642.8881225585938"],
+        "boundingBox": [
+          "82.10759735107422",
+          "238.54600524902344",
+          "273.27801513671875"
+        ]
+      },
+      "subEntities": [
+        {
+          "dataKey": "oolite_ico_mainhull",
+          "isDock": false,
+          "mass": "731887360",
+          "collisionRadius": "749.82763671875",
+          "position": ["0", "0", "0"],
+          "boundingBox": [
+            "1286.0059814453125",
+            "1286.0059814453125",
+            "1278.7669677734375"
+          ]
+        },
+        {
+          "dataKey": "oolite_ico_dock",
+          "isDock": true,
+          "mass": "7815564",
+          "collisionRadius": "297.9046630859375",
+          "position": ["0", "0", "642.8881225585938"],
+          "boundingBox": [
+            "82.10759735107422",
+            "238.54600524902344",
+            "273.27801513671875"
+          ]
+        }
+      ],
+      "tunnel": {
+        "authored": false,
+        "corners": "4",
+        "startAngle": "45",
+        "aspectRatio": "2.67"
+      },
+      "blockage": {
+        "radius": "9090.176147908247",
+        "inner": "9089.176147908247",
+        "outer": "9091.176147908247",
+        "blockedInner": true,
+        "blockedOuter": false
+      }
+    }
+  },
+  "systems": [
+    {
+      "id": "g0-s129",
+      "name": "Zaonce",
+      "mainStation": {
+        "dataKey": "icosahedron-station",
+        "name": "Icosahedron Station",
+        "mass": "826313024",
+        "collisionRadius": "940.7927856445312",
+        "boundingBox": [
+          "1286.0059814453125",
+          "1286.0059814453125",
+          "1291.1300048828125"
+        ]
+      }
+    },
+    {
+      "id": "g0-s3",
+      "name": "Biarge",
+      "mainStation": {
+        "dataKey": "dodecahedron-station",
+        "name": "Dodecahedron Station",
+        "mass": "912357312",
+        "collisionRadius": "832.2093505859375",
+        "boundingBox": [
+          "1336.7979736328125",
+          "1406.010009765625",
+          "1172.117919921875"
+        ]
+      }
+    }
+  ]
+}

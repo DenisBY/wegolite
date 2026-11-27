@@ -1,0 +1,28 @@
+# Phase 22.1 plan 01 (Run B): the main station Oolite builds in Zaonce (g0-s129, planetinfo station
+# "icosahedron", Universe.m:1550), then the launch through its slot. Needs the throwaway probe OXP
+# (outside the repository, never committed), passed with
+#   tools/oolite-reference/run-remote.sh --steps tools/oolite-reference/steps/stations-zaonce.steps \
+#     --addons /home/opencode/oolite-probes/station-measure --out /tmp/oolite-stations-zaonce --timeout 300
+# The probe's scenarios.plist adds two scenarios after the four built-ins (standard, easy, tutorial,
+# strict): "Station measure (Zaonce)" and "Station measure (Biarge)".
+# Menu arithmetic (as census-anarchy.steps): the runner holds every key for 0.5 s, Oolite repeats a
+# held arrow key, so ONE press moves the selection TWO rows. The seven selectable rows (Return to
+# Menu, Normal, Easy, Tutorial, Strict, Zaonce, Biarge) wrap and start on Normal, so two Down presses
+# select Zaonce. The probe logs "MAIN system=Zaonce", so a wrong landing shows in Latest.log.
+# After STATIONS-DONE, F1 launches from the docked status screen. The shot right after the key is the
+# fly-out: Oolite's launch lasts about 2 s, the first second looks out of the dock slot (measured: a shot
+# 1.5 s after the key is a black tunnel, one 3 s after it already shows the planet).
+window 120
+sleep 10
+key Return
+sleep 3
+key Down
+sleep 4
+key Down
+sleep 4
+shot scenario-selected
+key Return
+waitlog 180 STATIONS-DONE
+sleep 3
+key F1
+shot launch-zaonce
