@@ -28,7 +28,7 @@
  * the kill lands on the twin's tick, the probe counts the twin's entities (the
  * pods, the plate and the wrecks included), the debris models and the particle
  * textures are requested only after the kill, the frame with the explosion and
- * the debris drawn stays within the 50-call budget, and the world hash 60 ticks
+ * the debris drawn stays within the draw-call budget, and the world hash 60 ticks
  * after the kill equals the twin's literal. The twin runs with no render layer,
  * so that equality proves the explosion and debris layers never touch the hash
  * (success criterion 3). It opts in by URL (`?test=1&traffic=1&clock=manual`,

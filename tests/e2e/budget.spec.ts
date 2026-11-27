@@ -17,7 +17,7 @@
  * counts loop frames (`probe.frames`), not rendered ones: a docked scene is
  * drawn when it is entered and then left alone (src/app/redraw-gate.ts), so its
  * `renders` counter stops while its counters stay those of the last draw. Every
- * comparison is inclusive: 50 calls and 250 000 triangles pass, 51 and 250 001
+ * comparison is inclusive: 80 calls and 250 000 triangles pass, 81 and 250 001
  * fail.
  *
  * The cold-start test also guards the on-demand promise of DATA-13 and D-07: it

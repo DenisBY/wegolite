@@ -17,7 +17,7 @@
  * the shared budgets of `helpers/budgets.ts` (plan 21-19): both triangle counts
  * must be within `TRIANGLE_BUDGET` (250,000; no authorisation covers a triangle
  * raise), and both call counts within `DRAW_CALL_BUDGET` (50, kept by D-05
- * after fix (1); the tripwire of the deferred plan 21-18). `docs/PERFORMANCE.md`
+ * after fix (1); raised to 80 by the owner on 2026-11-27, ROADMAP D14). `docs/PERFORMANCE.md`
  * "Full-anarchy draw-call spike" records them.
  *
  * Readiness is by key, never a fixed sleep: every catalogue key's GLB and the

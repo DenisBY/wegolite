@@ -21,7 +21,7 @@ import {
 
 describe("the shared browser budgets", () => {
   it("hold the recorded values", () => {
-    expect(DRAW_CALL_BUDGET).toBe(50);
+    expect(DRAW_CALL_BUDGET).toBe(80);
     expect(TRIANGLE_BUDGET).toBe(250_000);
     expect(FIRST_LOAD_BYTES_CEILING).toBe(9_437_184);
   });

@@ -13,15 +13,16 @@
  * (a count equal to the budget passes, one above it fails), and a count of zero
  * fails, so a blank frame or a scene never drawn cannot pass.
  *
- * `DRAW_CALL_BUDGET` stays 50 after the D-05 full-anarchy spike: fix (1)
+ * `DRAW_CALL_BUDGET` stayed 50 after the D-05 full-anarchy spike: fix (1)
  * (plan 21-17, per-hull primitive merge) put the anarchy at 39 calls and 42
- * after a kill, so no raise was needed; fix (2) (plan 21-18) is deferred, and no
- * raise is allowed while it is (21-CONTEXT.md D-05 note, PROJECT.md Key
- * Decisions).
+ * after a kill, with an upper bound of 49. The owner raised it to 80 on
+ * 2026-11-27 (ROADMAP D14), D-05's ceiling, without waiting for the deferred
+ * fix (2) (plan 21-18), so v2.4's later phases have headroom; the fight's p95
+ * stays at most 16.7 ms on the remote GPU (PROJECT.md Key Decisions).
  */
 
-/** Draw calls per rendered frame (STACK.md lines 442-443; D-05 kept it at 50). */
-export const DRAW_CALL_BUDGET = 50;
+/** Draw calls per rendered frame (STACK.md lines 442-443: 50; raised to 80 by D14, 2026-11-27). */
+export const DRAW_CALL_BUDGET = 80;
 
 /** Triangles per rendered frame (STACK.md lines 442-443, research target). */
 export const TRIANGLE_BUDGET = 250_000;

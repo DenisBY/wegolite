@@ -38,10 +38,10 @@
  * explosion, pods, plates and wrecks live (the player's lasers on the `?test=1`
  * cargo shooter, as `anarchy.spec.ts` does).
  *
- * The 21-18 tripwire (Phase 21 D-05): the budget stays 50 calls while plan 21-18
- * (variant-family instancing) is deferred. A read above 50 brings todo
- * 2026-11-26-npc-variant-family-instancing back; it never raises the budget,
- * lowers traffic or culls ships. Readiness is by key, never a fixed sleep; every
+ * The budget (Phase 21 D-05, raised by the owner from 50 to 80 calls on
+ * 2026-11-27, ROADMAP D14, without the deferred plan 21-18): a read above it
+ * brings todo 2026-11-26-npc-variant-family-instancing back; it never lowers
+ * traffic or culls ships. Readiness is by key, never a fixed sleep; every
  * wait timeout is a correctness bound and no millisecond is measured. The URL is
  * the traffic opt-in (`?test=1&traffic=1&clock=manual`); the hook taints the
  * session, so nothing is saved.
