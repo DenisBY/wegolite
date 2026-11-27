@@ -21,7 +21,6 @@
 
 import type * as THREE from "three";
 import { showBootFailure } from "./boot-failure.js";
-import { loadStationHulls } from "../content/ships-static-hulls.js";
 import type { System } from "../content/types.js";
 import { publishFailure } from "./probe.js";
 import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
@@ -484,7 +483,8 @@ export function createGameSession(options: GameSessionOptions): GameSession {
           ctx,
           galaxyById,
           destinationId,
-          loadStationHulls,
+          // The default hull loader; the model comes from the session's cache.
+          undefined,
           assets,
         );
       },
