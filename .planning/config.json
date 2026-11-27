@@ -125,7 +125,8 @@
     "gsd-verifier": [
       "global:codebase-memory",
       ".agents/skills/javascript-testing-expert",
-      ".agents/skills/principle-test-behavior-not-implementation"
+      ".agents/skills/principle-test-behavior-not-implementation",
+      ".agents/skills/playwright-best-practices"
     ],
     "gsd-nyquist-auditor": [
       "global:codebase-memory",
