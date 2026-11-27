@@ -89,6 +89,7 @@ import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveDockGeometry } from "../../helpers/dock-pose.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationRecordsOf } from "../../helpers/stations.js";
 import { saveAllowLists } from "../../helpers/save-builders.js";
 import {
   DEATH_RAM_POSE,
@@ -181,6 +182,7 @@ function continueSeed(): Twin {
   ctx.core.config = lave.config;
   ctx.core.dockGeometry = laveDockGeometry();
   ctx.core.stationDef = lave.stationDef;
+  ctx.core.stationRecords = stationRecordsOf();
   ctx.core.commodities = catalogue;
   ctx.core.profile = restored.profile;
   ctx.core.hyperspaceTargetId = save.targetSystem;

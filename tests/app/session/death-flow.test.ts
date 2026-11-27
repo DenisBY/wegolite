@@ -68,6 +68,7 @@ import { commoditiesFixture } from "../../helpers/commodities.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { listSrcFiles } from "../../guards/source-scan.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationRecordsOf } from "../../helpers/stations.js";
 import { saveAllowLists } from "../../helpers/save-builders.js";
 
 const lave = laveFixture();
@@ -189,6 +190,7 @@ function session(): Session {
   ctx.core.worldLifecycle = createWorldLifecycle({ traffic: false });
   ctx.core.state = initFlightState(layout);
   ctx.core.stationDef = stationDef;
+  ctx.core.stationRecords = stationRecordsOf();
   ctx.core.stationKey = "coriolis-station";
   ctx.core.commodities = catalogue;
   ctx.core.market = market;

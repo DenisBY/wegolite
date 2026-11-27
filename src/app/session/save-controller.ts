@@ -52,6 +52,7 @@ import type { WegoliteProbe } from "../probe.js";
 import { createCombatMessageTimes } from "./context.js";
 import type { SessionState } from "./context.js";
 import { toTuple } from "./probe-publisher.js";
+import { stationFor } from "./station-install.js";
 import { restoreWorldAnchor } from "./world-lifecycle.js";
 
 /** What the controller calls outside the session context. */
@@ -397,13 +398,13 @@ export function createSaveController(
       return;
     }
     const currentInput = ctx.runtime.input;
-    const currentStationDef = ctx.core.stationDef;
+    const stationRecords = ctx.core.stationRecords;
     const catalogue = ctx.core.commodities;
     if (
       ctx.save.loadingSave ||
       !ctx.save.saveScreenOpen ||
       currentInput === undefined ||
-      currentStationDef === undefined ||
+      stationRecords === undefined ||
       catalogue === undefined
     ) {
       return;
@@ -449,7 +450,14 @@ export function createSaveController(
       let nextSeed;
       let nextTarget: string | undefined;
       try {
-        savedLayout = deriveSystemLayout(savedSystem, currentStationDef);
+        // The saved system's own station (Phase 22.1, T-22.1-15): the live
+        // station is derived from the validated system id, never from the
+        // saved station key, which stays a label. `enterSystemById` below
+        // installs the same station, so the two layouts are equal.
+        savedLayout = deriveSystemLayout(
+          savedSystem,
+          stationFor(stationRecords, savedSystem).spec,
+        );
         restored = restoreFromSave(saved, savedLayout, profileFromSave);
         // One seed beside the market it generated: a later arrival chains to
         // the market the player is actually looking at.

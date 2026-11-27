@@ -40,6 +40,7 @@ import type { SystemLayout } from "../../sim/world/layout.js";
 import type { SceneManager } from "../scene-manager.js";
 import type { SessionFaults } from "../game-session.js";
 import type { SessionState } from "./context.js";
+import { stationFor } from "./station-install.js";
 
 /** The message the injected destination-build fault throws (WR-04). */
 export const DESTINATION_BUILD_FAULT_MESSAGE =
@@ -85,29 +86,42 @@ export function createHyperspaceController(
     closeChart,
   } = deps;
 
-  /** D-09: resolve and install a new system scene; never rebuild the dock port. */
+  /**
+   * D-09: resolve and install a new system scene. The station and its dock
+   * geometry follow the system (Phase 22.1, Pitfall P2; Oolite builds the main
+   * station of every system it sets up, Universe.m:1550): the destination's
+   * station is resolved with `stationFor` before anything moves and assigned in
+   * the same commit block as the system, scene and layout.
+   */
   function enterSystemById(id: string): SystemLayout {
-    const currentStationDef = ctx.core.stationDef;
-    if (currentStationDef === undefined) {
+    const records = ctx.core.stationRecords;
+    if (records === undefined) {
       throw new Error(
-        "Wegolite: cannot enter a system before the station loads.",
+        "Wegolite: cannot enter a system before the stations load.",
       );
     }
     const next = galaxyById.get(id);
     if (next === undefined) {
       throw new Error(`Wegolite: no system with id "${id}" in this galaxy.`);
     }
-    // Derive the destination layout before the scene manager switches. The
-    // scene manager derives the same layout from the same two arguments, so
-    // the two copies have equal content. A throw here leaves the scene
-    // manager, the scene and the session all on the origin.
-    const nextLayout = deriveSystemLayout(next, currentStationDef);
-    const nextScene = scenes.enterSystem(next, currentStationDef);
+    // Everything that can throw runs before the commit point: the station
+    // lookup (and its dock geometry), the destination layout, then the scene
+    // build. The scene manager derives the same layout from the same two
+    // arguments, so the two copies have equal content. A throw anywhere here
+    // leaves the scene manager, the scene, the station and the session on the
+    // origin.
+    const { spec, dockGeometry } = stationFor(records, next);
+    const nextLayout = deriveSystemLayout(next, spec);
+    const nextScene = scenes.enterSystem(next, spec);
     // Commit point: the scene manager has installed the destination. Nothing
-    // below can throw, so the session takes the system, scene and layout in
-    // the same step as the switch. The `??` fallback mirrors `performSwap`.
+    // below can throw, so the session takes the system, its station, the dock
+    // geometry, the scene and the layout in the same step as the switch. The
+    // `??` fallback mirrors `performSwap`.
     const assignedLayout = scenes.layout() ?? nextLayout;
     ctx.core.system = next;
+    ctx.core.stationDef = spec;
+    ctx.core.stationKey = spec.key;
+    ctx.core.dockGeometry = dockGeometry;
     ctx.core.scene = nextScene;
     ctx.core.layout = assignedLayout;
     // The new dust field has no camera history; a stale delta would smear it.

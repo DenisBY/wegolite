@@ -54,6 +54,7 @@ import {
   commodityUnits,
 } from "../../helpers/commodities.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationRecordsOf } from "../../helpers/stations.js";
 import { saveAllowLists, saveInputs } from "../../helpers/save-builders.js";
 
 const lave = laveFixture();
@@ -183,6 +184,7 @@ function harness(options: HarnessOptions = {}): Harness {
   ctx.core.worldLifecycle = createWorldLifecycle({ traffic: false });
   ctx.core.state = initFlightState(layout);
   ctx.core.stationDef = stationDef;
+  ctx.core.stationRecords = stationRecordsOf();
   ctx.core.stationKey = "coriolis-station";
   ctx.core.commodities = catalogue;
   ctx.core.commodityUnits = commodityUnits(catalogue);

@@ -22,9 +22,14 @@ import { readFileSync } from "node:fs";
 import { DockPortSchema } from "../../src/content/schemas/dock-port.js";
 import type { DockPort } from "../../src/content/schemas/dock-port.js";
 import type { CatalogEntry } from "../../src/content/schemas/ship.js";
-import { stationRecord, stationSpecFor } from "../../src/content/stations.js";
+import {
+  STATION_KINDS,
+  stationRecord,
+  stationSpecFor,
+} from "../../src/content/stations.js";
 import type { StationKind } from "../../src/content/stations.js";
 import type { StationSpec } from "../../src/content/types.js";
+import type { StationRecords } from "../../src/app/session/station-install.js";
 import { createDockGeometry } from "../../src/sim/dock/geometry.js";
 import type { DockGeometry } from "../../src/sim/dock/geometry.js";
 
@@ -80,4 +85,16 @@ export function dockGeometryOf(kind: StationKind): DockGeometry {
     geometries.set(kind, geometry);
   }
   return geometry;
+}
+
+/**
+ * The three kinds' specs and dock records as the session holds them
+ * (`ctx.core.stationRecords`), built from the memoised per-kind fixtures in
+ * Node, without the browser's glob loader.
+ */
+export function stationRecordsOf(): StationRecords {
+  return {
+    specs: new Map(STATION_KINDS.map((kind) => [kind, stationSpecOf(kind)])),
+    dockPorts: new Map(STATION_KINDS.map((kind) => [kind, dockPortOf(kind)])),
+  };
 }

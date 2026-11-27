@@ -87,6 +87,7 @@ import { liveEntityCount, spawnEntity } from "../../../src/sim/world/world.js";
 import { commoditiesFixture } from "../../helpers/commodities.js";
 import { laveDockGeometry } from "../../helpers/dock-pose.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationRecordsOf } from "../../helpers/stations.js";
 import { fullHullTable } from "../../helpers/hull-table.js";
 import { sessionSourceFiles } from "../../helpers/session-source.js";
 import { runTickScript } from "../../helpers/tick-script.js";
@@ -168,6 +169,7 @@ function session(
   ctx.core.config = lave.config;
   ctx.core.dockGeometry = laveDockGeometry();
   ctx.core.stationDef = lave.stationDef;
+  ctx.core.stationRecords = stationRecordsOf();
   ctx.core.commodities = catalogue;
   ctx.core.marketSeed = LAVE_SEED;
   ctx.core.market = generateMarket(lave.system, catalogue, LAVE_SEED);
