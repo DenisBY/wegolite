@@ -455,7 +455,15 @@ export function createSaveController(
         let hullsLoaded = true;
         try {
           await ensureStationHulls(ctx, savedSystem.station);
-        } catch {
+        } catch (error) {
+          // The same failures the hyperspace path logs in prefetchStationFor:
+          // a dropped chunk, a schema failure, a conflicting merge. The load
+          // is memoised, so only a page reload recovers (todo
+          // 2026-11-27-static-hull-load-retry); the copy says so.
+          console.error(
+            `Wegolite: the ${savedSystem.station} station hull data could not be loaded for the Load`,
+            error,
+          );
           hullsLoaded = false;
         }
         // G-8 again: the screen may have closed (or closed and reopened)
@@ -468,7 +476,7 @@ export function createSaveController(
           return;
         }
         if (!hullsLoaded) {
-          failLoad("Save could not be loaded");
+          failLoad("Station data could not be loaded — reload the page");
           return;
         }
       }

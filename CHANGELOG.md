@@ -63,6 +63,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   another part's texture, along the edges of their texture maps: each part in
   the shared texture atlas now has a mirrored border, so it looks as it does in
   Oolite out to several kilometres.
+- With NPC traffic on, a Load of a save at a Dodecahedron or Icosahedron system
+  whose station data fails to download no longer says "Save could not be
+  loaded", as if the save were damaged. The save screen now reads "Station data
+  could not be loaded — reload the page" and the cause is logged to the console.
 
 ## [0.8.2] - 2026-11-25
 

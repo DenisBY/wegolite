@@ -103,6 +103,7 @@ vi.mock(
 );
 
 afterEach(() => {
+  vi.restoreAllMocks();
   hullLoader.override = undefined;
   hullLoader.calls.length = 0;
 });
@@ -1477,9 +1478,11 @@ describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
       expect(h.ctx.core.hulls?.has("icosahedron-station")).toBe(false);
     });
 
-    it("a rejected artifact load fails the Load with the existing copy and leaves the Lave session as it was", async () => {
+    it("a rejected artifact load fails the Load with a reload hint, logs the cause, and leaves the Lave session as it was", async () => {
       const h = realHarness(false, true);
-      hullLoader.override = () => Promise.reject(new Error("artifact lost"));
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      const cause = new Error("artifact lost");
+      hullLoader.override = () => Promise.reject(cause);
       h.read.current = dockedSaveAt(
         systemNamed("Zaonce"),
         "icosahedron-station",
@@ -1494,7 +1497,16 @@ describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
 
       await h.controller.loadFromSave();
 
-      expect(h.ctx.save.saveScreenNotice).toBe("Save could not be loaded");
+      // The save is intact, so the copy names the station data and the one
+      // remedy (the memoised rejection lives for the page), and the cause is
+      // logged rather than dropped.
+      expect(h.ctx.save.saveScreenNotice).toBe(
+        "Station data could not be loaded — reload the page",
+      );
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining("icosahedron station hull data"),
+        cause,
+      );
       expect(h.entered).toEqual([]);
       expect(h.ctx.core.system).toBe(system);
       expect(h.ctx.core.stationDef).toBe(before.stationDef);
