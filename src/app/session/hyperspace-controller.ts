@@ -20,6 +20,7 @@
  * (`syncStatusOverlay`) is guarded, so a unit test passes recording doubles.
  */
 
+import { stationRecord } from "../../content/stations.js";
 import type { System } from "../../content/types.js";
 import { MESSAGE_DURATION_SECONDS } from "../../render/hud/messages.js";
 import type { MessageQueue } from "../../render/hud/messages.js";
@@ -149,14 +150,22 @@ export function createHyperspaceController(
         return "Insufficient fuel";
       case "blocked":
         // The blocker is named as Oolite's witch-blocked message names it
-        // (PlayerEntity.m lines 6550-6553): the Coriolis station, the two
-        // buoys (Phase 18, D-09) or an NPC ship. Every line fits
-        // MAX_MESSAGE_CHARS (60, owner decisions 2026-11-20): the HUD clamps a
-        // longer line with an ellipsis, which would cut the name. The beacon
-        // line is 55, the station line 54, the nav buoy line 53, the ship
-        // line 44. Oolite's own string, "Witchspace jump aborted (too
-        // close to [blockerName])." (descriptions.plist line 503), waits for
-        // the HUD word wrap (todo 2026-11-20-hud-message-word-wrap-like-oolite).
+        // (PlayerEntity.m lines 6550-6553): the system's own main station
+        // (Phase 22.1), the two buoys (Phase 18, D-09) or an NPC ship. Every
+        // line fits MAX_MESSAGE_CHARS (60, owner decisions 2026-11-20): the HUD
+        // clamps a longer line with an ellipsis, which would cut the name. The
+        // station lines are 54 (Coriolis), 58 (Dodecahedron) and 57
+        // (Icosahedron), fixed in STATION_RECORDS and proved by the HUD guard
+        // to equal the witch-blocked prefix plus the compiled station name; the
+        // beacon line is 55, the nav buoy line 53, the ship line 44. Oolite's
+        // own string, "Witchspace jump aborted (too close to [blockerName])."
+        // (descriptions.plist line 503), waits for the HUD word wrap (todo
+        // 2026-11-20-hud-message-word-wrap-like-oolite) and the wording review
+        // with the localisation work (FIDELITY.md, the witch-blocked row).
+        //
+        // `ctx.core.system` is the ORIGIN at refusal time: the countdown
+        // completes where the player is, in the system being left, never in
+        // the destination. An undefined blocker is the station, as before.
         switch (blocker) {
           case "ship":
             return "Witchspace jump aborted: too close to a ship";
@@ -166,7 +175,7 @@ export function createHyperspaceController(
             return "Witchspace jump aborted: too close to Witchpoint Beacon";
           case "station":
           case undefined:
-            return "Witchspace jump aborted: too close to Coriolis Station";
+            return stationRecord(ctx.core.system.station).witchBlockedLine;
         }
     }
   }

@@ -56,6 +56,20 @@ export interface StationRecord {
    * its byte cap) does not grow.
    */
   readonly hullsFile: string;
+  /**
+   * The HUD line a refused witchspace jump shows when this kind of station is
+   * the blocker (Oolite: `witch-blocked` with the ship's `name`,
+   * PlayerEntity.m:6551-6553): the fixed witch-blocked prefix plus the compiled
+   * display name (`extras.name`) of `shipKey`.
+   *
+   * The three names are typed here, the one place outside the compiled data,
+   * because the HUD message guard (`tests/guards/hud-message-length.test.ts`)
+   * forbids building the line at run time (a dynamic name of any length is the
+   * first consumer of the word wrap). The same guard proves each line equals
+   * the prefix plus the name compiled into `ships-client.json` and fits
+   * `MAX_MESSAGE_CHARS`, so a rename in the content build fails there.
+   */
+  readonly witchBlockedLine: string;
 }
 
 /** Every kind's record, frozen. */
@@ -66,18 +80,24 @@ export const STATION_RECORDS: Readonly<Record<StationKind, StationRecord>> =
       shipKey: "coriolis-station",
       dockPortFile: "dock-port.json",
       hullsFile: "ships-static-hulls.json",
+      witchBlockedLine:
+        "Witchspace jump aborted: too close to Coriolis Station",
     }),
     dodecahedron: Object.freeze({
       kind: "dodecahedron",
       shipKey: "dodecahedron-station",
       dockPortFile: "dock-port-dodecahedron.json",
       hullsFile: "ships-static-hulls-dodecahedron.json",
+      witchBlockedLine:
+        "Witchspace jump aborted: too close to Dodecahedron Station",
     }),
     icosahedron: Object.freeze({
       kind: "icosahedron",
       shipKey: "icosahedron-station",
       dockPortFile: "dock-port-icosahedron.json",
       hullsFile: "ships-static-hulls-icosahedron.json",
+      witchBlockedLine:
+        "Witchspace jump aborted: too close to Icosahedron Station",
     }),
   });
 

@@ -35,6 +35,7 @@ import {
   generateMarket,
   marketSeedForSystem,
 } from "../../../src/sim/economy/market.js";
+import type { StationKind } from "../../../src/content/stations.js";
 import type { InputContext } from "../../../src/input/actions.js";
 import type { KeyboardInputSource } from "../../../src/input/keyboard.js";
 import { ZERO_INTENT } from "../../../src/sim/flight/controller.js";
@@ -490,6 +491,66 @@ describe("refusalCopy and targetSystem", () => {
     expect(() => {
       controller.syncStatusOverlay();
     }).not.toThrow();
+  });
+});
+
+describe("refusalCopy names the origin system's station (Phase 22.1, WORLD-20, F7)", () => {
+  /** The three galaxy-0 systems that author one station kind each. */
+  const BY_KIND: readonly [StationKind, string, number][] = [
+    ["coriolis", "Lave", 54],
+    ["dodecahedron", "Biarge", 58],
+    ["icosahedron", "Zaonce", 57],
+  ];
+
+  function originNamed(name: string): System {
+    const found = galaxy.find((entry) => entry.name === name);
+    if (found === undefined) throw new Error(`no system named ${name}`);
+    return found;
+  }
+
+  it.each(BY_KIND)(
+    "a refusal with a station blocker at the %s system %s prints that station's line (%i characters)",
+    (kind, name, length) => {
+      const { ctx, controller } = harness();
+      ctx.core.system = originNamed(name);
+      const line = controller.refusalCopy("blocked", "station");
+      expect(line).toBe(
+        `Witchspace jump aborted: too close to ${stationSpecOf(kind).name}`,
+      );
+      expect(line).toHaveLength(length);
+      expect(line.length).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+    },
+  );
+
+  it.each(BY_KIND)(
+    "an undefined blocker at the %s system %s names the same station",
+    (_kind, name) => {
+      const { ctx, controller } = harness();
+      ctx.core.system = originNamed(name);
+      expect(controller.refusalCopy("blocked")).toBe(
+        controller.refusalCopy("blocked", "station"),
+      );
+    },
+  );
+
+  it("names the station of the system being left, never the target's", () => {
+    const { ctx, controller } = harness();
+    ctx.core.hyperspaceTargetId = originNamed("Zaonce").id;
+    expect(ctx.core.system.id).toBe(lave.system.id);
+    expect(controller.refusalCopy("blocked", "station")).toBe(
+      "Witchspace jump aborted: too close to Coriolis Station",
+    );
+  });
+
+  it("keeps the ship and buoy lines whatever the origin's station", () => {
+    const { ctx, controller } = harness();
+    ctx.core.system = originNamed("Zaonce");
+    expect(controller.refusalCopy("blocked", "ship")).toBe(
+      "Witchspace jump aborted: too close to a ship",
+    );
+    expect(controller.refusalCopy("blocked", "navBuoy")).toBe(
+      "Witchspace jump aborted: too close to Navigation Buoy",
+    );
   });
 });
 

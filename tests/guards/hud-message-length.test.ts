@@ -46,11 +46,15 @@ import {
   IDENT_LOCKED_TEMPLATE,
 } from "../../src/app/session/event-router.js";
 import { hintText } from "../../src/app/hints.js";
+import { STATION_KINDS, stationRecord } from "../../src/content/stations.js";
 import { createBindingMap } from "../../src/input/bindings.js";
 import { MAX_MESSAGE_CHARS } from "../../src/render/hud/format.js";
 import { HINT_IDS } from "../../src/settings/schema.js";
 
 const REPO_ROOT = process.cwd();
+
+/** The fixed start of every witch-blocked line; a station line ends in its name. */
+const WITCH_BLOCKED_PREFIX = "Witchspace jump aborted: too close to ";
 
 const WORD_WRAP_TODO =
   ".planning/todos/pending/2026-11-20-hud-message-word-wrap-like-oolite.md";
@@ -201,6 +205,37 @@ describe("HUD messages fit one message row (todo 2026-11-20-hud-message-word-wra
       literals.filter((text) => text.startsWith("Witchspace jump aborted")),
     ).not.toHaveLength(0);
     expect([...dynamic, ...overlong(literals)]).toEqual([]);
+  });
+
+  it("the three station witch-blocked lines equal the witch-blocked prefix plus the compiled station name and fit (Phase 22.1)", () => {
+    const entries = JSON.parse(
+      read("src/content/generated/ships-client.json"),
+    ) as { key: string; extras: { name?: unknown } }[];
+    const lines = STATION_KINDS.map((kind) => {
+      const record = stationRecord(kind);
+      const entry = entries.find(
+        (candidate) => candidate.key === record.shipKey,
+      );
+      return { kind, line: record.witchBlockedLine, name: entry?.extras.name };
+    });
+    // Each line is the prefix plus the name compiled for its ship key, so a
+    // typed name that drifts from the content build fails here, and the
+    // comment's counts (54, 58, 57) in refusalCopy are checked, not trusted.
+    expect(
+      lines.map(({ kind, line, name }) => [
+        kind,
+        line === WITCH_BLOCKED_PREFIX + String(name),
+      ]),
+    ).toEqual(STATION_KINDS.map((kind) => [kind, true]));
+    expect(lines.map(({ line }) => line.length)).toEqual([54, 58, 57]);
+    expect(overlong(lines.map(({ line }) => line))).toEqual([]);
+    // The refusal copy reads the line from the record, never builds it.
+    expect(
+      functionBody(
+        read("src/app/session/hyperspace-controller.ts"),
+        "refusalCopy",
+      ),
+    ).toContain("witchBlockedLine");
   });
 
   it("every fixed literal of the HUD message subscriber fits", () => {
