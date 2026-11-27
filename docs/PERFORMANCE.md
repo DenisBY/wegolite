@@ -165,6 +165,35 @@ The atlas gutter (code review TOOLS-WR-01, 2026-11-26, remote run at `8e21fef8`,
 
 The prefetch grew by 2 708 041 bytes, the growth of the atlas files: the mirrored gutters and the edge-filled free area compress less well than the constant fill did. The first-load models are byte-identical, so the cold start is unchanged within 2 bytes and both ceilings hold. Past mip level 5, an edge that faces free space still blends only with its own content; an edge that faces another region's gutter, or the opposite atlas edge, can blend with that neighbour over less than one screen pixel of a ship a few dozen pixels long.
 
+Phase 22.1 (plan 22.1-13, 2026-11-27, remote run at `614d0849`, browser-test bundle) gives each system its own main station. The Coriolis model and its textures stay on the first-load path; the Dodecahedron and the Icosahedron are requested lazily, and only when a session starts in or is about to enter a system of that kind (plan 22.1-11): `AssetCache.loadStation` loads the starting system's kind before its first scene, and the hyperspace countdown prefetches the destination's kind. A Lave cold start requests neither. `budget.spec.ts` asserts that no Dodecahedron or Icosahedron GLB or texture appears in the whole request log, the 30 settled in-flight frames included (plan 22.1-12). There is no background prefetch of every kind: the two models, about 6.5 MB each, would land inside the first-load window this section gates.
+
+| Measure (browser-test bundle, remote run, plan 22.1-13)               | Value                                                           |
+| --------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Lave cold start to the first in-flight frame, traffic off             | 8 914 450 bytes (8.50 MiB), 522 734 bytes below the ceiling     |
+| Lave cold start to the first in-flight frame, traffic on, no prefetch | 8 945 824 bytes (8.53 MiB), 491 360 bytes below the ceiling     |
+| Continue at Zaonce, reload to the first in-flight frame, traffic off  | 15 385 990 bytes (14.67 MiB), not gated, no ceiling applies     |
+| Continue at Zaonce minus the Lave cold start (the Icosahedron)        | 6 471 540 bytes, equal to the Icosahedron row of the next table |
+
+The Lave cold start grew by 12 588 bytes with traffic off and 12 630 with traffic on since the TOOLS-WR-01 gutter run above (8 901 862 and 8 933 194); that interval covers Phase 22 and Phase 22.1 together and the growth is not split between them. The ceiling is unchanged and holds. The Continue at Zaonce case is the one that grows: a save made in a Dodecahedron or Icosahedron system downloads that kind's model on top of the default Coriolis preload before its first scene (the Coriolis preload is part of every start, so the Zaonce figure is exactly the Lave start plus the Icosahedron). It is annotated by `tests/e2e/stations.spec.ts` (`continue-zaonce-first-load-bytes`) and not gated, because no ceiling is meant to apply to a start that needs a larger model. The spec installs a pass-through route so Chromium bypasses its HTTP cache: the figure is a cold load, not a warm one.
+
+| Station model, raw bytes as served (plan 22.1-10) | GLB     | Textures (count, bytes) | Total                      |
+| ------------------------------------------------- | ------- | ----------------------- | -------------------------- |
+| Coriolis (first load, unchanged)                  | 249 112 | 15, 5 176 262           | 5 425 374 bytes (5.17 MiB) |
+| Dodecahedron (lazy)                               | 321 044 | 11, 6 139 484           | 6 460 528 bytes (6.16 MiB) |
+| Icosahedron (lazy)                                | 513 876 | 11, 5 957 664           | 6 471 540 bytes (6.17 MiB) |
+
+Each new station is about 19 % above the Coriolis, slightly over the 4 to 6 MB the research expected (RESEARCH A4); the dominant files are the normal maps (the Dodecahedron faceplate 2.07 MB, the Icosahedron hull 1.56 MB). Plan 22.1-10 timed the whole Icosahedron set at 0.12 s sequentially from the remote test machine over the LAN (about 1 s at 50 Mbit/s and 5 s at 10 Mbit/s by arithmetic). The browser-side decode and GPU upload are not measured here, except that the Lave to Zaonce jump journey of `stations.spec.ts` found the Icosahedron already attached at the first probe in the arrival system (the countdown prefetch won; 4 loop frames passed before the spec's second read in this run), and a model that is not yet loaded when the scene is built draws a meshless station and attaches the model when it resolves (plan 22.1-11).
+
+The scene counts do not move for a Coriolis system and stay far inside the budget for the other two. On the GPU Chromium of the remote test machine (a manual read of `probe.calls` and `probe.triangles`, the dev server of this checkout, traffic off, 30 loop frames docked and 60 in flight after a launch; not a gated spec, because `budget.spec.ts` measures Lave and Diso only):
+
+| Scene                 | Docked calls | Docked triangles | In flight calls | In flight triangles |
+| --------------------- | ------------ | ---------------- | --------------- | ------------------- |
+| Lave (Coriolis)       | 13           | 41418            | 10              | 41012               |
+| Biarge (Dodecahedron) | 12           | 42104            | 10              | 41556               |
+| Zaonce (Icosahedron)  | 12           | 43890            | 10              | 42708               |
+
+Lave reads the recorded figures of the container table above exactly (13 and 41418 docked, 10 and 41012 in flight), so the manual read measures what the specs measure. The new stations draw one call fewer docked than the Coriolis and the same 10 calls in flight; they draw 1.7 % and 6.0 % more triangles docked and 1.3 % and 4.1 % more in flight, against the 80-call and 250 000-triangle budgets.
+
 The ceiling is the measured transfer rounded up to the next MiB, so it is a regression ceiling and not a load budget. The entry chunk was measured inside the container with `node:zlib` `gzipSync`.
 
 The entry chunk is over the STACK.md target of 250 KB gzip. That finding is recorded here and is not gated or fixed. It is outside QUAL-01's draw-call and triangle budget. About 700 KB of the raw chunk is the galaxy 0 data, which is imported eagerly; loading it like galaxies 1 to 7 would bring the chunk under the target but would not reduce what a player downloads before the first flight, so it was left as it is.

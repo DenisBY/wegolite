@@ -10,6 +10,7 @@ files:
 audit_acknowledged:
   milestone: v2.3
   at: 2026-11-24
+resolved: 2026-11-27
 ---
 
 ## Problem
@@ -30,3 +31,14 @@ port geometry, acceptance `STATION_RADIUS_M`), make them per-station, and measur
 Oolite container (masses and radii, as in 261117-jji). The NPC acceptance run is due (src/sim/world/**).
 The launch view (quick 261118-l26) reads the slot depth from `DockGeometry.port.depth` and the mouth from
 `layout.dockOffset`, so a per-station dock-port record feeds it without change.
+
+## Resolution
+
+Closed by Phase 22.1 (per-system main stations, plans 22.1-01 to 22.1-13, 2026-11-27). Every
+system builds the station Oolite gives it: the Coriolis, the Dodecahedron or the Icosahedron,
+each from its compiled record (model, mass, collision radius, dock port and hull), pinned to
+the numbers measured in the reference Oolite container. The `tunnel_*` premise above did not
+hold (the dock port is the dock subentity's bounding box); see the PROJECT.md row "Each
+system's main station is its own Oolite type". Deferred out of the phase by owner decision D-C
+of 2026-11-27, each with its own todo: `2026-11-27-station-flashers` and
+`2026-11-27-lighting-from-sun-colour`.
