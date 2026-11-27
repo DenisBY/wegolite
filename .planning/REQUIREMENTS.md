@@ -18,6 +18,7 @@ Requirements for milestone v2.4 Pirates and Police (Phases 21 onward). IDs and w
 - [x] **WORLD-08**: Each system is populated with traders, pirates (independents and packs), police and light bounty hunters at Oolite's rates for its government, economy, tech level and neighbours (`oolite-populator.js`), matching recorded oracle fixtures of Oolite's own script. *(Narrowed: scavengers, shuttles, medium and heavy hunters deferred.)*
 - [ ] **WORLD-19**: The system is repopulated every 20 s by Oolite's rates (witchpoint arrivals, station launches), deterministically and bounded by a populator ceiling and entity-cap rule set from measured data.
 - [ ] **WORLD-09**: NPC ships launch from the main station and leave the system (dock at the station, jump out at the witchpoint, land on the planet) through a simplified stand-in with one seam for a later faithful port; a departing ship never explodes, drops cargo or credits a kill. *(Recorded divergence from Oolite's station queue and NPC docking.)*
+- [ ] **WORLD-20**: Each system's main station is the type Oolite builds from its `planetinfo.plist` `station` key (Coriolis, Dodecahedron, Icosahedron), with the measured model, mass, collision radius, dock port and launch view of that type; every Coriolis system stays byte-identical. *(Added 2026-11-26, owner request; Phase 22.1.)*
 - [x] **QUAL-09**: A full anarchy population with combat stays within the draw-call budget; a render spike measures it before the populator ships, and any budget raise is an owner decision.
 
 ### NPC AI
@@ -54,7 +55,7 @@ Requirements for milestone v2.4 Pirates and Police (Phases 21 onward). IDs and w
 
 Deferred, tracked but not in this roadmap.
 
-- **CBT-09**: Player can arm, lock and fire missiles and hardened missiles, and NPCs launch missiles (todo `2026-11-25-missiles-and-ecm`)
+- **CBT-09**: Player can arm, lock and fire missiles and hardened missiles, and NPCs launch missiles (todo `2026-11-25-missiles-and-ecm`). *With CBT-10 and AI-06, the first work of the next milestone (owner, 2026-11-27).*
 - **CBT-10**: Player can fire an ECM that destroys standard missiles in range
 - **AI-06**: Missiles home on their target per Oolite's missile AI
 - **AI-10**: NPC escape capsules; **LAW-05**: scooping capsules for a reward
@@ -88,6 +89,7 @@ D1 bounty at the kill (Oolite); D2 minimal station responder; D3 simplified NPC 
 | DATA-18 | Phase 21 | Complete |
 | WORLD-08 | Phase 22 | Complete |
 | QUAL-09 | Phase 22 | Complete |
+| WORLD-20 | Phase 22.1 | Pending |
 | AI-02 | Phase 23 | Pending |
 | AI-03 | Phase 23 | Pending |
 | CBT-19 | Phase 23 | Pending |
@@ -112,10 +114,10 @@ D1 bounty at the kill (Oolite); D2 minimal station responder; D3 simplified NPC 
 Staged requirements are mapped to the phase that completes them and are not checked off earlier: QUAL-09 (render spike in Phase 21, browser proof on the real populator in Phase 22); CBT-11 (pod commodity and amount drawn from Phase 21, scooping completes it in Phase 24); AI-04 (pirate trees in Phase 23, loot collection and the met-demand break-off in Phase 24, light hunters complete it in Phase 25); AI-13 (reachability test and no-silent-idle guard built in Phase 23 and grown in Phases 24 and 25, completed in Phase 26 where the acceptance runs assert no faulted AI); QUAL-12 (a standing gate from Phase 21 on, completed in Phase 26); QUAL-13 (boxed real-Oolite census spike in Phase 22, completed in Phase 26). WORLD-09 is delivered whole in Phase 23; SAVE-11 completes in Phase 24, and LAW-08 in Phase 25 proves the live legal status and kill tally survive it.
 
 **Coverage:**
-- v2.4 requirements: 25 total
-- Mapped to phases: 25 (Phase 21: 3, Phase 22: 2, Phase 23: 5, Phase 24: 4, Phase 25: 7, Phase 26: 4)
+- v2.4 requirements: 26 total
+- Mapped to phases: 26 (Phase 21: 3, Phase 22: 2, Phase 22.1: 1, Phase 23: 5, Phase 24: 4, Phase 25: 7, Phase 26: 4)
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-11-25*
-*Last updated: 2026-11-25 after roadmap creation (traceability filled, Phases 21-26)*
+*Last updated: 2026-11-27 (WORLD-20 added for inserted Phase 22.1; owner answers of 2026-11-27)*

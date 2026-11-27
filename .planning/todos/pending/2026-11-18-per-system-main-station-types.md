@@ -3,6 +3,7 @@ created: 2026-11-18T14:00:00.000Z
 title: Use each system's main station type (Coriolis, Dodecahedron, Icosahedron)
 area: world
 severity: normal
+resolves_phase: 22.1
 files:
   - src/content/schemas/system.ts
   - src/sim/world/layout.ts

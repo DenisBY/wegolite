@@ -26,7 +26,7 @@
   - Audit: [.planning/milestones/v2.3-MILESTONE-AUDIT.md](milestones/v2.3-MILESTONE-AUDIT.md) (tech_debt: 16/16 requirements, no blockers)
   - Open at archive: the docked F-key bug from the Phase 19 UAT (major, undiagnosed) and the F6 toggle bug; review warnings of Phases 18 and 20; recorded Oolite divergences of Phases 18 and 19; all todos
 - 🚧 **v2.4 Pirates and Police** — Phases 21-26 (in progress; roadmap created 2026-11-25)
-  - Requirements: [.planning/REQUIREMENTS.md](REQUIREMENTS.md) (25 requirements: FOUND-20, DATA-17, DATA-18, WORLD-08, WORLD-09, WORLD-19, QUAL-09, AI-02 to AI-05, AI-12, AI-13, CBT-11, CBT-19, CBT-20, LAW-01 to LAW-04, LAW-06, LAW-08, SAVE-11, QUAL-12, QUAL-13; owner scope decisions D1-D13)
+  - Requirements: [.planning/REQUIREMENTS.md](REQUIREMENTS.md) (26 requirements: FOUND-20, DATA-17, DATA-18, WORLD-08, WORLD-09, WORLD-19, WORLD-20, QUAL-09, AI-02 to AI-05, AI-12, AI-13, CBT-11, CBT-19, CBT-20, LAW-01 to LAW-04, LAW-06, LAW-08, SAVE-11, QUAL-12, QUAL-13; owner scope decisions D1-D13, owner answers D14-D17 of 2026-11-27)
   - Research: [.planning/research/SUMMARY.md](research/SUMMARY.md) (with `STACK.md`, `FEATURES.md`, `ARCHITECTURE.md` and `PITFALLS.md` beside it)
   - Phase details: below
 
@@ -96,12 +96,13 @@ Total: 78 of 78 plans complete. Requirements 16/16. Phase directories now live i
 
 **Milestone goal:** Combat happens in ordinary play: the populator fills each system with traders, pirates and police by Oolite's rules, pirates attack on their own, and the player earns bounties, changes legal status and scoops cargo.
 
-**Scope rule:** the necessary technical minimum, by the owner's standing rule ("less, but better"), inside the owner's scope decisions D1-D13 of 2026-11-25 (REQUIREMENTS.md, "Scope decisions"). Six phases, the top of the 4-6 standard-granularity guide and one fewer than the research suggested (see "Changes from the research suggestion"). Each phase is one delivery boundary with its own risk: the catalogue with the one snapshot bump, the populator verified against Oolite's own script, the priority-AI port with traders and pirates, loot with the one save bump, the law, and a living system with the milestone acceptance. No phase exists for an internal-quality goal alone; the milestone close-out folds into Phase 26. Missiles and ECM, the escape pod and capsules, scavengers, shuttles, medium and heavy hunters, station defence ships, the faithful station queue, contraband penalties, dynamic player roles, the player's fuel injectors, hazards and audio stay in Future Requirements.
+**Scope rule:** the necessary technical minimum, by the owner's standing rule ("less, but better"), inside the owner's scope decisions D1-D13 of 2026-11-25 (REQUIREMENTS.md, "Scope decisions"). Six phases, the top of the 4-6 standard-granularity guide and one fewer than the research suggested (see "Changes from the research suggestion"); the owner inserted a seventh, Phase 22.1 (per-system main stations), on 2026-11-26. Each phase is one delivery boundary with its own risk: the catalogue with the one snapshot bump, the populator verified against Oolite's own script, the priority-AI port with traders and pirates, loot with the one save bump, the law, and a living system with the milestone acceptance. No phase exists for an internal-quality goal alone; the milestone close-out folds into Phase 26. Missiles and ECM, the escape pod and capsules, scavengers, shuttles, medium and heavy hunters, station defence ships, the faithful station queue, contraband penalties, dynamic player roles, the player's fuel injectors, hazards and audio stay in Future Requirements.
 
 **Phase numbering:** continues from v2.3 (Phases 15-20); there is no reset. Decimal phases (for example 23.1) are urgent insertions.
 
 - [x] **Phase 21: Roster, State Shape and Seams** - The NPC catalogue grows to the about 28 records the populator's roles resolve to, with aft weapons, fuel injection and their vendored models; every new hashed field of the milestone arrives in one snapshot v5 bump; the inert world stays byte-identical, and a render spike measures the draw calls of a full anarchy before any populator ships (completed 2026-11-26)
 - [x] **Phase 22: Initial Population** - Each system is populated with traders, pirates, police and light bounty hunters by Oolite's populator rules, matching recorded oracle fixtures of Oolite's own script, placed as whole groups and drawn within the draw-call budget; the ships are still inert (completed 2026-11-26)
+- [ ] **Phase 22.1: Per-system main stations** (INSERTED) - Each system's main station is the type Oolite gives it in `planetinfo.plist` (`station`: Coriolis, Dodecahedron or Icosahedron), with its own model, mass, collision radius, dock port and launch view, before Phase 23 traffic docks
 - [ ] **Phase 23: Priority AI, Traders and Pirates** - Oolite's priority AI, hand-ported as plain hashable data and matched against traces of the original JavaScript, flies traders, escorts and pirates in ordinary play: NPCs fire fore and aft lasers, use fuel injectors, launch from the station and leave by docking, jumping out or landing without dying
 - [ ] **Phase 24: Loot, Scooping and Jettison** - The player buys Fuel Scoops and scoops pods that carry a commodity, jettisons cargo to satisfy a pirate, pirates collect loot, and scooped pods are held until docking and saved in schema v6
 - [ ] **Phase 25: Police, Legal Status, Bounty and Rating** - Attacks seen by the law make the player an Offender or a Fugitive by Oolite's bit-flag rules; police, light bounty hunters and the main station respond; kills pay their bounty at the kill and build the combat rating; offenders are fined, fugitives are refused docking clearance, and standing survives save and load
@@ -112,7 +113,7 @@ Total: 78 of 78 plans complete. Requirements 16/16. Phase directories now live i
 | # | Decision | Recorded and consumed in |
 |---|----------|--------------------------|
 | D1 | The bounty is paid at the kill, as in Oolite; docking pays only fines | Phase 25 |
-| D2 | A minimal main-station responder: one hashed `World.station` record (alert level, offender marks, police launch through the D3 stand-in); no defence ships, no full `oolite-stationAI.js`, and the Coriolis stays a static, not a dynamic entity | Phase 21 (record shape), Phase 25 |
+| D2 | A minimal main-station responder: one hashed `World.station` record (alert level, offender marks, police launch through the D3 stand-in); no defence ships, no full `oolite-stationAI.js`, and the main station stays a static, not a dynamic entity. *Amended 2026-11-26 (owner, Phase 22.1): the main station is the system's own type (Coriolis, Dodecahedron or Icosahedron), still static* | Phase 21 (record shape), Phase 22.1 (station type), Phase 25 |
 | D3 | A simplified NPC departure and station-launch stand-in, with one seam for a later faithful port | Phase 23 |
 | D4 | Repopulation is in | Phase 26 |
 | D5 | The catalogue grows to about 28 records, aft weapons included | Phase 21 (data), Phase 23 (aft fire) |
@@ -124,6 +125,10 @@ Total: 78 of 78 plans complete. Requirements 16/16. Phase directories now live i
 | D11 | Symmetric kill credit, settled in the first law plan | Phase 25 |
 | D12 | The frozen 20-seed run stays manual; a new traffic acceptance run lives in its own file | every phase (standing gate), Phase 26 |
 | D13 | NPC fuel injectors are ported; the player's are not | Phase 21 (data, field), Phase 23 |
+| D14 | (2026-11-27) The draw-call budget may be raised without waiting for the deferred 21-18 instancing, to at most about 80 calls with the fight's p95 at most 16.7 ms on the remote GPU (D-05's ceiling); lowering traffic is still never the fix | Quick task (the constant), Phases 23 to 26 (re-measures) |
+| D15 | (2026-11-27) The Galactic Hyperdrive and the Advanced Navigational Array stay on sale at F3 although they do nothing yet: nobody plays the alpha, and keeping them saves re-adding them; a FIDELITY.md row and a tripwire record it | Quick task (todo `2026-11-27-inert-galactic-equipment-fidelity`) |
+| D16 | (2026-11-27) Missiles and ECM (CBT-09, CBT-10, AI-06) are the first work of the next milestone (v2.5) | Next milestone |
+| D17 | (2026-11-27) No break-pattern rings are added for docking or the witchspace exit: the launch keeps the fly-out view from the slot (E-113), and Oolite's pattern is the slot's polygon (`tunnel_corners`, rectangles by default), not a ring | none (recorded) |
 
 Defaults taken from the research without a separate question (each a recorded cut or FIDELITY.md row where it differs from Oolite): every NPC spawns with zero missiles behind a tripwire guard; NPC `has_escape_pod` is false; scavengers and shuttles are removed from the populator table; sun-skim conditions are false; equal-priority populator entries run in the script's insertion order; comms text is expanded in the UI only, never in the sim.
 
@@ -160,7 +165,8 @@ The phases run in order, one at a time. Each consumes the one before it, and the
 |-------|------------|----------------|------------------|
 | 21. Roster, State Shape and Seams | Phase 20 (shipped in v2.3) | none | Everything else in the milestone |
 | 22. Initial Population | 21 | none | 23 (the AI runs on real populated ships) |
-| 23. Priority AI, Traders and Pirates | 21, 22 | none | 24 (pirates that demand and collect), 25 (the engine and the launch stand-in), 26 |
+| 22.1 Per-system main stations | 22 | none | 23 (traffic docks at and launches from the system's own station; the sim and content half at least) |
+| 23. Priority AI, Traders and Pirates | 21, 22, 22.1 | none | 24 (pirates that demand and collect), 25 (the engine and the launch stand-in), 26 |
 | 24. Loot, Scooping and Jettison | 21, 23 | none | 25 (save v6, `CollectSalvage` for the hunters), 26 |
 | 25. Police, Legal Status, Bounty and Rating | 21, 23, 24 | none | 26 (the police half of the acceptance; every role has its AI before repopulation spawns it) |
 | 26. Repopulation and Milestone Acceptance | 21 to 25 | none | The milestone close |
@@ -326,10 +332,40 @@ Plans:
 - QUAL-12 standing gate: the frozen 20-seed run is 21 of 21 on the remote machine after this plan
 - QUAL-12 standing gate: the frozen 20-seed run is 21 of 21 on the remote machine after this plan; the inert populator and its goldens are untouched
 
+### Phase 22.1: Per-system main stations (INSERTED)
+
+**Goal:** Each system's main station is built as Oolite builds it from the system's `planetinfo.plist` `station` key (`Universe.m:1550`, default `coriolis`): 1,824 systems keep the Coriolis, 167 get the Dodecahedron and 57 the Icosahedron, each with its own model, mass, collision radius, dock port (`tunnel_*`) and launch view, measured against the reference Oolite container; every Coriolis-only constant becomes per-station, and the station stays the static D2 entity
+**Depends on:** Phase 22
+**Parallel track**: none
+**Requirements**: WORLD-20 (source todo `2026-11-18-per-system-main-station-types.md`, owner request 2026-11-26)
+**First plan**: the measurements: the Dodecahedron and Icosahedron masses, collision radii, dock-port geometry (`tunnel_corners`, `tunnel_start_angle`, `tunnel_aspect_ratio`) and witchspace blockage read from the reference Oolite container (`tools/oolite-reference/run-remote.sh`, as quick task 261117-jji did for the Coriolis) and the shipdata entries, committed as fixtures before any code
+**Split**: the phase lands in two halves. (a) The sim and content seam, which must land before Phase 23: the compiled per-station record (model key, mass, radius, dock port), `layout.ts` and `statics.ts` reading it, the dock corridor, collisions, aegis and the witchspace blockage per station. (b) The presentation, which may trail Phase 23: the vendored models and textures with provenance, the render loader in place of `loadCoriolis()`, the launch fly-out view through each slot shape, and the UI text.
+**Success Criteria** (what must be TRUE):
+  1. Every Coriolis system is byte-identical: no twin hash, debris golden, census golden or acceptance file moves, and the frozen `tests/acceptance` files (`STATION_RADIUS_M` included) are untouched; the frozen 20-seed run (Lave, a Coriolis) stays 21 of 21.
+  2. A Dodecahedron or Icosahedron system builds its own station from the compiled record: model, mass, collision radius and dock port equal the measured Oolite values, and docking (manual and the docking computer), the dock corridor, collisions with ships, the aegis and the witchspace mass blockage use that station's values. The 2026-11-07 "non-blocking for lack of mass" decision is superseded by the measured mass.
+  3. The player can launch from and dock at each of the three station types in the browser, with the fly-out view leaving through that station's slot shape, the station's model drawn, and the docked and launch UI naming the station type as Oolite does, not "Coriolis".
+  4. Every place that assumed Coriolis constants reads the per-station record, and a guard fails on a new Coriolis-only constant outside the station record and the frozen acceptance files.
+
+**Scope note**: the station stays static (D2): no station AI, no defence ships, no rotation change beyond each record's own spin. Rock hermits stay out (DEATH-04, AI-09, WORLD-12). Zaonce (Lave's neighbour, in `hyperspace.spec` and `routes.json`) becomes an Icosahedron; specs that fly there must follow.
+**Implied work** (found by the 2026-11-26 audit; no requirement text changed):
+  - Station flashers (`flasher` subentities, 14 on each station type in Oolite), absent today for every station.
+  - The hard-coded "Coriolis" strings and art in the UI and `index.html`.
+  - Lighting from the sun's colour: ships and the station are lit pure white today and the dust has a fixed colour.
+  - Whether the station becomes a collider for NPC ships (E-135), and `market_monitored` for the new types (LAW-07 relies on it).
+  - The first-load headroom (about 535 KB below the 9 MiB ceiling): the two new station models must load lazily or fit.
+
+**Standing gate**: QUAL-12 (the frozen 20-seed run after every plan touching `src/sim/world/**`)
+**Decisions to settle**: whether the new station masses come from the compiled models (as the Coriolis since Phase 10) or from the container reading when they differ; how the fly-out view adapts to a six-sided slot
+**Todos**: `2026-11-18-per-system-main-station-types.md`
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 22.1 to break down)
+
 ### Phase 23: Priority AI, Traders and Pirates
 
 **Goal**: Traffic comes alive in ordinary play: Oolite's priority AI, hand-ported to TypeScript as plain hashable data and matched against traces of the original JavaScript, flies traders, escorts and pirates; ships fire fore and aft lasers at the player and at each other, use fuel injectors as Oolite's AIs do, launch from the main station, and leave by docking, jumping out or landing without dying
-**Depends on**: Phase 21 (the AI state shape, the seams and the aft weapons), Phase 22 (real populated ships to run on)
+**Depends on**: Phase 21 (the AI state shape, the seams and the aft weapons), Phase 22 (real populated ships to run on), Phase 22.1 (the sim half: traffic docks at and launches from the system's own station)
 **Parallel track**: none
 **Requirements**: AI-02, AI-03, CBT-19, CBT-20, WORLD-09
 **Staged**: AI-04 (pirates pick victims, attack, send their cargo demand and break off when losing here; loot collection and the break-off on a met demand come in Phase 24, and the light hunters in Phase 25, where it is mapped). AI-13 (the reachability test and the no-silent-idle guard are built here for the trader, escort and pirate trees; mapped to Phase 26, where the acceptance runs assert no faulted AI)
@@ -348,12 +384,14 @@ Plans:
   - Escort release when a leader dies (`escortCheckMother`, noted at Phase 17), now that escorts spawn.
   - The decision-source guard and its Key Decisions row are superseded in the commit that lets AIs fire in ordinary play.
   - The HUD message line (one FIFO, 4 s a message) meets comms traffic; prioritise or cap it if the scenarios show flooding (M9).
+  - Added by the 2026-11-26 audit: a "traffic on, AI off" test flag, so the nine browser specs and the Node twins built on inert ships keep passing once AI runs (build beside, switch on in one plan at the end, as Phase 22 did); a measured per-tick cost for about 100 AI ships and for the all-pairs collision chain; the explosion-near-station decisions E-147 and E-150; landing on the planet without planet collisions; engine exhaust plumes (Oolite draws them for the Cobra and 24 other hulls, Wegolite for none) measured against the draw-call budget.
+  - Criterion 2's "ships launch from the main station" cannot be seen in ordinary play in this phase (launches come with the police in Phase 25 and repopulation in Phase 26): prove it with a Vitest scenario through the stand-in, and say so when the phase is planned.
 
 **Standing gate**: QUAL-12
 **Research flag**: High; needs phase research. The condition-by-condition port with draw-order checks, the harness stub growth per role, `reconsiderNow` and wake semantics (strict-greater, in seconds), synchronous against queued reactions, scan order and the 32-ship cap; fuel injection (in scope by D13 after the research recommended the cut) and the departure and launch stand-in (D3).
 **Pitfalls to address**: C3 (closure state does not fit `params`), C4 (draw order and short-circuit order), C5 (strict-greater timing), C10 (silent idle fallbacks), C11 (removal paths), M1 (groups, leaders and escorts), M2 (scan order and the 32-ship cap), M3 (comms change behaviour), M4 (the player's role, static by D8), M5 (per-tick cost with tens of ships), M9 (the HUD message FIFO), M10 (behaviour that never ends)
-**Decisions to settle**: the stand-in's approach and retire distances and where station launches and planet departures place ships; the `shipTargetLost` narrowing; which requested behaviours are recorded cuts
-**Todos**: `2026-11-18-narrow-kill-time-ship-target-lost.md` (tripwire `on-event-handlers`); `2026-11-25-missiles-and-ecm.md` (the guard named in CBT-19); candidate: `2026-11-20-hud-message-word-wrap-like-oolite.md` (comms lines longer than 60 characters)
+**Decisions to settle**: the stand-in's approach and retire distances and where station launches and planet departures place ships; the `shipTargetLost` narrowing; which requested behaviours are recorded cuts. Before the phase pins its goldens: the pod and plate lifetime rule and whether `MAX_ENTITIES` widens (the census peak is 134 of 152, and pods and plates never expire); whether the NPC scoop state and the player's "marked for fines" flag need fields (the snapshot stays v5 unless the owner approves an amendment; the save bump is Phase 24's)
+**Todos**: `2026-11-18-narrow-kill-time-ship-target-lost.md` (tripwire `on-event-handlers`); `2026-11-25-missiles-and-ecm.md` (the guard named in CBT-19); `2026-11-17-skip-shiphit-for-a-doomed-target.md` and `2026-11-19-player-ident-lock-in-target-targets-self.md` (both `resolves_phase: 23`); candidate: `2026-11-20-hud-message-word-wrap-like-oolite.md` (comms lines longer than 60 characters)
 **Plans**: TBD
 
 ### Phase 24: Loot, Scooping and Jettison
@@ -379,8 +417,8 @@ Plans:
 **Standing gate**: QUAL-12
 **Research flag**: Medium; needs phase research. The tractor force constants, the `canScoop` geometry (the player's underside rule), hold capacity in pods, jettison (in scope by D10 after the research recommended it out) and the held-pod model (D7).
 **Pitfalls to address**: M6 (scooping is a two-stage tractor process in the collision chain), m6 (one equipment key for cargo and fuel scooping), C12 (pods that never expire)
-**Decisions to settle**: the pod lifetime rule; what the manifest shows for held pods in flight; the jettison key
-**Todos**: `2026-11-24-debris-inherits-ship-velocity.md` (if Phase 21 did not take it, decide here: it changes where pods drift); `2026-11-25-cargo-legality-penalties.md` (stays deferred; scooped contraband is legal until it lands)
+**Decisions to settle**: the pod lifetime rule, for alloy plates as well as pods (unless Phase 23 settled it); that pods and plates block a witchspace jump as in Oolite (D-08); scooping with a damaged scoop; what the manifest shows for held pods in flight; the jettison key; a draw-call re-measure with pods on the scanner and in view
+**Todos**: `2026-11-25-cargo-legality-penalties.md` (stays deferred; scooped contraband is legal until it lands)
 **Plans**: TBD
 **UI hint**: yes
 
@@ -407,7 +445,7 @@ Plans:
 **Standing gate**: QUAL-12
 **Research flag**: Medium; needs phase research. The legal flows and the station responder, the scope of the docking check (manual docking is not refused), and the D11 credit cases.
 **Pitfalls to address**: C6 (the damage path's AI-visible side effects), C7 (legal status is a bit-flag score kept mostly in AI scripts), C8 (kill credit, bounty and tally are the first consumers of three tripwires), M4 (the player's role history), M9 (the HUD message FIFO), m1 (units and the reward formula), m2 (rating thresholds and display), m3 (halving only at a jump), m5 (fines and `markedForFines` are a separate feature)
-**Decisions to settle**: how much of `launchPolice` the station responder takes (D2's scope); the fine's rounding and the partial payment when credits are short; message wording where Oolite's text depends on the build
+**Decisions to settle**: how much of `launchPolice` the station responder takes (D2's scope); the fine's rounding and the partial payment when credits are short; message wording where Oolite's text depends on the build; whether LAW-07 (contraband penalties) joins, being cheap once `markAsOffender` exists; the autopilot disengage on a damaged docking computer (the Phase 19 note); a draw-call re-measure with police in the fight
 **Todos**: `2026-11-18-mutual-kill-credit-symmetry.md` (first plan; tripwire `kill-credit-consumers`)
 **Plans**: TBD
 **UI hint**: yes
@@ -433,18 +471,19 @@ Plans:
 **Standing gate**: QUAL-12, completed here (criterion 3).
 **Research flag**: Low; standard patterns, except the Oolite comparison design (research PITFALLS.md, "How comparing against headless Oolite can mislead": hash the reference JavaScript first, several runs per scenario with thresholds written first, game-clock rather than wall-clock logs).
 **Pitfalls to address**: C12 (the cap and the collapse of traffic), M5 (per-tick cost with up to about 110 ships), M8 (the acceptance sentence assumes engine state), M10 (detectors and behaviour that never ends), the headless-Oolite comparison traps, m7
-**Decisions to settle**: the populator ceiling and the entity-cap rule; the traffic scenario's thresholds; whether the traffic run, which plays with collisions on as ordinary play does, closes the collisions-on todo or a separate collisions-on variant of the frozen run is still wanted (owner)
+**Decisions to settle**: the populator ceiling and the entity-cap rule (repopulation ports `systemWillRepopulate`, with recorded fixtures, and the pirates that launch from the planet); the Oolite comparison's sample size (about 20 samples a system) and its exclusion of the cut ship classes, counting light hunters by their group leader's role (Oolite's medium and heavy hunter packs carry `hunter` wingmen that Wegolite cuts with the packs); the traffic scenario's thresholds; whether the traffic run, which plays with collisions on as ordinary play does, closes the collisions-on todo or a separate collisions-on variant of the frozen run is still wanted (owner)
 **Todos**: `2026-11-20-acceptance-run-with-collisions-on.md` (owner question above); `2026-11-14-measure-oolite-reference-in-docker.md` (the reference container); `2026-11-16-ci-e2e-timeout-margins.md` (the 60 % rule for the new specs); `2026-11-16-phase-14-review-followups.md` (IN-05 still needs the owner's trailer); candidate: `2026-11-20-collision-chain-prefilter-all-pairs.md` (if the soak's per-tick cost needs it)
 **Plans**: TBD
 
 ### Coverage
 
-25 of 25 v2.4 requirements are mapped, each to exactly one phase (the phase that completes it). The traceability table is in `.planning/REQUIREMENTS.md`.
+26 of 26 v2.4 requirements are mapped, each to exactly one phase (the phase that completes it). The traceability table is in `.planning/REQUIREMENTS.md`.
 
 | Phase | Count | Requirements |
 |-------|-------|--------------|
 | 21 | 3 | FOUND-20, DATA-17, DATA-18 |
 | 22 | 2 | WORLD-08, QUAL-09 |
+| 22.1 | 1 | WORLD-20 |
 | 23 | 5 | AI-02, AI-03, CBT-19, CBT-20, WORLD-09 |
 | 24 | 4 | CBT-11, LAW-06, AI-12, SAVE-11 |
 | 25 | 7 | AI-05, AI-04, LAW-01, LAW-02, LAW-03, LAW-04, LAW-08 |
@@ -460,7 +499,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 
 ## Progress
 
-**Execution order:** v2.4: 21, 22, 23, 24, 25, 26, in order.
+**Execution order:** v2.4: 21, 22, 22.1, 23, 24, 25, 26, in order.
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -479,6 +518,7 @@ Pending todos (41 in `.planning/todos/pending` on 2026-11-25) can run as quick t
 | 20. Player Death and Game Over | v2.3 | 13/13 | Complete    | 2026-11-24 |
 | 21. Roster, State Shape and Seams | v2.4 | 19/19 | Complete    | 2026-11-26 |
 | 22. Initial Population | v2.4 | 16/16 | Complete    | 2026-11-26 |
+| 22.1 Per-system main stations | v2.4 | 0/TBD | Not started | - |
 | 23. Priority AI, Traders and Pirates | v2.4 | 0/TBD | Not started | - |
 | 24. Loot, Scooping and Jettison | v2.4 | 0/TBD | Not started | - |
 | 25. Police, Legal Status, Bounty and Rating | v2.4 | 0/TBD | Not started | - |

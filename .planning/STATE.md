@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v2.4
 milestone_name: Pirates and Police
-current_phase: 23
-current_phase_name: Priority AI, Traders and Pirates
+current_phase: "22.1"
+current_phase_name: Per-system main stations
 status: planning
-stopped_at: Phase 22 complete, ready to plan Phase 23
-last_updated: "2026-11-26T20:49:02.265Z"
-last_activity: 2026-11-26
-last_activity_desc: Phase 22 complete, transitioned to Phase 23
-state_head: bc005d488426a447d1e25af605c213849d408c63
+stopped_at: Phase 22.1 defined, ready to plan
+last_updated: "2026-11-26T21:10:43.627Z"
+last_activity: 2026-11-27
+last_activity_desc: Phase 22.1 inserted and defined (WORLD-20), owner answers D14-D17 recorded
+state_head: c687f27fb4befd35860a060ea6c858e3a9434ee8
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 2
   total_plans: 35
   completed_plans: 35
-  percent: 33
+  percent: 29
 ---
 
 # Project State
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-11-25)
 
 ## Current Position
 
-Phase: 23 — Priority AI, Traders and Pirates
+Phase: 22.1 — Per-system main stations (INSERTED)
 Plan: Not started
 Status: Ready to plan
 Last activity: 2026-11-26 — Phase 22 complete, transitioned to Phase 23
@@ -746,6 +746,10 @@ Refreshed from `.planning/todos/pending/` at v2.3 roadmap creation (2026-11-16).
 | 70 | Record the market [Y/N] trade confirmation as a divergence (FIDELITY E-193) | 2026-11-25 | 8f9e81a5 | — |
 | 261125-gmc | Digit aliases 2 and 6 open Save/Load and the chart, as F2 and F6 (Oolite keyconfig2) | 2026-11-25 | 5687c784 | .planning/quick/261125-gmc-digit-aliases-2-and-6-for-save-load-and- |
 | 261125-oyp | Harden GitHub Actions workflows: persist-credentials false, Pages permissions scoped to deploy job, SHA-pin all actions | 2026-11-25 | 1f64ef8a | [261125-oyp-harden-github-actions-workflows-persist-](./quick/261125-oyp-harden-github-actions-workflows-persist-/) |
+
+### Roadmap Evolution
+
+- Phase 22.1 inserted after Phase 22: Per-system main stations: build each system's main station from its planetinfo station key (Coriolis, Dodecahedron, Icosahedron) as Oolite does, before Phase 23 NPC traffic docks (todo 2026-11-18-per-system-main-station-types.md; owner request 2026-11-26) (URGENT)
 
 ## Deferred Items
 
