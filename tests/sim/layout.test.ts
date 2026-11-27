@@ -25,6 +25,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import type { StationKind } from "../../src/content/stations.js";
 import type { System } from "../../src/content/types.js";
 import {
   length,
@@ -37,6 +38,7 @@ import {
 import type { Vec3 } from "../../src/sim/math.js";
 import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "../helpers/lave.js";
+import { clientCatalogue, stationSpecOf } from "../helpers/stations.js";
 
 function expectVecClose(
   actual: Vec3,
@@ -229,5 +231,84 @@ describe("Lave system layout", () => {
     for (const value of numbers) {
       expect(Number.isFinite(value)).toBe(true);
     }
+  });
+});
+
+/** One real system of each station kind (Lave, Biarge, Zaonce). */
+const KIND_SYSTEMS: readonly (readonly [StationKind, string])[] = [
+  ["coriolis", "g0-s7"],
+  ["dodecahedron", "g0-s3"],
+  ["icosahedron", "g0-s129"],
+];
+
+describe("the per-kind station layout (Phase 22.1, WORLD-20)", () => {
+  const galaxy = JSON.parse(
+    readFileSync(
+      new URL("../../src/content/generated/systems/g0.json", import.meta.url),
+      "utf8",
+    ),
+  ) as System[];
+  function systemOf(id: string): System {
+    const system = galaxy.find((candidate) => candidate.id === id);
+    if (system === undefined) throw new Error(`no system ${id}`);
+    return system;
+  }
+
+  it.each(KIND_SYSTEMS)(
+    "builds the %s station of %s from its compiled record",
+    (kind, id) => {
+      const system = systemOf(id);
+      expect(system.station).toBe(kind);
+      const entry = clientCatalogue().find(
+        (candidate) => candidate.key === `${kind}-station`,
+      );
+      const dock = entry?.shipDef.subentities.find((sub) => sub.isDock);
+      if (entry === undefined || dock?.position === undefined) {
+        throw new Error(`no compiled ${kind} station with a dock`);
+      }
+
+      const layout = deriveSystemLayout(system, stationSpecOf(kind));
+
+      expect(layout.station.radius).toBe(entry.collisionRadius);
+      expect(layout.dockOffset).toBe(Math.abs(dock.position[2]));
+      expect(layout.stationRollRadPerSec).toBe((0.08 * Math.PI) / 2);
+      expect(layout.stationKind).toBe(kind);
+      expect(layout.stationKey).toBe(`${kind}-station`);
+      expect(layout.stationMass).toBe(entry.mass);
+    },
+  );
+
+  it("pins the compiled numbers of the three stations", () => {
+    const radii = KIND_SYSTEMS.map(([kind, id]) => {
+      const layout = deriveSystemLayout(systemOf(id), stationSpecOf(kind));
+      return [kind, layout.station.radius, layout.dockOffset];
+    });
+    expect(radii).toEqual([
+      ["coriolis", 779.3702392578125, 500.2561],
+      ["dodecahedron", 832.2093505859375, 560.3216],
+      ["icosahedron", 940.79278564453125, 642.8881],
+    ]);
+  });
+
+  it.each(KIND_SYSTEMS)(
+    "puts the %s station of %s where the Coriolis would stand: the kind does not move the station",
+    (kind, id) => {
+      const system = systemOf(id);
+      const own = deriveSystemLayout(system, stationSpecOf(kind));
+      const asCoriolis = deriveSystemLayout(
+        { ...system, station: "coriolis" },
+        stationSpecOf("coriolis"),
+      );
+      expect(own.station.position).toEqual(asCoriolis.station.position);
+      expect(own.stationToPlanet).toEqual(asCoriolis.stationToPlanet);
+      expect(own.navBuoy).toEqual(asCoriolis.navBuoy);
+    },
+  );
+
+  it("keeps the Lave fixture layout on the Coriolis doubles it had before the spec", () => {
+    const { layout } = laveFixture();
+    expect(layout.station.radius).toBe(779.3702392578125);
+    expect(layout.dockOffset).toBe(500.2561);
+    expect(layout.stationRollRadPerSec).toBe((0.08 * Math.PI) / 2);
   });
 });

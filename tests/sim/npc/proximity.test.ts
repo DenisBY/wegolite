@@ -30,10 +30,13 @@ import type { Entity } from "../../../src/sim/world/entity.js";
 import { MAIN_STATION_ID } from "../../../src/sim/world/ids.js";
 import { createSteerComponent } from "../../../src/sim/npc/state.js";
 import { hashWorld } from "../../../src/sim/world/serialize.js";
+import { deriveSystemLayout } from "../../../src/sim/world/layout.js";
+import { stepWorld } from "../../../src/sim/world/step.js";
 import { createWorld, spawnEntity } from "../../../src/sim/world/world.js";
 import type { World } from "../../../src/sim/world/world.js";
 import { DEFAULT_LASER_MOUNTS } from "../../../src/sim/combat/mounts.js";
 import { laveFixture } from "../../helpers/lave.js";
+import { stationSpecOf } from "../../helpers/stations.js";
 import { realHullTable } from "../../helpers/hull-table.js";
 import { realNpcFlightTable } from "../../helpers/npc-flight.js";
 import { harness, other, ship, statsWith } from "./attack-support.js";
@@ -652,6 +655,66 @@ describe("case (c): the main station dead ahead", () => {
     expect(behaviours[expected]).toBe("AVOID_COLLISION");
     expect(ship.nav.desiredRange).toBeCloseTo(10 * station.radius, 9);
   });
+});
+
+describe("case (c) per station kind: the proximity radius is the kind's own (owner decision D-B)", () => {
+  const lave = laveFixture();
+
+  it.each(["coriolis", "dodecahedron", "icosahedron"] as const)(
+    "alerts below four %s station radii and avoids with ten",
+    (kind) => {
+      // A copy of Lave whose station is this kind (the kind does not move the
+      // station), so spec and system agree; only the radius differs.
+      const spec = stationSpecOf(kind);
+      const kindLayout = deriveSystemLayout(
+        { ...lave.system, station: kind },
+        spec,
+      );
+      const station = kindLayout.station;
+      expect(station.radius).toBe(spec.collisionRadius);
+
+      const start = 4 * spec.collisionRadius + 900;
+      const world = createWorld(1);
+      const player = playerAt();
+      const viper = spawnShip(world, {
+        specKey: "viper",
+        position: vec(
+          station.position.x,
+          station.position.y,
+          station.position.z + start,
+        ),
+        radius: VIPER,
+        speed: VIPER_SPEED,
+        steered: true,
+      });
+      flyTo(
+        viper,
+        vec(station.position.x, station.position.y, station.position.z - 30000),
+        VIPER_SPEED,
+      );
+      // the closed form: first tick whose centre distance is below four radii
+      let expected = -1;
+      for (let t = 1; t < 2000; t += 1) {
+        if (start - PER_TICK * t < 4 * spec.collisionRadius) {
+          expected = t;
+          break;
+        }
+      }
+      expect(expected).toBeGreaterThan(300);
+      const alerts: number[] = [];
+      const behaviours: string[] = [];
+      for (let t = 1; t <= expected + 1; t += 1) {
+        player.tick += 1;
+        stepWorld(world, player, kindLayout, DT, undefined, FACTS);
+        alerts.push(viper.steer.proximityAlert);
+        behaviours.push(viper.nav.behaviour);
+      }
+      expect(alerts.slice(0, expected - 1).every((id) => id === 0)).toBe(true);
+      expect(alerts[expected - 1]).toBe(MAIN_STATION_ID);
+      expect(behaviours[expected]).toBe("AVOID_COLLISION");
+      expect(viper.nav.desiredRange).toBeCloseTo(10 * spec.collisionRadius, 9);
+    },
+  );
 });
 
 describe("case (d): a light ship never alerts", () => {
