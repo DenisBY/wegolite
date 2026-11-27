@@ -20,6 +20,11 @@
  * fails the build rather than being dropped silently. The subentities are not
  * merged into one octree (owner decision 2026-11-16).
  *
+ * The Dodecahedron and Icosahedron stations (Phase 22.1) compile the same way
+ * but into one file each (`ships-static-hulls-<kind>.json`, one station hull,
+ * its solid subentities and its display name), so the shared file, its golden
+ * and its byte cap do not move (Pitfall P4).
+ *
  * The Coriolis octrees exceed the ten-hull caps (`MAX_HULL_NODES`,
  * `MAX_HULL_ARTIFACT_BYTES`), so these hulls ship in their own lazily loaded
  * file under their own schema (`src/content/schemas/ship-static-hull.ts`); the
@@ -30,7 +35,12 @@ import { canonicalJson } from "../canonical/json.js";
 import type { PlistJson } from "../canonical/json.js";
 import { contentError } from "../content-error.js";
 import {
+  STATION_KINDS,
+  STATION_RECORDS,
+} from "../../../src/content/stations.js";
+import {
   StaticHullArtifactSchema,
+  type StaticHull,
   type StaticHullArtifact,
 } from "../../../src/content/schemas/ship-static-hull.js";
 import type { HullNode } from "../../../src/content/schemas/ship-hull.js";
@@ -42,9 +52,21 @@ import type { EmittedShips, ShipCatalogue } from "./ships.js";
 
 type CatalogEntry = ShipCatalogue["entries"][number];
 
+const GENERATED_DIR = "src/content/generated";
+
 /** Where the static hull artifact is written, repository-relative. */
-export const STATIC_HULLS_PATH =
-  "src/content/generated/ships-static-hulls.json";
+export const STATIC_HULLS_PATH = `${GENERATED_DIR}/ships-static-hulls.json`;
+
+/** The shared artifact's file name, the one `STATION_RECORDS.coriolis` names. */
+const SHARED_HULLS_FILE = "ships-static-hulls.json";
+
+/**
+ * The ship keys of the station kinds whose hulls ship in their own file, in
+ * `STATION_KINDS` order (everything but the kind that lives in the shared file).
+ */
+export const OWN_FILE_STATION_KEYS: readonly string[] = STATION_KINDS.filter(
+  (kind) => STATION_RECORDS[kind].hullsFile !== SHARED_HULLS_FILE,
+).map((kind) => STATION_RECORDS[kind].shipKey);
 
 /**
  * The static and debris hulls, in artifact order: the Coriolis station, the
@@ -169,12 +191,13 @@ function displayNameOf(key: string, entry: CatalogEntry): string {
 }
 
 /**
- * The solid subentity keys of the static hulls, in hull and `shipdata` order,
- * de-duplicated: the keys whose masses `compileStaticHulls` needs.
+ * The solid subentity keys of the static hulls and of the stations that ship in
+ * their own file, in hull and `shipdata` order, de-duplicated: the keys whose
+ * masses `compileStaticHulls` and `emitStationHulls` need.
  */
 export function staticSubentityKeys(catalogue: ShipCatalogue): string[] {
   const keys: string[] = [];
-  for (const key of STATIC_HULL_KEYS) {
+  for (const key of [...STATIC_HULL_KEYS, ...OWN_FILE_STATION_KEYS]) {
     for (const subentity of entryOf(catalogue, key).shipDef.subentities) {
       if (subentity.type === "flasher") continue;
       const subentityKey = subentity.subentity_key;
@@ -184,6 +207,101 @@ export function staticSubentityKeys(catalogue: ShipCatalogue): string[] {
     }
   }
   return keys;
+}
+
+/** One hull record: the entry's octree, radius, frangibility and solid subentities. */
+function compileHull(
+  key: string,
+  catalogue: ShipCatalogue,
+  models: Readonly<Record<string, ParsedMesh>>,
+  masses: ReadonlyMap<string, number>,
+): StaticHull {
+  const entry = entryOf(catalogue, key);
+  const subentities = entry.shipDef.subentities
+    .filter((subentity) => subentity.type !== "flasher")
+    .map((subentity) => {
+      const subentityKey = subentity.subentity_key;
+      if (typeof subentityKey !== "string") {
+        return fail(
+          key,
+          SHIPDATA_FILE,
+          "a non-flasher subentity has no subentity_key, so it has no hull",
+        );
+      }
+      const position = subentity.position;
+      if (position === undefined) {
+        return fail(
+          key,
+          SHIPDATA_FILE,
+          `the solid subentity "${subentityKey}" has no position`,
+        );
+      }
+      if (!isIdentityOrientation(subentity["orientation"])) {
+        return fail(
+          key,
+          SHIPDATA_FILE,
+          `the solid subentity "${subentityKey}" has a non-identity orientation, which the static hull record cannot carry`,
+        );
+      }
+      const mass = masses.get(subentityKey);
+      if (mass === undefined) {
+        return fail(
+          subentityKey,
+          SHIPDATA_FILE,
+          `no computed mass for the subentity "${subentityKey}" of "${key}"`,
+        );
+      }
+      return {
+        key: subentityKey,
+        position: [position[0], position[1], position[2]] as [
+          number,
+          number,
+          number,
+        ],
+        mass,
+        octree: octreeOf(
+          subentityKey,
+          entryOf(catalogue, subentityKey),
+          models,
+        ),
+      };
+    });
+  return {
+    key,
+    collisionRadius: collisionRadius(key, catalogue, models),
+    // ShipEntity.m:376: frangible defaults to YES.
+    frangible: booleanOf(entry.extras["frangible"], true),
+    octree: octreeOf(key, entry, models),
+    subentities,
+  };
+}
+
+/** Validate a candidate artifact, failing as `SCHEMA` with the artifact's path. */
+function validate(
+  candidate: { hulls: StaticHull[]; names: { key: string; name: string }[] },
+  path: string,
+): StaticHullArtifact {
+  const parsed = StaticHullArtifactSchema.safeParse(candidate);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return fail(
+      issue === undefined ? "statics" : `statics.${issue.path.join(".")}`,
+      path,
+      issue === undefined ? "invalid static hull artifact" : issue.message,
+    );
+  }
+  return parsed.data;
+}
+
+/** The compiled display names of the given keys, in order. */
+function namesOf(
+  catalogue: ShipCatalogue,
+  keys: readonly string[],
+): { key: string; name: string }[] {
+  return keys.map((key) => ({
+    key,
+    name: displayNameOf(key, entryOf(catalogue, key)),
+  }));
 }
 
 /**
@@ -201,82 +319,38 @@ export function compileStaticHulls(
   models: Readonly<Record<string, ParsedMesh>>,
   masses: ReadonlyMap<string, number>,
 ): StaticHullArtifact {
-  const hulls = STATIC_HULL_KEYS.map((key) => {
-    const entry = entryOf(catalogue, key);
-    const subentities = entry.shipDef.subentities
-      .filter((subentity) => subentity.type !== "flasher")
-      .map((subentity) => {
-        const subentityKey = subentity.subentity_key;
-        if (typeof subentityKey !== "string") {
-          return fail(
-            key,
-            SHIPDATA_FILE,
-            "a non-flasher subentity has no subentity_key, so it has no hull",
-          );
-        }
-        const position = subentity.position;
-        if (position === undefined) {
-          return fail(
-            key,
-            SHIPDATA_FILE,
-            `the solid subentity "${subentityKey}" has no position`,
-          );
-        }
-        if (!isIdentityOrientation(subentity["orientation"])) {
-          return fail(
-            key,
-            SHIPDATA_FILE,
-            `the solid subentity "${subentityKey}" has a non-identity orientation, which the static hull record cannot carry`,
-          );
-        }
-        const mass = masses.get(subentityKey);
-        if (mass === undefined) {
-          return fail(
-            subentityKey,
-            SHIPDATA_FILE,
-            `no computed mass for the subentity "${subentityKey}" of "${key}"`,
-          );
-        }
-        return {
-          key: subentityKey,
-          position: [position[0], position[1], position[2]] as [
-            number,
-            number,
-            number,
-          ],
-          mass,
-          octree: octreeOf(
-            subentityKey,
-            entryOf(catalogue, subentityKey),
-            models,
-          ),
-        };
-      });
-    return {
-      key,
-      collisionRadius: collisionRadius(key, catalogue, models),
-      // ShipEntity.m:376: frangible defaults to YES.
-      frangible: booleanOf(entry.extras["frangible"], true),
-      octree: octreeOf(key, entry, models),
-      subentities,
-    };
-  });
+  return validate(
+    {
+      hulls: STATIC_HULL_KEYS.map((key) =>
+        compileHull(key, catalogue, models, masses),
+      ),
+      names: namesOf(catalogue, STATIC_NAME_KEYS),
+    },
+    STATIC_HULLS_PATH,
+  );
+}
 
-  const names = STATIC_NAME_KEYS.map((key) => ({
-    key,
-    name: displayNameOf(key, entryOf(catalogue, key)),
-  }));
-
-  const parsed = StaticHullArtifactSchema.safeParse({ hulls, names });
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    return fail(
-      issue === undefined ? "statics" : `statics.${issue.path.join(".")}`,
-      STATIC_HULLS_PATH,
-      issue === undefined ? "invalid static hull artifact" : issue.message,
-    );
-  }
-  return parsed.data;
+/**
+ * Compile one station's own artifact: the station hull with its solid
+ * subentities (flashers skipped) and its display name, under the same schema as
+ * the shared file.
+ *
+ * @throws {ContentError} as {@link compileStaticHulls} does.
+ */
+export function compileStationHull(
+  shipKey: string,
+  path: string,
+  catalogue: ShipCatalogue,
+  models: Readonly<Record<string, ParsedMesh>>,
+  masses: ReadonlyMap<string, number>,
+): StaticHullArtifact {
+  return validate(
+    {
+      hulls: [compileHull(shipKey, catalogue, models, masses)],
+      names: namesOf(catalogue, [shipKey]),
+    },
+    path,
+  );
 }
 
 /** A placeholder no compiled string can contain, swapped for a compact root. */
@@ -284,19 +358,7 @@ function rootMarker(index: number): string {
   return `\u0000root:${String(index)}\u0000`;
 }
 
-/**
- * Serialise the static hull artifact in the canonical layout (keys in
- * code-unit order, two-space indent, `\n` endings, one final newline) with one
- * exception, as in `emitShipHulls`: each octree `root` is one compact line, so
- * the file stays a few hundred kilobytes instead of several megabytes. The
- * bytes remain a pure function of the vendored pin.
- */
-export function emitStaticHulls(
-  catalogue: ShipCatalogue,
-  models: Readonly<Record<string, ParsedMesh>>,
-  masses: ReadonlyMap<string, number>,
-): EmittedShips {
-  const artifact = compileStaticHulls(catalogue, models, masses);
+function serialise(artifact: StaticHullArtifact, path: string): EmittedShips {
   const roots: HullNode[] = [];
   const octreeJson = (octree: {
     radius: number;
@@ -332,5 +394,46 @@ export function emitStaticHulls(
       JSON.stringify(root),
     );
   });
-  return { path: STATIC_HULLS_PATH, bytes: Buffer.from(text, "utf8") };
+  return { path, bytes: Buffer.from(text, "utf8") };
+}
+
+/**
+ * Serialise the shared static hull artifact in the canonical layout (keys in
+ * code-unit order, two-space indent, `\n` endings, one final newline) with one
+ * exception, as in `emitShipHulls`: each octree `root` is one compact line, so
+ * the file stays a few hundred kilobytes instead of several megabytes. The
+ * bytes remain a pure function of the vendored pin.
+ */
+export function emitStaticHulls(
+  catalogue: ShipCatalogue,
+  models: Readonly<Record<string, ParsedMesh>>,
+  masses: ReadonlyMap<string, number>,
+): EmittedShips {
+  return serialise(
+    compileStaticHulls(catalogue, models, masses),
+    STATIC_HULLS_PATH,
+  );
+}
+
+/**
+ * One artifact per station kind whose `hullsFile` is not the shared file, in
+ * `STATION_KINDS` order, each at `src/content/generated/<hullsFile>` in the
+ * layout of {@link emitStaticHulls}.
+ */
+export function emitStationHulls(
+  catalogue: ShipCatalogue,
+  models: Readonly<Record<string, ParsedMesh>>,
+  masses: ReadonlyMap<string, number>,
+): EmittedShips[] {
+  return STATION_KINDS.flatMap((kind) => {
+    const record = STATION_RECORDS[kind];
+    if (record.hullsFile === SHARED_HULLS_FILE) return [];
+    const path = `${GENERATED_DIR}/${record.hullsFile}`;
+    return [
+      serialise(
+        compileStationHull(record.shipKey, path, catalogue, models, masses),
+        path,
+      ),
+    ];
+  });
 }

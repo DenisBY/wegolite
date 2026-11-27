@@ -2,13 +2,16 @@
 // Copyright (c) 2026 Wegolite contributors
 
 /**
- * Coriolis dock geometry → `src/content/generated/dock-port.json`
- * (DOCK-01, D-01, T-04-02, T-04-33, T-04-34).
+ * Per-kind dock geometry → `src/content/generated/dock-port*.json`
+ * (DOCK-01, D-01, T-04-02, T-04-33, T-04-34; Phase 22.1, WORLD-20).
  *
  * Oolite derives its port dimensions from the **dock subentity's** bounding box,
  * not the hull's (`DockEntity.m:1044-1045`), so the aperture here is measured
- * from `oolite_coriolis_dock.dat` and never inferred from the hull or inspected
- * from the runtime GLB. Nothing in this module is hand-typed geometry: every
+ * from each station's own dock mesh (`oolite_coriolis_dock.dat`,
+ * `oolite_dodo_dock.dat`, `oolite_ico_dock.dat`) and never inferred from the
+ * hull or inspected from the runtime GLB. One record per station kind, written
+ * to the file name `STATION_RECORDS` gives it; the Coriolis record keeps its
+ * pre-phase file and bytes. Nothing in this module is hand-typed geometry: every
  * number comes from a parsed `.dat` mesh that `generate.ts` already read.
  *
  * The corridor half-extents are a bounded port of `shipIsInDockingCorridor`
@@ -29,22 +32,20 @@ import { canonicalJson } from "../canonical/json.js";
 import type { PlistJson } from "../canonical/json.js";
 import { contentError } from "../content-error.js";
 import { DockPortSchema } from "../../../src/content/schemas/dock-port.js";
+import { STATION_RECORDS } from "../../../src/content/stations.js";
 import { boundingBox } from "./dat.js";
 import type { MeshBounds, ParsedMesh } from "./dat.js";
+import { STATION_BUILDS } from "./stations.js";
+import type { StationBuild } from "./stations.js";
 
-/** The repository-relative output path, resolved beneath the generation root. */
-export const DOCK_PORT_PATH = "src/content/generated/dock-port.json";
+/** The repository-relative directory every dock-port record is written to. */
+const GENERATED_DIR = "src/content/generated";
 
 /** The vendored snapshot every measured number comes from. */
 const SOURCE = "third_party/oolite";
 
-const DOCK_MODEL = "oolite_coriolis_dock.dat";
-const HULL_MODEL = "oolite_coriolis.dat";
-const TRIS_MODEL = "oolite_coriolis_tris.dat";
-const FACEPLATE_MODEL = "oolite_coriolis_faceplate.dat";
+/** The one ship every record's corridor is fitted to. */
 const SHIP_MODEL = "oolite_cobra3.dat";
-
-const DOCK_FILE = `${SOURCE}/Models/${DOCK_MODEL}`;
 
 /** Oolite's aperture fit ratio: the ship must fit inside 90 % of the slot. */
 const FIT_RATIO = 0.9;
@@ -149,18 +150,19 @@ function expandAperture(
   start: number,
   shipExtent: number,
   construct: string,
+  file: string,
 ): number {
   let value = start;
   let iterations = 0;
   while (shipExtent > value * FIT_RATIO) {
     if (iterations >= MAX_EXPANSIONS) {
-      throw contentError("SCHEMA", DOCK_FILE, construct, {
+      throw contentError("SCHEMA", file, construct, {
         excerpt: `aperture expansion did not converge after ${String(MAX_EXPANSIONS)} steps`,
       });
     }
     const next = value * EXPANSION_FACTOR;
     if (!Number.isFinite(next) || !(next > value)) {
-      throw contentError("SCHEMA", DOCK_FILE, construct, {
+      throw contentError("SCHEMA", file, construct, {
         excerpt: `aperture expansion made no progress from ${String(value)}`,
       });
     }
@@ -199,6 +201,7 @@ export function corridorHalfExtents(
   portHeight: number,
   shipWidth: number,
   shipHeight: number,
+  file: string = `${SOURCE}/Models/oolite_coriolis_dock.dat`,
 ): CorridorHalfExtents {
   const [widthExtent, heightExtent] = pairedShipExtents(
     portWidth,
@@ -206,38 +209,63 @@ export function corridorHalfExtents(
     shipWidth,
     shipHeight,
   );
-  const expandedWidth = expandAperture(portWidth, widthExtent, "corridor.ww");
+  const expandedWidth = expandAperture(
+    portWidth,
+    widthExtent,
+    "corridor.ww",
+    file,
+  );
   const expandedHeight = expandAperture(
     portHeight,
     heightExtent,
     "corridor.hh",
+    file,
   );
   return { ww: expandedWidth * 0.5, hh: expandedHeight * 0.5 };
 }
 
-/**
- * Measure the aperture, corridor, hull, contact proxy and ship boxes from parsed
- * meshes and return the canonical JSON bytes at {@link DOCK_PORT_PATH}. Pure:
- * the same meshes produce the same bytes, and `generate.ts` owns every write.
- */
-export function emitDockPort(
+/** The union box of the named meshes, in the station-local Wegolite frame. */
+function unionOf(
   meshes: Readonly<Record<string, ParsedMesh>>,
+  names: readonly string[],
+): StationBox {
+  return unionBoxes(
+    names.map((name) => stationBox(boundingBox(requireMesh(meshes, name)))),
+  );
+}
+
+/**
+ * Measure one station's aperture, corridor, hull, contact proxy and ship boxes
+ * from parsed meshes and return the canonical JSON bytes at the record's own
+ * dock-port path. Pure: the same meshes produce the same bytes, and
+ * `generate.ts` owns every write.
+ *
+ * The hull box is the union of the build's `hullModels` and the contact box the
+ * union of its `contactModels` (Pitfall P6), so a station whose body is more
+ * than one mesh (the Icosahedron's main hull is a subentity) is covered whole.
+ */
+export function measureDockPort(
+  meshes: Readonly<Record<string, ParsedMesh>>,
+  build: StationBuild,
 ): EmittedDockPort {
-  const dock = extents(boundingBox(requireMesh(meshes, DOCK_MODEL)));
+  const dockFile = `${SOURCE}/Models/${build.dockModel}`;
+  const dock = extents(boundingBox(requireMesh(meshes, build.dockModel)));
   const ship = extents(boundingBox(requireMesh(meshes, SHIP_MODEL)));
 
-  const corridor = corridorHalfExtents(dock.x, dock.y, ship.x, ship.y);
+  const corridor = corridorHalfExtents(
+    dock.x,
+    dock.y,
+    ship.x,
+    ship.y,
+    dockFile,
+  );
 
   // Hull and contact are station-local (Wegolite z, the same frame as every
-  // other box here). Plan 04-02 converts the contact box into port coordinates
-  // once with `layout.dockOffset`; committing a port-frame literal here would
-  // double-convert it.
-  const hull = stationBox(boundingBox(requireMesh(meshes, HULL_MODEL)));
-  const contact = unionBoxes([
-    hull,
-    stationBox(boundingBox(requireMesh(meshes, TRIS_MODEL))),
-    stationBox(boundingBox(requireMesh(meshes, FACEPLATE_MODEL))),
-  ]);
+  // other box here). The dock-geometry builder converts the contact box into
+  // port coordinates once with `layout.dockOffset`; committing a port-frame
+  // literal here would double-convert it.
+  const hull = unionOf(meshes, build.hullModels);
+  const contact = unionBoxes([hull, unionOf(meshes, build.contactModels)]);
   const cobra = shipBox(boundingBox(requireMesh(meshes, SHIP_MODEL)));
 
   const candidate: PlistJson = {
@@ -275,7 +303,7 @@ export function emitDockPort(
     const issue = result.error.issues[0];
     throw contentError(
       "SCHEMA",
-      DOCK_FILE,
+      dockFile,
       issue === undefined ? "dock-port" : issue.path.join("."),
       {
         excerpt:
@@ -285,7 +313,14 @@ export function emitDockPort(
   }
 
   return {
-    path: DOCK_PORT_PATH,
+    path: `${GENERATED_DIR}/${STATION_RECORDS[build.kind].dockPortFile}`,
     bytes: Buffer.from(canonicalJson(candidate), "utf8"),
   };
+}
+
+/** One dock-port record per station kind, in `STATION_KINDS` order. */
+export function emitDockPorts(
+  meshes: Readonly<Record<string, ParsedMesh>>,
+): readonly EmittedDockPort[] {
+  return STATION_BUILDS.map((build) => measureDockPort(meshes, build));
 }

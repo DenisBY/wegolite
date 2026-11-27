@@ -27,15 +27,23 @@ import { MODEL_SOURCE_FILES } from "./glb.js";
 import { buildOctree } from "./octree.js";
 import { computeShipMasses } from "./ship-mass.js";
 import {
+  OWN_FILE_STATION_KEYS,
   STATIC_HULLS_PATH,
   STATIC_HULL_KEYS,
   STATIC_NAME_KEYS,
   compileStaticHulls,
   emitStaticHulls,
+  emitStationHulls,
   staticSubentityKeys,
 } from "./static-hulls.js";
 import { MODELS_DIR, compileShips } from "./ships.js";
 import type { ShipCatalogue } from "./ships.js";
+import { STATION_MODEL_FILES } from "./stations.js";
+import { StaticHullArtifactSchema } from "../../../src/content/schemas/ship-static-hull.js";
+import {
+  STATION_KINDS,
+  STATION_RECORDS,
+} from "../../../src/content/stations.js";
 
 const REPO = new URL("../../../", import.meta.url);
 
@@ -53,7 +61,7 @@ const catalogue: ShipCatalogue = compileShips(
 );
 
 function loadMeshes(): Record<string, ParsedMesh> {
-  const names = new Set<string>();
+  const names = new Set<string>(STATION_MODEL_FILES);
   for (const files of Object.values(MODEL_SOURCE_FILES)) {
     for (const file of files) names.add(file);
   }
@@ -226,5 +234,88 @@ describe("emitStaticHulls", () => {
       0,
     );
     expect(rootLines).toHaveLength(octrees);
+  });
+});
+
+describe("emitStationHulls (Phase 22.1)", () => {
+  const emitted = emitStationHulls(catalogue, meshes, masses);
+
+  it("writes one file per own-file kind, in STATION_KINDS order, at its hullsFile", () => {
+    expect(emitted.map((file) => file.path)).toEqual([
+      "src/content/generated/ships-static-hulls-dodecahedron.json",
+      "src/content/generated/ships-static-hulls-icosahedron.json",
+    ]);
+    expect(emitted.map((file) => file.path)).toEqual(
+      STATION_KINDS.filter(
+        (kind) => STATION_RECORDS[kind].hullsFile !== "ships-static-hulls.json",
+      ).map(
+        (kind) => `src/content/generated/${STATION_RECORDS[kind].hullsFile}`,
+      ),
+    );
+    expect([...OWN_FILE_STATION_KEYS]).toEqual([
+      "dodecahedron-station",
+      "icosahedron-station",
+    ]);
+  });
+
+  it("is deterministic and equals the committed files", () => {
+    const again = emitStationHulls(catalogue, meshes, masses);
+    for (const [index, file] of emitted.entries()) {
+      expect(Buffer.from(again[index]?.bytes ?? [])).toEqual(
+        Buffer.from(file.bytes),
+      );
+      expect(Buffer.from(file.bytes).toString("utf8")).toBe(
+        readText(file.path),
+      );
+    }
+  });
+
+  it("holds exactly one hull and one name per file, validated by the shared schema", () => {
+    for (const [index, file] of emitted.entries()) {
+      const parsed = StaticHullArtifactSchema.safeParse(
+        JSON.parse(Buffer.from(file.bytes).toString("utf8")),
+      );
+      expect(parsed.success, file.path).toBe(true);
+      if (!parsed.success) continue;
+      const shipKey = OWN_FILE_STATION_KEYS[index];
+      expect(parsed.data.hulls.map((hull) => hull.key)).toEqual([shipKey]);
+      expect(parsed.data.names.map((name) => name.key)).toEqual([shipKey]);
+    }
+  });
+
+  it("includes the station's solid subentities and no flasher", () => {
+    const keysOf = (index: number): string[] => {
+      const parsed = JSON.parse(
+        Buffer.from(emitted[index]?.bytes ?? []).toString("utf8"),
+      ) as { hulls: { subentities: { key: string }[] }[] };
+      return (parsed.hulls[0]?.subentities ?? []).map(
+        (subentity) => subentity.key,
+      );
+    };
+    expect(keysOf(0)).toEqual(["oolite_dodo_faceplate", "oolite_dodo_dock"]);
+    expect(keysOf(1)).toEqual(["oolite_ico_mainhull", "oolite_ico_dock"]);
+  });
+
+  it("keeps the shared static file's keys and bytes: the new stations are not in it", () => {
+    expect(artifact.hulls.map((hull) => hull.key)).not.toContain(
+      "dodecahedron-station",
+    );
+    expect(
+      Buffer.from(emitStaticHulls(catalogue, meshes, masses).bytes).toString(
+        "utf8",
+      ),
+    ).toBe(readText(STATIC_HULLS_PATH));
+  });
+
+  it("needs the subentity masses of the new stations from staticSubentityKeys", () => {
+    const keys = staticSubentityKeys(catalogue);
+    for (const key of [
+      "oolite_dodo_faceplate",
+      "oolite_dodo_dock",
+      "oolite_ico_mainhull",
+      "oolite_ico_dock",
+    ]) {
+      expect(keys).toContain(key);
+    }
   });
 });

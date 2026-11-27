@@ -78,9 +78,14 @@ unmodified source PNGs are kept under `third_party/oolite/Textures/`.
 The generated dock-port record `src/content/generated/dock-port.json` is
 measured at build time from the vendored Oolite `.dat` models (`oolite_coriolis`,
 `oolite_coriolis_tris`, `oolite_coriolis_faceplate`, `oolite_coriolis_dock` and
-`oolite_cobra3`). It is a derivative work of those models and remains
-CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
-non-commercial use only and share-alike terms.
+`oolite_cobra3`). The generated dock-port records
+`src/content/generated/dock-port-dodecahedron.json` and
+`src/content/generated/dock-port-icosahedron.json` are measured the same way
+from the vendored `oolite_dodo`, `oolite_dodo_faceplate`, `oolite_dodo_dock`,
+`oolite_ico`, `oolite_ico_hull`, `oolite_ico_dock` and `oolite_cobra3` models.
+Each is a derivative work of those models and remains CC BY-NC-SA 3.0, never
+GPL, with attribution to the Oolite contributors, non-commercial use only and
+share-alike terms.
 
 The generated NPC ship record file `src/content/generated/ships-npc.json` is
 compiled at build time from the vendored Oolite `shipdata.plist` (with
@@ -118,11 +123,16 @@ Wegolite's port of Oolite's octree builder computes from each model, the
 collision radius computed as for `ships-client.json` and `ships-debris.json`,
 the `frangible` flag, and each solid subentity's octree, authored position and
 mass computed from its model; it also carries the display names of the station,
-the two buoys, the barrel and the plate. It is a derivative work of
-`shipdata.plist` and of those models and remains CC BY-NC-SA 3.0, never GPL,
-with attribution to the Oolite contributors, non-commercial use only and
-share-alike terms. Nothing is vendored or changed for it, so
-`third_party/oolite/CHECKSUMS.sha256` is untouched.
+the two buoys, the barrel and the plate. The generated static hull files
+`src/content/generated/ships-static-hulls-dodecahedron.json` and
+`src/content/generated/ships-static-hulls-icosahedron.json` carry the same
+records for the Dodecahedron and Icosahedron stations (the octrees of
+`oolite_dodo`, `oolite_dodo_faceplate`, `oolite_dodo_dock`, `oolite_ico`,
+`oolite_ico_hull` and `oolite_ico_dock`, and the display name of each station).
+Each is a derivative work of `shipdata.plist` and of those models and remains
+CC BY-NC-SA 3.0, never GPL, with attribution to the Oolite contributors,
+non-commercial use only and share-alike terms. Nothing is vendored or changed
+for them, so `third_party/oolite/CHECKSUMS.sha256` is untouched.
 
 The generated debris catalogue `src/content/generated/ships-debris.json` is
 compiled at build time from the vendored Oolite `shipdata.plist` debris entries

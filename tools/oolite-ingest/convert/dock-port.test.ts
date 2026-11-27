@@ -20,14 +20,17 @@ import { describe, expect, it } from "vitest";
 import type { ParsedMesh, Vec3 } from "./dat.js";
 import { parseDat } from "./dat.js";
 import { MODEL_SOURCE_FILES } from "./glb.js";
-import {
-  DOCK_PORT_PATH,
-  corridorHalfExtents,
-  emitDockPort,
-} from "./dock-port.js";
+import type { EmittedDockPort } from "./dock-port.js";
+import { corridorHalfExtents, emitDockPorts } from "./dock-port.js";
+import { STATION_BUILDS, STATION_MODEL_FILES } from "./stations.js";
 import { isContentError } from "../content-error.js";
 import type { ContentError } from "../content-error.js";
 import { DockPortSchema } from "../../../src/content/schemas/dock-port.js";
+import {
+  STATION_KINDS,
+  STATION_RECORDS,
+} from "../../../src/content/stations.js";
+import type { StationKind } from "../../../src/content/stations.js";
 
 const DOCK_MODEL = "oolite_coriolis_dock.dat";
 const HULL_MODEL = "oolite_coriolis.dat";
@@ -35,7 +38,7 @@ const SHIP_MODEL = "oolite_cobra3.dat";
 
 /** Every pinned model, parsed once from the vendored snapshot. */
 function loadMeshes(): Record<string, ParsedMesh> {
-  const names = new Set<string>();
+  const names = new Set<string>(STATION_MODEL_FILES);
   for (const files of Object.values(MODEL_SOURCE_FILES)) {
     for (const file of files) names.add(file);
   }
@@ -97,13 +100,27 @@ interface EmittedDockPortJson {
 
 const meshes = loadMeshes();
 
+/** The emitted record of one kind (the Coriolis when none is named). */
+function emitKind(
+  kind: StationKind = "coriolis",
+  from: Readonly<Record<string, ParsedMesh>> = meshes,
+): EmittedDockPort {
+  const emitted = emitDockPorts(from)[STATION_KINDS.indexOf(kind)];
+  if (emitted === undefined) throw new Error(`no record for ${kind}`);
+  return emitted;
+}
+
+function jsonOf(emitted: EmittedDockPort): EmittedDockPortJson {
+  return JSON.parse(
+    Buffer.from(emitted.bytes).toString("utf8"),
+  ) as EmittedDockPortJson;
+}
+
 const GOLDEN_PATH = "../../../tests/golden/content/dock-port.json";
 const GENERATED_PATH = "../../../src/content/generated/dock-port.json";
 
 function emittedJson(): EmittedDockPortJson {
-  return JSON.parse(
-    Buffer.from(emitDockPort(meshes).bytes).toString("utf8"),
-  ) as EmittedDockPortJson;
+  return jsonOf(emitKind());
 }
 
 function candidateCopy(): Record<string, unknown> {
@@ -121,18 +138,40 @@ function objectAt(
   return value as Record<string, unknown>;
 }
 
-describe("emitDockPort", () => {
-  it("emits at the repository-relative generated path", () => {
-    const emitted = emitDockPort(meshes);
-    expect(emitted.path).toBe(DOCK_PORT_PATH);
-    expect(emitted.path).toBe("src/content/generated/dock-port.json");
+describe("emitDockPorts", () => {
+  it("emits one record per kind, in STATION_KINDS order, at its own generated path", () => {
+    const emitted = emitDockPorts(meshes);
+    expect(emitted.map((file) => file.path)).toEqual([
+      "src/content/generated/dock-port.json",
+      "src/content/generated/dock-port-dodecahedron.json",
+      "src/content/generated/dock-port-icosahedron.json",
+    ]);
+    expect(emitted.map((file) => file.path)).toEqual(
+      STATION_KINDS.map(
+        (kind) => `src/content/generated/${STATION_RECORDS[kind].dockPortFile}`,
+      ),
+    );
+  });
+
+  it("measures every kind from its own dock mesh in STATION_BUILDS", () => {
+    expect(STATION_BUILDS.map((build) => build.kind)).toEqual([
+      ...STATION_KINDS,
+    ]);
+    for (const build of STATION_BUILDS) {
+      const dockMesh = meshes[build.dockModel];
+      if (dockMesh === undefined) throw new Error(build.dockModel);
+      const xs = dockMesh.vertices.map((vertex) => vertex.x);
+      const ys = dockMesh.vertices.map((vertex) => vertex.y);
+      const zs = dockMesh.vertices.map((vertex) => vertex.z);
+      const record = jsonOf(emitKind(build.kind));
+      expect(record.port.width).toBe(Math.max(...xs) - Math.min(...xs));
+      expect(record.port.height).toBe(Math.max(...ys) - Math.min(...ys));
+      expect(record.port.depth).toBe(Math.max(...zs) - Math.min(...zs));
+    }
   });
 
   it("measures the aperture from the dock subentity, not the hull", () => {
-    const emitted = emitDockPort(meshes);
-    const record = JSON.parse(
-      Buffer.from(emitted.bytes).toString("utf8"),
-    ) as EmittedDockPortJson;
+    const record = jsonOf(emitKind());
 
     expect(record.version).toBe(1);
     expect(record.source).toBe("third_party/oolite");
@@ -145,20 +184,21 @@ describe("emitDockPort", () => {
   });
 
   it("halves the corridor extents for the committed Cobra", () => {
-    const emitted = emitDockPort(meshes);
-    const record = JSON.parse(
-      Buffer.from(emitted.bytes).toString("utf8"),
-    ) as EmittedDockPortJson;
+    const record = jsonOf(emitKind());
 
     expect(record.corridor.ww).toBeCloseTo(51.70615, 4);
     expect(record.corridor.hh).toBeCloseTo(120.944, 4);
   });
 
   it("is byte-identical across two runs", () => {
-    const first = emitDockPort(meshes);
-    const second = emitDockPort(meshes);
-    expect(second.bytes).toEqual(first.bytes);
-    expect(second.path).toBe(first.path);
+    const first = emitDockPorts(meshes);
+    const second = emitDockPorts(meshes);
+    expect(second.map((file) => file.bytes)).toEqual(
+      first.map((file) => file.bytes),
+    );
+    expect(second.map((file) => file.path)).toEqual(
+      first.map((file) => file.path),
+    );
   });
 
   it("rejects a zero-width dock bounding box as SCHEMA", () => {
@@ -169,7 +209,7 @@ describe("emitDockPort", () => {
         { x: 0, y: 120.944, z: 0 },
       ]),
     };
-    const error = capture(() => emitDockPort(synthetic));
+    const error = capture(() => emitDockPorts(synthetic));
     expect(error.code).toBe("SCHEMA");
     // The expansion loop refuses a zero aperture before the schema sees it:
     // `0 * 1.25` can never exceed `0`, so this is the T-04-02 hang turned into
@@ -181,7 +221,7 @@ describe("emitDockPort", () => {
   it("rejects a missing model as SCHEMA", () => {
     const synthetic: Record<string, ParsedMesh> = { ...meshes };
     delete synthetic[SHIP_MODEL];
-    const error = capture(() => emitDockPort(synthetic));
+    const error = capture(() => emitDockPorts(synthetic));
     expect(error.code).toBe("SCHEMA");
     expect(error.message).toContain(SHIP_MODEL);
   });
@@ -189,11 +229,13 @@ describe("emitDockPort", () => {
 
 describe("dock-port golden and collision boxes", () => {
   it("equals the committed golden and generated bytes exactly", () => {
-    const emitted = emitDockPort(meshes);
+    const emitted = emitKind("coriolis");
     const golden = readFileSync(new URL(GOLDEN_PATH, import.meta.url));
     const generated = readFileSync(new URL(GENERATED_PATH, import.meta.url));
     // The golden is a copy of the emitter's canonical output, not a rounded
-    // transcription, so this is byte equality — not a tolerance compare.
+    // transcription, so this is byte equality — not a tolerance compare. The
+    // Coriolis record is the one the emitter reproduces for the pre-phase file
+    // (Success Criterion 1): no second emitter exists that could drift from it.
     expect(emitted.bytes).toEqual(golden);
     expect(emitted.bytes).toEqual(generated);
   });
@@ -232,7 +274,7 @@ describe("dock-port golden and collision boxes", () => {
       ...meshes,
       [HULL_MODEL]: meshOf([]),
     };
-    const error = capture(() => emitDockPort(synthetic));
+    const error = capture(() => emitDockPorts(synthetic));
     expect(error.code).toBe("SCHEMA");
     expect(error.construct).toContain("hull");
   });
@@ -254,6 +296,63 @@ describe("dock-port golden and collision boxes", () => {
     const candidate = candidateCopy();
     objectAt(candidate, "contact").zMin = -400;
     expect(DockPortSchema.safeParse(candidate).success).toBe(false);
+  });
+});
+
+describe("the Dodecahedron and Icosahedron records (Phase 22.1)", () => {
+  it("gives the Dodecahedron a landscape port and the Icosahedron a portrait port", () => {
+    const dodecahedron = jsonOf(emitKind("dodecahedron"));
+    const icosahedron = jsonOf(emitKind("icosahedron"));
+    expect(dodecahedron.port.width).toBeCloseTo(210.362, 3);
+    expect(dodecahedron.port.height).toBeCloseTo(81.0268, 4);
+    expect(dodecahedron.port.depth).toBeCloseTo(250, 4);
+    expect(dodecahedron.port.width).toBeGreaterThan(dodecahedron.port.height);
+    expect(icosahedron.port.width).toBeCloseTo(82.1076, 4);
+    expect(icosahedron.port.height).toBeCloseTo(238.546, 3);
+    expect(icosahedron.port.depth).toBeCloseTo(273.278, 3);
+    expect(icosahedron.port.width).toBeLessThan(icosahedron.port.height);
+  });
+
+  it("covers the whole Icosahedron body, main hull included (Pitfall P6)", () => {
+    const record = jsonOf(emitKind("icosahedron"));
+    // oolite_ico_hull.dat is 1286.006 x 1286.006 x 1278.767: halfX 643.003 and
+    // a station-local zMin of -635.764 in the negated frame, far past the
+    // 794 x 250 front section oolite_ico.dat.
+    expect(record.hull.halfX).toBeGreaterThanOrEqual(643.003 - 1e-3);
+    expect(record.hull.halfY).toBeGreaterThanOrEqual(643.003 - 1e-3);
+    expect(record.hull.zMin).toBeLessThanOrEqual(-635.764 + 1e-3);
+    const front = meshes["oolite_ico.dat"];
+    const body = meshes["oolite_ico_hull.dat"];
+    if (front === undefined || body === undefined) throw new Error("meshes");
+    const frontHalfX = Math.max(...front.vertices.map((v) => Math.abs(v.x)));
+    expect(record.hull.halfX).toBeGreaterThan(frontHalfX);
+  });
+
+  it("keeps contact.zMin at or beyond hull.zMin for every kind and validates each record", () => {
+    for (const kind of STATION_KINDS) {
+      const record = jsonOf(emitKind(kind));
+      expect(DockPortSchema.safeParse(record).success, kind).toBe(true);
+      expect(record.contact.zMin, kind).toBeLessThanOrEqual(record.hull.zMin);
+      expect(record.contact.halfX, kind).toBeGreaterThanOrEqual(
+        record.hull.halfX,
+      );
+      expect(record.contact.halfY, kind).toBeGreaterThanOrEqual(
+        record.hull.halfY,
+      );
+    }
+  });
+
+  it("names the kind's own dock file in a failure", () => {
+    const synthetic: Record<string, ParsedMesh> = {
+      ...meshes,
+      "oolite_ico_dock.dat": meshOf([
+        { x: 0, y: -120.944, z: -250 },
+        { x: 0, y: 120.944, z: 0 },
+      ]),
+    };
+    const error = capture(() => emitDockPorts(synthetic));
+    expect(error.code).toBe("SCHEMA");
+    expect(error.file).toContain("oolite_ico_dock.dat");
   });
 });
 

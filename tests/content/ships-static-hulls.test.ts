@@ -33,13 +33,21 @@ import {
   MAX_STATIC_HULLS,
   MAX_STATIC_OCTREE_NODES,
   MAX_STATIC_SUBENTITIES,
+  MAX_STATION_HULL_ARTIFACT_BYTES,
   StaticHullArtifactSchema,
 } from "../../src/content/schemas/ship-static-hull.js";
 import type {
   StaticHull,
   StaticHullArtifact,
 } from "../../src/content/schemas/ship-static-hull.js";
-import { loadStaticHulls } from "../../src/content/ships-static-hulls.js";
+import {
+  StaticHullsError,
+  assertStationHull,
+  loadStaticHulls,
+  loadStationHulls,
+} from "../../src/content/ships-static-hulls.js";
+import { STATION_KINDS, STATION_RECORDS } from "../../src/content/stations.js";
+import type { StationKind } from "../../src/content/stations.js";
 
 const REPO_ROOT = process.cwd();
 const GENERATED = "src/content/generated/ships-static-hulls.json";
@@ -368,6 +376,150 @@ describe("the generated static hull file", () => {
   });
 });
 
+/** The kinds whose hulls ship in a file of their own (Phase 22.1). */
+const OWN_FILE_KINDS: readonly StationKind[] = STATION_KINDS.filter(
+  (kind) => STATION_RECORDS[kind].hullsFile !== "ships-static-hulls.json",
+);
+
+/** What each own-file station carries, measured from the emitted files. */
+const STATION_EXPECTED: Record<
+  string,
+  {
+    name: string;
+    hullNodes: number;
+    subentities: [string, number, number][];
+  }
+> = {
+  dodecahedron: {
+    name: "Dodecahedron Station",
+    hullNodes: 41_913,
+    subentities: [
+      ["oolite_dodo_faceplate", 1_193, 0],
+      ["oolite_dodo_dock", 1_737, 560.3216],
+    ],
+  },
+  icosahedron: {
+    name: "Icosahedron Station",
+    hullNodes: 5_609,
+    subentities: [
+      ["oolite_ico_mainhull", 47_529, 0],
+      ["oolite_ico_dock", 1_737, 642.8881],
+    ],
+  },
+};
+
+function stationFile(kind: StationKind): string {
+  return `src/content/generated/${STATION_RECORDS[kind].hullsFile}`;
+}
+
+function stationArtifact(kind: StationKind): StaticHullArtifact {
+  const parsed = StaticHullArtifactSchema.safeParse(
+    JSON.parse(readText(stationFile(kind))) as unknown,
+  );
+  expect(parsed.success, stationFile(kind)).toBe(true);
+  if (!parsed.success) throw new Error(`${stationFile(kind)} does not parse`);
+  return parsed.data;
+}
+
+describe("the per-station static hull files (Phase 22.1)", () => {
+  it("covers the Dodecahedron and the Icosahedron, and leaves the Coriolis in the shared file", () => {
+    expect(OWN_FILE_KINDS).toEqual(["dodecahedron", "icosahedron"]);
+    expect(STATION_RECORDS.coriolis.hullsFile).toBe("ships-static-hulls.json");
+    expect(
+      parsedArtifact().hulls.some((hull) => hull.key.endsWith("-station")),
+    ).toBe(true);
+    expect(
+      parsedArtifact().hulls.map((hull) => hull.key),
+      "the shared artifact gained no station",
+    ).toEqual(["coriolis-station", "buoy", "barrel", "alloy"]);
+  });
+
+  for (const kind of OWN_FILE_KINDS) {
+    describe(kind, () => {
+      const expected = STATION_EXPECTED[kind];
+      if (expected === undefined) throw new Error(`no expectation for ${kind}`);
+
+      it("parses under the strict schema and stays under MAX_STATION_HULL_ARTIFACT_BYTES", () => {
+        expect(existsSync(join(REPO_ROOT, stationFile(kind)))).toBe(true);
+        stationArtifact(kind);
+        expect(
+          statSync(join(REPO_ROOT, stationFile(kind))).size,
+        ).toBeLessThanOrEqual(MAX_STATION_HULL_ARTIFACT_BYTES);
+      });
+
+      it("holds one hull under the kind's ship key, with its display name from shipdata", () => {
+        const artifact = stationArtifact(kind);
+        expect(artifact.hulls.map((hull) => hull.key)).toEqual([
+          STATION_RECORDS[kind].shipKey,
+        ]);
+        expect(artifact.names).toEqual([
+          { key: STATION_RECORDS[kind].shipKey, name: expected.name },
+        ]);
+      });
+
+      it("carries the compiled client collision radius and is not frangible", () => {
+        const client = JSON.parse(
+          readText("src/content/generated/ships-client.json"),
+        ) as { key: string; collisionRadius: number }[];
+        const record = client.find(
+          (candidate) => candidate.key === STATION_RECORDS[kind].shipKey,
+        );
+        const hull = stationArtifact(kind).hulls[0];
+        expect(record).toBeDefined();
+        expect(hull?.collisionRadius).toBe(record?.collisionRadius);
+        expect(hull?.frangible).toBe(false);
+      });
+
+      it("carries its solid subentities, flashers skipped, at the authored positions", () => {
+        const hull = stationArtifact(kind).hulls[0];
+        expect(
+          hull?.subentities.map((subentity) => [
+            subentity.key,
+            nodeCount(subentity.octree.root),
+            subentity.position[2],
+          ]),
+        ).toEqual(expected.subentities);
+        expect(nodeCount(hull?.octree.root)).toBe(expected.hullNodes);
+        for (const subentity of hull?.subentities ?? []) {
+          expect(subentity.mass).toBeGreaterThan(0);
+        }
+      });
+    });
+  }
+
+  it("loads each kind through loadStationHulls with that kind's ship key", async () => {
+    for (const kind of OWN_FILE_KINDS) {
+      const artifact = await loadStationHulls(kind);
+      expect(artifact, kind).toEqual(stationArtifact(kind));
+      expect(
+        artifact.hulls.map((hull) => hull.key),
+        kind,
+      ).toContain(STATION_RECORDS[kind].shipKey);
+    }
+  });
+
+  it("resolves the Coriolis to the very promise the shared loader returns", () => {
+    expect(loadStationHulls("coriolis")).toBe(loadStaticHulls());
+  });
+
+  it("caches a kind's promise", () => {
+    expect(loadStationHulls("icosahedron")).toBe(
+      loadStationHulls("icosahedron"),
+    );
+  });
+
+  it("rejects an artifact without the kind's ship key with a StaticHullsError", () => {
+    const wrong = parsedArtifact();
+    expect(() => assertStationHull(wrong, "dodecahedron")).toThrow(
+      StaticHullsError,
+    );
+    expect(() => assertStationHull(wrong, "dodecahedron")).toThrow(
+      /ships-static-hulls-dodecahedron\.json.*dodecahedron-station/,
+    );
+    expect(assertStationHull(wrong, "coriolis")).toBe(wrong);
+  });
+});
+
 describe("StaticHullArtifactSchema bounds", () => {
   it("accepts the minimal artifact and a 64-character name and key", () => {
     expect(rejectionPath(minimalArtifact())).toBeUndefined();
@@ -525,16 +677,19 @@ describe("loadStaticHulls", () => {
  */
 describe("boot-path isolation", () => {
   const LOADER = "src/content/ships-static-hulls.ts";
+  const STATION_TABLE = "src/content/stations.ts";
   const START_SESSION = "src/app/session/start-session.ts";
   const flat = (text: string): string => text.replace(/\s+/g, " ");
 
-  it("lets the loader name its own generated file and no other", () => {
+  it("lets the loader name its own generated files and no other", () => {
     const source = readText(LOADER);
-    expect(source).toContain("./generated/ships-static-hulls.json");
+    // One glob over the shared file and the per-station files; the file a kind
+    // reads is named by STATION_RECORDS, never by glob order.
+    expect(source).toContain("./generated/ships-static-hulls*.json");
     const named = source.match(/generated\/[A-Za-z0-9._-]+/g) ?? [];
-    expect(new Set(named)).toEqual(
-      new Set(["generated/ships-static-hulls.json"]),
-    );
+    for (const name of named) {
+      expect(name).toMatch(/^generated\/ships-static-hulls/);
+    }
   });
 
   it("is imported by no source file but the session start-up, and no file under src/sim names it", () => {
@@ -542,7 +697,12 @@ describe("boot-path isolation", () => {
     // import or a glob); a doc comment naming them is not an importer.
     const importsIt = /["'][^"'\s]*ships-static-hulls(?:\.js|\.json)?["']/;
     const importers = sourceFiles("src").filter(
-      (file) => file !== LOADER && importsIt.test(readText(file)),
+      (file) =>
+        file !== LOADER &&
+        // The station record names each kind's file as data (hullsFile); it
+        // imports nothing and loads nothing.
+        file !== STATION_TABLE &&
+        importsIt.test(readText(file)),
     );
     expect(importers).toEqual([START_SESSION]);
     const names = /ships-static-hulls|loadStaticHulls/;

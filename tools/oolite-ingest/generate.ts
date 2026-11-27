@@ -27,7 +27,7 @@ import { emitComms } from "./convert/comms.js";
 import { DEBRIS_ENTRIES, emitDebris } from "./convert/debris.js";
 import { assertBounds, modelBounds, parseDat } from "./convert/dat.js";
 import type { ParsedMesh } from "./convert/dat.js";
-import { emitDockPort } from "./convert/dock-port.js";
+import { emitDockPorts } from "./convert/dock-port.js";
 import {
   BUOY_STATION_ROLE,
   BUOY_WITCHPOINT_ROLE,
@@ -48,6 +48,7 @@ import { computeShipMasses } from "./convert/ship-mass.js";
 import { emitShipHulls } from "./convert/ship-hulls.js";
 import {
   emitStaticHulls,
+  emitStationHulls,
   staticSubentityKeys,
 } from "./convert/static-hulls.js";
 import {
@@ -253,7 +254,8 @@ export async function generateContent({
     emitComms(descriptions),
     emitShipHulls(catalogue, models),
     emitStaticHulls(catalogue, models, staticMasses),
-    emitDockPort(models),
+    ...emitStationHulls(catalogue, models, staticMasses),
+    ...emitDockPorts(models),
   ];
 
   // D-05 fix (1), plan 21-17: each NPC hull's primitives are merged into one

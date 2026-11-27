@@ -109,11 +109,26 @@ function builtMessages(): string[] {
   const npc = JSON.parse(read("src/content/generated/ships-npc.json")) as {
     name: string;
   }[];
-  const statics = JSON.parse(
-    read("src/content/generated/ships-static-hulls.json"),
-  ) as { names: { name: string }[] };
-  const shipNames = [...npc, ...statics.names].map((record) => record.name);
+  // Every static hull file: the shared one and one per own-file station (Phase
+  // 22.1), found by a glob over the generated directory so a new station's
+  // ident line is checked without editing this guard.
+  const staticFiles = readdirSync(join(REPO_ROOT, "src/content/generated"))
+    .filter((file) => /^ships-static-hulls.*\.json$/.test(file))
+    .sort();
+  expect(staticFiles).toContain("ships-static-hulls.json");
+  expect(staticFiles.length).toBeGreaterThanOrEqual(3);
+  const staticNames = staticFiles.flatMap(
+    (file) =>
+      (
+        JSON.parse(read(`src/content/generated/${file}`)) as {
+          names: { name: string }[];
+        }
+      ).names,
+  );
+  const shipNames = [...npc, ...staticNames].map((record) => record.name);
   expect(shipNames.length).toBeGreaterThan(0);
+  expect(shipNames).toContain("Dodecahedron Station");
+  expect(shipNames).toContain("Icosahedron Station");
 
   const systemsDir = "src/content/generated/systems";
   const systemNames = readdirSync(join(REPO_ROOT, systemsDir))

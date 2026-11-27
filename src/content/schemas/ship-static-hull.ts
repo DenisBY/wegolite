@@ -7,7 +7,9 @@
  * The Coriolis station, the navigation buoy, the cargo barrel and the alloy
  * plate carry their hull octrees in a second lazily loaded file,
  * `src/content/generated/ships-static-hulls.json`, beside the ten-hull
- * artifact of `ship-hull.ts`. The Coriolis hull octree (32,841 nodes) and its tris
+ * artifact of `ship-hull.ts`. The Dodecahedron and Icosahedron stations
+ * (Phase 22.1) each have a file of their own, `ships-static-hulls-<kind>.json`,
+ * under this same schema, so the shared file does not grow. The Coriolis hull octree (32,841 nodes) and its tris
  * subentity (30,089) each exceed the ten-hull per-hull cap `MAX_HULL_NODES`
  * (16,384), and the whole set exceeds that file's byte cap, so the statics get
  * their own schema and bounds instead of a raised ten-hull cap (T-13-06/07 stay
@@ -51,11 +53,17 @@ export const MAX_STATIC_SUBENTITIES = 4;
 
 /**
  * The most nodes one static octree may hold (every node counts, leaves
- * included). Derived from the emitted file: the largest octree is the Coriolis
- * hull, 32,841 nodes (the tris 30,089, the buoy hull 10,945); 32,841 with about
- * 20 % headroom is 39,409, rounded up to 40,000.
+ * included). Derived from the emitted files: the largest octree is the
+ * Icosahedron's main-hull subentity `oolite_ico_mainhull`, 47,529 nodes, in
+ * `ships-static-hulls-icosahedron.json` (Phase 22.1; the Dodecahedron hull has
+ * 41,913, the Coriolis hull 32,841, the Coriolis tris 30,089); 47,529 with about
+ * 20 % headroom is 57,035, rounded up to 58,000. Before Phase 22.1 the largest
+ * was the Coriolis hull and the cap 40,000. All three static files share this
+ * schema, so the shared `ships-static-hulls.json` (largest octree 32,841) is
+ * bounded by the same, now looser, per-octree cap; its byte and artifact-node
+ * caps below did not move.
  */
-export const MAX_STATIC_OCTREE_NODES = 40_000;
+export const MAX_STATIC_OCTREE_NODES = 58_000;
 
 /**
  * The most nodes the whole static artifact may hold. Derived from the emitted
@@ -70,6 +78,16 @@ export const MAX_STATIC_ARTIFACT_NODES = 104_000;
  * rounded up to 270,000.
  */
 export const MAX_STATIC_HULL_ARTIFACT_BYTES = 270_000;
+
+/**
+ * The size each per-station static file (`ships-static-hulls-<kind>.json`,
+ * Phase 22.1) must stay under, in bytes. Derived from the two emitted files: the
+ * Dodecahedron's is 107,319 bytes and the Icosahedron's 131,323; the larger,
+ * with about 20 % headroom, is 157,588, rounded up to 160,000. A station
+ * artifact holds one hull and one name, so it has its own bound and the shared
+ * file's {@link MAX_STATIC_HULL_ARTIFACT_BYTES} is never raised for it.
+ */
+export const MAX_STATION_HULL_ARTIFACT_BYTES = 160_000;
 
 /** The most hull records the static artifact may hold. */
 export const MAX_STATIC_HULLS = 8;
