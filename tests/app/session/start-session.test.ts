@@ -51,6 +51,7 @@ import { sessionSourceFiles } from "../../helpers/session-source.js";
 import { dockGeometryOf, stationSpecOf } from "../../helpers/stations.js";
 import { loadStationRecords } from "../../../src/app/session/station-install.js";
 import { STATION_KINDS } from "../../../src/content/stations.js";
+import type { StationKind } from "../../../src/content/stations.js";
 
 // The boot cannot run to its end in Node (it builds the HUD and the input
 // source), so the Continue case below cuts it right after the station install
@@ -939,10 +940,16 @@ describe("the station of the starting system (Phase 22.1, WORLD-20)", () => {
    * manager a recording double that derives the layout from the spec it is
    * given, and stop right after the station install.
    */
-  async function boot(restore: StartOptions): Promise<{
+  async function boot(
+    restore: StartOptions,
+    loadStation: (kind: StationKind) => Promise<unknown> = () =>
+      Promise.resolve({}),
+  ): Promise<{
     readonly ctx: SessionState;
     readonly entered: StationSpec[];
     readonly failures: string[];
+    /** The kinds requested through the asset cache and the scene entries, in order. */
+    readonly order: string[];
   }> {
     vi.stubGlobal("window", {
       location: { search: "" },
@@ -960,6 +967,7 @@ describe("the station of the starting system (Phase 22.1, WORLD-20)", () => {
     });
     const failures: string[] = [];
     const entered: StationSpec[] = [];
+    const order: string[] = [];
     let layout: SystemLayout | undefined;
     const ctx = createSessionState({
       system: lave.system,
@@ -968,10 +976,18 @@ describe("the station of the starting system (Phase 22.1, WORLD-20)", () => {
     });
     const galaxyById = new Map<string, System>();
     const deps = {
-      assets: { preload: () => Promise.resolve(), dispose: () => undefined },
+      assets: {
+        preload: () => Promise.resolve(),
+        loadStation: (kind: StationKind) => {
+          order.push(`load ${kind}`);
+          return loadStation(kind);
+        },
+        dispose: () => undefined,
+      },
       scenes: {
         setQuality: () => undefined,
         enterSystem: (system: System, spec: StationSpec) => {
+          order.push(`enter ${spec.kind}`);
           entered.push(spec);
           layout = deriveSystemLayout(system, spec);
           return { name: "scene" } as unknown as SystemScene;
@@ -992,7 +1008,7 @@ describe("the station of the starting system (Phase 22.1, WORLD-20)", () => {
     } as unknown as LifecycleDeps;
     const lifecycle = createSessionLifecycle(ctx, deps);
     await lifecycle.start(restore);
-    return { ctx, entered, failures };
+    return { ctx, entered, failures, order };
   }
 
   it("boots a Continue at Zaonce with the Icosahedron spec, key and dock geometry", async () => {
@@ -1077,5 +1093,49 @@ describe("the station of the starting system (Phase 22.1, WORLD-20)", () => {
     expect(ctx.core.stationKey).toBe("coriolis-station");
     expect(entered).toEqual([stationSpecOf("coriolis")]);
     expect(ctx.core.dockGeometry).toEqual(dockGeometryOf("coriolis"));
+  });
+
+  it("awaits the starting system's own station model before its first scene", async () => {
+    const parsed = zaonceSave();
+    if (!parsed.ok) throw new Error("the Zaonce save did not parse");
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const requested: StationKind[] = [];
+    const booting = boot({ restore: parsed.save }, (kind) => {
+      requested.push(kind);
+      return gate;
+    });
+    let settled = false;
+    void booting.then(() => {
+      settled = true;
+    });
+    // The model is requested and held: the boot has not gone on to a scene.
+    await vi.waitFor(() => {
+      expect(requested).toEqual(["icosahedron"]);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toBe(false);
+    release?.();
+    const { order } = await booting;
+    expect(order).toEqual(["load icosahedron", "enter icosahedron"]);
+  });
+
+  it("requests the Coriolis (already in the preload set) for a Lave start and no other kind", async () => {
+    const { order } = await boot({});
+    expect(order).toEqual(["load coriolis", "enter coriolis"]);
+  });
+
+  it("stops the boot on the failure surface when the starting station's model fails to load, entering no scene", async () => {
+    const parsed = zaonceSave();
+    if (!parsed.ok) throw new Error("the Zaonce save did not parse");
+    const { failures, entered, ctx } = await boot(
+      { restore: parsed.save },
+      () => Promise.reject(new Error("the icosahedron model is missing")),
+    );
+    expect(failures).toEqual(["the icosahedron model is missing"]);
+    expect(entered).toEqual([]);
+    expect(ctx.core.stationDef).toBeUndefined();
   });
 });

@@ -21,6 +21,7 @@
 
 import type * as THREE from "three";
 import { showBootFailure } from "./boot-failure.js";
+import { loadStationHulls } from "../content/ships-static-hulls.js";
 import type { System } from "../content/types.js";
 import { publishFailure } from "./probe.js";
 import type { WegoliteProbe, WegoliteSaveProbe } from "./probe.js";
@@ -479,7 +480,13 @@ export function createGameSession(options: GameSessionOptions): GameSession {
       refusalCopy,
       handleHyperspaceJumped,
       prefetchStation: (destinationId) => {
-        prefetchStationFor(ctx, galaxyById, destinationId);
+        prefetchStationFor(
+          ctx,
+          galaxyById,
+          destinationId,
+          loadStationHulls,
+          assets,
+        );
       },
     }),
     deathFlow: createDeathFlow(ctx, {
@@ -544,6 +551,7 @@ export function createGameSession(options: GameSessionOptions): GameSession {
     // lifecycle's dispose): a late NPC model resolution is then dropped.
     assets: {
       preload: () => assets.preload(),
+      loadStation: assets.loadStation.bind(assets),
       dispose: () => {
         npcModels.dispose();
         assets.dispose();

@@ -32,6 +32,7 @@ import {
 } from "../../content/stations.js";
 import type { StationKind } from "../../content/stations.js";
 import type { StationSpec, System } from "../../content/types.js";
+import type { AssetCache } from "../../render/asset-cache.js";
 import { createDockGeometry } from "../../sim/dock/geometry.js";
 import type { DockGeometry } from "../../sim/dock/geometry.js";
 import type { SessionState } from "./context.js";
@@ -195,15 +196,35 @@ export function ensureStationHulls(
  * rejection is logged once, with the file name, and leaves the session as it
  * is. A countdown the player cancels may leave a completed prefetch, which is
  * harmless: one small artifact, reused at a later visit.
+ *
+ * With `models` (the countdown start; the arrival passes none) the
+ * destination's station model is requested too (Phase 22.1, O3). This is the
+ * only place a station model is prefetched: nothing fetches every kind in the
+ * background, so a session that never starts a countdown toward another kind
+ * of station requests no other station model. The cache memoises per kind, so
+ * a second countdown asks for nothing new; a rejection is logged once and the
+ * arrival then builds the station meshless and attaches the model late.
  */
 export function prefetchStationFor(
   ctx: SessionState,
   galaxyById: ReadonlyMap<string, Pick<System, "station">>,
   systemId: string,
   load: StationHullLoader = loadStationHulls,
+  models?: Pick<AssetCache, "loadStation">,
 ): void {
   const system = galaxyById.get(systemId);
   if (system === undefined) return;
+  if (models !== undefined) {
+    models.loadStation(system.station).catch((error: unknown) => {
+      // A load that fails after the session was disposed is not an error
+      // anyone can act on, as with the NPC model prefetch.
+      if (ctx.runtime.disposed) return;
+      console.error(
+        `Wegolite: the ${stationRecord(system.station).glb} station model could not be prefetched`,
+        error,
+      );
+    });
+  }
   ensureStationHulls(ctx, system.station, load).catch((error: unknown) => {
     console.error(
       `Wegolite: the ${stationRecord(system.station).hullsFile} station hull artifact could not be loaded`,

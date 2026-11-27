@@ -25,10 +25,17 @@ import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { describe, expect, it } from "vitest";
 
+import { STATION_KINDS, stationRecord } from "../../src/content/stations.js";
+import type { StationKind } from "../../src/content/stations.js";
+import type { System } from "../../src/content/types.js";
 import { createStation } from "../../src/render/bodies/station.js";
+import type { StationBody } from "../../src/render/bodies/station.js";
 import { isMesh } from "../../src/render/mesh.js";
 import { axisAngle, mul } from "../../src/sim/math.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
+import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "../helpers/lave.js";
+import { stationSpecOf } from "../helpers/stations.js";
 
 const { layout } = laveFixture();
 
@@ -405,5 +412,207 @@ describe("createStation", () => {
     expect(code).toContain("polygonOffset");
     expect(code).toContain("renderOrder");
     expect(code).not.toContain("lookAt(");
+  });
+});
+
+const galaxy = JSON.parse(
+  readFileSync(
+    new URL("../../src/content/generated/systems/g0.json", import.meta.url),
+    "utf8",
+  ),
+) as System[];
+
+/** The layout of the first galaxy-0 system whose own station is this kind. */
+function layoutOf(kind: StationKind): SystemLayout {
+  const system = galaxy.find((entry) => entry.station === kind);
+  if (system === undefined) throw new Error(`no ${kind} system in galaxy 0`);
+  return deriveSystemLayout(system, stationSpecOf(kind));
+}
+
+/**
+ * A synthetic model with one mesh per node of the kind's record, in the
+ * record's order, optionally leaving one node out.
+ */
+function syntheticStation(kind: StationKind, omit?: string): GLTF {
+  const scene = new THREE.Group();
+  for (const node of stationRecord(kind).nodes) {
+    if (node.name === omit) continue;
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial(),
+    );
+    mesh.name = node.name;
+    scene.add(mesh);
+  }
+  return { scene } as unknown as GLTF;
+}
+
+interface NodeExpectation {
+  readonly renderOrder: number;
+  readonly polygonOffset: boolean;
+}
+
+/**
+ * The render settings each kind's nodes must carry, written from the plan (a
+ * body node first with the offset, the detail nodes next, the dock last), not
+ * read from the record under test.
+ */
+const EXPECTED_NODES: Readonly<
+  Record<StationKind, Readonly<Record<string, NodeExpectation>>>
+> = {
+  coriolis: {
+    hull: { renderOrder: 0, polygonOffset: true },
+    faceplate: { renderOrder: 1, polygonOffset: false },
+    tris: { renderOrder: 2, polygonOffset: false },
+    dock: { renderOrder: 3, polygonOffset: false },
+  },
+  dodecahedron: {
+    hull: { renderOrder: 0, polygonOffset: true },
+    faceplate: { renderOrder: 1, polygonOffset: false },
+    dock: { renderOrder: 2, polygonOffset: false },
+  },
+  icosahedron: {
+    mainhull: { renderOrder: 0, polygonOffset: true },
+    hull: { renderOrder: 1, polygonOffset: false },
+    dock: { renderOrder: 2, polygonOffset: false },
+  },
+};
+
+function meshesByName(station: StationBody): Map<string, THREE.Mesh> {
+  const byName = new Map<string, THREE.Mesh>();
+  station.root.traverse((object) => {
+    if (isMesh(object)) byName.set(object.name, object);
+  });
+  return byName;
+}
+
+describe.each(STATION_KINDS)("createStation for the %s kind", (kind) => {
+  const kindLayout = layoutOf(kind);
+  const expected = EXPECTED_NODES[kind];
+
+  it("builds from exactly that kind's nodes and draws each with its layer's settings", () => {
+    const station = createStation(kindLayout, syntheticStation(kind));
+    const byName = meshesByName(station);
+
+    expect([...byName.keys()].sort()).toEqual(Object.keys(expected).sort());
+    for (const [name, want] of Object.entries(expected)) {
+      const mesh = byName.get(name);
+      const material = mesh?.material as THREE.MeshStandardMaterial | undefined;
+      expect(mesh?.renderOrder, `${name} renderOrder`).toBe(want.renderOrder);
+      expect(material?.depthWrite, `${name} depthWrite`).toBe(true);
+      expect(material?.polygonOffset, `${name} polygonOffset`).toBe(
+        want.polygonOffset,
+      );
+      if (want.polygonOffset) {
+        expect(material?.polygonOffsetFactor).toBe(1);
+        expect(material?.polygonOffsetUnits).toBe(1);
+      }
+    }
+    expect(
+      (byName.get("dock")?.material as THREE.Material | undefined)?.depthTest,
+    ).toBe(true);
+  });
+
+  it("publishes the attached model's kind and finds its dock node", () => {
+    const station = createStation(kindLayout, syntheticStation(kind));
+    expect(station.modelKind).toBe(kind);
+    expect(station.dock.name).toBe("dock");
+    expect(station.root.getObjectByName("dock")).toBe(station.dock);
+  });
+
+  it.each(stationRecord(kind).nodes.map((node) => node.name))(
+    "throws an error naming the kind and the node when the %s node is missing",
+    (name) => {
+      expect(() =>
+        createStation(kindLayout, syntheticStation(kind, name)),
+      ).toThrow(
+        new RegExp(`the ${kind} station model is missing its "${name}" node`),
+      );
+    },
+  );
+
+  it("draws no flasher (deferred, owner decision D-C; todo 2026-11-27-station-flashers)", () => {
+    // Tripwire: when flashers are implemented this must change together with
+    // the todo `2026-11-27-station-flashers` and its FIDELITY.md row.
+    const station = createStation(kindLayout, syntheticStation(kind));
+    const names: string[] = [];
+    let drawn = 0;
+    station.root.traverse((object) => {
+      names.push(object.name);
+      if (
+        isMesh(object) ||
+        object.type === "Sprite" ||
+        object.type === "Points"
+      )
+        drawn += 1;
+    });
+    expect(names.filter((name) => /flasher/i.test(name))).toEqual([]);
+    expect(drawn).toBe(stationRecord(kind).nodes.length);
+  });
+});
+
+describe("createStation without a model", () => {
+  it("builds the pose, the roll and an empty dock node, with no mesh and no model kind", () => {
+    const kindLayout = layoutOf("icosahedron");
+    const station = createStation(kindLayout);
+
+    expect(station.modelKind).toBeUndefined();
+    expect(meshesByName(station).size).toBe(0);
+    expect(station.dock.name).toBe("dock");
+    expect(station.dock.type).toBe("Object3D");
+    expect(station.dock.position.toArray()).toEqual([
+      0,
+      0,
+      -kindLayout.dockOffset,
+    ]);
+    expect(station.root.quaternion.w).toBeCloseTo(
+      kindLayout.stationBaseQuat.w,
+      12,
+    );
+    station.update(0.5);
+    const rolled = mul(kindLayout.stationBaseQuat, axisAngle(0, 0, 1, 0.5));
+    expect(station.root.quaternion.x).toBeCloseTo(rolled.x, 12);
+    expect(station.root.quaternion.w).toBeCloseTo(rolled.w, 12);
+  });
+
+  it("attaches its own kind's model exactly once and then reports that kind", () => {
+    const kindLayout = layoutOf("dodecahedron");
+    const station = createStation(kindLayout);
+    const gltf = syntheticStation("dodecahedron");
+    station.attachModel(gltf);
+
+    expect(station.modelKind).toBe("dodecahedron");
+    expect(meshesByName(station).size).toBe(3);
+    expect(station.dock.name).toBe("dock");
+    expect(station.dock.type).toBe("Mesh");
+    // The placeholder is gone: exactly one dock node under the root.
+    const docks: THREE.Object3D[] = [];
+    station.root.traverse((object) => {
+      if (object.name === "dock") docks.push(object);
+    });
+    expect(docks).toHaveLength(1);
+
+    // A second attach adds nothing.
+    station.attachModel(syntheticStation("dodecahedron"));
+    expect(meshesByName(station).size).toBe(3);
+    expect(station.root.children).toHaveLength(1);
+  });
+
+  it("clones nothing and allocates no material when attached after dispose()", () => {
+    const station = createStation(layoutOf("icosahedron"));
+    station.dispose();
+    station.attachModel(syntheticStation("icosahedron"));
+
+    expect(station.modelKind).toBeUndefined();
+    expect(meshesByName(station).size).toBe(0);
+  });
+
+  it("refuses a model that lacks a node of its kind and stays meshless", () => {
+    const station = createStation(layoutOf("icosahedron"));
+    expect(() => {
+      station.attachModel(syntheticStation("icosahedron", "mainhull"));
+    }).toThrow(/icosahedron station model is missing its "mainhull" node/);
+    expect(station.modelKind).toBeUndefined();
+    expect(station.dock.type).toBe("Object3D");
   });
 });

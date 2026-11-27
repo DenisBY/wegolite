@@ -30,6 +30,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createSceneManager } from "../../src/app/scene-manager.js";
 import type { SceneManager } from "../../src/app/scene-manager.js";
+import { STATION_KINDS, stationRecord } from "../../src/content/stations.js";
+import type { StationKind } from "../../src/content/stations.js";
+import type { System } from "../../src/content/types.js";
 import { createAssetCache } from "../../src/render/asset-cache.js";
 import type { AssetCache } from "../../src/render/asset-cache.js";
 import { createBuoy } from "../../src/render/bodies/buoy.js";
@@ -64,7 +67,9 @@ import type {
   SystemSceneFactories,
   SystemSceneParts,
 } from "../../src/render/system-scene.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import { laveFixture } from "../helpers/lave.js";
+import { stationSpecOf } from "../helpers/stations.js";
 
 const { system, stationDef, layout } = laveFixture();
 
@@ -161,14 +166,14 @@ function loaderFor(
 function guardCache(cobra: GLTF, coriolis: GLTF, buoy: GLTF): AssetCache {
   return {
     loadCobra: () => Promise.resolve(cobra),
-    loadCoriolis: () => Promise.resolve(coriolis),
+    loadStation: () => Promise.resolve(coriolis),
     loadBuoy: () => Promise.resolve(buoy),
     loadNpcModel: () =>
       Promise.reject(
         new Error("a scene must never load NPC models through the guard cache"),
       ),
     cobra: () => cobra,
-    coriolis: () => coriolis,
+    station: () => coriolis,
     buoy: () => buoy,
     preload: () => Promise.resolve(),
     loaded: () => true,
@@ -1186,6 +1191,292 @@ describe("the ownership rule is visible in the source", () => {
         .replace(/\/\/.*$/gm, "");
       expect(source, relative).not.toMatch(/assets\.dispose\s*\(/);
       expect(source, relative).not.toMatch(/cache\.dispose\s*\(/);
+    }
+  });
+});
+
+describe("each system draws its own station model (Phase 22.1, WORLD-20)", () => {
+  const galaxy = JSON.parse(
+    readFileSync(
+      new URL("../../src/content/generated/systems/g0.json", import.meta.url),
+      "utf8",
+    ),
+  ) as System[];
+
+  function systemOfKind(kind: StationKind): System {
+    const found = galaxy.find((entry) => entry.station === kind);
+    if (found === undefined) throw new Error(`no ${kind} system in galaxy 0`);
+    return found;
+  }
+
+  /** A model with one mesh per node of the kind's record, marked with its kind. */
+  function syntheticStationModel(kind: StationKind): SyntheticModel {
+    const texture = new THREE.Texture();
+    const material = new THREE.MeshStandardMaterial({ map: texture });
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const scene = new THREE.Group();
+    scene.userData = { kind };
+    for (const node of stationRecord(kind).nodes) {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = node.name;
+      scene.add(mesh);
+    }
+    return { gltf: { scene } as unknown as GLTF, geometry, material, texture };
+  }
+
+  interface Models {
+    readonly byKind: Readonly<Record<StationKind, SyntheticModel>>;
+    readonly cobra: SyntheticModel;
+    readonly buoy: SyntheticModel;
+  }
+
+  function modelsOf(): Models {
+    return {
+      cobra: syntheticCobra(),
+      buoy: syntheticBuoy(),
+      byKind: {
+        coriolis: syntheticStationModel("coriolis"),
+        dodecahedron: syntheticStationModel("dodecahedron"),
+        icosahedron: syntheticStationModel("icosahedron"),
+      },
+    };
+  }
+
+  /**
+   * A loader routing each URL to its model, recording every request. A kind in
+   * `held` resolves only when its gate opens.
+   */
+  function stationLoader(
+    models: Models,
+    held: ReadonlySet<StationKind> = new Set(),
+  ): {
+    readonly loader: (url: string) => Promise<GLTF>;
+    readonly urls: string[];
+    readonly open: (kind: StationKind) => void;
+    readonly fail: (kind: StationKind) => void;
+  } {
+    const urls: string[] = [];
+    const gates = new Map<
+      StationKind,
+      { resolve: () => void; reject: (error: Error) => void }
+    >();
+    const loader = (url: string): Promise<GLTF> => {
+      urls.push(url);
+      if (url.includes("cobra")) return Promise.resolve(models.cobra.gltf);
+      if (url.includes("buoy")) return Promise.resolve(models.buoy.gltf);
+      const kind = STATION_KINDS.find((candidate) =>
+        url.endsWith(stationRecord(candidate).glb),
+      );
+      if (kind === undefined) {
+        return Promise.reject(new Error(`unexpected request for ${url}`));
+      }
+      const gltf = models.byKind[kind].gltf;
+      if (!held.has(kind)) return Promise.resolve(gltf);
+      return new Promise<GLTF>((resolve, reject) => {
+        gates.set(kind, {
+          resolve: () => {
+            resolve(gltf);
+          },
+          reject,
+        });
+      });
+    };
+    return {
+      loader,
+      urls,
+      open: (kind) => {
+        gates.get(kind)?.resolve();
+      },
+      fail: (kind) => {
+        gates.get(kind)?.reject(new Error("network down"));
+      },
+    };
+  }
+
+  function sceneFor(
+    cache: AssetCache,
+    target: System,
+    kind: StationKind,
+  ): ReturnType<typeof createSystemScene> {
+    return createSystemScene(
+      deriveSystemLayout(target, stationSpecOf(kind)),
+      cache,
+      target,
+    );
+  }
+
+  it("draws the Coriolis at Lave, the Dodecahedron at Biarge and the Icosahedron at Zaonce, each from its own GLB", async () => {
+    const stub = installCanvasStub();
+    try {
+      const models = modelsOf();
+      const { loader } = stationLoader(models);
+      const cache = createAssetCache("/", loader);
+      await cache.preload();
+      await Promise.all(STATION_KINDS.map((kind) => cache.loadStation(kind)));
+
+      const scenes = STATION_KINDS.map((kind) => {
+        const target = kind === "coriolis" ? system : systemOfKind(kind);
+        return { kind, scene: sceneFor(cache, target, kind) };
+      });
+
+      for (const { kind, scene } of scenes) {
+        expect(scene.station.modelKind, kind).toBe(kind);
+        const drawn = scene.station.root.children[0];
+        expect(drawn?.userData.kind, kind).toBe(kind);
+        const names: string[] = [];
+        scene.station.root.traverse((object) => {
+          if (isMesh(object)) names.push(object.name);
+        });
+        expect(names, kind).toEqual(
+          stationRecord(kind).nodes.map((node) => node.name),
+        );
+      }
+      for (const { scene } of scenes) scene.dispose();
+      cache.dispose();
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("builds a scene whose model is still loading without throwing, and attaches it when the load resolves", async () => {
+    const stub = installCanvasStub();
+    try {
+      const models = modelsOf();
+      const gate = stationLoader(models, new Set<StationKind>(["icosahedron"]));
+      const cache = createAssetCache("/", gate.loader);
+      await cache.preload();
+      const zaonce = systemOfKind("icosahedron");
+
+      let scene: ReturnType<typeof createSystemScene> | undefined;
+      expect(() => {
+        scene = sceneFor(cache, zaonce, "icosahedron");
+      }).not.toThrow();
+      if (scene === undefined) throw new Error("no scene was built");
+
+      // Meshless, never another kind's model, with an empty dock node.
+      expect(scene.station.modelKind).toBeUndefined();
+      expect(scene.station.root.children).toHaveLength(1);
+      expect(scene.station.dock.type).toBe("Object3D");
+      expect(scene.station.dock.name).toBe("dock");
+      expect(
+        gate.urls.filter((url) => url.includes("icosahedron")),
+      ).toHaveLength(1);
+
+      gate.open("icosahedron");
+      await vi.waitFor(() => {
+        expect(scene?.station.modelKind).toBe("icosahedron");
+      });
+      expect(scene.station.root.children[0]?.userData.kind).toBe("icosahedron");
+      expect(scene.station.root.children).toHaveLength(1);
+      expect(scene.station.dock.type).toBe("Mesh");
+      // Only the scene's own request, and no other kind was ever asked for.
+      expect(
+        gate.urls.filter((url) => url.includes("icosahedron")),
+      ).toHaveLength(1);
+      expect(gate.urls.some((url) => url.includes("dodecahedron"))).toBe(false);
+
+      scene.dispose();
+      cache.dispose();
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("attaches nothing when the scene was disposed before the load resolved, and the cache frees the model once", async () => {
+    const stub = installCanvasStub();
+    try {
+      const models = modelsOf();
+      const gate = stationLoader(models, new Set<StationKind>(["icosahedron"]));
+      const cache = createAssetCache("/", gate.loader);
+      await cache.preload();
+      const ico = models.byKind.icosahedron;
+      const materialDisposals = countDisposals(ico.material);
+      const geometryDisposals = countDisposals(ico.geometry);
+      const textureDisposals = countDisposals(ico.texture);
+
+      const scene = sceneFor(cache, systemOfKind("icosahedron"), "icosahedron");
+      scene.dispose();
+      gate.open("icosahedron");
+      await cache.loadStation("icosahedron");
+      await Promise.resolve();
+
+      expect(scene.station.modelKind).toBeUndefined();
+      // Still just the empty dock node: no model and no mesh was added.
+      expect(scene.station.root.children).toEqual([scene.station.dock]);
+      expect(scene.station.dock.type).toBe("Object3D");
+      // The scene allocated and freed nothing of the model: it never cloned it.
+      expect(materialDisposals()).toBe(0);
+      expect(geometryDisposals()).toBe(0);
+      expect(textureDisposals()).toBe(0);
+
+      // The GLTF lives in the cache, which frees it exactly once.
+      cache.dispose();
+      cache.dispose();
+      expect(materialDisposals()).toBe(1);
+      expect(geometryDisposals()).toBe(1);
+      expect(textureDisposals()).toBe(1);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("logs a failed load once, keeps the scene running and leaves the station meshless", async () => {
+    const stub = installCanvasStub();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const models = modelsOf();
+      const gate = stationLoader(models, new Set<StationKind>(["icosahedron"]));
+      const cache = createAssetCache("/", gate.loader);
+      await cache.preload();
+
+      const scene = sceneFor(cache, systemOfKind("icosahedron"), "icosahedron");
+      gate.fail("icosahedron");
+      await vi.waitFor(() => {
+        expect(logged).toHaveBeenCalledTimes(1);
+      });
+      expect(String(logged.mock.calls[0]?.[0])).toMatch(/^Wegolite:/);
+      expect(scene.station.modelKind).toBeUndefined();
+      expect(scene.station.dock.type).toBe("Object3D");
+
+      scene.dispose();
+      cache.dispose();
+    } finally {
+      logged.mockRestore();
+      stub.restore();
+    }
+  });
+
+  it("frees every loaded station model exactly once with the cache, and no scene frees one", async () => {
+    const stub = installCanvasStub();
+    try {
+      const models = modelsOf();
+      const { loader } = stationLoader(models);
+      const cache = createAssetCache("/", loader);
+      await cache.preload();
+      await Promise.all(STATION_KINDS.map((kind) => cache.loadStation(kind)));
+      const counts = STATION_KINDS.flatMap((kind) => [
+        countDisposals(models.byKind[kind].geometry),
+        countDisposals(models.byKind[kind].material),
+        countDisposals(models.byKind[kind].texture),
+      ]);
+
+      const scenes = STATION_KINDS.map((kind) =>
+        sceneFor(
+          cache,
+          kind === "coriolis" ? system : systemOfKind(kind),
+          kind,
+        ),
+      );
+      for (const scene of scenes) scene.dispose();
+      // The scenes freed only their cloned materials, never a cached resource.
+      for (const count of counts) expect(count()).toBe(0);
+
+      cache.dispose();
+      for (const count of counts) expect(count()).toBe(1);
+      cache.dispose();
+      for (const count of counts) expect(count()).toBe(1);
+    } finally {
+      stub.restore();
     }
   });
 });
