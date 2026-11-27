@@ -18,6 +18,7 @@ import {
   createSystemPopulate,
   debrisContentFrom,
   hullTable,
+  mergeStationHulls,
   populationRecordsFrom,
   trafficContent,
 } from "../../../src/app/session/traffic.js";
@@ -766,5 +767,75 @@ describe("hullTable with the static hulls (plan 18-13)", () => {
     expect([...full.keys()]).toEqual([...merged.keys()]);
     for (const [key, hull] of merged) expect(full.get(key), key).toEqual(hull);
     expect([...realHullTable().keys()]).toEqual(SHIP_KEYS);
+  });
+});
+
+describe("mergeStationHulls (plan 22.1-09, WORLD-20)", () => {
+  const ships = JSON.parse(
+    readFileSync("src/content/generated/ships-hulls.json", "utf8"),
+  ) as ShipHullCatalogue;
+  const shared = JSON.parse(
+    readFileSync("src/content/generated/ships-static-hulls.json", "utf8"),
+  ) as StaticHullArtifact;
+  const dodecahedron = JSON.parse(
+    readFileSync(
+      "src/content/generated/ships-static-hulls-dodecahedron.json",
+      "utf8",
+    ),
+  ) as StaticHullArtifact;
+  const icosahedron = JSON.parse(
+    readFileSync(
+      "src/content/generated/ships-static-hulls-icosahedron.json",
+      "utf8",
+    ),
+  ) as StaticHullArtifact;
+
+  it("adds the station hull of an artifact to a copy and leaves the table it was given alone", () => {
+    const base = hullTable(ships, shared.hulls);
+    const before = [...base.keys()];
+    const merged = mergeStationHulls(base, dodecahedron);
+    expect([...base.keys()]).toEqual(before);
+    expect([...merged.keys()]).toEqual([...before, "dodecahedron-station"]);
+    const hull = merged.get("dodecahedron-station");
+    expect(hull?.collisionRadius).toBe(dodecahedron.hulls[0]?.collisionRadius);
+    expect(hull?.octree).toBe(dodecahedron.hulls[0]?.octree);
+    expect(hull?.frangible).toBe(false);
+    expect(hull?.subentities?.map((sub) => sub.key)).toEqual(
+      dodecahedron.hulls[0]?.subentities.map((sub) => sub.key),
+    );
+  });
+
+  it("yields an equal table when the same artifact is merged twice", () => {
+    const base = hullTable(ships, shared.hulls);
+    const once = mergeStationHulls(base, icosahedron);
+    const twice = mergeStationHulls(once, icosahedron);
+    expect(twice).toEqual(once);
+    expect([...twice.keys()]).toEqual([...once.keys()]);
+  });
+
+  it("merges the artifacts of two kinds side by side", () => {
+    const base = hullTable(ships, shared.hulls);
+    const both = mergeStationHulls(
+      mergeStationHulls(base, dodecahedron),
+      icosahedron,
+    );
+    expect(both.has("dodecahedron-station")).toBe(true);
+    expect(both.has("icosahedron-station")).toBe(true);
+    expect(both.get("coriolis-station")).toEqual(base.get("coriolis-station"));
+  });
+
+  it("refuses a key that already maps to different data, naming the key", () => {
+    const base = hullTable(ships, shared.hulls);
+    const [hull] = dodecahedron.hulls;
+    if (hull === undefined) throw new Error("no dodecahedron hull");
+    const merged = mergeStationHulls(base, dodecahedron);
+    expect(() =>
+      mergeStationHulls(merged, {
+        hulls: [{ ...hull, collisionRadius: hull.collisionRadius + 1 }],
+      }),
+    ).toThrow(/dodecahedron-station/);
+    expect(() =>
+      mergeStationHulls(base, { hulls: [{ ...hull, key: "adder" }] }),
+    ).toThrow(/adder/);
   });
 });

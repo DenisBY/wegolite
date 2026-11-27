@@ -52,7 +52,7 @@ import type { WegoliteProbe } from "../probe.js";
 import { createCombatMessageTimes } from "./context.js";
 import type { SessionState } from "./context.js";
 import { toTuple } from "./probe-publisher.js";
-import { stationFor } from "./station-install.js";
+import { ensureStationHulls, stationFor } from "./station-install.js";
 import { restoreWorldAnchor } from "./world-lifecycle.js";
 
 /** What the controller calls outside the session context. */
@@ -442,6 +442,35 @@ export function createSaveController(
       if (savedSystem === undefined) {
         failLoad("Save is corrupt — cannot load");
         return;
+      }
+
+      // Phase 22.1 (decision O3): with traffic on, the saved system's station
+      // hull and ident name are merged before anything is installed, so the
+      // first steps after a Load are deterministic and never see a late merge.
+      // The Load is already asynchronous here, so awaiting costs nothing; only
+      // the hyperspace arrival keeps the fire-and-forget path. A rejected load
+      // fails the Load before any live reference moves, like every other
+      // failure of this block.
+      if (ctx.runtime.testFlags.traffic) {
+        let hullsLoaded = true;
+        try {
+          await ensureStationHulls(ctx, savedSystem.station);
+        } catch {
+          hullsLoaded = false;
+        }
+        // G-8 again: the screen may have closed (or closed and reopened)
+        // during this await, and the session may have been disposed.
+        if (
+          ctx.runtime.disposed ||
+          !ctx.save.saveScreenOpen ||
+          ctx.save.saveScreenGeneration !== generation
+        ) {
+          return;
+        }
+        if (!hullsLoaded) {
+          failLoad("Save could not be loaded");
+          return;
+        }
       }
 
       let restored;

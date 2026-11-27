@@ -13,7 +13,7 @@
 
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { StationSpec, System } from "../../../src/content/types.js";
 import { STATION_KINDS } from "../../../src/content/stations.js";
@@ -68,6 +68,44 @@ import {
   stationSpecOf,
 } from "../../helpers/stations.js";
 import { saveAllowLists, saveInputs } from "../../helpers/save-builders.js";
+import { hullTable } from "../../../src/app/session/traffic.js";
+import { StaticHullArtifactSchema } from "../../../src/content/schemas/ship-static-hull.js";
+import type { StaticHullArtifact } from "../../../src/content/schemas/ship-static-hull.js";
+import type * as StaticHullsModule from "../../../src/content/ships-static-hulls.js";
+import type { StationKind } from "../../../src/content/stations.js";
+import type { ShipHullCatalogue } from "../../../src/content/types.js";
+
+/**
+ * A hand on the station hull loader the session uses. With no override set the
+ * real loader runs (the Coriolis tests and every traffic-off test never ask
+ * for it); a test sets `override` to hold a load open or to reject it.
+ */
+const hullLoader = vi.hoisted(() => ({
+  override: undefined as
+    ((kind: string) => Promise<StaticHullArtifact>) | undefined,
+  calls: [] as string[],
+}));
+
+vi.mock(
+  "../../../src/content/ships-static-hulls.js",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof StaticHullsModule>();
+    return {
+      ...actual,
+      loadStationHulls: (kind: StationKind) => {
+        hullLoader.calls.push(kind);
+        return hullLoader.override === undefined
+          ? actual.loadStationHulls(kind)
+          : hullLoader.override(kind);
+      },
+    };
+  },
+);
+
+afterEach(() => {
+  hullLoader.override = undefined;
+  hullLoader.calls.length = 0;
+});
 
 const lave = laveFixture();
 const { system, layout, stationDef } = lave;
@@ -1120,6 +1158,8 @@ describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
     readonly controller: SaveController;
     readonly read: { current: SaveReadResult };
     readonly entered: string[];
+    /** Whether the hull table held the entered system's station, per entry. */
+    readonly hullHeldAtEnter: (boolean | undefined)[];
   }
 
   /**
@@ -1127,13 +1167,23 @@ describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
    * `enterSystemById`, the one that installs the station, over a scene manager
    * double that derives the layout of what it was last asked to enter.
    */
-  function realHarness(failEnter = false): RealHarness {
+  function realHarness(failEnter = false, traffic = false): RealHarness {
     const ctx = createSessionState({
       system,
       saveStatus: "valid",
       saveSkipReason: "",
     });
     const entered: string[] = [];
+    const hullHeldAtEnter: (boolean | undefined)[] = [];
+    if (traffic) {
+      // As the boot leaves a traffic-on session: the ship hulls and the
+      // shared static hulls merged, their names installed.
+      ctx.runtime.testFlags = { ...ctx.runtime.testFlags, traffic: true };
+      ctx.core.hulls = hullTable(SHIP_HULLS, SHARED_STATICS.hulls);
+      ctx.core.targetNames = new Map(
+        SHARED_STATICS.names.map((entry) => [entry.key, entry.name]),
+      );
+    }
     let last: { system: System; spec: StationSpec } | undefined;
     ctx.core.worldLifecycle = createWorldLifecycle({ traffic: false });
     ctx.core.state = initFlightState(layout);
@@ -1168,6 +1218,7 @@ describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
         enterSystem: (target, spec) => {
           if (failEnter) throw new Error("scene build failed");
           entered.push(target.id);
+          hullHeldAtEnter.push(ctx.core.hulls?.has(spec.key));
           last = { system: target, spec };
           return {} as ReturnType<
             HyperspaceControllerDeps["scenes"]["enterSystem"]
@@ -1215,8 +1266,17 @@ describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
       syncEconomyProbe: quiet,
       bindTestHook: quiet,
     });
-    return { ctx, controller, read, entered };
+    return { ctx, controller, read, entered, hullHeldAtEnter };
   }
+
+  const SHIP_HULLS = JSON.parse(
+    readFileSync("src/content/generated/ships-hulls.json", "utf8"),
+  ) as ShipHullCatalogue;
+  const generatedStatics = (file: string): StaticHullArtifact =>
+    StaticHullArtifactSchema.parse(
+      JSON.parse(readFileSync(`src/content/generated/${file}`, "utf8")),
+    );
+  const SHARED_STATICS = generatedStatics("ships-static-hulls.json");
 
   /** A docked save at `target`, naming `stationKey` (the saved label). */
   function dockedSaveAt(target: System, stationKey: string): SaveReadResult {
@@ -1319,6 +1379,153 @@ describe("the station follows the saved system (Phase 22.1, WORLD-20)", () => {
 
     expect(inputs?.systemId).toBe("g0-s129");
     expect(inputs?.stationKey).toBe("icosahedron-station");
+  });
+
+  describe("the station hulls of a traffic-on Load (Phase 22.1, O3, T-22.1-33)", () => {
+    it("a traffic-on Load of a save at Biarge holds the Dodecahedron hull and name before the station is installed", async () => {
+      const h = realHarness(false, true);
+      const biarge = systemNamed("Biarge");
+      h.read.current = dockedSaveAt(biarge, "dodecahedron-station");
+      expect(h.ctx.core.hulls?.has("dodecahedron-station")).toBe(false);
+
+      await h.controller.loadFromSave();
+
+      expect(h.ctx.core.system).toBe(biarge);
+      expect(h.ctx.core.hulls?.has("dodecahedron-station")).toBe(true);
+      expect(h.ctx.core.targetNames?.has("dodecahedron-station")).toBe(true);
+      // The merge preceded the install, so no step ever ran without it.
+      expect(h.hullHeldAtEnter).toEqual([true]);
+    });
+
+    it("a Load at Zaonce awaits the Icosahedron artifact: nothing is installed until it lands", async () => {
+      const h = realHarness(false, true);
+      const gate = deferred<StaticHullArtifact>();
+      hullLoader.override = () => gate.promise;
+      h.read.current = dockedSaveAt(
+        systemNamed("Zaonce"),
+        "icosahedron-station",
+      );
+
+      const loading = h.controller.loadFromSave();
+      await flush();
+      expect(hullLoader.calls).toEqual(["icosahedron"]);
+      expect(h.entered).toEqual([]);
+      expect(h.ctx.core.system).toBe(system);
+
+      gate.resolve(generatedStatics("ships-static-hulls-icosahedron.json"));
+      await loading;
+
+      expect(h.entered).toEqual(["g0-s129"]);
+      expect(h.ctx.core.hulls?.has("icosahedron-station")).toBe(true);
+      expect(h.hullHeldAtEnter).toEqual([true]);
+    });
+
+    it("a save screen closed during the await receives no Load (G-8)", async () => {
+      const h = realHarness(false, true);
+      const gate = deferred<StaticHullArtifact>();
+      hullLoader.override = () => gate.promise;
+      h.read.current = dockedSaveAt(
+        systemNamed("Zaonce"),
+        "icosahedron-station",
+      );
+
+      const loading = h.controller.loadFromSave();
+      await flush();
+      h.ctx.save.saveScreenOpen = false;
+      gate.resolve(generatedStatics("ships-static-hulls-icosahedron.json"));
+      await loading;
+
+      expect(h.entered).toEqual([]);
+      expect(h.ctx.core.system).toBe(system);
+    });
+
+    it("a save screen closed and reopened during the await receives no Load (G-8)", async () => {
+      const h = realHarness(false, true);
+      const gate = deferred<StaticHullArtifact>();
+      hullLoader.override = () => gate.promise;
+      h.read.current = dockedSaveAt(
+        systemNamed("Zaonce"),
+        "icosahedron-station",
+      );
+
+      const loading = h.controller.loadFromSave();
+      await flush();
+      h.ctx.save.saveScreenGeneration += 1;
+      gate.resolve(generatedStatics("ships-static-hulls-icosahedron.json"));
+      await loading;
+
+      expect(h.entered).toEqual([]);
+      expect(h.ctx.core.system).toBe(system);
+    });
+
+    it("a session disposed during the await receives no Load", async () => {
+      const h = realHarness(false, true);
+      const gate = deferred<StaticHullArtifact>();
+      hullLoader.override = () => gate.promise;
+      h.read.current = dockedSaveAt(
+        systemNamed("Zaonce"),
+        "icosahedron-station",
+      );
+
+      const loading = h.controller.loadFromSave();
+      await flush();
+      h.ctx.runtime.disposed = true;
+      gate.resolve(generatedStatics("ships-static-hulls-icosahedron.json"));
+      await loading;
+
+      expect(h.entered).toEqual([]);
+      expect(h.ctx.core.hulls?.has("icosahedron-station")).toBe(false);
+    });
+
+    it("a rejected artifact load fails the Load with the existing copy and leaves the Lave session as it was", async () => {
+      const h = realHarness(false, true);
+      hullLoader.override = () => Promise.reject(new Error("artifact lost"));
+      h.read.current = dockedSaveAt(
+        systemNamed("Zaonce"),
+        "icosahedron-station",
+      );
+      const before = {
+        stationDef: h.ctx.core.stationDef,
+        layout: h.ctx.core.layout,
+        dockGeometry: h.ctx.core.dockGeometry,
+        hulls: h.ctx.core.hulls,
+        state: h.ctx.core.state,
+      };
+
+      await h.controller.loadFromSave();
+
+      expect(h.ctx.save.saveScreenNotice).toBe("Save could not be loaded");
+      expect(h.entered).toEqual([]);
+      expect(h.ctx.core.system).toBe(system);
+      expect(h.ctx.core.stationDef).toBe(before.stationDef);
+      expect(h.ctx.core.layout).toBe(before.layout);
+      expect(h.ctx.core.dockGeometry).toBe(before.dockGeometry);
+      expect(h.ctx.core.hulls).toBe(before.hulls);
+      expect(h.ctx.core.state).toBe(before.state);
+      // The Load is over: a later Load is not refused as still running.
+      expect(h.ctx.save.loadingSave).toBe(false);
+    });
+
+    it("a Load at a Coriolis system and a traffic-off Load ask for no artifact", async () => {
+      const coriolis = realHarness(false, true);
+      coriolis.read.current = dockedSaveAt(
+        systemNamed("Leesti"),
+        "coriolis-station",
+      );
+      await coriolis.controller.loadFromSave();
+      expect(coriolis.ctx.core.system.name).toBe("Leesti");
+
+      const off = realHarness();
+      off.read.current = dockedSaveAt(
+        systemNamed("Zaonce"),
+        "icosahedron-station",
+      );
+      await off.controller.loadFromSave();
+      expect(off.ctx.core.system.name).toBe("Zaonce");
+      expect(off.ctx.core.hulls).toBeUndefined();
+
+      expect(hullLoader.calls).toEqual([]);
+    });
   });
 
   it("the allow-list built from the catalogue (main.ts) holds the three station keys", () => {
