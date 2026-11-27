@@ -19,6 +19,14 @@ The codebase-memory MCP is recommended, not required (see README "Recommended ag
 - Prefer `rg` over `grep` everywhere: `rg -n <pattern>`, `rg --files -g '<glob>'`. Include this instruction in subagent prompts.
 - Treat graph results as an index into the source: confirm important findings against the actual file before changing code.
 
+## Agent skills
+
+Project skills live in `.claude/skills/` (gitignored, never published; `.agents/skills` links to it). `.worktreeinclude` copies them into every harness worktree.
+
+- **Forced** (`agent_skills` in `.planning/config.json`, checked by the local skill-gate hook): the four general rules (`typescript-best-practices`, `principle-type-system-discipline`, `principle-boundary-discipline`, `principle-test-behavior-not-implementation`) for the agents that write or judge code, and `render-skills-pointer` for the agents that plan, write, review or verify it. All four rules set `disable-model-invocation`, so a Read is their only route.
+- **On demand**: `vitest`, `javascript-testing-expert`, `playwright-best-practices`, `context7-mcp` and the three.js skills. Agents almost never load these by themselves, so a planner names the skill in the task's `<action>` (for example "load the `playwright-best-practices` skill") for every task that writes Vitest property tests, browser specs or rendering code, and a plan checker flags such a task that names none.
+- `codebase-memory` is not forced as a skill: use the MCP tools themselves (see the next section).
+
 ## Oolite reference checkout
 
 A full Oolite source checkout is available at `/home/opencode/git/oolite` (outside this repo). Use it directly whenever upstream Oolite behaviour, configs, or source are needed — do **not** fetch Oolite files over the network and do not clone another copy.
