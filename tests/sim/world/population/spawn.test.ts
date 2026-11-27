@@ -85,8 +85,9 @@ import {
   loadPopulationFixtures,
 } from "../../../helpers/population-fixtures.js";
 import { laveFixture } from "../../../helpers/lave.js";
+import { stationSpecOf } from "../../../helpers/stations.js";
 
-const { layout, stationDef } = laveFixture();
+const { layout } = laveFixture();
 const records = committedPopulationRecords();
 const laveFacts = factsFromFixture(loadPopulationFixture("g0-s7-seed1"));
 
@@ -384,7 +385,7 @@ describe("placement regions (D-01, WORLD-08 adjacency)", () => {
       const content: readonly System[] = galaxySystems(header.galaxy);
       const system = content.find((s) => s.systemIndex === header.systemIndex);
       if (system === undefined) throw new Error(`no system ${header.system}`);
-      const where = deriveSystemLayout(system, stationDef);
+      const where = deriveSystemLayout(system, stationSpecOf(system.station));
       const facts = factsFromFixture(loaded.fixture);
       for (let epoch = 1; epoch <= 3; epoch += 1) {
         const seed = worldSeedFor(marketSeedForSystem(header.system), epoch);
@@ -834,7 +835,7 @@ describe("a system with a station patrol only (Oresrati)", () => {
     const system = galaxySystems(header.galaxy).find(
       (s) => s.systemIndex === header.systemIndex,
     ) as System;
-    const where = deriveSystemLayout(system, stationDef);
+    const where = deriveSystemLayout(system, stationSpecOf(system.station));
     const facts = factsFromFixture(loaded.fixture);
     for (let seed = 1; seed <= 20; seed += 1) {
       const world = createWorld(seed);

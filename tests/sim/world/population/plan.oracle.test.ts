@@ -38,7 +38,7 @@ import {
 } from "../../../../src/sim/world/population/table.js";
 import { deriveSystemLayout } from "../../../../src/sim/world/layout.js";
 import { buildNeighbourhood } from "../../../../src/sim/world/neighbourhood.js";
-import { laveFixture } from "../../../helpers/lave.js";
+import { stationSpecOf } from "../../../helpers/stations.js";
 import {
   countDrawsFromFixture,
   factsFromFixture,
@@ -278,8 +278,6 @@ describe("every fixture: the recorded counts are reproduced (WORLD-08 criterion 
 });
 
 describe("the facts the planner is given are the recorded ones (systemFactsFrom)", () => {
-  const { stationDef } = laveFixture();
-
   it("derives the recorded government, economy, tech level and lane lengths from the content", () => {
     for (const { id, fixture } of FIXTURES) {
       const { galaxy, systemIndex } = fixture.header;
@@ -289,7 +287,7 @@ describe("the facts the planner is given are the recorded ones (systemFactsFrom)
       if (system === undefined) {
         throw new Error(`no content system for ${id}`);
       }
-      const layout = deriveSystemLayout(system, stationDef);
+      const layout = deriveSystemLayout(system, stationSpecOf(system.station));
       const facts = systemFactsFrom(
         system,
         buildNeighbourhood(galaxySystems(galaxy), systemIndex),
@@ -320,7 +318,7 @@ describe("the facts the planner is given are the recorded ones (systemFactsFrom)
       const facts = systemFactsFrom(
         system,
         buildNeighbourhood(galaxySystems(galaxy), systemIndex),
-        deriveSystemLayout(system, stationDef),
+        deriveSystemLayout(system, stationSpecOf(system.station)),
       );
       expect(planCounts(facts, countDrawsFromFixture(fixture)), id).toEqual(
         recordedCounts(fixture),
