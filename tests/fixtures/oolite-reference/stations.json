@@ -1,0 +1,58 @@
+{
+  "source": {
+    "oolite": "1.93.1-255",
+    "appimageSha256": "4ec9ab5fc6743538c95b97b590674f5d386dd07c16565aa1389dc40f15bd66a8",
+    "wrapperGitSha": "9a55eb36",
+    "measured": "2026-11-27",
+    "probe": "wegolite-station-measure 0.0.1 (outside the repository)",
+    "note": "Numbers only, parsed from Latest.log by a scratch script; every measured number is the string String(value) exactly as logged. The probe, scenario saves, logs and pictures stay outside the repository (CC BY-NC-SA Oolite output)."
+  },
+  "stations": {
+    "coriolis-station": {
+      "dataKey": "coriolis-station",
+      "name": "Coriolis Station",
+      "mass": "515483904",
+      "collisionRadius": "779.3702392578125",
+      "boundingBox": ["1000", "1000", "1034.2979736328125"],
+      "stationRoll": "0.08",
+      "dock": {
+        "dataKey": "oolite_coriolis_dock",
+        "position": ["0", "0", "500.256103515625"],
+        "boundingBox": ["103.41230010986328", "241.88800048828125", "250"]
+      },
+      "subEntities": [
+        {
+          "dataKey": "oolite_coriolis_faceplate",
+          "isDock": false,
+          "mass": "58255096",
+          "collisionRadius": "702.1246337890625",
+          "position": ["0", "0", "0"],
+          "boundingBox": ["1000", "1000", "41.368988037109375"]
+        },
+        {
+          "dataKey": "oolite_coriolis_tris",
+          "isDock": false,
+          "mass": "220998576",
+          "collisionRadius": "702.1246337890625",
+          "position": ["0", "0", "0"],
+          "boundingBox": ["1000", "1000", "995.91796875"]
+        },
+        {
+          "dataKey": "oolite_coriolis_dock",
+          "isDock": true,
+          "mass": "7579321",
+          "collisionRadius": "279.1141662597656",
+          "position": ["0", "0", "500.256103515625"],
+          "boundingBox": ["103.41230010986328", "241.88800048828125", "250"]
+        }
+      ],
+      "tunnel": {
+        "authored": false,
+        "corners": "4",
+        "startAngle": "45",
+        "aspectRatio": "2.67"
+      }
+    }
+  },
+  "systems": []
+}
