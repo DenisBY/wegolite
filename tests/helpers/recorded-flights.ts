@@ -31,8 +31,8 @@
  * - `hyperspace.target`: present only when a target is committed (lines
  *   2822-2830), Leesti in hyperspace-lave-leesti and retained through the
  *   arrival as `hyperspaceTargetId` is (lines 2130-2132);
- * - `hyperspace.stationMass`: present only when
- *   `witchspaceStationMass(system.station)` is defined (lines 2818 and 2831);
+ * - `hyperspace.stationMass`: always present, the live layout's `stationMass`
+ *   (the origin system's station record, Phase 22.1);
  * - `dock`: the dock geometry built from the live layout's `dockOffset` (lines
  *   2833-2836 and 2974), rebuilt for the Leesti layout after the arrival;
  * - the arrival: `drawWitchpointExit(marketSeedForSystem(originId))` then
@@ -62,7 +62,6 @@ import { stepFlight } from "../../src/sim/flight/step.js";
 import { stepSim } from "../../src/sim/sim.js";
 import type { PlayerCombatState } from "../../src/sim/combat/state.js";
 import type { StepOptions } from "../../src/sim/flight/step.js";
-import { witchspaceStationMass } from "../../src/sim/hyperspace/countdown.js";
 import {
   applyWitchpointArrival,
   drawWitchpointExit,
@@ -153,7 +152,6 @@ class Recorder {
     const { state, context } = this;
     const intent =
       state.mode === "launching" ? ZERO_INTENT : intentAtTick(state.tick);
-    const stationMass = witchspaceStationMass(context.system.station);
     const hyperspace = {
       fuel: context.fuel,
       origin: {
@@ -170,7 +168,7 @@ class Recorder {
               y: context.target.chartY,
             },
           }),
-      ...(stationMass === undefined ? {} : { stationMass }),
+      stationMass: context.layout.stationMass,
     };
     const options: StepOptions = {
       dock: context.dock,

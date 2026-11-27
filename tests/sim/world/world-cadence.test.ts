@@ -37,7 +37,6 @@ import {
   applyWitchpointArrival,
   drawWitchpointExit,
 } from "../../../src/sim/hyperspace/arrival.js";
-import { witchspaceStationMass } from "../../../src/sim/hyperspace/countdown.js";
 import {
   arrivalMarketSeed,
   marketSeedForSystem,
@@ -152,7 +151,6 @@ class Scenario {
   private static readonly BEGIN_TICK = 2 + CRUISE_STEPS;
 
   private options(): StepOptions {
-    const stationMass = witchspaceStationMass(this.origin.station);
     return {
       hyperspace: {
         fuel: this.fuel,
@@ -162,7 +160,7 @@ class Scenario {
           y: this.origin.chartY,
         },
         target: { id: leesti.id, x: leesti.chartX, y: leesti.chartY },
-        ...(stationMass === undefined ? {} : { stationMass }),
+        stationMass: this.layout.stationMass,
       },
       npcFlight: realNpcFlightTable(),
     };

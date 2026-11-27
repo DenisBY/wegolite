@@ -24,7 +24,6 @@ import { stepFlight } from "../../../src/sim/flight/step.js";
 import type { StepOptions } from "../../../src/sim/flight/step.js";
 import { torusFactor } from "../../../src/sim/flight/torus.js";
 import {
-  CORIOLIS_STATION_MASS,
   HYPERSPACE_COUNTDOWN_STEPS,
   NAV_BUOY_HULL_MASS,
   NAV_BUOY_MASS,
@@ -435,7 +434,7 @@ function jumpOptions(withStation: boolean): StepOptions {
       origin: { id: lave.id, x: lave.chartX, y: lave.chartY },
       target: { id: diso.id, x: diso.chartX, y: diso.chartY },
       shipMasses: MASSES,
-      ...(withStation ? { stationMass: CORIOLIS_STATION_MASS } : {}),
+      ...(withStation ? { stationMass: layout.stationMass } : {}),
     },
   };
 }
@@ -587,7 +586,7 @@ describe("ship field: the buoys (D-05, D-08, D-09)", () => {
         fuel: 70,
         origin: { id: lave.id, x: lave.chartX, y: lave.chartY },
         target: { id: diso.id, x: diso.chartX, y: diso.chartY },
-        stationMass: CORIOLIS_STATION_MASS,
+        stationMass: layout.stationMass,
         buoyMass: NAV_BUOY_MASS,
         shipMasses: npcMasses,
       },

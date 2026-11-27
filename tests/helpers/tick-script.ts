@@ -322,6 +322,7 @@ export function runTickScript(
           fuel: profile.fuel,
           system,
           target: undefined,
+          stationMass: layout.stationMass,
           equipment,
           dock,
           ...(content === undefined ? {} : { shipMasses: content.masses }),

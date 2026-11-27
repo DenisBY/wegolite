@@ -200,6 +200,10 @@ export function createSimDriver(ctx: SessionState, deps: SimDriverDeps) {
       fuel: ctx.core.profile.fuel,
       system: ctx.core.system,
       target: targetSystem(),
+      // The origin system's station mass: the countdown completes where the
+      // player is, in the system being left, so this is the live layout's mass
+      // and never the destination's (Phase 22.1, WORLD-20).
+      stationMass: liveLayout.stationMass,
       equipment: equipmentSet(),
       dock: ctx.core.dockGeometry,
       // The compiled NPC masses (WORLD-10), present only with traffic on; the

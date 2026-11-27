@@ -16,12 +16,15 @@
  * (PlayerEntity.m line 6547), and enterWitchspace calls the checklist at the
  * countdown's end (PlayerEntity.m lines 6772-6775). A docked ship never reaches
  * completion, because a dock cancels the countdown, so the predicate takes no
- * docked parameter. The blockers are checked in a fixed order: the Coriolis
- * station, the witchpoint buoy, the nav buoy (since Phase 18, D-09; PROJECT.md
- * Key Decisions row "Buoys block a completing jump"), then an NPC ship inside
- * its own blockage radius (`src/sim/world/ship-field.ts`). The dodecahedron and
- * icosahedron stations have no mass (D-03, owner decision 2026-11-07,
- * option (a)).
+ * docked parameter. The blockers are checked in a fixed order: the system's
+ * main station, the witchpoint buoy, the nav buoy (since Phase 18, D-09;
+ * PROJECT.md Key Decisions row "Buoys block a completing jump"), then an NPC
+ * ship inside its own blockage radius (`src/sim/world/ship-field.ts`). The
+ * station's mass is the system's own station record (Phase 22.1, WORLD-20): the
+ * app supplies it as `options.hyperspace.stationMass`, read from the live
+ * layout's `stationMass`, so every station kind blocks. The 2026-11-07 owner
+ * decision that left the dodecahedron and icosahedron stations non-blocking for
+ * lack of a recorded mass (option (a)) is superseded by the measured masses.
  *
  * This module deliberately knows nothing about `FlightState`: the start gate is
  * testable before the step loop is wired, and the step loop consumes it.
@@ -44,21 +47,6 @@ export const HYPERSPACE_COUNTDOWN_STEPS = 1800;
  * radius).
  */
 export const WITCH_BLOCK_K = 0.1;
-
-/**
- * Oolite's runtime mass of the Coriolis station for the pinned meshes: density
- * 1.0 x 20 x the hull octree volume (ShipEntity.m lines 417-419) plus the masses
- * of its solid subentities, the faceplate, tris and dock (ShipEntity.m lines
- * 2034-2041). The content build computes it in
- * tools/oolite-ingest/convert/ship-mass.ts and compiles it into
- * src/content/generated/ships-client.json. It is a literal here because src/sim
- * may not import the content catalogue; tests/sim/hyperspace-blockage.test.ts
- * pins it equal to the compiled value. The source comment at ShipEntity.m line
- * 12504 gives 455,223,200, which predates the current meshes (owner decision,
- * PROJECT.md Key Decisions row "Coriolis blockage mass:"). The blockage radius
- * is about 7,179.7 m.
- */
-export const CORIOLIS_STATION_MASS = 515_483_904;
 
 /**
  * Oolite's runtime mass of a whole navigation buoy (D-09, PD-01): the hull
@@ -90,16 +78,6 @@ export const BUOY_SUBENTITY_MASS = 7_646.7861328125;
  * 262.88 m.
  */
 export const NAV_BUOY_HULL_MASS = 691_044.375;
-
-/**
- * The mass of the origin system's station kind, or `undefined` when the kind has
- * no recorded mass. Only the Coriolis station blocks. The dodecahedron and
- * icosahedron stations have no recorded mass and stay non-blocking by owner
- * decision 2026-11-07, option (a).
- */
-export function witchspaceStationMass(stationKind: string): number | undefined {
-  return stationKind === "coriolis" ? CORIOLIS_STATION_MASS : undefined;
-}
 
 /**
  * Whether a blocker of `stationMass` at `distanceSquared` blocks a completing
@@ -141,8 +119,8 @@ export type HyperspaceRefusal =
   "no target" | "too far" | "insufficient fuel" | "blocked";
 
 /**
- * What blocked a completing jump: the Coriolis station, the witchpoint buoy,
- * the nav buoy or an NPC ship. A payload-free kind (no entity id, no
+ * What blocked a completing jump: the system's main station, the witchpoint
+ * buoy, the nav buoy or an NPC ship. A payload-free kind (no entity id, no
  * distance): the app owns the wording, which names the blocker as Oolite's
  * witch-blocked message does (PlayerEntity.m lines 6550-6553), so the buoy
  * kinds carry the buoys' Oolite names. Oolite's own loop reports only the
