@@ -16,6 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- In Dodecahedron and Icosahedron systems the main station now blocks a
+  completing witchspace jump inside its own mass radius (about 9.6 km and
+  9.1 km), as Oolite does; until now only a Coriolis station blocked.
 - Explosions now move with the ship that blew up, as in Oolite, including your
   own: a ship destroyed at speed leaves its fireball and sparks travelling on
   along its course instead of hanging where it died.
