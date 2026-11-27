@@ -49,6 +49,7 @@ import {
   STATIC_TARGETS,
   buoyPosition,
   isBuoyDestroyed,
+  staticIdentKey,
   staticTargetById,
 } from "../world/statics.js";
 import type { StaticTarget } from "../world/statics.js";
@@ -280,8 +281,12 @@ export function updateIdentTarget(
   ) {
     const found = firstEntityTargetedByPlayer(player, combat, world, layout);
     if (found !== NO_ENTITY) {
+      const row = staticTargetById(found);
+      // The main station is the system's own kind (Phase 22.1, WORLD-20).
       const specKey =
-        staticTargetById(found)?.identKey ?? world.store.get(found)?.specKey;
+        row === undefined
+          ? world.store.get(found)?.specKey
+          : staticIdentKey(row, layout);
       if (specKey !== undefined) {
         combat.identTarget = found;
         events.push({ kind: "identLocked", specKey });

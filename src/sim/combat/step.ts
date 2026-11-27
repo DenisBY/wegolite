@@ -73,6 +73,7 @@ import {
   buoySubentityTargetOf,
   isBuoyDestroyed,
   isBuoySubentityAttached,
+  staticHullKey,
   staticPose,
   staticTargetById,
 } from "../world/statics.js";
@@ -610,7 +611,10 @@ function resolveShotHits(
   if (world !== undefined && worldStepped && hulls !== undefined) {
     // The static targets first: their ids (3 to 99) are below the player's.
     for (const row of STATIC_TARGETS) {
-      if (!hulls.has(row.hullKey)) continue;
+      // The station's key is the system's own kind (Phase 22.1): without that
+      // kind's hull in the table it is no candidate, as before.
+      const hullKey = staticHullKey(row, layout);
+      if (!hulls.has(hullKey)) continue;
       // A destroyed buoy is no target (D-05).
       if (
         row.layoutKey !== "station" &&
@@ -625,7 +629,7 @@ function resolveShotHits(
         !isBuoySubentityAttached(world, row.layoutKey);
       targets.push({
         id: row.id,
-        specKey: row.hullKey,
+        specKey: hullKey,
         position: pose.position,
         orientation: pose.orientation,
         ...(detached

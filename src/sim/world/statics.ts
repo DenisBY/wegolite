@@ -9,11 +9,14 @@
  * can never remove them. Oolite lists them among the ships a laser may hit
  * (`Universe.m:5575-5585`: every entity that `isShip` and `canCollide`, and the
  * station can collide). This table names, for each static target, the layout
- * body it sits on, the hull its octrees come from, its ident name key and its
- * `StaticHealth` field, in ascending id, so the shot resolution can list them
- * ahead of the player (id 100) and the store ships.
+ * body it sits on and its `StaticHealth` field, and for a buoy its hull and
+ * ident name key, in ascending id, so the shot resolution can list them ahead
+ * of the player (id 100) and the store ships. The main station's octrees and
+ * name are those of the system's own station (Phase 22.1, WORLD-20): its row
+ * has no key of its own, and `staticHullKey` / `staticIdentKey` read the
+ * layout's `stationKey`.
  *
- * A row is a candidate only when the caller's hull table holds its `hullKey`
+ * A row is a candidate only when the caller's hull table holds its hull key
  * (the traffic-on session merges the static hulls, plan 18-13); without them
  * nothing changes. Plan 18-05 appended the two buoys (250 energy in
  * `World.staticHealth`, destroyed at 0 for the life of their world, D-04); plan
@@ -62,11 +65,19 @@ export type BuoyKey = "witchpoint" | "navBuoy";
 export const BUOY_ROLL_RATE = 0.1;
 export const BUOY_PITCH_RATE = 0.15;
 
-/** One static entity a laser may hit. */
-export interface StaticTarget {
+/** The main station's row: its hull and ident key come from the layout. */
+export interface StationStaticTarget {
   readonly id: EntityId;
-  /** The layout body the target sits on. */
-  readonly layoutKey: "station" | "witchpoint" | "navBuoy";
+  readonly layoutKey: "station";
+  /** Its energy field in `World.staticHealth`. */
+  readonly healthKey: keyof StaticHealth;
+}
+
+/** A buoy's row: its hull and ident key are its own, the same in every system. */
+export interface BuoyStaticTarget {
+  readonly id: EntityId;
+  /** The layout body the buoy sits on. */
+  readonly layoutKey: BuoyKey;
   /** The hull table key of its octrees. */
   readonly hullKey: string;
   /** The compiled ident name key (plan 18-06 reads it). */
@@ -75,13 +86,19 @@ export interface StaticTarget {
   readonly healthKey: keyof StaticHealth;
 }
 
-/** The static laser targets in ascending id. */
+/**
+ * One static entity a laser may hit. The station row carries no hull or ident
+ * key: the system's station is one of three kinds, so the key is the layout's
+ * (`staticHullKey`, `staticIdentKey`, Phase 22.1, WORLD-20); a buoy's keys are
+ * fixed.
+ */
+export type StaticTarget = StationStaticTarget | BuoyStaticTarget;
+
+/** The static laser targets in ascending id (one frozen table, Pitfall P7). */
 export const STATIC_TARGETS: readonly StaticTarget[] = Object.freeze([
   Object.freeze({
     id: MAIN_STATION_ID,
     layoutKey: "station",
-    hullKey: "coriolis-station",
-    identKey: "coriolis-station",
     healthKey: "station",
   } as const),
   Object.freeze({
@@ -99,6 +116,29 @@ export const STATIC_TARGETS: readonly StaticTarget[] = Object.freeze([
     healthKey: "navBuoy",
   } as const),
 ]);
+
+/**
+ * The hull table key of `row`'s octrees in this system: the layout's station
+ * key for the main station (the system's own station kind), the row's own key
+ * for a buoy. Oolite lists every ship that can collide as a laser candidate
+ * (`Universe.m:5575-5585`), and the main station is the one the system built
+ * (`Universe.m:1550`).
+ */
+export function staticHullKey(row: StaticTarget, layout: SystemLayout): string {
+  return row.layoutKey === "station" ? layout.stationKey : row.hullKey;
+}
+
+/**
+ * The ident name key of `row` in this system, which `identLocked` and a buoy's
+ * `shipDestroyed` carry: the layout's station key for the main station, the
+ * row's own key for a buoy.
+ */
+export function staticIdentKey(
+  row: StaticTarget,
+  layout: SystemLayout,
+): string {
+  return row.layoutKey === "station" ? layout.stationKey : row.identKey;
+}
 
 /**
  * The share of a laser hit's damage a frangible parent takes when the hit is

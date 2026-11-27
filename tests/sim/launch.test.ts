@@ -29,6 +29,7 @@ import {
   dockSnapshot,
   slotTwistedForShip,
 } from "../../src/sim/dock/corridor.js";
+import type { StationKind } from "../../src/content/stations.js";
 import type { DockGeometry } from "../../src/sim/dock/geometry.js";
 import { portFrame, portQuaternion } from "../../src/sim/dock/port-frame.js";
 import type { SimEvent } from "../../src/sim/events.js";
@@ -43,6 +44,7 @@ import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import {
   axisAngle,
+  dot,
   length,
   mul,
   normalizeVec,
@@ -53,9 +55,11 @@ import {
 } from "../../src/sim/math.js";
 import type { Quat, Vec3 } from "../../src/sim/math.js";
 import { DT } from "../../src/sim/step.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import { laveDockGeometry } from "../helpers/dock-pose.js";
 import { laveFixture } from "../helpers/lave.js";
+import { dockGeometryOf, stationSpecOf } from "../helpers/stations.js";
 
 const LAUNCH_STEPS = 240; // exactly 2 s at 1/120 s
 
@@ -409,4 +413,132 @@ describe("launch along the dock slot (Oolite's launch twist)", () => {
       ).outcome,
     ).toBe("lane");
   });
+});
+
+/**
+ * Launching through each kind's own slot (Phase 22.1, WORLD-20, owner decision
+ * D-B). The twist rule reads the kind's dock record (`DockEntity.m:819-827`):
+ * the Cobra is wider than tall, so a portrait slot (Coriolis, Icosahedron)
+ * takes the quarter roll and the landscape Dodecahedron slot does not. The
+ * expected twist per kind below is the plan's stated fact, not read back from
+ * the rule; the slot's long axis is read from the record's port width and
+ * height. A copy of Lave whose `station` is the kind keeps the spec and the
+ * system in agreement.
+ */
+describe("launch through each station kind's own slot (Phase 22.1, WORLD-20)", () => {
+  const lave = laveFixture();
+  const TWIST = axisAngle(0, 0, 1, -Math.PI / 2);
+  const KINDS: readonly (readonly [StationKind, boolean, number])[] = [
+    // kind, twisted for the Cobra, the part past the mouth plane in metres
+    ["coriolis", true, 34.0],
+    ["dodecahedron", false, 25.7],
+    ["icosahedron", true, 5.2],
+  ];
+
+  function kindFixture(kind: StationKind) {
+    const own = deriveSystemLayout(
+      { ...lave.system, station: kind },
+      stationSpecOf(kind),
+    );
+    return { own, dock: dockGeometryOf(kind), spec: stationSpecOf(kind) };
+  }
+
+  it.each(KINDS)(
+    "the %s slot twists the launch for the Cobra: %s",
+    (kind, twisted) => {
+      const { dock } = kindFixture(kind);
+      const ship = {
+        width: dock.ship.max.x - dock.ship.min.x,
+        height: dock.ship.max.y - dock.ship.min.y,
+      };
+      expect(slotTwistedForShip(dock.port, ship)).toBe(twisted);
+    },
+  );
+
+  it.each(KINDS)(
+    "the %s launch lays the wings along the slot's long axis and leaves at its own dock mouth",
+    (kind, twisted) => {
+      const { own, dock, spec } = kindFixture(kind);
+      const state = initFlightState(own);
+      stepFlight(
+        state,
+        own,
+        lave.config,
+        ZERO_INTENT,
+        [{ kind: "launch" }],
+        DT,
+        { dock },
+      );
+      expect(state.mode).toBe("launching");
+
+      const frame = portFrame(own, 0);
+      const longAxis = dock.port.width < dock.port.height ? frame.j : frame.i;
+      const wings = rotate(state.orientation, vec(1, 0, 0));
+      expect(Math.abs(dot(wings, longAxis))).toBeCloseTo(1, 9);
+      // The quarter roll is present exactly when the slot is twisted.
+      if (twisted) {
+        expect(
+          relativeAngle(state.orientation, mul(own.stationBaseQuat, TWIST)),
+        ).toBeLessThan(1e-6);
+      } else {
+        expect(state.orientation).toEqual(own.stationBaseQuat);
+      }
+
+      // The mouth is the kind's own dock offset from the station centre.
+      expect(length(sub(state.position, own.station.position))).toBeCloseTo(
+        spec.dockOffset,
+        6,
+      );
+      expect(state.position).toEqual(dockMouthPosition(own));
+    },
+  );
+
+  it.each(KINDS)(
+    "the %s ship box is clear of its own contact proxy at hand-over, whatever the part past the mouth",
+    (kind, _twisted, protrusion) => {
+      const { own, dock } = kindFixture(kind);
+      // The proxy protrudes past the mouth plane by this kind's own amount.
+      expect(dock.contactPort.zMax).toBeCloseTo(protrusion, 1);
+
+      const state = initFlightState(own);
+      const kinds: string[] = [];
+      const step = (commands: readonly { kind: "launch" }[]): void => {
+        for (const event of stepFlight(
+          state,
+          own,
+          lave.config,
+          ZERO_INTENT,
+          commands,
+          DT,
+          { dock },
+        )) {
+          kinds.push(event.kind);
+        }
+      };
+      step([{ kind: "launch" }]);
+      for (let i = 0; i < LAUNCH_STEPS + 10 && state.mode !== "inFlight"; i++) {
+        step([]);
+      }
+
+      expect(state.mode).toBe("inFlight");
+      const handOver = dockSnapshot(own, state, dock, state.stationAngle);
+      // The launch exemption (`dock/step.ts`): armed once box.min.z passes
+      // the proxy's outward face; at hand-over it already has.
+      expect(handOver.box.min.z).toBeGreaterThan(dock.contactPort.zMax);
+
+      // The departure has no scrape, bounce or dock and ends in the lane.
+      step([]);
+      expect(kinds).not.toContain("scrape");
+      expect(kinds).not.toContain("bounce");
+      expect(kinds).not.toContain("docked");
+      expect(state.dockCount).toBe(0);
+      expect(state.dockArmed).toBe(true);
+      expect(
+        classifyCorridor(
+          dockSnapshot(own, state, dock, state.stationAngle),
+          dock,
+        ).outcome,
+      ).toBe("lane");
+    },
+  );
 });
