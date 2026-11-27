@@ -131,8 +131,10 @@ function expandAperture(
  * it at three sites (`src/Core/Entities/DockEntity.m` at 7437f22): `:565` and
  * `:635-637` decide which ship extent is compared with which aperture side
  * when docking, and `:824` rolls a launching ship 90 degrees about its launch
- * axis "to account for the slot being at 90 degrees to vertical". For the
- * Coriolis slot (taller than wide) and the Cobra (wider than tall) it is true.
+ * axis "to account for the slot being at 90 degrees to vertical". It reads each
+ * station's own dock record (`port`), so it differs by kind: for the Cobra
+ * (wider than tall) it is true for the Coriolis and Icosahedron slots (taller
+ * than wide) and false for the Dodecahedron slot (wider than tall).
  */
 export function slotTwistedForShip(
   port: { readonly width: number; readonly height: number },

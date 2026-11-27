@@ -15,6 +15,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { STATION_KINDS } from "../../src/content/stations.js";
+import type { StationKind } from "../../src/content/stations.js";
 import { classifyCorridor, dockSnapshot } from "../../src/sim/dock/corridor.js";
 import type { DockSnapshot } from "../../src/sim/dock/corridor.js";
 import { hullContact, obbsIntersect } from "../../src/sim/dock/hull.js";
@@ -28,12 +30,15 @@ import { stepFlight } from "../../src/sim/flight/step.js";
 import { add, length, scale, vec } from "../../src/sim/math.js";
 import type { Vec3 } from "../../src/sim/math.js";
 import { DT } from "../../src/sim/time.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
+import type { SystemLayout } from "../../src/sim/world/layout.js";
 import {
   laveDockGeometry,
   placeShipInPortFrame,
   type PortPose,
 } from "../helpers/dock-pose.js";
 import { laveFixture } from "../helpers/lave.js";
+import { dockGeometryOf, stationSpecOf } from "../helpers/stations.js";
 
 const fixture = laveFixture();
 const { layout, config } = fixture;
@@ -299,6 +304,111 @@ describe("orientation invariance through a bounce", () => {
     expect(state.orientation).toEqual(beforeOrientation);
     expect(state.mode).toBe("inFlight");
     expect(state.bounceCount).toBe(1);
+  });
+});
+
+/**
+ * The player's dock hull contact per station kind (Phase 22.1, WORLD-20, owner
+ * decision D-B). Each kind's proxy is the contact box of its own dock record
+ * (`dockGeometryOf`), never a typed number. These cases prove the proxy is
+ * used: that a ship pressed into it bounces and one just outside it does not.
+ * They do not prove the box fits the visible hull; the E-135 todo paragraph
+ * "Contact proxy per station kind (Phase 22.1)" records what the box costs per
+ * kind (Phase 22.2 decides whether it stays a box).
+ */
+describe("hull contact per station kind (Phase 22.1, D-B)", () => {
+  function kindFixture(kind: StationKind) {
+    const own = deriveSystemLayout(
+      { ...fixture.system, station: kind },
+      stationSpecOf(kind),
+    );
+    const dock = dockGeometryOf(kind);
+    const aligned = dock.port.width < dock.port.height ? 0 : Math.PI / 2;
+    // Half a proxy half-width off the axis: outside every kind's aperture.
+    const lateral = dock.contactPort.halfX / 2;
+    return { own, dock, aligned, lateral };
+  }
+
+  function armedAt(own: SystemLayout, pose: PortPose): FlightState {
+    const state = initFlightState(own);
+    state.mode = "inFlight";
+    state.position = pose.position;
+    state.orientation = pose.orientation;
+    state.speed = pose.speed;
+    state.dockArmed = true;
+    return state;
+  }
+
+  it.each(STATION_KINDS)(
+    "gives a ship box pressed into the %s proxy outside the aperture a hull contact and a hull bounce",
+    (kind) => {
+      const { own, dock, aligned, lateral } = kindFixture(kind);
+      const state = armedAt(
+        own,
+        placeShipInPortFrame(own, dock, {
+          nosePastPlane: 300,
+          lateral,
+          rollFromMatched: aligned,
+        }),
+      );
+      const snapshot = dockSnapshot(own, state, dock, state.stationAngle);
+      expect(classifyCorridor(snapshot, dock).outcome).toBe("outside");
+
+      const contact = hullContact(snapshot, dock.contactPort);
+      expect(contact).not.toBeNull();
+      expect(contact?.depth).toBeGreaterThan(0);
+      expect(length(contact?.normalWorld ?? vec(0, 0, 0))).toBeCloseTo(1, 9);
+
+      const events = stepDocking(state, own, dock, DT);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ kind: "bounce", cause: "hull" });
+      expect(state.mode).toBe("inFlight");
+      expect(state.bounceCount).toBe(1);
+    },
+  );
+
+  it.each(STATION_KINDS)(
+    "gives the same box just past the %s proxy's outward face no contact",
+    (kind) => {
+      const { own, dock, aligned, lateral } = kindFixture(kind);
+      // box.min.z = nose - 0, so a nose one metre past zMax is clear of it.
+      const state = armedAt(
+        own,
+        placeShipInPortFrame(own, dock, {
+          nosePastPlane: -(dock.contactPort.zMax + 1),
+          lateral,
+          rollFromMatched: aligned,
+        }),
+      );
+      const snapshot = dockSnapshot(own, state, dock, state.stationAngle);
+      expect(snapshot.box.min.z).toBeCloseTo(dock.contactPort.zMax + 1, 6);
+
+      expect(hullContact(snapshot, dock.contactPort)).toBeNull();
+      expect(obbsIntersect(snapshot, dock.contactPort)).toBe(false);
+      expect(stepDocking(state, own, dock, DT)).toEqual([]);
+      expect(state.bounceCount).toBe(0);
+    },
+  );
+
+  it("counts the Dodecahedron's protruding faceplate as hull: a box touching it is a bounce, not a dock", () => {
+    const { own, dock, aligned, lateral } = kindFixture("dodecahedron");
+    // The faceplate stands about 25.7 m out of the mouth plane.
+    expect(dock.contactPort.zMax).toBeCloseTo(25.7, 1);
+    const state = armedAt(
+      own,
+      placeShipInPortFrame(own, dock, {
+        nosePastPlane: -(dock.contactPort.zMax - 5),
+        lateral,
+        rollFromMatched: aligned,
+      }),
+    );
+
+    const events = stepDocking(state, own, dock, DT);
+
+    expect(events.map((event) => event.kind)).toEqual(["bounce"]);
+    expect(events[0]).toMatchObject({ cause: "hull" });
+    expect(state.mode).toBe("inFlight");
+    expect(state.dockCount).toBe(0);
   });
 });
 

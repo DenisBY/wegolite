@@ -22,6 +22,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { DockPort } from "../../src/content/schemas/dock-port.js";
+import { STATION_KINDS } from "../../src/content/stations.js";
+import type { StationKind } from "../../src/content/stations.js";
 import { classifyCorridor, dockSnapshot } from "../../src/sim/dock/corridor.js";
 import {
   createDockGeometry,
@@ -37,6 +39,7 @@ import {
 import type { FlightState } from "../../src/sim/flight/state.js";
 import { stepFlight } from "../../src/sim/flight/step.js";
 import { DT } from "../../src/sim/time.js";
+import { deriveSystemLayout } from "../../src/sim/world/layout.js";
 import type { SystemLayout } from "../../src/sim/world/layout.js";
 import {
   laveDockGeometry,
@@ -44,6 +47,7 @@ import {
   type PortPose,
 } from "../helpers/dock-pose.js";
 import { laveFixture } from "../helpers/lave.js";
+import { dockGeometryOf, stationSpecOf } from "../helpers/stations.js";
 
 const fixture = laveFixture();
 const { layout, config } = fixture;
@@ -292,4 +296,100 @@ describe("manual docking capture", () => {
       expect(result).toEqual(results[0]);
     }
   });
+});
+
+/**
+ * Each station kind docks through its own slot (Phase 22.1, WORLD-20, owner
+ * decision D-B). A copy of Lave whose `station` is the kind keeps the spec and
+ * the system in agreement; the dock geometry is the kind's own record. The
+ * aligned roll comes from the record's port width and height (a portrait slot
+ * takes the wings along its tall axis, a landscape one along its wide axis),
+ * never from a typed angle per kind.
+ */
+describe("docking through each kind's own slot (Phase 22.1, WORLD-20)", () => {
+  function kindFixture(kind: StationKind) {
+    const own = deriveSystemLayout(
+      { ...fixture.system, station: kind },
+      stationSpecOf(kind),
+    );
+    const dock = dockGeometryOf(kind);
+    const aligned = dock.port.width < dock.port.height ? 0 : Math.PI / 2;
+    return { own, dock, aligned };
+  }
+
+  function flyAt(own: SystemLayout, pose: PortPose): FlightState {
+    const state = initFlightState(own);
+    state.mode = "inFlight";
+    state.position = pose.position;
+    state.orientation = pose.orientation;
+    state.speed = pose.speed;
+    return state;
+  }
+
+  function stepKind(
+    state: FlightState,
+    own: SystemLayout,
+    dock: DockGeometry,
+  ): ReturnType<typeof stepFlight> {
+    return stepFlight(state, own, config, ZERO_INTENT, [], DT, { dock });
+  }
+
+  it.each(STATION_KINDS)(
+    "docks an aligned centred %s approach on the weighted-plane tick and lands on its docked pose",
+    (kind) => {
+      const { own, dock, aligned } = kindFixture(kind);
+      const pose = (nosePastPlane: number): PortPose =>
+        placeShipInPortFrame(own, dock, {
+          nosePastPlane,
+          rollFromMatched: aligned,
+          lateral: 0,
+          forwardSpeed: 0,
+        });
+
+      // One step before the capture plane the weighted box is still ahead of it.
+      const early = flyAt(own, pose(45));
+      const earlyEvents = stepKind(early, own, dock);
+      expect(early.mode).toBe("inFlight");
+      expect(earlyEvents.map((event) => event.kind)).not.toContain("docked");
+      expect(earlyEvents.map((event) => event.kind)).not.toContain("scrape");
+      expect(outcomeAt(early, early.stationAngle, dock, own)).toBe("lane");
+
+      const state = flyAt(own, pose(90));
+      const events = stepKind(state, own, dock);
+      expect(state.mode).toBe("docked");
+      expect(state.dockCount).toBe(1);
+      expect(state.position).toEqual(dockMouthPosition(own));
+      expect(state.orientation).toEqual(own.stationBaseQuat);
+      expect(events).toContainEqual({
+        kind: "docked",
+        via: "manual",
+        clockDelta: 0,
+      });
+    },
+  );
+
+  it.each(STATION_KINDS)(
+    "bounces the same %s approach rolled a quarter turn instead of docking",
+    (kind) => {
+      const { own, dock, aligned } = kindFixture(kind);
+      const state = flyAt(
+        own,
+        placeShipInPortFrame(own, dock, {
+          nosePastPlane: 10,
+          rollFromMatched: aligned + Math.PI / 2,
+          lateral: 0,
+          forwardSpeed: 100,
+        }),
+      );
+      state.dockArmed = true;
+
+      const events = stepKind(state, own, dock);
+
+      expect(events.map((event) => event.kind)).toContain("bounce");
+      expect(events.map((event) => event.kind)).not.toContain("docked");
+      expect(state.mode).toBe("inFlight");
+      expect(state.dockCount).toBe(0);
+      expect(state.bounceCount).toBe(1);
+    },
+  );
 });

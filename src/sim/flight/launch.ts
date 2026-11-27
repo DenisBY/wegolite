@@ -62,9 +62,12 @@ const FORWARD = vec(0, 0, -1);
  * so in Wegolite's frame the pose is `stationBaseQuat * axisAngle(0,0,1,-pi/2)`
  * (`../math.ts` uses the standard Hamilton product and right-hand axis-angle).
  *
- * The resulting axis mapping on the port frame: local +X (the wings) lies along
- * port -j, the slot's long axis; local +Y along port +i; local -Z (the nose)
- * along port k, toward the planet.
+ * The resulting axis mapping on the port frame, for a slot that is twisted for
+ * the ship (the Coriolis and Icosahedron slots are taller than wide): local +X
+ * (the wings) lies along port -j, the slot's long axis; local +Y along port +i;
+ * local -Z (the nose) along port k, toward the planet. A landscape slot (the
+ * Dodecahedron's) is not twisted: the base pose already lays the wings along
+ * the slot's long axis, port +i. Each station's own dock record decides.
  *
  * Without dock geometry (probe steps that carry none) there are no port
  * dimensions to evaluate, so the result is the untwisted `stationBaseQuat`.
