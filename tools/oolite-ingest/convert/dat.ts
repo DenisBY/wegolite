@@ -340,6 +340,19 @@ function triangleArea(v0: Vec3, v1: Vec3, v2: Vec3): number {
 }
 
 /**
+ * The name of one material slot. Oolite applies each `NAMES` line `j` as
+ * `renameTexturesFrom: "<j>" to: name` (`OOMesh.m:1387-1390`): only a material
+ * whose `TEXTURES` key is the decimal text of `j` is renamed, so a mesh whose
+ * keys are file names keeps them. `oolite_dodo_faceplate.dat` authors the line
+ * `auvBG.tga` over file-name keys; it renames nothing, and the shipdata entry
+ * textures the material by its file name.
+ */
+function renamedMaterial(key: string, names: readonly string[] | null): string {
+  if (names === null || !/^(0|[1-9][0-9]*)$/.test(key)) return key;
+  return names[Number(key)] ?? key;
+}
+
+/**
  * Parse one `.dat` file. `file` is the repository-relative label used by every
  * `DAT_MESH` error.
  */
@@ -543,7 +556,7 @@ export function parseDat(source: string, file: string): ParsedMesh {
   const materials: MeshMaterial[] = materialKeys.map((key, index) => ({
     index,
     key,
-    name: names?.[index] ?? key,
+    name: renamedMaterial(key, names),
   }));
 
   return {

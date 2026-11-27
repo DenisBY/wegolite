@@ -119,6 +119,27 @@ describe("the five pinned meshes", () => {
     expect(mesh.normals?.length).toBe(1548);
   });
 
+  it("renames only the material whose key is the NAMES line's index, as Oolite does (OOMesh.m:1387)", () => {
+    // `oolite_dodo_faceplate.dat` authors `NAMES 1 / auvBG.tga` over a
+    // file-name key: nothing is renamed, so the shipdata material key
+    // `oolite_dodo_faceplate_diffuse.png` still names the slot.
+    const faceplate = readMesh(`${MODELS_DIR}/oolite_dodo_faceplate.dat`);
+    expect(faceplate.names).toEqual(["auvBG.tga"]);
+    expect(faceplate.materials.map((material) => material.key)).toEqual([
+      "oolite_dodo_faceplate_diffuse.png",
+    ]);
+    expect(faceplate.materials.map((material) => material.name)).toEqual([
+      "oolite_dodo_faceplate_diffuse.png",
+    ]);
+
+    // The Icosahedron's front section keys its slot `0` and names it.
+    const front = readMesh(`${MODELS_DIR}/oolite_ico.dat`);
+    expect(front.materials.map((material) => material.key)).toEqual(["0"]);
+    expect(front.materials.map((material) => material.name)).toEqual([
+      "oolite_ico_diffuse.png",
+    ]);
+  });
+
   it("uses the PNG filename as the material key for the Coriolis parts", () => {
     for (const model of MODELS.slice(1)) {
       const mesh = readMesh(model.file);

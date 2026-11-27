@@ -5831,7 +5831,7 @@
       "kind": "empty"
     },
     "model": "oolite_dodo.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "dodo",
       "dodec",
@@ -7013,7 +7013,7 @@
       "kind": "empty"
     },
     "model": "oolite_ico.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "ico",
       "icosa",
@@ -10271,7 +10271,7 @@
       "kind": "absent"
     },
     "model": "oolite_dodo_dock.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": null,
     "shipDef": {
       "materials": {
@@ -10313,7 +10313,7 @@
       "kind": "absent"
     },
     "model": "oolite_dodo_faceplate.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": null,
     "shipDef": {
       "materials": {
@@ -10356,7 +10356,7 @@
       "kind": "absent"
     },
     "model": "oolite_ico_dock.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": null,
     "shipDef": {
       "materials": {
@@ -10398,7 +10398,7 @@
       "kind": "absent"
     },
     "model": "oolite_ico_hull.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": null,
     "shipDef": {
       "materials": {
@@ -16719,7 +16719,7 @@
       "kind": "empty"
     },
     "model": "oolite_dodo.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "dodo",
       "dodec",
@@ -17847,7 +17847,7 @@
       "kind": "empty"
     },
     "model": "oolite_ico.dat",
-    "modelVendored": false,
+    "modelVendored": true,
     "roles": [
       "ico",
       "icosa",

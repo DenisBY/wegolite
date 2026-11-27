@@ -38,7 +38,7 @@ import {
   MERGED_NPC_GLBS,
   NPC_SHIP_GLBS,
   buildCobraGlb,
-  buildCoriolisGlb,
+  buildStationGlb,
   buildShipGlb,
   convertMesh,
   debrisGlbFile,
@@ -53,12 +53,13 @@ import {
   writeGlb,
 } from "./glb.js";
 import type {
-  CoriolisEntries,
-  CoriolisMeshes,
   GlbPrimitive,
   GlbScene,
   ShipEntry,
+  StationGlbPart,
 } from "./glb.js";
+import { STATION_BUILDS } from "./stations.js";
+import { STATION_RECORDS } from "../../../src/content/stations.js";
 import type { MergeOutcome } from "./atlas.js";
 import { compileShips } from "./ships.js";
 import { loadTextureImages, resolveReferencedTextures } from "./textures.js";
@@ -489,16 +490,52 @@ const CORIOLIS_FILES = {
   dock: "oolite_coriolis_dock.dat",
 } as const;
 
-function coriolisEntries(): CoriolisEntries {
-  return {
-    hull: shipEntry("coriolis-station"),
-    faceplate: shipEntry("oolite_coriolis_faceplate"),
-    tris: shipEntry("oolite_coriolis_tris"),
-    dock: shipEntry("oolite_coriolis_dock"),
-  };
+/** The parts of one station kind's GLB, read from the vendored inputs. */
+function stationParts(kind: "coriolis" | "dodecahedron" | "icosahedron") {
+  const build = STATION_BUILDS.find((candidate) => candidate.kind === kind);
+  if (build === undefined) throw new Error(`no station build for "${kind}"`);
+  return build.parts.map((part): StationGlbPart => ({
+    node: part.node,
+    model: part.model,
+    mesh: loadMesh(part.model),
+    entry: shipEntry(part.owner),
+  }));
 }
 
-function coriolisMeshes(): CoriolisMeshes {
+/** The four Coriolis parts, written out by hand, in the committed node order. */
+function coriolisParts(): readonly StationGlbPart[] {
+  return [
+    {
+      node: "hull",
+      model: CORIOLIS_FILES.hull,
+      mesh: loadMesh(CORIOLIS_FILES.hull),
+      entry: shipEntry("coriolis-station"),
+    },
+    {
+      node: "faceplate",
+      model: CORIOLIS_FILES.faceplate,
+      mesh: loadMesh(CORIOLIS_FILES.faceplate),
+      entry: shipEntry("oolite_coriolis_faceplate"),
+    },
+    {
+      node: "tris",
+      model: CORIOLIS_FILES.tris,
+      mesh: loadMesh(CORIOLIS_FILES.tris),
+      entry: shipEntry("oolite_coriolis_tris"),
+    },
+    {
+      node: "dock",
+      model: CORIOLIS_FILES.dock,
+      mesh: loadMesh(CORIOLIS_FILES.dock),
+      entry: shipEntry("oolite_coriolis_dock"),
+    },
+  ];
+}
+
+function coriolisMeshes(): Record<
+  "hull" | "faceplate" | "tris" | "dock",
+  ParsedMesh
+> {
   return {
     hull: loadMesh(CORIOLIS_FILES.hull),
     faceplate: loadMesh(CORIOLIS_FILES.faceplate),
@@ -860,7 +897,7 @@ describe("GLB container", () => {
   });
 
   it("emits the four-part Coriolis composite with its own local transforms", async () => {
-    const bytes = buildCoriolisGlb(coriolisMeshes(), coriolisEntries());
+    const bytes = buildStationGlb(coriolisParts());
     const { json } = readChunks(bytes);
     const document = await readWithReader(bytes);
 
@@ -906,7 +943,7 @@ describe("GLB container", () => {
 
   it("pins every Coriolis node's converted bounds against the golden", async () => {
     expect(golden.version).toBe(1);
-    const bytes = buildCoriolisGlb(coriolisMeshes(), coriolisEntries());
+    const bytes = buildStationGlb(coriolisParts());
     const document = await readWithReader(bytes);
 
     const expected: readonly (readonly [string, CoriolisNodeGolden])[] = [
@@ -949,8 +986,7 @@ describe("GLB container", () => {
   });
 
   it("draws each Coriolis part's material set from its own owning entry", async () => {
-    const entries = coriolisEntries();
-    const bytes = buildCoriolisGlb(coriolisMeshes(), entries);
+    const bytes = buildStationGlb(coriolisParts());
     const { json } = readChunks(bytes);
     const document = await readWithReader(bytes);
 
@@ -1623,7 +1659,13 @@ describe("the NPC GLB naming rule", () => {
   });
 
   it("keeps the row sets consistent in both directions", () => {
-    const composites = ["buoy.glb", "cobra3.glb", "coriolis.glb"];
+    const composites = [
+      "buoy.glb",
+      "cobra3.glb",
+      "coriolis.glb",
+      "dodecahedron.glb",
+      "icosahedron.glb",
+    ];
     for (const rows of [NPC_SHIP_GLBS, DEBRIS_GLBS]) {
       expect([...rows]).toEqual(
         [...rows].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
@@ -1640,4 +1682,133 @@ describe("the NPC GLB naming rule", () => {
     expect(Object.keys(EMITTED_ENTRIES).sort()).toEqual(expected);
     expect(Object.keys(MODEL_SOURCE_FILES).sort()).toEqual(expected);
   });
+});
+
+/**
+ * The three station composites come out of one builder (`buildStationGlb`),
+ * driven by `STATION_BUILDS`. The Coriolis bytes are the byte-identity contract
+ * of Phase 22.1 (ROADMAP Success Criterion 1); the two new stations are checked
+ * from the file itself, not by eye: node names in the record's order, each
+ * node's materials from its own part's entry, and every image a served file.
+ */
+describe("the station composites (Phase 22.1)", () => {
+  const LAYERS = {
+    coriolis: [
+      ["hull", "body"],
+      ["faceplate", "detail"],
+      ["tris", "detail"],
+      ["dock", "dock"],
+    ],
+    dodecahedron: [
+      ["hull", "body"],
+      ["faceplate", "detail"],
+      ["dock", "dock"],
+    ],
+    icosahedron: [
+      ["hull", "detail"],
+      ["mainhull", "body"],
+      ["dock", "dock"],
+    ],
+  } as const;
+
+  it("rebuilds the committed Coriolis GLB byte for byte from its four parts", () => {
+    const committed = readRepoBytes("public/models/coriolis.glb");
+
+    const fromBuilds = buildStationGlb(stationParts("coriolis"));
+    const byHand = buildStationGlb(coriolisParts());
+
+    expect(sha256Hex(byHand)).toBe(sha256Hex(committed));
+    expect(sha256Hex(fromBuilds)).toBe(sha256Hex(committed));
+  });
+
+  it("refuses a station with no parts", () => {
+    expect(() => buildStationGlb([])).toThrow(ContentError);
+  });
+
+  describe.each(STATION_BUILDS.map((build) => [build.kind, build] as const))(
+    "the %s model",
+    (kind, build) => {
+      const record = STATION_RECORDS[kind];
+      const file = record.glb.slice("models/".length);
+
+      it("is an anchored models path naming a file under public/models", () => {
+        expect(NPC_GLB_PATH_PATTERN.test(record.glb)).toBe(true);
+        expect(
+          existsSync(new URL(`../../../public/${record.glb}`, import.meta.url)),
+        ).toBe(true);
+        expect(MODEL_SOURCE_FILES[file]).toEqual(
+          build.parts.map((p) => p.model),
+        );
+        expect(EMITTED_ENTRIES[file]).toEqual(build.parts.map((p) => p.owner));
+      });
+
+      it("records one render layer per node, one body and one dock", () => {
+        expect(record.nodes.map((node) => [node.name, node.layer])).toEqual(
+          LAYERS[kind],
+        );
+        expect(
+          record.nodes.filter((node) => node.layer === "body"),
+        ).toHaveLength(1);
+        expect(
+          record.nodes.filter((node) => node.layer === "dock"),
+        ).toHaveLength(1);
+      });
+
+      it("is a fresh build of the committed bytes", async () => {
+        const committed = readRepoBytes(`public/${record.glb}`);
+        const { emitted } = await rebuildAll();
+        const rebuilt = emitted.get(file);
+        if (rebuilt === undefined) throw new Error(`${file} was not emitted`);
+        expect(sha256Hex(committed)).toBe(sha256Hex(rebuilt));
+      });
+
+      it("has the record's nodes in order, each textured by its own part's entry", () => {
+        const { json } = readChunks(readRepoBytes(`public/${record.glb}`));
+        expect(json.nodes.map((node) => node.name)).toEqual(
+          record.nodes.map((node) => node.name),
+        );
+
+        build.parts.forEach((part, index) => {
+          const node = at(json.nodes, index);
+          const mesh = at(json.meshes, node.mesh);
+          const own = Object.keys(shipEntry(part.owner).shipDef.materials);
+          expect(own.length, `${part.owner} authors materials`).toBeGreaterThan(
+            0,
+          );
+
+          const names = mesh.primitives.map(
+            (primitive) => at(json.materials, primitive.material).name,
+          );
+          expect(names.length, `${part.node} primitives`).toBeGreaterThan(0);
+          for (const name of names) {
+            expect(own, `${part.node} material ${name}`).toContain(name);
+          }
+          // The part's diffuse image is the re-encoded file of its own entry.
+          for (const primitive of mesh.primitives) {
+            const material = at(json.materials, primitive.material);
+            expect(
+              imageUri(
+                json,
+                material.pbrMetallicRoughness.baseColorTexture?.index,
+              ),
+            ).toBe(`../textures/${encodedTextureFile(material.name)}`);
+          }
+        });
+      });
+
+      it("references only images the content build serves under public/textures", () => {
+        const { json } = readChunks(readRepoBytes(`public/${record.glb}`));
+        expect(json.images.length).toBeGreaterThan(0);
+        const missing = json.images
+          .map((image) => image.uri)
+          .filter(
+            (uri) =>
+              !existsSync(
+                new URL(`../../../public/models/${uri}`, import.meta.url),
+              ),
+          );
+        expect(missing).toEqual([]);
+      });
+    },
+  );
 });

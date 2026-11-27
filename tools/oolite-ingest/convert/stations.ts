@@ -9,8 +9,13 @@
  * collision radius (`ShipEntity.m:417-419`, `2028-2044`): the main mesh, the
  * solid subentities (flashers are not `ShipEntity`s and add nothing) and the
  * dock subentity. `generate.ts` reads the union of these files together with
- * `MODEL_SOURCE_FILES`; no GLB is emitted from them in this plan, so the meshes
- * count toward mass and radius only.
+ * `MODEL_SOURCE_FILES`.
+ *
+ * From plan 22.1-10 the table also says how each kind's GLB is built: `parts`
+ * lists one part per node of the record's `nodes`, in that order, each with the
+ * mesh it is drawn from and the shipdata entry whose materials texture it.
+ * `convert/glb.ts` derives the station rows of `MODEL_SOURCE_FILES` and
+ * `EMITTED_ENTRIES` from it.
  */
 
 import {
@@ -18,6 +23,20 @@ import {
   STATION_RECORDS,
 } from "../../../src/content/stations.js";
 import type { StationKind } from "../../../src/content/stations.js";
+
+/** One node of a station GLB: its mesh and the entry that textures it. */
+export interface StationPart {
+  /** The glTF node name, from the kind's `StationRecord.nodes`. */
+  readonly node: string;
+  /** The vendored `.dat` the node's mesh is built from. */
+  readonly model: string;
+  /**
+   * The shipdata entry whose `materials` texture the part: the station key for
+   * the root node, the subentity key for every other node. The translation of
+   * a non-root node is that subentity's `position` in the root's entry.
+   */
+  readonly owner: string;
+}
 
 /** One station kind's build inputs. */
 export interface StationBuild {
@@ -43,6 +62,19 @@ export interface StationBuild {
    * Dodecahedron faceplate).
    */
   readonly contactModels: readonly string[];
+  /** The GLB file under `public/models`, from `StationRecord.glb`. */
+  readonly glbFile: string;
+  /**
+   * The GLB's nodes in file order, one per `StationRecord.nodes` entry. The
+   * first part is the root (the station's own mesh, translation zero).
+   */
+  readonly parts: readonly StationPart[];
+}
+
+/** What `MODELS` states per kind; the node names come from the record. */
+interface PartSource {
+  readonly model: string;
+  readonly owner: string;
 }
 
 const MODELS: Readonly<
@@ -51,7 +83,7 @@ const MODELS: Readonly<
     Pick<
       StationBuild,
       "mainModel" | "solidModels" | "dockModel" | "hullModels" | "contactModels"
-    >
+    > & { readonly partSources: readonly PartSource[] }
   >
 > = {
   coriolis: {
@@ -64,6 +96,15 @@ const MODELS: Readonly<
       "oolite_coriolis_tris.dat",
       "oolite_coriolis_faceplate.dat",
     ],
+    partSources: [
+      { model: "oolite_coriolis.dat", owner: "coriolis-station" },
+      {
+        model: "oolite_coriolis_faceplate.dat",
+        owner: "oolite_coriolis_faceplate",
+      },
+      { model: "oolite_coriolis_tris.dat", owner: "oolite_coriolis_tris" },
+      { model: "oolite_coriolis_dock.dat", owner: "oolite_coriolis_dock" },
+    ],
   },
   dodecahedron: {
     mainModel: "oolite_dodo.dat",
@@ -71,6 +112,11 @@ const MODELS: Readonly<
     dockModel: "oolite_dodo_dock.dat",
     hullModels: ["oolite_dodo.dat"],
     contactModels: ["oolite_dodo.dat", "oolite_dodo_faceplate.dat"],
+    partSources: [
+      { model: "oolite_dodo.dat", owner: "dodecahedron-station" },
+      { model: "oolite_dodo_faceplate.dat", owner: "oolite_dodo_faceplate" },
+      { model: "oolite_dodo_dock.dat", owner: "oolite_dodo_dock" },
+    ],
   },
   icosahedron: {
     mainModel: "oolite_ico.dat",
@@ -78,18 +124,51 @@ const MODELS: Readonly<
     dockModel: "oolite_ico_dock.dat",
     hullModels: ["oolite_ico.dat", "oolite_ico_hull.dat"],
     contactModels: ["oolite_ico.dat", "oolite_ico_hull.dat"],
+    partSources: [
+      { model: "oolite_ico.dat", owner: "icosahedron-station" },
+      { model: "oolite_ico_hull.dat", owner: "oolite_ico_mainhull" },
+      { model: "oolite_ico_dock.dat", owner: "oolite_ico_dock" },
+    ],
   },
 };
 
+const GLB_PATH_PREFIX = "models/";
+
+/** The build entry of one kind: `MODELS` joined with the record's nodes. */
+function stationBuild(kind: StationKind): StationBuild {
+  const record = STATION_RECORDS[kind];
+  const { partSources, ...models } = MODELS[kind];
+  if (partSources.length !== record.nodes.length) {
+    throw new Error(
+      `Wegolite: the ${kind} station has ${String(partSources.length)} part sources and ${String(record.nodes.length)} record nodes`,
+    );
+  }
+  const parts = record.nodes.map((node, index): StationPart => {
+    const source = partSources[index];
+    if (source === undefined) {
+      throw new Error(
+        `Wegolite: the ${kind} station has no part ${String(index)}`,
+      );
+    }
+    return Object.freeze({ node: node.name, ...source });
+  });
+  if (!record.glb.startsWith(GLB_PATH_PREFIX)) {
+    throw new Error(
+      `Wegolite: the ${kind} station glb "${record.glb}" is outside ${GLB_PATH_PREFIX}`,
+    );
+  }
+  return Object.freeze({
+    kind,
+    shipKey: record.shipKey,
+    glbFile: record.glb.slice(GLB_PATH_PREFIX.length),
+    parts: Object.freeze(parts),
+    ...models,
+  });
+}
+
 /** One frozen build entry per station kind, in `STATION_KINDS` order. */
 export const STATION_BUILDS: readonly StationBuild[] = Object.freeze(
-  STATION_KINDS.map((kind) =>
-    Object.freeze({
-      kind,
-      shipKey: STATION_RECORDS[kind].shipKey,
-      ...MODELS[kind],
-    }),
-  ),
+  STATION_KINDS.map(stationBuild),
 );
 
 function compareCodeUnits(left: string, right: string): number {
