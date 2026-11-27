@@ -35,6 +35,13 @@
  * asserted in tests/e2e/traffic.spec.ts. This bundle runs with traffic off, where
  * the prefetch never starts: the cold start below still requests no NPC model or
  * texture, and now also none in the frames after the first in-flight one.
+ *
+ * Phase 22.1 (plan 22.1-12): the same cold start requests no Dodecahedron or
+ * Icosahedron model or texture anywhere in its request log, the settled
+ * in-flight frames included. A station model load starts only for a hyperspace
+ * countdown or a Continue at that system (plan 22.1-11), so the plain path
+ * filter holds. The Continue-at-Zaonce first load is annotated, not gated, by
+ * `stations.spec.ts`; this ceiling keeps measuring a Lave start.
  */
 
 import { readFileSync } from "node:fs";
@@ -48,6 +55,11 @@ import {
   FIRST_LOAD_BYTES_CEILING,
   TRIANGLE_BUDGET,
 } from "./helpers/budgets.js";
+import {
+  DEFAULT_STATION_KIND,
+  STATION_KINDS,
+  STATION_RECORDS,
+} from "../../src/content/stations.js";
 import { systemByName } from "./helpers/chart.js";
 import { dockedSaveAt } from "./helpers/save-fixtures.js";
 import { writeRaw } from "./helpers/save-store.js";
@@ -176,6 +188,34 @@ function debrisAssetPaths(): NpcAssetPaths & {
     textures: [...textures].sort(),
     particles: [...particles].sort(),
   };
+}
+
+/**
+ * The URL paths of the GLB of every station kind but the default one (the
+ * Dodecahedron and the Icosahedron) and every texture those GLBs reference, read
+ * from each GLB's JSON chunk as `npcAssetPaths` does. Plan 22.1-11: a station
+ * model load starts only for a hyperspace countdown or a Continue at that
+ * system, so a Lave cold start requests none of these.
+ */
+function otherStationAssetPaths(): NpcAssetPaths {
+  const root = process.cwd();
+  const glbs = new Set<string>();
+  const textures = new Set<string>();
+  for (const kind of STATION_KINDS) {
+    if (kind === DEFAULT_STATION_KIND) continue;
+    const { glb } = STATION_RECORDS[kind];
+    const glbUrl = new URL(`/${glb}`, "http://localhost");
+    glbs.add(glbUrl.pathname);
+    const bytes = readFileSync(join(root, "public", glb));
+    const jsonLength = bytes.readUInt32LE(12);
+    const json = JSON.parse(
+      bytes.subarray(20, 20 + jsonLength).toString("utf8"),
+    ) as { readonly images?: readonly { readonly uri: string }[] };
+    for (const image of json.images ?? []) {
+      textures.add(new URL(image.uri, glbUrl).pathname);
+    }
+  }
+  return { glbs: [...glbs].sort(), textures: [...textures].sort() };
 }
 
 function collectErrors(page: Page): string[] {
@@ -381,6 +421,28 @@ test("a cold start to the first in-flight frame stays under the first-load bytes
   expect(
     requested.filter((path) => /\/assets\/ships-hulls-[^/]+\.js$/.test(path)),
     "the lazy hull chunk requested by a traffic-off cold start",
+  ).toEqual([]);
+  // Phase 22.1 (plan 22.1-12): no Dodecahedron or Icosahedron model or texture
+  // anywhere in the request log, the 30 settled in-flight frames included: the
+  // station model load starts only for a countdown or a Continue (plan
+  // 22.1-11), so a Lave cold start never fetches another kind.
+  const otherStations = otherStationAssetPaths();
+  expect(
+    otherStations.glbs,
+    "other station GLB paths (vacuity guard)",
+  ).toHaveLength(STATION_KINDS.length - 1);
+  expect(
+    otherStations.textures.length,
+    "other station texture paths (vacuity guard)",
+  ).toBeGreaterThanOrEqual(otherStations.glbs.length);
+  const otherStationPaths = new Set(
+    [...otherStations.glbs, ...otherStations.textures].filter(
+      (path) => !firstLoadTextures.has(path),
+    ),
+  );
+  expect(
+    requested.filter((path) => otherStationPaths.has(path)),
+    "Dodecahedron and Icosahedron models and textures requested on a Lave cold start (none, not even after the first in-flight frame)",
   ).toEqual([]);
   expect(total, "first-load bytes").toBeGreaterThan(0);
   expect(total, "first-load bytes ceiling").toBeLessThanOrEqual(

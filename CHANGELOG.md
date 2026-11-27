@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Each system's main station is now the type Oolite gives it (Coriolis,
+  Dodecahedron or Icosahedron), with its own model, dock slot and name on the
+  docked screen: the home screen's subtitle reads "Dodecahedron Station ·
+  Docked" at Biarge and "Icosahedron Station · Docked" at Zaonce, where it
+  always said "Coriolis Station". Oolite prints no main station name on a docked
+  screen, so this line is Wegolite's own (recorded in FIDELITY.md).
 - With NPC traffic on (the default in released builds), every system you arrive
   in is now populated as in Oolite: traders, often with escorts; pirates alone
   and in packs; bounty hunters; and police and, in high-tech systems,
