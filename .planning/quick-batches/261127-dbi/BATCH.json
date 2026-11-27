@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "batch_id": "261127-dbi",
+  "created_at": "2026-11-27T08:35:24.014Z",
+  "options": {},
+  "base_revision": "a42b71dabb232b52afdb17662ed12dd3456d0d2b",
+  "head_revision": null,
+  "items": [
+    {
+      "quick_id": "261127-dbj",
+      "client_id": null,
+      "description": "Fix the scanner/probe-file ENOENT race: tools/ai-harness/dist-check.test.ts and tests/guards/harness-isolation.test.ts walk src/ while purity guards create and delete `__purity_*` probe files; skip `__purity_*` files (as the content scanners, tests/compliance.test.ts and tests/sim/rng.test.ts do) or skip a file that vanished after listing. Todo .planning/todos/pending/2026-11-20-dist-check-purity-probe-race.md (move to completed).",
+      "status": "pending",
+      "depends_on": [],
+      "planned_files": [
+        "tests/guards/source-scan.ts",
+        "tests/guards/source-scan.test.ts",
+        "tools/ai-harness/dist-check.test.ts",
+        "tests/guards/harness-isolation.test.ts",
+        "tests/app/session/death-flow.test.ts",
+        "tests/sim/npc/constants.test.ts",
+        ".planning/todos/completed/2026-11-20-dist-check-purity-probe-race.md",
+        ".planning/todos/pending/2026-11-20-dist-check-purity-probe-race.md"
+      ],
+      "directory": null,
+      "worktree": null,
+      "dispatched_worktree": null,
+      "dispatched_branch": null,
+      "dispatched_base": null,
+      "wave": 0,
+      "commit": null,
+      "failure_reason": null
+    },
+    {
+      "quick_id": "261127-dbk",
+      "client_id": null,
+      "description": "Replace Wegolite's invented HUD message texts (\"Arrived at X\", \"Torus engaged\", \"Docking computers engaged\", and any other invented flight HUD messages) with Oolite's own texts from Resources/Config/descriptions.plist in /home/opencode/git/oolite, as Oolite shows them; record any message with no Oolite equivalent in FIDELITY.md; CHANGELOG entry.",
+      "status": "pending",
+      "depends_on": [],
+      "planned_files": [],
+      "directory": null,
+      "worktree": null,
+      "dispatched_worktree": null,
+      "dispatched_branch": null,
+      "dispatched_base": null,
+      "wave": 0,
+      "commit": null,
+      "failure_reason": null
+    }
+  ]
+}
