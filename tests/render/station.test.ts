@@ -83,9 +83,9 @@ interface GlbJson {
   readonly materials?: readonly GlbMaterial[];
 }
 
-function readGlbJson(): GlbJson {
+function readGlbJson(file = "coriolis.glb"): GlbJson {
   const bytes = readFileSync(
-    new URL("../../public/models/coriolis.glb", import.meta.url),
+    new URL(`../../public/models/${file}`, import.meta.url),
   );
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const jsonLength = view.getUint32(12, true);
@@ -212,6 +212,21 @@ describe("the committed Coriolis GLB", () => {
     const halfZ = (Math.max(...zValues) - Math.min(...zValues)) / 2;
     expect(halfZ).toBeGreaterThan(500.01);
     expect(halfZ).toBeCloseTo(517.15, 2);
+  });
+});
+
+describe.each(STATION_KINDS)("the committed %s GLB", (kind) => {
+  it("holds every record node as a glTF node with exactly one primitive", () => {
+    // The render layer settings are applied to one Mesh per record node, which
+    // is what GLTFLoader builds for a one-primitive glTF mesh.
+    const json = readGlbJson(stationRecord(kind).glb.replace("models/", ""));
+    for (const { name } of stationRecord(kind).nodes) {
+      const node = json.nodes.find((candidate) => candidate.name === name);
+      expect(node, `${name} node`).toBeDefined();
+      const mesh =
+        node?.mesh === undefined ? undefined : json.meshes[node.mesh];
+      expect(mesh?.primitives, `${name} primitives`).toHaveLength(1);
+    }
   });
 });
 
@@ -519,6 +534,33 @@ describe.each(STATION_KINDS)("createStation for the %s kind", (kind) => {
     expect(station.dock.name).toBe("dock");
     expect(station.root.getObjectByName("dock")).toBe(station.dock);
   });
+
+  it.each(stationRecord(kind).nodes.map((node) => node.name))(
+    "throws an error naming the kind and the node when the %s node is a group of meshes, not one mesh",
+    (name) => {
+      // What GLTFLoader returns for a node whose glTF mesh has two primitives:
+      // a Group named after the node, over Meshes named after the glTF mesh.
+      const model = syntheticStation(kind);
+      const single = model.scene.getObjectByName(name);
+      if (single === undefined) throw new Error(`no ${name} node`);
+      const group = new THREE.Group();
+      group.name = name;
+      for (const part of ["a", "b"]) {
+        const mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshStandardMaterial(),
+        );
+        mesh.name = `mesh_${part}`;
+        group.add(mesh);
+      }
+      model.scene.remove(single);
+      model.scene.add(group);
+
+      expect(() => createStation(kindLayout, model)).toThrow(
+        new RegExp(`the ${kind} station node "${name}" is not a single mesh`),
+      );
+    },
+  );
 
   it.each(stationRecord(kind).nodes.map((node) => node.name))(
     "throws an error naming the kind and the node when the %s node is missing",

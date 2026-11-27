@@ -39,7 +39,11 @@
 import * as THREE from "three";
 import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { stationRecord } from "../../content/stations.js";
-import type { StationKind, StationNode } from "../../content/stations.js";
+import type {
+  StationKind,
+  StationNode,
+  StationNodeLayer,
+} from "../../content/stations.js";
 import { axisAngle, mul } from "../../sim/math.js";
 import type { Quat } from "../../sim/math.js";
 import type { SystemLayout } from "../../sim/world/layout.js";
@@ -200,6 +204,27 @@ function requireNode(
   return node;
 }
 
+/**
+ * The node of a record, which must be one mesh. The content build emits one
+ * primitive per node, so GLTFLoader names the Mesh after the node; a
+ * multi-primitive mesh would arrive as a Group of differently named Meshes, and
+ * the node's layer settings would silently land on nothing (z-fighting between
+ * the body and its detail layers).
+ */
+function requireMeshNode(
+  model: THREE.Object3D,
+  kind: StationKind,
+  name: string,
+): THREE.Mesh {
+  const node = requireNode(model, kind, name);
+  if (!isMesh(node)) {
+    throw new Error(
+      `Wegolite: the ${kind} station node "${name}" is not a single mesh; its render layer cannot be applied.`,
+    );
+  }
+  return node;
+}
+
 /** One kind's cloned model with its render settings applied, and its dock. */
 function assembleModel(
   kind: StationKind,
@@ -209,15 +234,27 @@ function assembleModel(
   const model = gltf.scene.clone(true);
 
   // Fail loudly on a silent asset change rather than moving the dock.
-  for (const node of nodes) requireNode(model, kind, node.name);
+  const meshes = nodes.map((node) => ({
+    node,
+    mesh: requireMeshNode(model, kind, node.name),
+  }));
   const dockNode = nodes.find((node) => node.layer === "dock");
   if (dockNode === undefined) {
     throw new Error(`Wegolite: the ${kind} station record has no dock node.`);
   }
   const dock = requireNode(model, kind, dockNode.name);
 
+  // The settings follow the resolved meshes, not their names.
   const orders = renderOrderOf(nodes);
-  const layers = new Map(nodes.map((node) => [node.name, node.layer]));
+  const settings = new Map<
+    THREE.Mesh,
+    { readonly order: number | undefined; readonly layer: StationNodeLayer }
+  >(
+    meshes.map(({ node, mesh }) => [
+      mesh,
+      { order: orders.get(node.name), layer: node.layer },
+    ]),
+  );
 
   // Clone first: every material tweak below must land on this scene's copy, not
   // on the cached GLB the menu scene still uses.
@@ -225,9 +262,9 @@ function assembleModel(
 
   model.traverse((object) => {
     if (!isMesh(object)) return;
-    const order = orders.get(object.name);
-    if (order !== undefined) object.renderOrder = order;
-    const layer = layers.get(object.name);
+    const setting = settings.get(object);
+    if (setting?.order !== undefined) object.renderOrder = setting.order;
+    const layer = setting?.layer;
 
     for (const material of meshMaterials(object)) {
       material.depthWrite = true;
