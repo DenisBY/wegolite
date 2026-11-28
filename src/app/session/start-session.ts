@@ -465,10 +465,13 @@ export function createSessionLifecycle(ctx: SessionState, deps: LifecycleDeps) {
    *   2. the validated galaxy map is rebuilt, then the options are read;
    *   3. the asset cache is preloaded (a failure shows the boot failure);
    *   4. the ship catalogue; the equipment, commodity and label catalogues
-   *      (one failure surface), then the station definition;
-   *   5. the flight config; the saved system for a Continue; the settings and
-   *      graphics quality; the first scene and its layout;
-   *   6. the dock geometry from the generated aperture;
+   *      and the traffic chunks (one failure surface);
+   *   5. the flight config and the saved system for a Continue; then the
+   *      three station records, the starting system's `stationFor` (spec and
+   *      dock geometry), its station hulls and its station model (one failure
+   *      surface); then the settings and graphics quality, the first scene and
+   *      its layout;
+   *   6. the dock geometry from `stationFor`, installed into the core;
    *   7. the New-game clear of the save (only after every load succeeded);
    *   8. the flight state (a restore or a fresh one) and its installation, the
    *      profile and the saved target, then the status overlay;

@@ -22,10 +22,10 @@
  * non-finite step and caps at {@link MAX_EXPANSIONS}, so degenerate input is a
  * named `SCHEMA` failure instead of a hung build.
  *
- * The emitted path is the repository-relative constant
- * {@link DOCK_PORT_PATH}, not a bare filename: `generateContent` resolves an
- * emitted path directly beneath its output root, and the drift gate only scans
- * the declared emitted roots (T-04-34).
+ * The emitted path is the repository-relative `GENERATED_DIR` joined with the
+ * kind's `STATION_RECORDS[kind].dockPortFile`, not a bare filename:
+ * `generateContent` resolves an emitted path directly beneath its output root,
+ * and the drift gate only scans the declared emitted roots (T-04-34).
  */
 
 import { canonicalJson } from "../canonical/json.js";

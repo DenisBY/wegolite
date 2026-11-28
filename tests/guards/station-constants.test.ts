@@ -28,8 +28,8 @@
  * Scope (review L1058@92f951b7): it scans `src` only. The content tool under
  * `tools/oolite-ingest` keeps the Coriolis keys of the shared static hull
  * artifact, `STATIC_HULL_KEYS` and `STATIC_NAME_KEYS` in
- * `convert/static-hulls.ts` and `DOCK_PORT_PATH` in `convert/dock-port.ts`, so
- * that artifact stays byte-identical; the guard does not see them.
+ * `convert/static-hulls.ts`, so that artifact stays byte-identical; the guard
+ * does not see them.
  *
  * `PENDING_PRESENTATION` lists a presentation file that still carries a
  * Coriolis constant until the plan that removes it lands. It is empty: plan

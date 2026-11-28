@@ -15,9 +15,10 @@
  * `usable` mirrors Oolite's predicate without pruning, and `modelVendored`
  * makes the difference explicit (DATA-07). `modelVendored` follows the meshes
  * an emitted GLB is built from (`MODEL_SOURCE_FILES`): the Dodecahedron and
- * Icosahedron meshes are vendored and read for mass and collision radius
- * (`STATION_MODEL_FILES`), but until plan 22.1-10 emits their GLBs those two
- * entries stay `modelVendored: false`. Nothing in `src/` reads the flag.
+ * Icosahedron meshes are vendored, read for mass and collision radius
+ * (`STATION_MODEL_FILES`) and emitted as GLBs, so both station entries and
+ * their dock and main-hull subentities carry `modelVendored: true`. Nothing in
+ * `src/` reads the flag.
  *
  * `extras` carries every resolved key that the typed projection does not
  * consume, verbatim. Nothing is interpreted: a value that looks like a condition
