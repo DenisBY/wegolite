@@ -54,11 +54,11 @@ type CatalogEntry = ShipCatalogue["entries"][number];
 
 const GENERATED_DIR = "src/content/generated";
 
-/** Where the static hull artifact is written, repository-relative. */
-export const STATIC_HULLS_PATH = `${GENERATED_DIR}/ships-static-hulls.json`;
-
 /** The shared artifact's file name, the one `STATION_RECORDS.coriolis` names. */
-const SHARED_HULLS_FILE = "ships-static-hulls.json";
+const SHARED_HULLS_FILE = STATION_RECORDS.coriolis.hullsFile;
+
+/** Where the static hull artifact is written, repository-relative. */
+export const STATIC_HULLS_PATH = `${GENERATED_DIR}/${SHARED_HULLS_FILE}`;
 
 /**
  * The ship keys of the station kinds whose hulls ship in their own file, in
@@ -74,7 +74,7 @@ export const OWN_FILE_STATION_KEYS: readonly string[] = STATION_KINDS.filter(
  * and the alloy plate (D-07; wrecks get no hull).
  */
 export const STATIC_HULL_KEYS: readonly string[] = [
-  "coriolis-station",
+  STATION_RECORDS.coriolis.shipKey,
   "buoy",
   "barrel",
   "alloy",
@@ -85,7 +85,7 @@ export const STATIC_HULL_KEYS: readonly string[] = [
  * display name is typed into app code (plan 18-06).
  */
 export const STATIC_NAME_KEYS: readonly string[] = [
-  "coriolis-station",
+  STATION_RECORDS.coriolis.shipKey,
   "buoy",
   "buoy-witchpoint",
   "barrel",

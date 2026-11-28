@@ -425,6 +425,7 @@ describe("the per-station static hull files (Phase 22.1)", () => {
   it("covers the Dodecahedron and the Icosahedron, and leaves the Coriolis in the shared file", () => {
     expect(OWN_FILE_KINDS).toEqual(["dodecahedron", "icosahedron"]);
     expect(STATION_RECORDS.coriolis.hullsFile).toBe("ships-static-hulls.json");
+    expect(STATION_RECORDS.coriolis.shipKey).toBe("coriolis-station");
     expect(
       parsedArtifact().hulls.some((hull) => hull.key.endsWith("-station")),
     ).toBe(true);
