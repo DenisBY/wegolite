@@ -40,7 +40,6 @@ export interface LaveFixture {
 
 export const LAVE_SYSTEM_ID = "g0-s7";
 export const PLAYER_SHIP_KEY = "oolite_template_cobra3-player";
-export const STATION_SHIP_KEY = "coriolis-station";
 
 export function laveFixture(): LaveFixture {
   const systems = readJson<System[]>(
