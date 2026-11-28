@@ -23,6 +23,7 @@ import { describe, expect, it } from "vitest";
 import { DockPortSchema } from "./schemas/dock-port.js";
 import {
   DockPortError,
+  createStationDockPortLoader,
   loadDockPorts,
   loadStationDockPort,
   readDockPortFile,
@@ -216,6 +217,50 @@ describe("per-kind dock-port records (Phase 22.1)", () => {
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(DockPortError);
     expect((error as Error).message).toContain("dock-port-text.json");
+  });
+});
+
+describe("the per-kind loader after a failed read", () => {
+  const FILE = STATION_RECORDS.dodecahedron.dockPortFile;
+  const KEY = `./generated/${FILE}`;
+  const committed = readFileSync(
+    new URL(`./generated/${FILE}`, import.meta.url),
+    "utf8",
+  );
+
+  it("reads again on the next ask instead of repeating the rejection", async () => {
+    let reads = 0;
+    const load = createStationDockPortLoader({
+      [KEY]: () => {
+        reads += 1;
+        return reads === 1
+          ? Promise.reject(new Error("chunk fetch dropped"))
+          : Promise.resolve(committed);
+      },
+    });
+
+    await expect(load("dodecahedron")).rejects.toThrow("chunk fetch dropped");
+    const recovered = await load("dodecahedron");
+    expectClose(recovered.port.width, 210.362);
+    expect(reads).toBe(2);
+  });
+
+  it("reads a record that loaded once only once", async () => {
+    let reads = 0;
+    const load = createStationDockPortLoader({
+      [KEY]: () => {
+        reads += 1;
+        return Promise.resolve(committed);
+      },
+    });
+
+    const [first, second] = await Promise.all([
+      load("dodecahedron"),
+      load("dodecahedron"),
+    ]);
+    expect(second).toEqual(first);
+    await load("dodecahedron");
+    expect(reads).toBe(1);
   });
 });
 

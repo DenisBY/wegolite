@@ -86,17 +86,36 @@ export async function readDockPortFile(
   return result.data;
 }
 
-const cachedByKind = new Map<StationKind, Promise<DockPort>>();
+/**
+ * A per-kind loader with its own cache over `loaders`. A load that rejects is
+ * evicted, so the next ask reads again instead of being handed the same
+ * failure for the page lifetime (as the asset cache does). The factory is the
+ * seam for the tests; the shipped loader below is its one production use.
+ */
+export function createStationDockPortLoader(
+  loaders: DockPortLoaders,
+): (kind: StationKind) => Promise<DockPort> {
+  const cachedByKind = new Map<StationKind, Promise<DockPort>>();
+  return (kind) => {
+    let cached = cachedByKind.get(kind);
+    if (cached === undefined) {
+      const pending = readDockPortFile(
+        stationRecord(kind).dockPortFile,
+        loaders,
+      ).catch((error: unknown) => {
+        cachedByKind.delete(kind);
+        throw error;
+      });
+      cachedByKind.set(kind, pending);
+      cached = pending;
+    }
+    return cached;
+  };
+}
 
 /** Load and validate one station kind's dock-port record once. */
-export function loadStationDockPort(kind: StationKind): Promise<DockPort> {
-  let cached = cachedByKind.get(kind);
-  if (cached === undefined) {
-    cached = readDockPortFile(stationRecord(kind).dockPortFile);
-    cachedByKind.set(kind, cached);
-  }
-  return cached;
-}
+export const loadStationDockPort: (kind: StationKind) => Promise<DockPort> =
+  createStationDockPortLoader(lazyDockPort);
 
 /** The dock-port records of every station kind (three small files). */
 export async function loadDockPorts(): Promise<
