@@ -374,6 +374,17 @@ export function assembleSystemScene(
 /**
  * Build one system's scene.
  *
+ * The station model has two failure policies, by when it is available (review
+ * IN-06). Already cached: the body is assembled inside this call, so a GLB that
+ * lacks a node of the kind's record throws here, after the half-built scene is
+ * disposed, and the caller (a boot, a Load or a hyperspace arrival) reports the
+ * failure on its own surface. Still loading: the body is built meshless, and a
+ * failed load or a bad GLB is logged once by the late attach and leaves the
+ * station undrawn while the session keeps running (T-22.1-25). The difference
+ * is deliberate and neither path falls back to another kind's model: a station
+ * is drawn from its own record or not at all, and a content defect fails by
+ * name.
+ *
  * @param factories Partial overrides for tests; production uses the real body
  * factories. A throwing override exercises the half-built cleanup path.
  */
