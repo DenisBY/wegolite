@@ -69,9 +69,14 @@ async function readArtifact(fileName: string): Promise<StaticHullArtifact> {
       `Wegolite: expected the static hull octrees at ${path}, but they are missing.`,
     );
   }
-  const parsed = StaticHullArtifactSchema.safeParse(
-    JSON.parse(await load()) as unknown,
-  );
+  const raw = await load();
+  let json: unknown;
+  try {
+    json = JSON.parse(raw) as unknown;
+  } catch {
+    throw new StaticHullsError(`Wegolite: ${path} is not valid JSON.`);
+  }
+  const parsed = StaticHullArtifactSchema.safeParse(json);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     throw new StaticHullsError(
